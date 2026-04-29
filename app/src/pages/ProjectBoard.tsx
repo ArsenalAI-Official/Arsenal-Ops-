@@ -508,7 +508,7 @@ const ProjectBoard = () => {
                 
                 setWorkItems(prev => [...prev, newItem]);
                 handleCloseCreateForm();
-                toast.success('Work item created!');
+                toast.success('Work item created!', { duration: 1000 });
                 refreshProjectStats();
             } else {
                 const errorText = await response.text();
