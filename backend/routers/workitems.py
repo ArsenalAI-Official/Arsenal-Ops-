@@ -366,7 +366,8 @@ async def create_work_item(
         start_date=datetime.fromisoformat(item.start_date) if item.start_date else None,
         due_date=datetime.fromisoformat(item.due_date) if item.due_date else None,
         started_at=datetime.utcnow() if item.status == "in_progress" else None,
-        completed_at=datetime.utcnow() if item.status == "done" else None
+        completed_at=datetime.utcnow() if item.status == "done" else None,
+        last_assigned_at=datetime.utcnow() if item.assignee_id else None,
     )
     db.add(work_item)
     db.flush()  # assigns work_item.id without committing
@@ -507,6 +508,8 @@ async def update_work_item(
         new_assignee_id = update_data['assignee_id']
         # Only create comment if assignee actually changed
         if new_assignee_id != old_assignee_id:
+            # Stamp the transfer time so the new assignee's capacity uses remaining (not estimated)
+            item.last_assigned_at = datetime.utcnow()
             from models.developer import Developer
             new_assignee_name = "Unassigned"
             if new_assignee_id:
@@ -1491,25 +1494,18 @@ async def get_hours_analytics(
         
         completed_items = [item for item in dev_items if item.status == WorkItemStatus.DONE.value]
         
-        # Current week logged hours for this developer (Sunday to Saturday)
-        from datetime import timedelta
-        # Find Sunday of current week (weekday(): Monday=0, Sunday=6)
-        today = datetime.utcnow()
-        days_since_sunday = (today.weekday() + 1) % 7  # Days since last Sunday
-        current_week_start = today - timedelta(days=days_since_sunday)
-        current_week_start = current_week_start.replace(hour=0, minute=0, second=0, microsecond=0)
-        current_week_end = current_week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
-        
-        # Debug logging
-        print(f"DEBUG: Week range {current_week_start} to {current_week_end}")
-        for te in dev_time_entries:
-            if te.logged_at:
-                print(f"DEBUG: Entry logged_at={te.logged_at}, in_range={current_week_start <= te.logged_at <= current_week_end}")
-        
+        # Current week boundaries (Saturday → Friday, UTC) — shared with admin capacity.
+        from services.capacity_service import week_boundaries, compute_capacity_breakdown
+        current_week_start, current_week_end = week_boundaries()
+
         current_week_logged = sum(
             te.hours for te in dev_time_entries
             if te.logged_at and current_week_start <= te.logged_at <= current_week_end
         )
+
+        # Status-based weekly capacity breakdown for THIS developer scoped to THIS project.
+        # Mirrors /api/admin/developers/capacity but filtered to the current project.
+        capacity_breakdown = compute_capacity_breakdown(dev_items, current_week_start)
         
         # Build detailed ticket breakdown for this developer
         ticket_breakdown = []
@@ -1566,7 +1562,16 @@ async def get_hours_analytics(
             "completed_items": len(completed_items),
             "my_tickets": ticket_breakdown,
             "hours_logged_on_others_tickets": hours_on_others_tickets,
-            "attribution_note": "Hours attributed to the person who logged them, not the ticket assignee"
+            "attribution_note": "Hours attributed to the person who logged them, not the ticket assignee",
+            # Sat-Fri capacity breakdown scoped to this project (matches admin capacity rules)
+            "week_start": current_week_start.isoformat(),
+            "week_end": current_week_end.isoformat(),
+            "this_week_in_progress_hours": capacity_breakdown["this_week_in_progress_hours"],
+            "this_week_in_review_hours": capacity_breakdown["this_week_in_review_hours"],
+            "this_week_done_hours": capacity_breakdown["this_week_done_hours"],
+            "this_week_capacity_used": capacity_breakdown["this_week_capacity_used"],
+            "this_week_remaining_capacity": capacity_breakdown["this_week_remaining_capacity"],
+            "this_week_tickets": capacity_breakdown["tickets"],
         })
     
     # Weekly breakdown - based on calendar weeks (Monday to Sunday)

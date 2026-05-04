@@ -1053,34 +1053,26 @@ async def get_project_workload(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get workload data for all developers in a project - shows weekly capacity"""
+    """Get workload + Sat-Fri weekly capacity for all assignees in this project.
+
+    Capacity rules (status-based, transfer-aware) live in
+    backend/services/capacity_service.py — same logic as the admin capacity endpoint.
+    """
     project = require_project_access(project_id, current_user, db)
-    
+
     from models.work_item import WorkItem
-    from datetime import timedelta
-    
-    # Calculate this week's boundaries (Sunday to Saturday)
-    today = datetime.utcnow()
-    days_since_sunday = (today.weekday() + 1) % 7
-    week_start = today - timedelta(days=days_since_sunday)
-    week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
-    week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
-    
-    # Get all work items for this project
+    from services.capacity_service import week_boundaries, compute_capacity_breakdown
+
+    week_start, week_end = week_boundaries()
     items = db.query(WorkItem).filter(WorkItem.project_id == project_id).all()
-    
-    # Group by assignee
-    workload_data = {}
-    
+
+    workload_data: dict = {}
+
     for item in items:
-        assignee_id = item.assignee_id
-        if not assignee_id:
-            assignee_id = "unassigned"
-        
+        assignee_id = item.assignee_id if item.assignee_id else "unassigned"
+
         if assignee_id not in workload_data:
-            assignee_name = "Unassigned"
-            if item.assignee:
-                assignee_name = item.assignee.name
+            assignee_name = item.assignee.name if item.assignee else "Unassigned"
             workload_data[assignee_id] = {
                 "developer_id": assignee_id,
                 "developer_name": assignee_name,
@@ -1092,50 +1084,28 @@ async def get_project_workload(
                 "estimated_hours": 0,
                 "logged_hours": 0,
                 "remaining_hours": 0,
-                "this_week_in_progress_hours": 0,  # Estimated hours on in_progress tickets
-                "this_week_done_hours": 0,  # Actual logged hours on done tickets this week
-                "this_week_capacity_used": 0,  # Total capacity used this week
-                "this_week_remaining_capacity": 40,  # Remaining capacity (40h - used)
-                "items": []
+                "_items": [],  # collected, used by helper below
+                "items": [],   # public list, kept for backwards compat
             }
-        
-        
-        workload_data[assignee_id]["total_items"] += 1
-        workload_data[assignee_id]["estimated_hours"] += item.estimated_hours or 0
-        workload_data[assignee_id]["logged_hours"] += item.logged_hours or 0
-        workload_data[assignee_id]["remaining_hours"] += item.remaining_hours or 0
-        
-        # Check if ticket was modified this week
-        ticket_modified_this_week = item.updated_at and week_start <= item.updated_at <= week_end
-        
-        # Per-week capacity calculation
-        if item.status == "in_progress":
-            if ticket_modified_this_week:
-                # Moved to in_progress THIS WEEK: use estimated hours
-                workload_data[assignee_id]["this_week_in_progress_hours"] += item.estimated_hours or 0
-            else:
-                # Already in_progress BEFORE this week: use only remaining hours
-                workload_data[assignee_id]["this_week_in_progress_hours"] += item.remaining_hours or 0
-        elif item.status == "in_review":
-            # In-review: work is done, use actual logged hours
-            workload_data[assignee_id]["this_week_done_hours"] += item.logged_hours or 0
-        elif item.status == "done" and item.completed_at:
-            # Done this week: use actual logged hours (not estimated)
-            if week_start <= item.completed_at <= week_end:
-                workload_data[assignee_id]["this_week_done_hours"] += item.logged_hours or 0
-        
+
+        bucket = workload_data[assignee_id]
+        bucket["total_items"] += 1
+        bucket["estimated_hours"] += item.estimated_hours or 0
+        bucket["logged_hours"] += item.logged_hours or 0
+        bucket["remaining_hours"] += item.remaining_hours or 0
+        bucket["_items"].append(item)
+
         if item.status == "done":
-            workload_data[assignee_id]["completed_items"] += 1
+            bucket["completed_items"] += 1
         elif item.status == "in_progress":
-            workload_data[assignee_id]["in_progress_items"] += 1
+            bucket["in_progress_items"] += 1
         else:
-            workload_data[assignee_id]["todo_items"] += 1
-        
-        # Check if overdue
+            bucket["todo_items"] += 1
+
         if item.due_date and item.due_date < datetime.utcnow() and item.status != "done":
-            workload_data[assignee_id]["overdue_items"] += 1
-        
-        workload_data[assignee_id]["items"].append({
+            bucket["overdue_items"] += 1
+
+        bucket["items"].append({
             "id": item.id,
             "key": item.key,
             "title": item.title,
@@ -1143,18 +1113,34 @@ async def get_project_workload(
             "priority": item.priority,
             "due_date": item.due_date.isoformat() if item.due_date else None,
             "estimated_hours": item.estimated_hours,
-            "logged_hours": item.logged_hours
+            "logged_hours": item.logged_hours,
         })
-    
-    # Calculate weekly capacity used and remaining
-    for dev_id in workload_data:
-        capacity_used = (
-            workload_data[dev_id]["this_week_in_progress_hours"] +
-            workload_data[dev_id]["this_week_done_hours"]
-        )
-        workload_data[dev_id]["this_week_capacity_used"] = capacity_used
-        workload_data[dev_id]["this_week_remaining_capacity"] = max(0, 40 - capacity_used)
-    
+
+    # Apply the shared Sat-Fri capacity helper per-assignee (skip "unassigned")
+    for dev_id, bucket in workload_data.items():
+        if dev_id == "unassigned":
+            bucket.update({
+                "this_week_in_progress_hours": 0,
+                "this_week_in_review_hours": 0,
+                "this_week_done_hours": 0,
+                "this_week_capacity_used": 0,
+                "this_week_remaining_capacity": 40,
+                "this_week_tickets": [],
+            })
+        else:
+            breakdown = compute_capacity_breakdown(bucket["_items"], week_start)
+            bucket.update({
+                "this_week_in_progress_hours": breakdown["this_week_in_progress_hours"],
+                "this_week_in_review_hours": breakdown["this_week_in_review_hours"],
+                "this_week_done_hours": breakdown["this_week_done_hours"],
+                "this_week_capacity_used": breakdown["this_week_capacity_used"],
+                "this_week_remaining_capacity": breakdown["this_week_remaining_capacity"],
+                "this_week_tickets": breakdown["tickets"],
+            })
+        bucket["week_start"] = week_start.isoformat()
+        bucket["week_end"] = week_end.isoformat()
+        bucket.pop("_items", None)
+
     return list(workload_data.values())
 
 

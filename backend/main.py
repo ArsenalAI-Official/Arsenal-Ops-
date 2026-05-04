@@ -112,6 +112,15 @@ async def startup_event():
         print("DEBUG: Database initialized successfully")
     except Exception as e:
         print(f"DEBUG: Database initialization error: {e}")
+
+    # Run idempotent column-add migrations. Each script is a no-op if the
+    # column already exists. Add new migrations here whenever a column is
+    # added to an existing model so production deploys self-heal.
+    try:
+        import migrate_add_last_assigned_at
+        migrate_add_last_assigned_at.migrate()
+    except Exception as e:
+        print(f"DEBUG: migrate_add_last_assigned_at failed: {e}")
     
     # Create default admin users from .env configuration
     try:

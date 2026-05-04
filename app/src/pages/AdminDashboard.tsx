@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Users,
@@ -20,6 +20,11 @@ import {
     Mail,
     CheckCircle2,
     AlertCircle,
+    ChevronDown,
+    ChevronRight,
+    Activity as ActivityIcon,
+    Eye,
+    TrendingUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,6 +46,24 @@ interface Employee {
     assigned_items_count: number;
 }
 
+interface CapacityTicket {
+    id: number;
+    key: string;
+    title: string;
+    status: string;
+    priority: string;
+    project_id: number;
+    project_name: string | null;
+    estimated_hours: number;
+    logged_hours: number;
+    remaining_hours: number;
+    started_at: string | null;
+    last_assigned_at: string | null;
+    completed_at: string | null;
+    counted_hours: number;
+    counted_basis: string;
+}
+
 interface DeveloperCapacity {
     developer_id: number;
     developer_name: string;
@@ -52,6 +75,9 @@ interface DeveloperCapacity {
     this_week_done_hours: number;
     this_week_capacity_used: number;
     this_week_remaining_capacity: number;
+    week_start?: string;
+    week_end?: string;
+    tickets?: CapacityTicket[];
     specialization: string | null;
 }
 
@@ -91,28 +117,13 @@ interface DashboardStats {
     tickets_by_priority: Record<string, number>;
 }
 
-interface WorkItem {
-    id: number;
-    title: string;
-    description: string | null;
-    status: string;
-    priority: string;
-    project_id: number;
-    project_name: string;
-    assigned_to: number | null;
-    assigned_to_name: string | null;
-    estimated_hours: number | null;
-    logged_hours: number;
-    created_at: string;
-    updated_at: string;
-}
-
 const AdminDashboard = () => {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<'dashboard' | 'employees' | 'projects' | 'users' | 'developers-capacity' | 'custom-restrictions'>('dashboard');
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [developerCapacities, setDeveloperCapacities] = useState<DeveloperCapacity[]>([]);
+    const [expandedCapacityDevId, setExpandedCapacityDevId] = useState<number | null>(null);
     const [projects, setProjects] = useState<Project[]>([]);
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
@@ -164,12 +175,6 @@ const AdminDashboard = () => {
         github_token: '',
     });
     const [invitingProjectId, setInvitingProjectId] = useState<number | null>(null);
-
-    // Employee tickets modal state
-    const [showEmployeeTicketsModal, setShowEmployeeTicketsModal] = useState(false);
-    const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-    const [employeeTickets, setEmployeeTickets] = useState<WorkItem[]>([]);
-    const [ticketsLoading, setTicketsLoading] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -269,31 +274,6 @@ const AdminDashboard = () => {
             }
         } catch {
             toast.error('Failed to delete employee');
-        }
-    };
-
-    const handleViewEmployeeTickets = async (employee: Employee) => {
-        setSelectedEmployee(employee);
-        setTicketsLoading(true);
-        setShowEmployeeTicketsModal(true);
-
-        try {
-            const response = await fetch(`${API_BASE_URL}/api/admin/employees/${employee.id}/in-progress-tickets`);
-            if (response.ok) {
-                const tickets = await response.json();
-                // Sort by priority: critical > high > medium > low
-                const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-                const sorted = tickets.sort((a: WorkItem, b: WorkItem) => {
-                    return (priorityOrder[a.priority.toLowerCase()] ?? 99) - (priorityOrder[b.priority.toLowerCase()] ?? 99);
-                });
-                setEmployeeTickets(sorted);
-            } else {
-                toast.error('Failed to fetch employee tickets');
-            }
-        } catch {
-            toast.error('Failed to fetch employee tickets');
-        } finally {
-            setTicketsLoading(false);
         }
     };
 
@@ -725,17 +705,28 @@ const AdminDashboard = () => {
                                         <tbody>
                                             {employees.map(emp => {
                                                 const devCapacity = developerCapacities.find(d => d.developer_id === emp.id);
-                                                const capacityPercentage = devCapacity 
-                                                    ? Math.round((devCapacity.this_week_capacity_used / 40) * 100)
-                                                    : 0;
-                                                const capacityStatus = devCapacity
-                                                    ? devCapacity.this_week_remaining_capacity >= 10 ? 'Available' 
-                                                      : devCapacity.this_week_remaining_capacity > 0 ? 'Moderate'
-                                                      : 'Busy'
-                                                    : 'Available';
-                                                
+                                                const capacityUsed = devCapacity?.this_week_capacity_used ?? 0;
+                                                const capacityPercentage = Math.round((capacityUsed / 40) * 100);
+                                                const remaining = devCapacity?.this_week_remaining_capacity ?? 40;
+                                                const capacityStatus = remaining >= 10 ? 'Available'
+                                                    : remaining > 0 ? 'Moderate'
+                                                    : 'Busy';
+                                                const inProgressH = devCapacity?.this_week_in_progress_hours ?? 0;
+                                                const inReviewH = devCapacity?.this_week_in_review_hours ?? 0;
+                                                const doneH = devCapacity?.this_week_done_hours ?? 0;
+                                                const isExpanded = expandedCapacityDevId === emp.id;
+                                                const tickets = devCapacity?.tickets ?? [];
+
+                                                // Group tickets by status for the expanded view
+                                                const groupedTickets = {
+                                                    in_progress: tickets.filter(t => t.status === 'in_progress'),
+                                                    in_review: tickets.filter(t => t.status === 'in_review'),
+                                                    done: tickets.filter(t => t.status === 'done'),
+                                                };
+
                                                 return (
-                                                <tr key={emp.id} className="border-b border-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.02)]">
+                                                <React.Fragment key={emp.id}>
+                                                <tr className={`border-b border-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.02)] ${isExpanded ? 'bg-[rgba(255,255,255,0.015)]' : ''}`}>
                                                     <td className="px-5 py-4">
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-8 h-8 rounded-full bg-[rgba(224,185,84,0.2)] flex items-center justify-center text-sm font-medium text-[#E0B954]">
@@ -753,26 +744,39 @@ const AdminDashboard = () => {
                                                     <td className="px-5 py-4 text-sm text-[#737373]">{emp.github_username || '-'}</td>
                                                     <td className="px-5 py-4 text-sm text-[#a3a3a3]">{emp.project_count}</td>
                                                     <td className="px-5 py-4 text-sm text-[#a3a3a3]">{emp.assigned_items_count}</td>
-                                                    <td className="px-5 py-4 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => handleViewEmployeeTickets(emp)}>
+                                                    <td
+                                                        className="px-5 py-4 cursor-pointer hover:bg-[rgba(255,255,255,0.02)] transition-colors"
+                                                        onClick={() => setExpandedCapacityDevId(isExpanded ? null : emp.id)}
+                                                        title="Click to see ticket-level breakdown"
+                                                    >
                                                         <div className="flex items-center gap-2">
-                                                            <div className="flex-1 h-2 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden max-w-xs">
-                                                                <div
-                                                                    className={`h-full rounded-full ${
-                                                                        capacityPercentage > 100 ? 'bg-red-500'
-                                                                        : capacityPercentage > 80 ? 'bg-yellow-500'
-                                                                        : 'bg-gradient-to-r from-[#E0B954] to-[#C79E3B]'
-                                                                    }`}
-                                                                    style={{
-                                                                        width: `${Math.min(capacityPercentage, 100)}%`
-                                                                    }}
-                                                                />
+                                                            {isExpanded
+                                                                ? <ChevronDown className="w-3.5 h-3.5 text-[#737373] flex-shrink-0" />
+                                                                : <ChevronRight className="w-3.5 h-3.5 text-[#737373] flex-shrink-0" />}
+                                                            <div className="flex-1 min-w-0 max-w-xs">
+                                                                <div className="h-2 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden flex">
+                                                                    {capacityUsed > 0 && (
+                                                                        <>
+                                                                            <div className="h-full bg-[#E0B954]" style={{ width: `${Math.min(100, (inProgressH / 40) * 100)}%` }} title={`In progress: ${inProgressH}h`} />
+                                                                            <div className="h-full bg-[#A78BFA]" style={{ width: `${Math.min(100, (inReviewH / 40) * 100)}%` }} title={`In review: ${inReviewH}h`} />
+                                                                            <div className="h-full bg-[#34D399]" style={{ width: `${Math.min(100, (doneH / 40) * 100)}%` }} title={`Done this week: ${doneH}h`} />
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                                <div className="text-[10px] text-[#737373] mt-1.5 flex items-center gap-2 flex-wrap">
+                                                                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-[#E0B954]" />{inProgressH}h in-progress</span>
+                                                                    <span className="text-[rgba(255,255,255,0.15)]">·</span>
+                                                                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-[#A78BFA]" />{inReviewH}h in-review</span>
+                                                                    <span className="text-[rgba(255,255,255,0.15)]">·</span>
+                                                                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-[#34D399]" />{doneH}h done</span>
+                                                                </div>
                                                             </div>
                                                             <span className={`text-xs font-medium whitespace-nowrap ${
-                                                                capacityStatus === 'Available' ? 'text-[#E0B954]' : 
-                                                                capacityStatus === 'Busy' ? 'text-[#F59E0B]' : 
+                                                                capacityStatus === 'Available' ? 'text-[#E0B954]' :
+                                                                capacityStatus === 'Busy' ? 'text-[#F59E0B]' :
                                                                 'text-[#a3a3a3]'
                                                             }`}>
-                                                                {capacityStatus} ({devCapacity?.this_week_capacity_used ?? 0}h/40h)
+                                                                {capacityStatus} · {capacityUsed}h/40h ({capacityPercentage}%)
                                                             </span>
                                                         </div>
                                                     </td>
@@ -797,6 +801,79 @@ const AdminDashboard = () => {
                                                         </div>
                                                     </td>
                                                 </tr>
+                                                {isExpanded && (
+                                                    <tr className="border-b border-[rgba(255,255,255,0.03)] bg-[rgba(0,0,0,0.25)]">
+                                                        <td colSpan={7} className="px-5 py-5">
+                                                            <div className="space-y-4">
+                                                                <div className="flex items-center justify-between gap-3 flex-wrap">
+                                                                    <div className="text-xs text-[#737373]">
+                                                                        Week: <span className="text-[#a3a3a3] font-mono">
+                                                                            {devCapacity?.week_start ? new Date(devCapacity.week_start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'}
+                                                                            {' → '}
+                                                                            {devCapacity?.week_end ? new Date(devCapacity.week_end).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'}
+                                                                        </span>
+                                                                        <span className="ml-2 text-[#737373]">(Sat → Fri, UTC)</span>
+                                                                    </div>
+                                                                    {tickets.length === 0 && (
+                                                                        <span className="text-xs text-[#737373]">No tickets contributing this week.</span>
+                                                                    )}
+                                                                </div>
+
+                                                                {tickets.length > 0 && (
+                                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                                        {([
+                                                                            { key: 'in_progress', label: 'In progress', color: '#E0B954', icon: ActivityIcon, items: groupedTickets.in_progress, total: inProgressH },
+                                                                            { key: 'in_review', label: 'In review', color: '#A78BFA', icon: Eye, items: groupedTickets.in_review, total: inReviewH },
+                                                                            { key: 'done', label: 'Done this week', color: '#34D399', icon: CheckCircle2, items: groupedTickets.done, total: doneH },
+                                                                        ] as const).map(group => {
+                                                                            const Icon = group.icon;
+                                                                            return (
+                                                                                <div key={group.key} className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-3">
+                                                                                    <div className="flex items-center justify-between mb-2">
+                                                                                        <div className="flex items-center gap-2">
+                                                                                            <Icon className="w-3.5 h-3.5" style={{ color: group.color }} />
+                                                                                            <span className="text-xs font-semibold text-white">{group.label}</span>
+                                                                                            <span className="text-[10px] text-[#737373]">({group.items.length})</span>
+                                                                                        </div>
+                                                                                        <span className="text-xs font-mono tabular-nums" style={{ color: group.color }}>{group.total}h</span>
+                                                                                    </div>
+                                                                                    {group.items.length === 0 ? (
+                                                                                        <div className="text-[11px] text-[#737373] py-2">No tickets</div>
+                                                                                    ) : (
+                                                                                        <ul className="space-y-1.5">
+                                                                                            {group.items.map(t => (
+                                                                                                <li key={t.id} className="flex items-start gap-2 text-xs">
+                                                                                                    <span className="font-mono text-[#E0B954] mt-0.5 flex-shrink-0">{t.key}</span>
+                                                                                                    <div className="flex-1 min-w-0">
+                                                                                                        <div className="text-white truncate">{t.title}</div>
+                                                                                                        <div className="text-[10px] text-[#737373] mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                                                                                            <span>{t.project_name || `project ${t.project_id}`}</span>
+                                                                                                            <span className="text-[rgba(255,255,255,0.15)]">·</span>
+                                                                                                            <span>est {t.estimated_hours}h</span>
+                                                                                                            <span className="text-[rgba(255,255,255,0.15)]">·</span>
+                                                                                                            <span>logged {t.logged_hours}h</span>
+                                                                                                            {t.counted_basis === 'remaining (transferred)' && (
+                                                                                                                <span className="px-1 py-0.5 rounded bg-[#FBBF24]/15 text-[#FBBF24] text-[9px] font-semibold uppercase tracking-wider">transferred</span>
+                                                                                                            )}
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                    <span className="font-mono tabular-nums flex-shrink-0" style={{ color: group.color }} title={`Counted as ${t.counted_basis}`}>
+                                                                                                        +{t.counted_hours}h
+                                                                                                    </span>
+                                                                                                </li>
+                                                                                            ))}
+                                                                                        </ul>
+                                                                                    )}
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                </React.Fragment>
                                                 );
                                             })}
                                         </tbody>
@@ -903,6 +980,15 @@ const AdminDashboard = () => {
                                                     />
                                                 </div>
                                             </div>
+                                            {/* Pulse Settings — opens this project's Pulse Settings tab in ProjectDetail */}
+                                            <Button
+                                                size="sm"
+                                                onClick={(e) => { e.stopPropagation(); navigate(`/project/${project.id}?tab=pulse_settings`); }}
+                                                className="w-full mt-3 h-8 text-[11px] bg-[rgba(224,185,84,0.1)] hover:bg-[rgba(224,185,84,0.18)] border border-[rgba(224,185,84,0.3)] text-[#E0B954] rounded-lg font-semibold"
+                                            >
+                                                <TrendingUp className="w-3.5 h-3.5 mr-1.5" />
+                                                Edit Pulse values
+                                            </Button>
                                         </div>
                                     ))}
                                 </div>
@@ -1519,94 +1605,6 @@ const AdminDashboard = () => {
                 </div>
             )}
 
-            {/* Employee In-Progress Tickets Modal */}
-            {showEmployeeTicketsModal && selectedEmployee && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowEmployeeTicketsModal(false)}>
-                    <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
-                            <div>
-                                <h2 className="text-lg font-bold text-white">In-Progress Tickets</h2>
-                                <p className="text-xs text-[#737373] mt-0.5">{selectedEmployee.name} • {employeeTickets.length} ticket{employeeTickets.length !== 1 ? 's' : ''}</p>
-                            </div>
-                            <button onClick={() => setShowEmployeeTicketsModal(false)} className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="p-5 max-h-96 overflow-y-auto">
-                            {ticketsLoading ? (
-                                <div className="flex items-center justify-center py-10">
-                                    <div className="w-5 h-5 border-2 border-[#E0B954]/30 border-t-[#E0B954] rounded-full animate-spin" />
-                                </div>
-                            ) : employeeTickets.length === 0 ? (
-                                <div className="text-center py-8 text-[#737373]">
-                                    <Ticket className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                                    <p>No in-progress tickets</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {employeeTickets.map(ticket => {
-                                        const priorityColor = ticket.priority.toLowerCase() === 'critical' ? '#EF4444'
-                                            : ticket.priority.toLowerCase() === 'high' ? '#F97316'
-                                            : ticket.priority.toLowerCase() === 'medium' ? '#F59E0B'
-                                            : '#E0B954';
-                                        
-                                        // Truncate description to 80 characters
-                                        const truncatedDescription = ticket.description
-                                            ? ticket.description.length > 80
-                                                ? ticket.description.substring(0, 80) + '...'
-                                                : ticket.description
-                                            : '';
-                                        
-                                        return (
-                                            <div key={ticket.id} className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-4 hover:border-[rgba(255,255,255,0.08)] transition">
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <button
-                                                                onClick={() => {
-                                                                    window.open(`/project/${ticket.project_id}/board/${ticket.id}`, '_blank');
-                                                                }}
-                                                                className="text-sm font-medium text-[#E0B954] hover:text-white hover:underline transition text-left"
-                                                            >
-                                                                {ticket.title}
-                                                            </button>
-                                                            <span
-                                                                className="px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap"
-                                                                style={{ backgroundColor: `${priorityColor}30`, color: priorityColor }}
-                                                            >
-                                                                {ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1)}
-                                                            </span>
-                                                        </div>
-                                                        {truncatedDescription && (
-                                                            <p className="text-xs text-[#a3a3a3] mb-2" title={ticket.description ?? undefined}>{truncatedDescription}</p>
-                                                        )}
-                                                        <div className="flex items-center justify-between mt-2 text-xs">
-                                                            <div className="flex items-center gap-4 text-[#737373]">
-                                                                <button
-                                                                    onClick={() => window.open(`/project/${ticket.project_id}`, '_blank')}
-                                                                    className="font-bold text-[#E0B954] hover:text-white hover:underline transition"
-                                                                >
-                                                                    {ticket.project_name}
-                                                                </button>
-                                                            
-                                                            </div>
-                                                            {ticket.estimated_hours !== null && (
-                                                                <span className="bg-[rgba(224,185,84,0.1)] text-[#E0B954] px-2 py-0.5 rounded whitespace-nowrap">
-                                                                    {Math.max(0, ticket.estimated_hours - ticket.logged_hours)}h left
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

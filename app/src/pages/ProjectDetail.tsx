@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line
 } from 'recharts';
@@ -38,7 +38,8 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import PMView from '@/components/PMView';
-import { TimelineView, CalendarView, ActivityFeed, BusinessReviewView } from '@/components/ProjectHub';
+import { TimelineView, CalendarView, ActivityFeed, ProjectPulseView, PulseSettingsView } from '@/components/ProjectHub';
+import { PulseData, loadPulseData } from '@/components/ProjectHub/pulseData';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -47,7 +48,7 @@ import { Calendar as CalendarIcon } from '@/components/ui/calendar';
 import { toast, Toaster } from 'sonner';
 import MermaidRenderer from '@/components/MermaidRenderer';
 import ArchitectureEditor from '@/components/ArchitectureEditor';
-import { useAuth, isProjectManager } from '@/contexts/AuthContext';
+import { useAuth, isProjectManager, isAdmin } from '@/contexts/AuthContext';
 
 import { API_BASE_URL } from '@/config/api';
 
@@ -171,7 +172,7 @@ interface Project {
     architectures: Architecture[];
 }
 
-type TabType = 'overview' | 'hub' | 'tracker' | 'calendar' | 'business' | 'goals' | 'activity' | 'project_manager';
+type TabType = 'overview' | 'hub' | 'tracker' | 'calendar' | 'pulse' | 'pulse_settings' | 'goals' | 'activity' | 'project_manager';
 
 interface HubWorkItem {
     id: string;
@@ -241,9 +242,23 @@ interface CustomRestriction {
 const ProjectDetail = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const { token, user } = useAuth();
     const [project, setProject] = useState<Project | null>(null);
-    const [activeTab, setActiveTab] = useState<TabType>('overview');
+    // Initial tab respects ?tab= URL param so external links (e.g. admin "Pulse Settings"
+    // button) can deep-link to a specific tab on this project.
+    const initialTab = (searchParams.get('tab') as TabType) || 'overview';
+    const [activeTab, setActiveTab] = useState<TabType>(initialTab);
+    // Keep ?tab= in sync with the active tab so refresh / share works.
+    useEffect(() => {
+        const current = searchParams.get('tab');
+        if (current !== activeTab) {
+            const next = new URLSearchParams(searchParams);
+            if (activeTab === 'overview') next.delete('tab');
+            else next.set('tab', activeTab);
+            setSearchParams(next, { replace: true });
+        }
+    }, [activeTab]);
     const [isLoading, setIsLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<Partial<Project>>({});
@@ -270,6 +285,12 @@ const ProjectDetail = () => {
     const [activities, setActivities] = useState<ActivityItem[]>([]);
     const [hubLoading, setHubLoading] = useState(true);
     const [sprintsExpanded, setSprintsExpanded] = useState(false);
+
+    // Pulse view data — admin-edited variables, hydrated from localStorage with dummy defaults
+    const [pulseData, setPulseData] = useState<PulseData | null>(null);
+    useEffect(() => {
+        if (id) setPulseData(loadPulseData(id));
+    }, [id]);
     
     // Calendar pickers for start & end dates
     const [showCalendarStartDate, setShowCalendarStartDate] = useState(false);
@@ -871,10 +892,12 @@ const ProjectDetail = () => {
         { id: 'overview' as TabType, label: 'Overview', icon: Info },
         { id: 'tracker' as TabType, label: 'Project Tracker', icon: BarChart3 },
         { id: 'calendar' as TabType, label: 'Timeline', icon: Calendar },
-        { id: 'business' as TabType, label: 'Business Review', icon: TrendingUp },
+        { id: 'pulse' as TabType, label: 'Pulse', icon: TrendingUp },
         { id: 'activity' as TabType, label: 'Activity', icon: Activity },
         // PM tab for system admins, project managers, and project admins
         ...(canAccessPMTab() ? [{ id: 'project_manager' as TabType, label: 'Project Manager', icon: Clock }] : []),
+        // Pulse Settings — system admins only (drives values shown on the Pulse tab)
+        ...(isAdmin(user) ? [{ id: 'pulse_settings' as TabType, label: 'Pulse Settings', icon: DollarSign }] : []),
     ];
 
     // Filter out developers already in project
@@ -883,7 +906,9 @@ const ProjectDetail = () => {
     );
 
     // Helper function to check if a subsection is restricted
-    const isSubsectionRestricted = (tabName: TabType, subsectionName: string): boolean => {
+    // Accepts string (not just TabType) so legacy restriction rows that still
+    // reference renamed tabs (e.g. 'business' before it became 'pulse') keep working.
+    const isSubsectionRestricted = (tabName: string, subsectionName: string): boolean => {
         return userRestrictions.some(r => 
             r.tab_name.toLowerCase() === tabName.toLowerCase() && 
             r.subsection.toLowerCase() === subsectionName.toLowerCase()
@@ -2194,9 +2219,9 @@ const ProjectDetail = () => {
                     )
                 )}
 
-                {/* Business Review Tab */}
-                {activeTab === 'business' && (
-                    hubLoading ? (
+                {/* Pulse Tab (was Business Review) */}
+                {activeTab === 'pulse' && (
+                    hubLoading || !pulseData ? (
                         <div className="space-y-4 animate-pulse">
                             {[...Array(3)].map((_, i) => (
                                 <div key={i} className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl p-5">
@@ -2205,16 +2230,23 @@ const ProjectDetail = () => {
                                 </div>
                             ))}
                         </div>
-                    ) : !isSubsectionRestricted('business', 'business review') ? (
-                        <BusinessReviewView
-                            project={project}
-                            analytics={analytics}
-                            sprints={sprints}
-                            milestones={milestones}
-                            workItems={hubWorkItems}
-                        />
+                    ) : !isSubsectionRestricted('pulse', 'pulse') && !isSubsectionRestricted('business', 'business review') ? (
+                        <ProjectPulseView pulse={pulseData} />
                     ) : (
                         <div className="text-center py-12 text-[#737373]">This section is restricted from your view.</div>
+                    )
+                )}
+
+                {/* Pulse Settings Tab — system admins only */}
+                {activeTab === 'pulse_settings' && (
+                    isAdmin(user) && id && pulseData ? (
+                        <PulseSettingsView
+                            projectId={id}
+                            initial={pulseData}
+                            onChange={setPulseData}
+                        />
+                    ) : (
+                        <div className="text-center py-12 text-[#737373]">This section is restricted to system admins.</div>
                     )
                 )}
 

@@ -8,3 +8,5 @@ export { default as ActivityFeed } from './ActivityFeed';
 export { default as ProjectHubView } from './ProjectHubView';
 export { default as ReviewerView } from './ReviewerView';
 export { default as BusinessReviewView } from './BusinessReviewView';
+export { default as ProjectPulseView } from './ProjectPulseView';
+export { default as PulseSettingsView } from './PulseSettingsView';
