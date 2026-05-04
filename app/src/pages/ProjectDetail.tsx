@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line
 } from 'recharts';
@@ -242,9 +242,23 @@ interface CustomRestriction {
 const ProjectDetail = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const { token, user } = useAuth();
     const [project, setProject] = useState<Project | null>(null);
-    const [activeTab, setActiveTab] = useState<TabType>('overview');
+    // Initial tab respects ?tab= URL param so external links (e.g. admin "Pulse Settings"
+    // button) can deep-link to a specific tab on this project.
+    const initialTab = (searchParams.get('tab') as TabType) || 'overview';
+    const [activeTab, setActiveTab] = useState<TabType>(initialTab);
+    // Keep ?tab= in sync with the active tab so refresh / share works.
+    useEffect(() => {
+        const current = searchParams.get('tab');
+        if (current !== activeTab) {
+            const next = new URLSearchParams(searchParams);
+            if (activeTab === 'overview') next.delete('tab');
+            else next.set('tab', activeTab);
+            setSearchParams(next, { replace: true });
+        }
+    }, [activeTab]);
     const [isLoading, setIsLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<Partial<Project>>({});

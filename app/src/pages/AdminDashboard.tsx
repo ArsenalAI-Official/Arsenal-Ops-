@@ -24,6 +24,7 @@ import {
     ChevronRight,
     Activity as ActivityIcon,
     Eye,
+    TrendingUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -979,6 +980,15 @@ const AdminDashboard = () => {
                                                     />
                                                 </div>
                                             </div>
+                                            {/* Pulse Settings — opens this project's Pulse Settings tab in ProjectDetail */}
+                                            <Button
+                                                size="sm"
+                                                onClick={(e) => { e.stopPropagation(); navigate(`/project/${project.id}?tab=pulse_settings`); }}
+                                                className="w-full mt-3 h-8 text-[11px] bg-[rgba(224,185,84,0.1)] hover:bg-[rgba(224,185,84,0.18)] border border-[rgba(224,185,84,0.3)] text-[#E0B954] rounded-lg font-semibold"
+                                            >
+                                                <TrendingUp className="w-3.5 h-3.5 mr-1.5" />
+                                                Edit Pulse values
+                                            </Button>
                                         </div>
                                     ))}
                                 </div>
