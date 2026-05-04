@@ -298,8 +298,11 @@ async def get_my_tasks(
             "tags": item.tags or [],
             "acceptance_criteria": item.acceptance_criteria or [],
             "parent_id": item.parent_id,
+            "parent_key": item.parent.key if item.parent else None,
             "epic_id": item.epic_id,
+            "epic_key": item.epic.key if item.epic else None,
             "sprint_id": item.sprint_id,
+            "sprint": item.sprint.name if item.sprint else "Backlog",
         })
     
     return result
