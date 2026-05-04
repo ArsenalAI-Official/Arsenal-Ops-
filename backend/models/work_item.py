@@ -75,6 +75,7 @@ class WorkItem(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     started_at = Column(DateTime)
     completed_at = Column(DateTime)
+    last_assigned_at = Column(DateTime)  # Set on create + every assignee_id change. Used for transfer-aware capacity.
     due_date = Column(DateTime)
     start_date = Column(DateTime)  # For Gantt chart - planned start date
     
