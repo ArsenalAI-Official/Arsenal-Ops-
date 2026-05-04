@@ -48,7 +48,7 @@ import { Calendar as CalendarIcon } from '@/components/ui/calendar';
 import { toast, Toaster } from 'sonner';
 import MermaidRenderer from '@/components/MermaidRenderer';
 import ArchitectureEditor from '@/components/ArchitectureEditor';
-import { useAuth, isProjectManager } from '@/contexts/AuthContext';
+import { useAuth, isProjectManager, isAdmin } from '@/contexts/AuthContext';
 
 import { API_BASE_URL } from '@/config/api';
 
@@ -896,8 +896,8 @@ const ProjectDetail = () => {
         { id: 'activity' as TabType, label: 'Activity', icon: Activity },
         // PM tab for system admins, project managers, and project admins
         ...(canAccessPMTab() ? [{ id: 'project_manager' as TabType, label: 'Project Manager', icon: Clock }] : []),
-        // Pulse Settings — admin-only inputs that drive the Pulse view
-        ...(canAccessPMTab() ? [{ id: 'pulse_settings' as TabType, label: 'Pulse Settings', icon: DollarSign }] : []),
+        // Pulse Settings — system admins only (drives values shown on the Pulse tab)
+        ...(isAdmin(user) ? [{ id: 'pulse_settings' as TabType, label: 'Pulse Settings', icon: DollarSign }] : []),
     ];
 
     // Filter out developers already in project
@@ -2237,13 +2237,17 @@ const ProjectDetail = () => {
                     )
                 )}
 
-                {/* Pulse Settings Tab — admin-only data inputs that drive the Pulse view */}
-                {activeTab === 'pulse_settings' && canAccessPMTab() && id && pulseData && (
-                    <PulseSettingsView
-                        projectId={id}
-                        initial={pulseData}
-                        onChange={setPulseData}
-                    />
+                {/* Pulse Settings Tab — system admins only */}
+                {activeTab === 'pulse_settings' && (
+                    isAdmin(user) && id && pulseData ? (
+                        <PulseSettingsView
+                            projectId={id}
+                            initial={pulseData}
+                            onChange={setPulseData}
+                        />
+                    ) : (
+                        <div className="text-center py-12 text-[#737373]">This section is restricted to system admins.</div>
+                    )
                 )}
 
                 {/* Activity Tab */}
