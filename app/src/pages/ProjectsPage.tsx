@@ -30,6 +30,7 @@ import {
     Flag,
     Clock,
     MessageSquare,
+    Inbox,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -169,6 +170,8 @@ const ProjectsPage = () => {
     });
     const [editTaskProjectDevelopers, setEditTaskProjectDevelopers] = useState<ProjectDeveloper[]>([]);
     const [showCalendarMyTask, setShowCalendarMyTask] = useState(false);
+    // Sprints for the selected task's project — used by the Sprint Actions panel
+    const [taskSprints, setTaskSprints] = useState<{ id: number; name: string; start_date: string | null; end_date: string | null }[]>([]);
 
     // Personal Tasks
     interface PersonalTask {
@@ -479,6 +482,55 @@ const ProjectsPage = () => {
         } finally {
             setMyTasksLoading(false);
         }
+    };
+
+    // Fetch sprints for the selected task's project (powers the Sprint Actions panel,
+    // mirrors ProjectBoard's behavior).
+    const fetchSprintsForTask = async (projectId: number) => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/workitems/projects/${projectId}/sprints`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) setTaskSprints(await res.json());
+            else setTaskSprints([]);
+        } catch {
+            setTaskSprints([]);
+        }
+    };
+
+    useEffect(() => {
+        if (selectedTask?.project_id) fetchSprintsForTask(selectedTask.project_id);
+        else setTaskSprints([]);
+    }, [selectedTask?.project_id]);
+
+    // Move the selected task between sprints (or to backlog when targetSprintId is null).
+    const handleMoveTaskToSprint = async (itemId: string, targetSprintId: number | null) => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/workitems/${itemId}/move-sprint`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ target_sprint_id: targetSprintId }),
+            });
+            if (res.ok) {
+                const updated = await res.json();
+                const merged = { ...selectedTask, ...updated } as MyTask;
+                setMyTasks(prev => prev.map(t => t.id === itemId ? merged : t));
+                if (selectedTask?.id === itemId) setSelectedTask(merged);
+                toast.success(targetSprintId ? 'Moved to sprint' : 'Moved to backlog');
+                if (selectedTask?.project_id) fetchSprintsForTask(selectedTask.project_id);
+            } else {
+                toast.error('Failed to move ticket');
+            }
+        } catch {
+            toast.error('Failed to move ticket');
+        }
+    };
+
+    const getNextTaskSprint = (currentSprintId: number | null | undefined): number | null => {
+        if (!currentSprintId || taskSprints.length === 0) return null;
+        const idx = taskSprints.findIndex(s => s.id === currentSprintId);
+        if (idx >= 0 && idx < taskSprints.length - 1) return taskSprints[idx + 1].id;
+        return null;
     };
 
     // Start editing selected task
@@ -873,11 +925,14 @@ const ProjectsPage = () => {
         backlog:     '#555',
     };
 
+    // Mirrors ProjectBoard's STATUS_CONFIG (order, labels, colors) so the "Move to"
+    // grid renders identical options in both pages.
     const STATUS_CONFIG = {
-        todo: { label: 'To Do', color: '#60A5FA', icon: Plus },
-        in_progress: { label: 'In Progress', color: '#E0B954', icon: Clock },
-        in_review: { label: 'In Review', color: '#A78BFA', icon: AlertCircle },
-        done: { label: 'Done', color: '#34D399', icon: CheckCircle2 },
+        backlog: { label: 'Backlog', color: '#737373', icon: Inbox },
+        todo: { label: 'To Do', color: '#E0B954', icon: Plus },
+        in_progress: { label: 'In Progress', color: '#F59E0B', icon: Clock },
+        in_review: { label: 'In Review', color: '#C79E3B', icon: AlertCircle },
+        done: { label: 'Done', color: '#E0B954', icon: CheckCircle2 },
     } as const;
 
     const filteredMyTasks = myTasks.filter(t => {
@@ -1695,56 +1750,19 @@ const ProjectsPage = () => {
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="text-xs font-medium text-[#737373] block mb-1.5">Due Date</label>
-                                        <Popover open={showCalendarMyTask} onOpenChange={setShowCalendarMyTask}>
-                                            <PopoverTrigger asChild>
-                                                <Button
-                                                    className="w-full justify-start text-left font-normal bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.04)] hover:text-[#F4F6FF] rounded-xl h-10"
-                                                >
-                                                    <Calendar className="w-4 h-4 mr-2" />
-                                                    {editingTaskForm.due_date ? parseLocalDate(editingTaskForm.due_date)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Pick a date'}
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-0 bg-[#0d0d0d] border-[rgba(255,255,255,0.07)]" align="start">
-                                                <CalendarIcon
-                                                    mode="single"
-                                                    selected={parseLocalDate(editingTaskForm.due_date === null ? undefined : editingTaskForm.due_date)}
-                                                    onSelect={(date) => {
-                                                        if (date) {
-                                                            const year = date.getFullYear();
-                                                            const month = String(date.getMonth() + 1).padStart(2, '0');
-                                                            const day = String(date.getDate()).padStart(2, '0');
-                                                            setEditingTaskForm({ ...editingTaskForm, due_date: `${year}-${month}-${day}` });
-                                                            setShowCalendarMyTask(false);
-                                                        }
-                                                    }}
-                                                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                                                    classNames={{
-                                                        months: "flex flex-col",
-                                                        month: "space-y-4",
-                                                        caption: "flex justify-between items-center px-0 pb-4 relative h-7 mb-2",
-                                                        caption_label: "text-sm font-medium text-white",
-                                                        nav: "space-x-1 flex items-center",
-                                                        nav_button: "text-white hover:bg-[rgba(224,185,84,0.1)] rounded p-1",
-                                                        nav_button_previous: "absolute left-0",
-                                                        nav_button_next: "absolute right-0",
-                                                        table: "w-full border-collapse space-y-1",
-                                                        head_row: "flex",
-                                                        head_cell: "text-xs font-medium text-[#737373] w-8 h-8 flex items-center justify-center rounded",
-                                                        row: "flex w-full gap-1",
-                                                        cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-transparent",
-                                                        day: "h-8 w-8 p-0 font-normal",
-                                                        day_button: "text-white hover:bg-[rgba(224,185,84,0.1)] rounded-lg h-8 w-8 transition-colors",
-                                                        day_selected: "bg-[#E0B954] text-[#0d0d0d] hover:bg-[#E0B954] font-semibold",
-                                                        day_today: "bg-[rgba(224,185,84,0.2)] text-[#E0B954] font-semibold",
-                                                        day_outside: "text-[#444]",
-                                                        day_disabled: "text-[#333] opacity-50 cursor-not-allowed",
-                                                        day_range_middle: "aria-selected:bg-[rgba(224,185,84,0.1)] aria-selected:text-white",
-                                                        day_hidden: "invisible",
-                                                    }}
-                                                />
-                                            </PopoverContent>
-                                        </Popover>
+                                        <label className="text-xs font-medium text-[#737373] block mb-1.5">Assignee</label>
+                                        <select
+                                            value={editingTaskForm.assignee_id || ''}
+                                            onChange={(e) => setEditingTaskForm({ ...editingTaskForm, assignee_id: e.target.value ? parseInt(e.target.value) : null })}
+                                            className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl px-3 text-sm"
+                                        >
+                                            <option value="">Unassigned</option>
+                                            {editTaskProjectDevelopers.map(dev => (
+                                                <option key={dev.id} value={dev.id}>
+                                                    {dev.name} ({dev.role})
+                                                </option>
+                                            ))}
+                                        </select>
                                     </div>
                                     <div>
                                         <label className="text-xs font-medium text-[#737373] block mb-1.5">Status</label>
@@ -1759,20 +1777,59 @@ const ProjectsPage = () => {
                                             <option value="done">Done</option>
                                         </select>
                                     </div>
-                                    <div>
-                                        <label className="text-xs font-medium text-[#737373] block mb-1.5">Assignee</label>
-                                        <select
-                                            value={editingTaskForm.assignee_id || ''}
-                                            onChange={(e) => setEditingTaskForm({ ...editingTaskForm, assignee_id: e.target.value ? parseInt(e.target.value) : null })}
-                                            className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl px-3 text-sm"
-                                        >
-                                            <option value="">Unassigned</option>
-                                            {editTaskProjectDevelopers.map(dev => (
-                                                <option key={dev.id} value={dev.id}>
-                                                    {dev.name} ({dev.role})
-                                                </option>
-                                            ))}
-                                        </select>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-xs font-medium text-[#737373] block mb-1.5">Due Date</label>
+                                            <Popover open={showCalendarMyTask} onOpenChange={setShowCalendarMyTask}>
+                                                <PopoverTrigger asChild>
+                                                    <Button
+                                                        className="w-full justify-start text-left font-normal bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.04)] hover:text-[#F4F6FF] rounded-xl h-10"
+                                                    >
+                                                        <Calendar className="w-4 h-4 mr-2" />
+                                                        {editingTaskForm.due_date ? parseLocalDate(editingTaskForm.due_date)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Pick a date'}
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0 bg-[#0d0d0d] border-[rgba(255,255,255,0.07)]" align="start">
+                                                    <CalendarIcon
+                                                        mode="single"
+                                                        selected={parseLocalDate(editingTaskForm.due_date === null ? undefined : editingTaskForm.due_date)}
+                                                        onSelect={(date) => {
+                                                            if (date) {
+                                                                const year = date.getFullYear();
+                                                                const month = String(date.getMonth() + 1).padStart(2, '0');
+                                                                const day = String(date.getDate()).padStart(2, '0');
+                                                                setEditingTaskForm({ ...editingTaskForm, due_date: `${year}-${month}-${day}` });
+                                                                setShowCalendarMyTask(false);
+                                                            }
+                                                        }}
+                                                        disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                                                        classNames={{
+                                                            months: "flex flex-col",
+                                                            month: "space-y-4",
+                                                            caption: "flex justify-between items-center px-0 pb-4 relative h-7 mb-2",
+                                                            caption_label: "text-sm font-medium text-white",
+                                                            nav: "space-x-1 flex items-center",
+                                                            nav_button: "text-white hover:bg-[rgba(224,185,84,0.1)] rounded p-1",
+                                                            nav_button_previous: "absolute left-0",
+                                                            nav_button_next: "absolute right-0",
+                                                            table: "w-full border-collapse space-y-1",
+                                                            head_row: "flex",
+                                                            head_cell: "text-xs font-medium text-[#737373] w-8 h-8 flex items-center justify-center rounded",
+                                                            row: "flex w-full gap-1",
+                                                            cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-transparent",
+                                                            day: "h-8 w-8 p-0 font-normal",
+                                                            day_button: "text-white hover:bg-[rgba(224,185,84,0.1)] rounded-lg h-8 w-8 transition-colors",
+                                                            day_selected: "bg-[#E0B954] text-[#0d0d0d] hover:bg-[#E0B954] font-semibold",
+                                                            day_today: "bg-[rgba(224,185,84,0.2)] text-[#E0B954] font-semibold",
+                                                            day_outside: "text-[#444]",
+                                                            day_disabled: "text-[#333] opacity-50 cursor-not-allowed",
+                                                            day_range_middle: "aria-selected:bg-[rgba(224,185,84,0.1)] aria-selected:text-white",
+                                                            day_hidden: "invisible",
+                                                        }}
+                                                    />
+                                                </PopoverContent>
+                                            </Popover>
+                                        </div>
                                     </div>
                                     <div className="flex gap-3 pt-2">
                                         <Button
@@ -1805,7 +1862,7 @@ const ProjectsPage = () => {
                                             { label: 'Allocated Hours', value: `${selectedTask.assigned_hours || 0}h`, color: '#E0B954' },
                                             { label: 'Logged Hours', value: `${selectedTask.logged_hours || 0}h`, color: '#E0B954' },
                                             { label: 'Remaining Hours', value: `${selectedTask.remaining_hours || 0}h`, color: '#F59E0B' },
-                                            { label: 'Due Date', value: selectedTask.due_date ? new Date(selectedTask.due_date as string).toLocaleDateString() : 'Not set', color: selectedTask.due_date ? '#E0B954' : '#737373' },
+                                            { label: 'Due Date', value: selectedTask.due_date ? (parseLocalDate(selectedTask.due_date as string)?.toLocaleDateString() ?? 'Not set') : 'Not set', color: selectedTask.due_date ? '#E0B954' : '#737373' },
                                             { label: 'Status', value: (STATUS_CONFIG[selectedTask.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.todo).label, color: (STATUS_CONFIG[selectedTask.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.todo).color },
                                             { label: 'Priority', value: selectedTask.priority?.charAt(0).toUpperCase() + (selectedTask.priority?.slice(1) || ''), color: selectedTask.priority === 'critical' ? '#EF4444' : selectedTask.priority === 'high' ? '#F97316' : selectedTask.priority === 'medium' ? '#F59E0B' : '#737373' },
                                         ].map(d => (
@@ -1834,16 +1891,26 @@ const ProjectsPage = () => {
                                         <div>
                                             <div className="text-xs text-[#737373] mb-2 font-medium">Hierarchy</div>
                                             <div className="flex items-center gap-1.5 flex-wrap">
-                                                {selectedTask.epic_key && (
-                                                    <span className="flex items-center gap-1 px-2 py-1 rounded-md bg-[rgba(167,139,250,0.12)] text-[#A78BFA] text-xs">
+                                                {selectedTask.epic_key && selectedTask.epic_id && (
+                                                    <a
+                                                        href={`/project/${selectedTask.project_id}/board/${selectedTask.epic_id}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="flex items-center gap-1 px-2 py-1 rounded-md bg-[rgba(167,139,250,0.12)] text-[#A78BFA] text-xs hover:bg-[rgba(167,139,250,0.2)] transition-colors cursor-pointer"
+                                                    >
                                                         Epic: {selectedTask.epic_key}
-                                                    </span>
+                                                    </a>
                                                 )}
                                                 {selectedTask.epic_key && selectedTask.parent_key && <span className="text-[#555] text-xs">›</span>}
-                                                {selectedTask.parent_key && (
-                                                    <span className="flex items-center gap-1 px-2 py-1 rounded-md bg-[rgba(224,185,84,0.10)] text-[#E0B954] text-xs">
+                                                {selectedTask.parent_key && selectedTask.parent_id && (
+                                                    <a
+                                                        href={`/project/${selectedTask.project_id}/board/${selectedTask.parent_id}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="flex items-center gap-1 px-2 py-1 rounded-md bg-[rgba(224,185,84,0.10)] text-[#E0B954] text-xs hover:bg-[rgba(224,185,84,0.2)] transition-colors cursor-pointer"
+                                                    >
                                                         Parent: {selectedTask.parent_key}
-                                                    </span>
+                                                    </a>
                                                 )}
                                             </div>
                                         </div>
@@ -1913,6 +1980,52 @@ const ProjectsPage = () => {
                                     ))}
                                 </div>
                             </div>
+
+                            {/* Sprint Actions (mirrors ProjectBoard) */}
+                            {taskSprints.length > 0 && (
+                                <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
+                                    <div className="text-xs text-[#737373] mb-3 font-medium">Sprint Actions</div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {selectedTask.sprint_id && getNextTaskSprint(selectedTask.sprint_id) && selectedTask.status !== 'done' && (
+                                            <Button
+                                                size="sm"
+                                                onClick={() => handleMoveTaskToSprint(selectedTask.id, getNextTaskSprint(selectedTask.sprint_id))}
+                                                className="rounded-lg text-xs h-9 bg-[rgba(245,158,11,0.1)] border border-[rgba(245,158,11,0.3)] text-[#F59E0B] hover:bg-[rgba(245,158,11,0.2)]"
+                                            >
+                                                <ArrowRight className="w-3 h-3 mr-1" />
+                                                Push to Next Sprint
+                                            </Button>
+                                        )}
+                                        {selectedTask.sprint_id && (
+                                            <Button
+                                                size="sm"
+                                                onClick={() => handleMoveTaskToSprint(selectedTask.id, null)}
+                                                className="rounded-lg text-xs h-9 bg-transparent border border-[rgba(255,255,255,0.07)] text-[#737373] hover:text-white hover:border-[rgba(244,246,255,0.15)]"
+                                            >
+                                                <Inbox className="w-3 h-3 mr-1" />
+                                                Move to Backlog
+                                            </Button>
+                                        )}
+                                        {!selectedTask.sprint_id && (
+                                            <select
+                                                onChange={(e) => {
+                                                    if (e.target.value) {
+                                                        handleMoveTaskToSprint(selectedTask.id, parseInt(e.target.value));
+                                                        e.target.value = '';
+                                                    }
+                                                }}
+                                                className="h-9 text-xs bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#a3a3a3] rounded-lg px-3 appearance-none cursor-pointer hover:border-[rgba(244,246,255,0.15)]"
+                                                defaultValue=""
+                                            >
+                                                <option value="">Add to Sprint...</option>
+                                                {taskSprints.map(sprint => (
+                                                    <option key={sprint.id} value={sprint.id}>{sprint.name}</option>
+                                                ))}
+                                            </select>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Comments Section */}
                             <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">

@@ -830,8 +830,11 @@ const ProjectBoard = () => {
             });
             if (response.ok) {
                 const updated = await response.json();
-                setWorkItems(prev => prev.map(wi => wi.id === selectedItem.id ? updated : wi));
-                setSelectedItem(updated);
+                // Merge so any field the backend response omits (e.g. due_date) still
+                // reflects the user's edit instead of vanishing from the panel.
+                const merged = { ...selectedItem, ...editForm, ...updated } as WorkItem;
+                setWorkItems(prev => prev.map(wi => wi.id === selectedItem.id ? merged : wi));
+                setSelectedItem(merged);
                 setIsEditing(false);
                 setEditForm({});
                 toast.success('Item updated!');
@@ -2085,7 +2088,7 @@ onClick={() => { navigate(`/project/${id}/board/${item.id}`); setIsEditing(false
                                             { label: 'Allocated Hours', value: `${selectedItem.assigned_hours}h`, color: '#E0B954' },
                                             { label: 'Logged Hours', value: `${selectedItem.logged_hours || 0}h`, color: '#E0B954' },
                                             { label: 'Remaining Hours', value: `${selectedItem.remaining_hours}h`, color: '#F59E0B' },
-                                            { label: 'Due Date', value: selectedItem.due_date ? new Date(selectedItem.due_date).toLocaleDateString() : 'Not set', color: selectedItem.due_date ? '#E0B954' : '#737373' },
+                                            { label: 'Due Date', value: selectedItem.due_date ? (parseLocalDate(selectedItem.due_date)?.toLocaleDateString() ?? 'Not set') : 'Not set', color: selectedItem.due_date ? '#E0B954' : '#737373' },
                                             { label: 'Status', value: (STATUS_CONFIG[selectedItem.status] || STATUS_CONFIG.todo).label, color: (STATUS_CONFIG[selectedItem.status] || STATUS_CONFIG.todo).color },
                                             { label: 'Priority', value: selectedItem.priority.charAt(0).toUpperCase() + selectedItem.priority.slice(1), color: (PRIORITY_COLORS[selectedItem.priority] || PRIORITY_COLORS.medium).text.replace('text-', '').includes('red') ? '#EF4444' : (PRIORITY_COLORS[selectedItem.priority] || PRIORITY_COLORS.medium).text.includes('orange') ? '#F97316' : (PRIORITY_COLORS[selectedItem.priority] || PRIORITY_COLORS.medium).text.includes('yellow') ? '#F59E0B' : '#E0B954' },
                                         ].map(d => (

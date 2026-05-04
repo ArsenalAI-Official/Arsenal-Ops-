@@ -298,8 +298,11 @@ async def get_my_tasks(
             "tags": item.tags or [],
             "acceptance_criteria": item.acceptance_criteria or [],
             "parent_id": item.parent_id,
+            "parent_key": item.parent.key if item.parent else None,
             "epic_id": item.epic_id,
+            "epic_key": item.epic.key if item.epic else None,
             "sprint_id": item.sprint_id,
+            "sprint": item.sprint.name if item.sprint else "Backlog",
         })
     
     return result
@@ -483,7 +486,8 @@ async def update_work_item(
             setattr(item, key, value)
     
     # If sprint_id was changed, set due_date to sprint end_date (Friday)
-    if 'sprint_id' in update_data:
+    # Skip when the caller explicitly provided a due_date — user-picked date wins.
+    if 'sprint_id' in update_data and 'due_date' not in update_data:
         new_sprint_id = update_data['sprint_id']
         if new_sprint_id:
             sprint = db.query(Sprint).filter(Sprint.id == new_sprint_id).first()
@@ -641,7 +645,11 @@ async def update_work_item(
     assignee_name = "Unassigned"
     if item.assignee_id and item.assignee:
         assignee_name = item.assignee.name
-    
+
+    sprint_name = "Backlog"
+    if item.sprint_id and item.sprint:
+        sprint_name = item.sprint.name
+
     return {
         "id": str(item.id),
         "key": item.key,
@@ -652,14 +660,23 @@ async def update_work_item(
         "priority": item.priority,
         "story_points": item.story_points or 0,
         "assigned_hours": item.estimated_hours or 0,
+        "estimated_hours": item.estimated_hours or 0,
         "remaining_hours": item.remaining_hours or 0,
-        "logged_hours": item.logged_hours or 0,
         "logged_hours": item.logged_hours or 0,
         "assignee": assignee_name,
         "assignee_id": item.assignee_id,
-        "sprint": "Backlog",
+        "sprint": sprint_name,
+        "sprint_id": item.sprint_id,
         "epic": "",
+        "epic_id": item.epic_id,
+        "parent_id": item.parent_id,
         "tags": item.tags or [],
+        "acceptance_criteria": item.acceptance_criteria or [],
+        "due_date": item.due_date.isoformat() if item.due_date else None,
+        "start_date": item.start_date.isoformat() if item.start_date else None,
+        "is_overdue": bool(item.due_date and item.due_date < datetime.utcnow() and item.status != "done"),
+        "started_at": item.started_at.isoformat() if item.started_at else None,
+        "completed_at": item.completed_at.isoformat() if item.completed_at else None,
         "created_at": item.created_at.isoformat() if item.created_at else None,
         "updated_at": item.updated_at.isoformat() if item.updated_at else None,
     }
