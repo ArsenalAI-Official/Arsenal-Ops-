@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PulseData, FeatureForecastRow, computeDerived } from './pulseData';
+import { PulseData, FeatureForecastRow, computeDerived, currentIncludedServices } from './pulseData';
 
 const fmt$ = (v: number) => (v < 0 ? '-' : '') + '$' + Math.abs(Math.round(v)).toLocaleString();
 const fmt$k = (v: number) => (v < 0 ? '-' : '') + '$' + Math.round(Math.abs(v) / 100) / 10 + 'k';
@@ -51,7 +51,7 @@ const ProjectHeroCard: React.FC<{ pulse: PulseData }> = ({ pulse }) => {
     const devHoursToDateFC = monthsWithCum.slice(0, pulse.lastActualIdx + 1).reduce((a, b) => a + (b.devFC || 0), 0);
     const devHoursPct = devHoursToDateFC > 0 ? devHoursActual / devHoursToDateFC : 0;
 
-    const s = pulse.includedServices;
+    const s = currentIncludedServices(pulse);
     const inclPct = s.totalHours > 0 ? s.usedHours / s.totalHours : 0;
     const lastMonth = monthsWithCum[pulse.lastActualIdx];
     const monthShort = (pulse.summary.monthLabel || '').split(' ')[0].slice(0, 3);
@@ -128,7 +128,7 @@ const ProjectHeroCard: React.FC<{ pulse: PulseData }> = ({ pulse }) => {
                     <Stat
                         label="Included hours · used"
                         value={`${s.usedHours.toLocaleString()} / ${s.totalHours.toLocaleString()}`}
-                        sub={`Through ${s.throughMonth}`}
+                        sub={`Through ${s.month}`}
                         tone={inclPct >= 1 ? 'amber' : 'gold'}
                     >
                         <div className="mt-3 h-1 rounded-full bg-[rgba(255,255,255,0.05)] overflow-hidden">
@@ -170,7 +170,7 @@ const ProjectHeroCard: React.FC<{ pulse: PulseData }> = ({ pulse }) => {
                             <div className="text-sm text-[#737373]">hrs</div>
                             <div className="text-sm text-[#a3a3a3] ml-auto">{s.invoiceCount} invoices</div>
                         </div>
-                        <div className="text-[11px] text-[#737373] mt-1">Submitted as of {s.throughMonth}</div>
+                        <div className="text-[11px] text-[#737373] mt-1">Submitted as of {s.month}</div>
                     </div>
                     <div className="rounded-xl p-5 bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)]">
                         <div className="text-[11px] uppercase tracking-wider text-[#737373]">Billable remaining (forecast)</div>

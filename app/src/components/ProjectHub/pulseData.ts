@@ -23,16 +23,22 @@ export interface MonthRow {
     partial?: boolean;
 }
 
-export interface IncludedServices {
-    totalHours: number;
-    usedHours: number;
-    throughMonth: string;
-    billableAccrued: number;
+/** One row of included-service / billing data, scoped to a single month.
+ *  The Pulse hero picks the row matching `summary.monthLabel` (falling back
+ *  to the last row in the list). Add a new row each month as you log billing. */
+export interface IncludedServicesRow {
+    month: string;              // e.g. "April 2026" — match against summary.monthLabel
+    totalHours: number;         // contracted included hours total
+    usedHours: number;          // hours used through this month (cumulative)
+    billableAccrued: number;    // billable hours accrued past included
     billableAccruedCost: number;
     billableInvoiced: number;
     invoiceCount: number;
-    expectedRemaining: number;
+    expectedRemaining: number;  // forecasted billable hours remaining through contract end
 }
+
+/** Backwards-compat alias — old code referred to a single snapshot. */
+export type IncludedServices = IncludedServicesRow;
 
 export interface PulseRisk {
     severity: 'high' | 'medium' | 'low';
@@ -112,13 +118,30 @@ export interface PulseData {
     lastActualIdx: number;
     /** Percent of the current (in-month) period elapsed for the "X% of month tracked" pill. */
     currentMonthTrackedPct: number;
-    includedServices: IncludedServices;
+    /** Per-month billing snapshots. Append a new row each month. */
+    includedServices: IncludedServicesRow[];
     summary: PulseSummary;
     risks: PulseRisk[];
     milestones: PulseMilestone[];
     updates: PulseUpdate[];
     forecastVsActuals: ForecastVsActuals;
 }
+
+/** Pick the right billing row for the current month — matches by month string,
+ *  falls back to the last row in the list, and finally to a zeroed default. */
+export const currentIncludedServices = (data: PulseData): IncludedServicesRow => {
+    const list = data.includedServices ?? [];
+    const monthMatch = list.find(r => r.month === data.summary.monthLabel);
+    if (monthMatch) return monthMatch;
+    if (list.length > 0) return list[list.length - 1];
+    return {
+        month: data.summary.monthLabel || '',
+        totalHours: 0, usedHours: 0,
+        billableAccrued: 0, billableAccruedCost: 0,
+        billableInvoiced: 0, invoiceCount: 0,
+        expectedRemaining: 0,
+    };
+};
 
 export const DUMMY_PULSE_DATA: PulseData = {
     project: {
@@ -153,16 +176,29 @@ export const DUMMY_PULSE_DATA: PulseData = {
     ],
     lastActualIdx: 2,
     currentMonthTrackedPct: 62,
-    includedServices: {
-        totalHours: 1000,
-        usedHours: 1000,
-        throughMonth: 'April 2026',
-        billableAccrued: 745,
-        billableAccruedCost: 55875,
-        billableInvoiced: 310,
-        invoiceCount: 2,
-        expectedRemaining: 2400,
-    },
+    includedServices: [
+        {
+            month: 'February 2026',
+            totalHours: 1000, usedHours: 380,
+            billableAccrued: 0, billableAccruedCost: 0,
+            billableInvoiced: 0, invoiceCount: 0,
+            expectedRemaining: 3850,
+        },
+        {
+            month: 'March 2026',
+            totalHours: 1000, usedHours: 740,
+            billableAccrued: 240, billableAccruedCost: 18000,
+            billableInvoiced: 120, invoiceCount: 1,
+            expectedRemaining: 3100,
+        },
+        {
+            month: 'April 2026',
+            totalHours: 1000, usedHours: 1000,
+            billableAccrued: 745, billableAccruedCost: 55875,
+            billableInvoiced: 310, invoiceCount: 2,
+            expectedRemaining: 2400,
+        },
+    ],
     summary: {
         healthScore: 100,
         healthStatus: 'Healthy',
@@ -244,14 +280,32 @@ export const loadPulseData = (projectId: string | number): PulseData => {
         const raw = localStorage.getItem(STORAGE_PREFIX + projectId);
         if (!raw) return DUMMY_PULSE_DATA;
         const parsed = JSON.parse(raw);
-        // Deep-merge `summary` and `project` so older saved payloads pick up new
-        // fields (e.g. narrative, risksTrendNote) added later.
+        // Migrate legacy includedServices: single object → single-element list.
+        let includedServices: IncludedServicesRow[];
+        if (Array.isArray(parsed.includedServices)) {
+            includedServices = parsed.includedServices;
+        } else if (parsed.includedServices && typeof parsed.includedServices === 'object') {
+            const old = parsed.includedServices as any;
+            includedServices = [{
+                month: old.throughMonth || DUMMY_PULSE_DATA.summary.monthLabel,
+                totalHours: old.totalHours ?? 0,
+                usedHours: old.usedHours ?? 0,
+                billableAccrued: old.billableAccrued ?? 0,
+                billableAccruedCost: old.billableAccruedCost ?? 0,
+                billableInvoiced: old.billableInvoiced ?? 0,
+                invoiceCount: old.invoiceCount ?? 0,
+                expectedRemaining: old.expectedRemaining ?? 0,
+            }];
+        } else {
+            includedServices = DUMMY_PULSE_DATA.includedServices;
+        }
+        // Deep-merge nested objects so older saved payloads pick up new fields.
         return {
             ...DUMMY_PULSE_DATA,
             ...parsed,
             project: { ...DUMMY_PULSE_DATA.project, ...(parsed.project || {}) },
             summary: { ...DUMMY_PULSE_DATA.summary, ...(parsed.summary || {}) },
-            includedServices: { ...DUMMY_PULSE_DATA.includedServices, ...(parsed.includedServices || {}) },
+            includedServices,
             forecastVsActuals: { ...DUMMY_PULSE_DATA.forecastVsActuals, ...(parsed.forecastVsActuals || {}) },
         };
     } catch {

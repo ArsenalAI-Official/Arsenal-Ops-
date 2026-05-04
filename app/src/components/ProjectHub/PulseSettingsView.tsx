@@ -12,6 +12,7 @@ import {
     PulseMilestone,
     PulseUpdate,
     FeatureForecastRow,
+    IncludedServicesRow,
     DUMMY_PULSE_DATA,
     savePulseData,
     resetPulseData,
@@ -113,6 +114,22 @@ const PulseSettingsView: React.FC<PulseSettingsViewProps> = ({ projectId, initia
     };
     const addUpdate = () => update({ ...data, updates: [...data.updates, { when: '', author: '', type: 'note', text: '' }] });
     const removeUpdate = (i: number) => update({ ...data, updates: data.updates.filter((_, idx) => idx !== i) });
+
+    // Included services — per-month list (each row is a billing snapshot for that month)
+    const updateIncluded = (i: number, patch: Partial<IncludedServicesRow>) => {
+        update({ ...data, includedServices: data.includedServices.map((r, idx) => idx === i ? { ...r, ...patch } : r) });
+    };
+    const addIncluded = () => update({
+        ...data,
+        includedServices: [...data.includedServices, {
+            month: '',
+            totalHours: 0, usedHours: 0,
+            billableAccrued: 0, billableAccruedCost: 0,
+            billableInvoiced: 0, invoiceCount: 0,
+            expectedRemaining: 0,
+        }],
+    });
+    const removeIncluded = (i: number) => update({ ...data, includedServices: data.includedServices.filter((_, idx) => idx !== i) });
 
     // Forecast vs Actuals — 3 lists keyed by scope (current/last/project)
     const updateFva = (scope: FvaScope, i: number, patch: Partial<FeatureForecastRow>) => {
@@ -312,18 +329,44 @@ const PulseSettingsView: React.FC<PulseSettingsViewProps> = ({ projectId, initia
                 </div>
             </Section>
 
-            {/* Included services */}
-            <Section title="Billing & included services" subtitle="Contracted included hours and billable accrual">
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                    <Field label="Total hours">{numberInput(data.includedServices.totalHours, n => update({ ...data, includedServices: { ...data.includedServices, totalHours: n } }))}</Field>
-                    <Field label="Used hours">{numberInput(data.includedServices.usedHours, n => update({ ...data, includedServices: { ...data.includedServices, usedHours: n } }))}</Field>
-                    <Field label="Through month">{textInput(data.includedServices.throughMonth, v => update({ ...data, includedServices: { ...data.includedServices, throughMonth: v } }))}</Field>
-                    <Field label="Billable accrued (hrs)">{numberInput(data.includedServices.billableAccrued, n => update({ ...data, includedServices: { ...data.includedServices, billableAccrued: n } }))}</Field>
-                    <Field label="Accrued cost ($)">{numberInput(data.includedServices.billableAccruedCost, n => update({ ...data, includedServices: { ...data.includedServices, billableAccruedCost: n } }))}</Field>
-                    <Field label="Invoiced (hrs)">{numberInput(data.includedServices.billableInvoiced, n => update({ ...data, includedServices: { ...data.includedServices, billableInvoiced: n } }))}</Field>
-                    <Field label="Invoice count">{numberInput(data.includedServices.invoiceCount, n => update({ ...data, includedServices: { ...data.includedServices, invoiceCount: n } }))}</Field>
-                    <Field label="Expected remaining (hrs)">{numberInput(data.includedServices.expectedRemaining, n => update({ ...data, includedServices: { ...data.includedServices, expectedRemaining: n } }))}</Field>
+            {/* Included services — per-month billing snapshots */}
+            <Section title="Billing & included services" subtitle="One row per month. The Pulse hero picks the row whose month matches the current Month label (falling back to the latest row).">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                        <thead className="text-[10px] uppercase tracking-wider text-[#737373]">
+                            <tr>
+                                <th className="text-left p-1">Month</th>
+                                <th className="p-1">Total hrs</th>
+                                <th className="p-1">Used hrs</th>
+                                <th className="p-1">Accrued hrs</th>
+                                <th className="p-1">Accrued $</th>
+                                <th className="p-1">Invoiced hrs</th>
+                                <th className="p-1">Invoices</th>
+                                <th className="p-1">Remaining hrs</th>
+                                <th className="p-1"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {data.includedServices.map((r, i) => (
+                                <tr key={i} className="border-t border-[rgba(255,255,255,0.04)]">
+                                    <td className="p-1"><Input value={r.month} onChange={e => updateIncluded(i, { month: e.target.value })} placeholder="April 2026" className="h-8 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-white text-xs w-32" /></td>
+                                    <td className="p-1"><Input type="number" value={r.totalHours} onChange={e => updateIncluded(i, { totalHours: parseFloat(e.target.value) || 0 })} className="h-8 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-white text-xs w-20" /></td>
+                                    <td className="p-1"><Input type="number" value={r.usedHours} onChange={e => updateIncluded(i, { usedHours: parseFloat(e.target.value) || 0 })} className="h-8 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-white text-xs w-20" /></td>
+                                    <td className="p-1"><Input type="number" value={r.billableAccrued} onChange={e => updateIncluded(i, { billableAccrued: parseFloat(e.target.value) || 0 })} className="h-8 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-white text-xs w-20" /></td>
+                                    <td className="p-1"><Input type="number" value={r.billableAccruedCost} onChange={e => updateIncluded(i, { billableAccruedCost: parseFloat(e.target.value) || 0 })} className="h-8 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-white text-xs w-24" /></td>
+                                    <td className="p-1"><Input type="number" value={r.billableInvoiced} onChange={e => updateIncluded(i, { billableInvoiced: parseFloat(e.target.value) || 0 })} className="h-8 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-white text-xs w-20" /></td>
+                                    <td className="p-1"><Input type="number" value={r.invoiceCount} onChange={e => updateIncluded(i, { invoiceCount: parseFloat(e.target.value) || 0 })} className="h-8 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-white text-xs w-16" /></td>
+                                    <td className="p-1"><Input type="number" value={r.expectedRemaining} onChange={e => updateIncluded(i, { expectedRemaining: parseFloat(e.target.value) || 0 })} className="h-8 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-white text-xs w-20" /></td>
+                                    <td className="p-1"><Button variant="ghost" size="icon" onClick={() => removeIncluded(i)} className="h-7 w-7 text-[#737373] hover:text-[#EF4444]"><Trash2 className="w-3.5 h-3.5" /></Button></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
+                <Button variant="ghost" size="sm" onClick={addIncluded} className="text-[#a3a3a3] hover:text-white">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add month
+                </Button>
             </Section>
 
             {/* Risks */}
