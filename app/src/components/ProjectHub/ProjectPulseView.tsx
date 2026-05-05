@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { PulseData, FeatureForecastRow, computeDerived, currentIncludedServices } from './pulseData';
 
 const fmt$ = (v: number) => (v < 0 ? '-' : '') + '$' + Math.abs(Math.round(v)).toLocaleString();
@@ -40,8 +40,8 @@ const Stat: React.FC<{ label: string; value: React.ReactNode; sub?: string; tone
 /* -------------------------------------------------------------------- */
 /*  PROJECT HERO CARD — Variant E first box (1:1 port)                  */
 /* -------------------------------------------------------------------- */
-const ProjectHeroCard: React.FC<{ pulse: PulseData }> = ({ pulse }) => {
-    const { contractTotal, burnedToDate, forecastEnd, monthsWithCum } = computeDerived(pulse);
+const ProjectHeroCard: React.FC<{ pulse: PulseData }> = React.memo(({ pulse }) => {
+    const { contractTotal, burnedToDate, forecastEnd, monthsWithCum } = useMemo(() => computeDerived(pulse), [pulse]);
     const burnedPct = contractTotal > 0 ? burnedToDate / contractTotal : 0;
     const forecastVariance = forecastEnd - contractTotal;
     const underBudget = forecastVariance < 0;
@@ -184,13 +184,14 @@ const ProjectHeroCard: React.FC<{ pulse: PulseData }> = ({ pulse }) => {
             </div>
         </Card>
     );
-};
+});
+ProjectHeroCard.displayName = 'ProjectHeroCard';
 
 /* -------------------------------------------------------------------- */
 /*  STACKED BURN CHART — used inside SpendingViewCard "chart" view      */
 /* -------------------------------------------------------------------- */
-const BurnChart: React.FC<{ pulse: PulseData; width?: number; height?: number }> = ({ pulse, width = 1100, height = 340 }) => {
-    const { monthsWithCum } = computeDerived(pulse);
+const BurnChart: React.FC<{ pulse: PulseData; width?: number; height?: number }> = React.memo(({ pulse, width = 1100, height = 340 }) => {
+    const { monthsWithCum } = useMemo(() => computeDerived(pulse), [pulse]);
     const padL = 56, padR = 56, padT = 24, padB = 44;
     const W = width - padL - padR;
     const H = height - padT - padB;
@@ -252,12 +253,13 @@ const BurnChart: React.FC<{ pulse: PulseData; width?: number; height?: number }>
             {linePts.map((p, i) => (<circle key={i} cx={p[0]} cy={p[1]} r={i <= pulse.lastActualIdx ? 3.5 : 2.5} fill="#F4F6FF" stroke="#080808" strokeWidth="2" />))}
         </svg>
     );
-};
+});
+BurnChart.displayName = 'BurnChart';
 
 /* -------------------------------------------------------------------- */
 /*  CATEGORY RIBBON — used inside SpendingViewCard "timeline" view      */
 /* -------------------------------------------------------------------- */
-const CategoryRibbon: React.FC<{ pulse: PulseData; width?: number }> = ({ pulse, width = 1100 }) => {
+const CategoryRibbon: React.FC<{ pulse: PulseData; width?: number }> = React.memo(({ pulse, width = 1100 }) => {
     const cats = CATEGORY_COLORS;
     const labelW = 140;
     const cellW = (width - labelW) / pulse.months.length;
@@ -308,13 +310,14 @@ const CategoryRibbon: React.FC<{ pulse: PulseData; width?: number }> = ({ pulse,
             </div>
         </div>
     );
-};
+});
+CategoryRibbon.displayName = 'CategoryRibbon';
 
 /* -------------------------------------------------------------------- */
 /*  BURN TABLE — used inside SpendingViewCard "table" view              */
 /* -------------------------------------------------------------------- */
-const BurnTable: React.FC<{ pulse: PulseData }> = ({ pulse }) => {
-    const { monthsWithCum, forecastEnd } = computeDerived(pulse);
+const BurnTable: React.FC<{ pulse: PulseData }> = React.memo(({ pulse }) => {
+    const { monthsWithCum, forecastEnd } = useMemo(() => computeDerived(pulse), [pulse]);
     const sum = (key: keyof typeof monthsWithCum[number]) => monthsWithCum.reduce((a, b) => a + (Number((b as any)[key]) || 0), 0);
     return (
         <div className="overflow-x-auto">
@@ -373,7 +376,8 @@ const BurnTable: React.FC<{ pulse: PulseData }> = ({ pulse }) => {
             </table>
         </div>
     );
-};
+});
+BurnTable.displayName = 'BurnTable';
 
 /* -------------------------------------------------------------------- */
 /*  SPENDING BY CATEGORY — 3-way toggle (timeline / chart / table)      */
@@ -417,7 +421,7 @@ const SpendingViewCard: React.FC<{ pulse: PulseData }> = ({ pulse }) => {
 /* -------------------------------------------------------------------- */
 /*  FORECAST VS ACTUALS — Variant E bottom card (1:1 port)              */
 /* -------------------------------------------------------------------- */
-const ForecastVsActualsChart: React.FC<{ rows: FeatureForecastRow[]; width?: number }> = ({ rows, width = 1100 }) => {
+const ForecastVsActualsChart: React.FC<{ rows: FeatureForecastRow[]; width?: number }> = React.memo(({ rows, width = 1100 }) => {
     const padL = 260, padR = 160, padT = 12, padB = 40;
     const rowH = 36;
     const H = rows.length * rowH;
@@ -472,7 +476,8 @@ const ForecastVsActualsChart: React.FC<{ rows: FeatureForecastRow[]; width?: num
             </g>
         </svg>
     );
-};
+});
+ForecastVsActualsChart.displayName = 'ForecastVsActualsChart';
 
 const ForecastVsActualsCard: React.FC<{ pulse: PulseData }> = ({ pulse }) => {
     const [scope, setScope] = useState<'current' | 'last' | 'project'>('current');

@@ -1,0 +1,32 @@
+# Keeps the Render free-tier backend warm. Pings /api/health every 10 minutes
+# so the service never falls into the 15-minute idle sleep that causes 30+
+# second cold-start delays for the next user.
+#
+# Set the BACKEND_URL secret in repo settings to your Render service URL
+# (e.g. https://arsenal-ops-api.onrender.com).
+name: Keep Render warm
+
+on:
+  schedule:
+    # GitHub Actions cron is in UTC. */10 = every 10 minutes.
+    - cron: "*/10 * * * *"
+  workflow_dispatch:  # allow manual trigger from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Hit /api/health
+        run: |
+          URL="${{ secrets.BACKEND_URL }}"
+          if [ -z "$URL" ]; then
+            echo "BACKEND_URL secret not set — skipping ping."
+            exit 0
+          fi
+          # -f makes curl exit non-zero on HTTP errors so failures show up in the
+          # Actions log. --max-time tolerates the cold-start window.
+          curl -fsS --max-time 60 "$URL/api/health" && echo "" || {
+            echo "Ping failed — backend may be cold-starting. Will retry next run."
+            exit 0
+          }

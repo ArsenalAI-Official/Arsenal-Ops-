@@ -1,16 +1,25 @@
 import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Login } from './components/Login';
 import { PasswordChange } from './components/PasswordChange';
-import ProjectsPage from './pages/ProjectsPage';
-import PersonalTasksPage from './pages/PersonalTasksPage';
-import ProjectBoard from './pages/ProjectBoard';
-import ProjectDetail from './pages/ProjectDetail';
-import AdminDashboard from './pages/AdminDashboard';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Clock } from 'lucide-react';
 import './App.css';
+
+// Heavy routes are code-split so the initial bundle stays light.
+// Each chunk loads on demand when the user navigates to that route.
+const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
+const PersonalTasksPage = lazy(() => import('./pages/PersonalTasksPage'));
+const ProjectBoard = lazy(() => import('./pages/ProjectBoard'));
+const ProjectDetail = lazy(() => import('./pages/ProjectDetail'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+
+const RouteSpinner = () => (
+  <div className="min-h-screen bg-[#080808] flex items-center justify-center">
+    <div className="w-10 h-10 border-2 border-[#E0B954]/30 border-t-[#E0B954] rounded-full animate-spin" />
+  </div>
+);
 
 function IdleWarningModal({ onStay, onLogout, remainingSeconds }: { onStay: () => void, onLogout: () => void, remainingSeconds: number }) {
   const minutes = Math.floor(remainingSeconds / 60);
@@ -131,15 +140,17 @@ function AuthenticatedRoutes() {
           remainingSeconds={countdown}
         />
       )}
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/" element={<ProjectsPage />} />
-        <Route path="/personal-tasks" element={<PersonalTasksPage />} />
-        <Route path="/project/:id" element={<ProjectDetail />} />
-        <Route path="/project/:id/board" element={<ProjectBoard />} />
-        <Route path="/project/:id/board/:ticketId" element={<ProjectBoard />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-      </Routes>
+      <Suspense fallback={<RouteSpinner />}>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<ProjectsPage />} />
+          <Route path="/personal-tasks" element={<PersonalTasksPage />} />
+          <Route path="/project/:id" element={<ProjectDetail />} />
+          <Route path="/project/:id/board" element={<ProjectBoard />} />
+          <Route path="/project/:id/board/:ticketId" element={<ProjectBoard />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+        </Routes>
+      </Suspense>
     </>
   );
 }

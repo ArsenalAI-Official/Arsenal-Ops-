@@ -1,6 +1,6 @@
 """Admin router - Employee and developer management"""
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
@@ -158,12 +158,21 @@ async def get_developers_capacity(db: Session = Depends(get_db)):
     from services.capacity_service import week_boundaries, compute_capacity_breakdown
 
     week_start, week_end = week_boundaries()
-    developers = db.query(Developer).all()
-    result = []
 
+    # Single query that eager-loads each developer's assigned work items + each
+    # work item's project. Replaces the prior N+1 (1 query per developer).
+    developers = (
+        db.query(Developer)
+        .options(
+            joinedload(Developer.assigned_work_items).joinedload(WorkItem.project),
+            joinedload(Developer.projects),
+        )
+        .all()
+    )
+
+    result = []
     for dev in developers:
-        dev_items = db.query(WorkItem).filter(WorkItem.assignee_id == dev.id).all()
-        breakdown = compute_capacity_breakdown(dev_items, week_start)
+        breakdown = compute_capacity_breakdown(dev.assigned_work_items or [], week_start)
         result.append({
             "developer_id": dev.id,
             "developer_name": dev.name,
@@ -173,7 +182,7 @@ async def get_developers_capacity(db: Session = Depends(get_db)):
             "week_start": week_start.isoformat(),
             "week_end": week_end.isoformat(),
             "specialization": getattr(dev, 'specialization', None),
-            **breakdown,  # this_week_in_progress_hours, …, tickets
+            **breakdown,
         })
 
     return result

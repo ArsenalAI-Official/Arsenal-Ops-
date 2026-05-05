@@ -16,7 +16,8 @@
       "Bash(./venv/bin/python -c \"from services.capacity_service import week_boundaries, compute_capacity_breakdown, classify_ticket; ws, we = week_boundaries\\(\\); print\\(f'week_start={ws} weekday={ws.weekday\\(\\)}'\\); print\\(f'week_end  ={we} weekday={we.weekday\\(\\)}'\\)\")",
       "Bash(./venv/bin/python -m pytest test_capacity.py -q)",
       "Bash(npm run *)",
-      "Bash(grep -n \"activeTab.*'projects'\\\\|projects.map\\\\|setEditingProject\\\\|/project/\\\\${\\\\|navigate.*project\" \"/Users/manikyarathna/Desktop/MS Project/Kimi_Agent_ProductMind AI Not Working/app/src/pages/AdminDashboard.tsx\")"
+      "Bash(grep -n \"activeTab.*'projects'\\\\|projects.map\\\\|setEditingProject\\\\|/project/\\\\${\\\\|navigate.*project\" \"/Users/manikyarathna/Desktop/MS Project/Kimi_Agent_ProductMind AI Not Working/app/src/pages/AdminDashboard.tsx\")",
+      "Bash(grep -n \"^const BurnTable\\\\|^const ForecastVsActualsChart\\\\|^const SpendingViewCard\\\\|^};$\" \"/Users/manikyarathna/Desktop/MS Project/Kimi_Agent_ProductMind AI Not Working/app/src/components/ProjectHub/ProjectPulseView.tsx\")"
     ]
   }
 }

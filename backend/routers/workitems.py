@@ -795,8 +795,6 @@ async def log_hours(
         # Fallback: attribute to the person logging the time if no assignee
         developer = db.query(Developer).filter(Developer.email == current_user.email).first()
     
-    print(f"DEBUG log-hours: current_user.email={current_user.email}, assignee_id={item.assignee_id}, logger_developer={developer.id if developer else 'NOT FOUND'}")
-    
     # Create time entry
     time_entry = TimeEntry(
         work_item_id=item_id,
@@ -805,7 +803,6 @@ async def log_hours(
         description=request.description
     )
     db.add(time_entry)
-    print(f"DEBUG log-hours: Created TimeEntry developer_id={time_entry.developer_id}, hours={request.hours}")
     
     # Update work item totals
     item.logged_hours = (item.logged_hours or 0) + request.hours
@@ -1457,25 +1454,19 @@ async def get_hours_analytics(
     work_item_assignee_map = {item.id: item.assignee_id for item in items}
     work_item_map = {item.id: item for item in items}
     dev_map = {d.id: d for d in developers}
-    
-    print(f"DEBUG: Found {len(all_time_entries)} time entries for project {project_id}")
-    for te in all_time_entries:
-        effective_dev_id = te.developer_id or work_item_assignee_map.get(te.work_item_id)
-        print(f"DEBUG: TimeEntry id={te.id}, developer_id={te.developer_id}, effective={effective_dev_id}, hours={te.hours}")
-    
+
     for dev in developers:
         # Tickets currently assigned to this developer (exclude epics to avoid duplication)
         dev_items = [item for item in items if item.assignee_id == dev.id and item.type != WorkItemType.EPIC.value]
-        
+
         # Hours logged BY this developer (their own time entries where developer_id = dev.id)
         # OR if developer_id is NULL, fall back to ticket assignee attribution
         dev_time_entries = [
-            te for te in all_time_entries 
+            te for te in all_time_entries
             if te.developer_id == dev.id or
                (te.developer_id is None and work_item_assignee_map.get(te.work_item_id) == dev.id)
         ]
         logged = sum(te.hours for te in dev_time_entries)
-        print(f"DEBUG: Developer {dev.name} (id={dev.id}) logged {logged}h from {len(dev_time_entries)} personal entries")
         
         # Allocated = total estimated hours on all assigned tickets
         allocated = sum(
