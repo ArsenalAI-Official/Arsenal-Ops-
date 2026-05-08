@@ -2448,14 +2448,14 @@ onClick={() => { navigate(`/project/${id}/board/${item.id}`); setIsEditing(false
             {/* Create Item Modal */}
             {showCreateForm && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => handleCloseCreateForm()}>
-                    <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
+                    <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)] flex-shrink-0">
                             <h2 className="text-lg font-bold text-white">Create Work Item</h2>
                             <button onClick={() => handleCloseCreateForm()} className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
-                        <div className="p-5 space-y-4">
+                        <div className="p-5 space-y-4 flex-1 overflow-y-auto">
                             <div>
                                 <label className="text-xs font-medium text-[#737373] block mb-1.5">Type</label>
                                 <select value={createForm.type} onChange={e => setCreateForm(f => ({ ...f, type: e.target.value }))}
@@ -2692,7 +2692,7 @@ onClick={() => { navigate(`/project/${id}/board/${item.id}`); setIsEditing(false
                                 </div>
                             </div>
                         </div>
-                        <div className="flex justify-end gap-3 p-5 border-t border-[rgba(255,255,255,0.05)]">
+                        <div className="flex justify-end gap-3 p-5 border-t border-[rgba(255,255,255,0.05)] flex-shrink-0">
                             <Button variant="ghost" onClick={() => handleCloseCreateForm()} className="text-[#737373] rounded-xl px-5" disabled={isCreatingItem}>Cancel</Button>
                             <Button onClick={handleCreateItem} disabled={!createForm.title.trim() || isCreatingItem}
                                 className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl px-6 font-medium shadow-lg shadow-[#B8872A]/20 disabled:opacity-50"
@@ -3418,14 +3418,14 @@ onClick={() => { navigate(`/project/${id}/board/${item.id}`); setIsEditing(false
             {/* Create Sprint Modal */}
             {showCreateSprintModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => { setShowCreateSprintModal(false); setNewSprint({ name: '', goal: '', start_date: '', end_date: '' }); }}>
-                    <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
+                    <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)] flex-shrink-0">
                             <h2 className="text-lg font-bold text-white">Create New Sprint</h2>
                             <button onClick={() => { setShowCreateSprintModal(false); setNewSprint({ name: '', goal: '', start_date: '', end_date: '' }); }} className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
-                        <div className="p-5 space-y-4">
+                        <div className="p-5 space-y-4 flex-1 overflow-y-auto">
                             <div>
                                 <label className="text-xs font-medium text-[#737373] block mb-1.5">Sprint Name *</label>
                                 <Input
