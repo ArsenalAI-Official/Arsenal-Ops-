@@ -8,7 +8,6 @@ import {
     DashboardStats,
     MyTasksBox,
     ProjectsBox,
-    OverviewBox,
     QuickNotesPanel,
     TicketDetailPanel,
     AddPersonalTaskDialog,
@@ -52,8 +51,7 @@ const ProjectsPage = () => {
     const [myTaskTab, setMyTaskTab] = useState<'upcoming' | 'overdue' | 'completed' | 'personal'>('upcoming');
     const [myTasksLoading, setMyTasksLoading] = useState(false);
     const [showAllTasks, setShowAllTasks] = useState(false);
-    const [showAllDueSoon, setShowAllDueSoon] = useState(false);
-    const [selectedTask, setSelectedTask] = useState<MyTask | null>(null);
+const [selectedTask, setSelectedTask] = useState<MyTask | null>(null);
 
     // Personal Tasks
     const [personalTasks, setPersonalTasks] = useState<PersonalTask[]>([]);
@@ -412,27 +410,13 @@ const ProjectsPage = () => {
         }
     };
 
-    // ---------- Derived state ----------
-
-    const overviewStats = {
-        total: myTasks.length,
-        done: myTasks.filter(t => t.status === 'done').length,
-        in_progress: myTasks.filter(t => t.status === 'in_progress').length,
-        in_review: myTasks.filter(t => t.status === 'in_review').length,
-        todo: myTasks.filter(t => t.status === 'todo').length,
-        overdue: myTasks.filter(t => t.is_overdue).length,
-        completion_pct: myTasks.length > 0
-            ? Math.round(myTasks.filter(t => t.status === 'done').length / myTasks.length * 100)
-            : 0,
-    };
-
     const handleTaskChanged = (updated: MyTask) => {
         setMyTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
         setSelectedTask(updated);
     };
 
     return (
-        <div className="min-h-screen bg-[#080808] text-[#F4F6FF]">
+        <div className="h-screen flex flex-col bg-[#080808] text-[#F4F6FF]">
             <Toaster position="top-right" theme="dark" richColors />
 
             <AppHeader
@@ -441,16 +425,29 @@ const ProjectsPage = () => {
                 onLogout={logout}
             />
 
-            <div className="max-w-[1400px] mx-auto px-8 py-8">
-                <DashboardStats
-                    userName={user?.name}
-                    myTasks={myTasks}
-                    myTasksLoading={myTasksLoading}
-                />
+            <div className="flex-1 min-h-0 flex flex-col max-w-[1400px] mx-auto px-8 py-8 w-full">
+                <div className="flex-shrink-0">
+                    <DashboardStats
+                        userName={user?.name}
+                        myTasks={myTasks}
+                        myTasksLoading={myTasksLoading}
+                        onTabChange={setMyTaskTab}
+                    />
+                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 flex-1 min-h-0">
+                    <ProjectsBox
+                        projects={projects}
+                        isLoading={isLoading}
+                        searchQuery={searchQuery}
+                        setSearchQuery={setSearchQuery}
+                        isAdmin={!!user?.role.includes('admin')}
+                        onCreateProjectClick={() => setShowCreateModal(true)}
+                        onProjectClick={(projectId) => navigate(`/project/${projectId}`)}
+                        onDeleteProject={handleDeleteProject}
+                    />
+
                     <MyTasksBox
-                        userInitial={user?.name?.charAt(0).toUpperCase() || ''}
                         myTasks={myTasks}
                         personalTasks={personalTasks}
                         myTasksLoading={myTasksLoading}
@@ -467,25 +464,6 @@ const ProjectsPage = () => {
                         onNavigateToPersonalTasks={() => navigate('/personal-tasks')}
                     />
 
-                    <ProjectsBox
-                        projects={projects}
-                        isLoading={isLoading}
-                        searchQuery={searchQuery}
-                        setSearchQuery={setSearchQuery}
-                        isAdmin={!!user?.role.includes('admin')}
-                        onCreateProjectClick={() => setShowCreateModal(true)}
-                        onProjectClick={(projectId) => navigate(`/project/${projectId}`)}
-                        onDeleteProject={handleDeleteProject}
-                    />
-
-                    <OverviewBox
-                        myTasks={myTasks}
-                        myTasksLoading={myTasksLoading}
-                        overviewStats={overviewStats}
-                        showAllDueSoon={showAllDueSoon}
-                        setShowAllDueSoon={setShowAllDueSoon}
-                        onSelectTask={setSelectedTask}
-                    />
                 </div>
             </div>
 

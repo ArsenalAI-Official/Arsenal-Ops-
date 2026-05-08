@@ -31,10 +31,10 @@ const ProjectsBox = ({
     );
 
     return (
-        <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-2xl flex flex-col h-[460px]">
+        <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-2xl flex flex-col h-full">
             <div className="flex items-center justify-between px-5 py-4 border-b border-[rgba(255,255,255,0.05)] flex-shrink-0">
                 <div className="flex items-center gap-2">
-                    <h2 className="text-base font-semibold text-white">Projects</h2>
+                    <h2 className="text-xl font-semibold text-white">Projects</h2>
                     <span className="text-xs text-[#737373] bg-[rgba(255,255,255,0.05)] px-2 py-0.5 rounded-full">{filteredProjects.length}</span>
                 </div>
                 <div className="flex items-center gap-2">

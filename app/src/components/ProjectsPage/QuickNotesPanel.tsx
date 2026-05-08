@@ -58,7 +58,7 @@ const QuickNotesPanel = ({
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all duration-200 shadow-lg ${
                     notepadOpen
                         ? 'bg-[#1a1a1a] border-[rgba(255,255,255,0.12)] text-[#a3a3a3] hover:text-white'
-                        : 'bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.08)] text-[#737373] hover:text-[#a3a3a3] hover:border-[rgba(255,255,255,0.12)]'
+                        : 'bg-[#1a1a1a] border-[rgba(255,255,255,0.08)] text-[#737373] hover:text-[#a3a3a3] hover:border-[rgba(255,255,255,0.12)]'
                 }`}
                 title="Quick Notes"
             >

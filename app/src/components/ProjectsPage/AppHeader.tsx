@@ -1,6 +1,5 @@
 import { Layers, Settings, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 
 interface AppHeaderProps {
     user: { name: string; role: string } | null;
@@ -45,13 +44,9 @@ const AppHeader = ({ user, onAdminClick, onLogout }: AppHeaderProps) => {
                         onClick={onLogout}
                         className="text-[#737373] hover:text-red-400 hover:bg-red-500/10 rounded-xl px-3"
                     >
-                        <LogOut className="w-4 h-4 mr-2" />
                         Logout
+                        <LogOut className="w-4 h-4 ml-2" />
                     </Button>
-                    <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10 px-3 py-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-2 animate-pulse" />
-                        Online
-                    </Badge>
                 </div>
             </div>
         </header>

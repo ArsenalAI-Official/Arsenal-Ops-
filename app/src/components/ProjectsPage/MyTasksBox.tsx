@@ -1,7 +1,7 @@
 import {
     Plus,
     X,
-    Lock,
+    CheckSquare2,
     CheckCircle2,
     AlertCircle,
     Edit2,
@@ -12,11 +12,11 @@ import {
 import { Badge } from '@/components/ui/badge';
 import type { MyTask, PersonalTask } from './types';
 import { parseLocalDate } from './utils';
+import { STATUS_BARS, STATUS_COLOR } from './constants';
 
 type MyTaskTab = 'upcoming' | 'overdue' | 'completed' | 'personal';
 
 interface MyTasksBoxProps {
-    userInitial: string;
     myTasks: MyTask[];
     personalTasks: PersonalTask[];
     myTasksLoading: boolean;
@@ -61,7 +61,6 @@ const sortUpcomingTasks = (tasks: MyTask[]) => {
 };
 
 const MyTasksBox = ({
-    userInitial,
     myTasks,
     personalTasks,
     myTasksLoading,
@@ -89,22 +88,13 @@ const MyTasksBox = ({
     const visiblePersonalTasks = [...activePersonalTasks].sort(sortPersonalTasks).slice(0, 5);
 
     return (
-        <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-2xl flex flex-col h-[460px]">
+        <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-2xl flex flex-col h-full">
             <div className="flex items-center justify-between px-5 pt-5 pb-3 flex-shrink-0">
-                <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#E0B954] to-[#C79E3B] flex items-center justify-center text-[#080808] text-sm font-bold">
-                        {userInitial}
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <h2 className="text-base font-semibold text-white">My tasks</h2>
-                        <Lock className="w-3.5 h-3.5 text-[#737373]" />
-                    </div>
+                <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-semibold text-white">My tasks</h2>
+                    <CheckSquare2 className="w-3.5 h-3.5 text-[#737373]" />
                 </div>
                 <div className="flex items-center gap-2">
-                    <div className="text-xs text-[#737373] flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#E0B954]" />
-                        <span>{myTasks.filter(t => t.status === 'done').length} completed</span>
-                    </div>
                     <button
                         onClick={onAddPersonalTaskClick}
                         className="w-7 h-7 flex items-center justify-center rounded-lg bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] transition-opacity"
@@ -248,12 +238,10 @@ const MyTasksBox = ({
                             className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer group"
                             onClick={() => onSelectTask(task)}
                         >
-                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                                task.status === 'done' ? 'border-[#E0B954] bg-[#E0B954]' :
-                                task.is_overdue ? 'border-red-400' : 'border-[#444] group-hover:border-[#E0B954]/50'
-                            }`}>
-                                {task.status === 'done' && <CheckCircle2 className="w-3 h-3 text-[#080808]" />}
-                            </div>
+                            <div
+                                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: STATUS_COLOR[task.status] || '#555' }}
+                            />
                             <span className={`flex-1 text-sm truncate ${
                                 task.status === 'done' ? 'line-through text-[#555]' : 'text-[#f5f5f5]'
                             }`}>
@@ -262,6 +250,17 @@ const MyTasksBox = ({
                             <span className="text-xs px-2 py-0.5 rounded-md bg-[rgba(224,185,84,0.08)] text-[#C79E3B] truncate max-w-[110px] flex-shrink-0">
                                 {task.project_name}
                             </span>
+                            {(myTaskTab === 'upcoming' || myTaskTab === 'overdue') && task.priority && task.priority !== 'critical' && (() => {
+                                const color = priorityColor(task.priority);
+                                return (
+                                    <span
+                                        className="text-xs px-2 py-0.5 rounded-md flex-shrink-0"
+                                        style={{ backgroundColor: `${color}20`, color }}
+                                    >
+                                        {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                                    </span>
+                                );
+                            })()}
                             {task.is_overdue && (
                                 <AlertCircle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
                             )}
@@ -284,6 +283,34 @@ const MyTasksBox = ({
                     </button>
                 )}
             </div>
+
+            {(myTaskTab === 'upcoming' || myTaskTab === 'overdue') && filteredMyTasks.length > 0 && (() => {
+                const bars = STATUS_BARS.filter(s => s.key !== 'done');
+                return (
+                    <div className="px-5 py-3 border-t border-[rgba(255,255,255,0.05)] flex-shrink-0">
+                        <div className="h-2 rounded-full overflow-hidden flex w-full mb-2">
+                            {bars.map(s => {
+                                const count = filteredMyTasks.filter(t => t.status === s.key).length;
+                                const pct = (count / filteredMyTasks.length) * 100;
+                                return pct > 0 ? (
+                                    <div key={s.key} style={{ width: `${pct}%`, backgroundColor: s.color }} title={`${s.label}: ${count}`} />
+                                ) : null;
+                            })}
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                            {bars.map(s => {
+                                const count = filteredMyTasks.filter(t => t.status === s.key).length;
+                                return (
+                                    <div key={s.key} className="flex items-center gap-1.5">
+                                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
+                                        <span className="text-xs text-[#737373]">{s.label} <span className="text-white font-medium">{count}</span></span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                );
+            })()}
         </div>
     );
 };
