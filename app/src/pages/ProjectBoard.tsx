@@ -30,6 +30,7 @@ import {
     Inbox,
     Calendar,
     Eye,
+    Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -198,6 +199,7 @@ const ProjectBoard = () => {
     const [showReviewer, setShowReviewer] = useState(false);
     const [selectedItem, setSelectedItem] = useState<WorkItem | null>(null);
     const [isEditing, setIsEditing] = useState(false);
+    const [isSavingEdit, setIsSavingEdit] = useState(false);
     const [editForm, setEditForm] = useState<Partial<WorkItem>>({});
     const [isLoading, setIsLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -821,7 +823,8 @@ const ProjectBoard = () => {
 
     // Save edited item
     const handleSaveEdit = async () => {
-        if (!selectedItem) return;
+        if (!selectedItem || isSavingEdit) return;
+        setIsSavingEdit(true);
         try {
             const response = await fetch(`${API_BASE_URL}/api/workitems/${selectedItem.id}`, {
                 method: 'PUT',
@@ -842,6 +845,8 @@ const ProjectBoard = () => {
             }
         } catch {
             toast.error('Failed to update item');
+        } finally {
+            setIsSavingEdit(false);
         }
     };
 
@@ -2069,8 +2074,20 @@ onClick={() => { navigate(`/project/${id}/board/${item.id}`); setIsEditing(false
                                             </Popover>
                                         </div>
                                     </div>
-                                    <Button onClick={handleSaveEdit} className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl w-full h-10">
-                                        <Save className="w-4 h-4 mr-2" /> Save Changes
+                                    <Button
+                                        onClick={handleSaveEdit}
+                                        disabled={isSavingEdit}
+                                        className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl w-full h-10 disabled:opacity-70 disabled:cursor-not-allowed"
+                                    >
+                                        {isSavingEdit ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving…
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Save className="w-4 h-4 mr-2" /> Save Changes
+                                            </>
+                                        )}
                                     </Button>
                                 </div>
                             ) : (
