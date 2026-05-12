@@ -897,24 +897,26 @@ const ProjectDetail = () => {
             {/* Header */}
             <header className="border-b border-[rgba(224,185,84,0.15)] bg-[#080808]/95 backdrop-blur-xl sticky top-0 z-40 shadow-[0_1px_0_0_rgba(224,185,84,0.08)]">
                 <div className="px-6 py-4">
-                    <div className="flex items-center gap-4">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => navigate('/')}
-                            className="text-[#737373] hover:text-white hover:bg-[rgba(244,246,255,0.05)] rounded-lg gap-2"
-                        >
-                            <ArrowLeft className="w-4 h-4" />
-                            Dashboard
-                        </Button>
-                        <div className="w-px h-6 bg-[rgba(255,255,255,0.07)]" />
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E0B954] to-[#C79E3B] flex items-center justify-center text-sm font-bold text-[#080808] shadow-lg shadow-[#E0B954]/25">
-                                {project.key_prefix.substring(0, 2)}
-                            </div>
-                            <div>
-                                <h1 className="text-lg font-semibold text-white">{project.name}</h1>
-                                <p className="text-xs text-[#737373] font-mono">{project.key_prefix}</p>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => navigate('/')}
+                                className="text-[#737373] hover:text-white hover:bg-[rgba(244,246,255,0.05)] rounded-lg gap-2"
+                            >
+                                <ArrowLeft className="w-4 h-4" />
+                                Dashboard
+                            </Button>
+                            <div className="w-px h-6 bg-[rgba(255,255,255,0.07)]" />
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E0B954] to-[#C79E3B] flex items-center justify-center text-sm font-bold text-[#080808] shadow-lg shadow-[#E0B954]/25">
+                                    {project.key_prefix.substring(0, 2)}
+                                </div>
+                                <div>
+                                    <h1 className="text-lg font-semibold text-white">{project.name}</h1>
+                                    <p className="text-xs text-[#737373] font-mono">{project.key_prefix}</p>
+                                </div>
                             </div>
                         </div>
                         <Button

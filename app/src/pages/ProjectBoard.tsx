@@ -250,6 +250,7 @@ const ProjectBoard = () => {
     const [sprints, setSprints] = useState<Sprint[]>([]);
     const [selectedSprintId, setSelectedSprintId] = useState<number | 'all' | 'unassigned'>('all');
     const [showCreateSprintModal, setShowCreateSprintModal] = useState(false);
+    const [showAddMenu, setShowAddMenu] = useState(false);
     const [showCompletedSprints, setShowCompletedSprints] = useState(false);
     const [collapsedSprints, setCollapsedSprints] = useState<Set<string>>(new Set());
     const [newSprint, setNewSprint] = useState({ name: '', goal: '', start_date: '', end_date: '' });
@@ -1513,14 +1514,6 @@ const ProjectBoard = () => {
                                 <p className="text-xs text-[#737373] font-mono">{project.key_prefix}</p>
                             </div>
                         </div>
-                        <div className="w-px h-6 bg-[rgba(255,255,255,0.18)]" />
-                        <Button
-                            onClick={() => navigate(`/project/${id}`)}
-                            className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-lg font-medium h-9 px-4 transition-opacity"
-                        >
-                            <LayoutGrid className="w-4 h-4 mr-2" />
-                            Project Overview
-                        </Button>
                     </div>
                     <div className="flex items-center gap-3">
                         <Button
@@ -1552,12 +1545,12 @@ const ProjectBoard = () => {
                             )}
                         </Button>
                         <Button
-                            onClick={() => setShowCreateForm(true)}
+                            onClick={() => navigate(`/project/${id}`)}
                             size="sm"
-                            className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-lg font-medium h-9 transition-opacity"
+                            className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-lg font-medium h-9 px-4 transition-opacity"
                         >
-                            <Plus className="w-3.5 h-3.5 mr-2" />
-                            New Item
+                            <LayoutGrid className="w-4 h-4 mr-2" />
+                            Project Overview
                         </Button>
                     </div>
                 </div>
@@ -1822,14 +1815,36 @@ const ProjectBoard = () => {
                             </button>
                         </div>
 
-                        <Button
-                            onClick={() => setShowCreateSprintModal(true)}
-                            size="sm"
-                            className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-lg font-medium h-8 px-3 text-xs transition-opacity"
-                        >
-                            <Plus className="w-3 h-3 mr-1" />
-                            New Sprint
-                        </Button>
+                        <div className="relative">
+                            <Button
+                                onClick={() => setShowAddMenu(prev => !prev)}
+                                size="sm"
+                                className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-lg font-medium h-8 px-3 text-xs transition-opacity"
+                            >
+                                <Plus className="w-3 h-3" />
+                            </Button>
+                            {showAddMenu && (
+                                <>
+                                    <div className="fixed inset-0 z-10" onClick={() => setShowAddMenu(false)} />
+                                    <div className="absolute right-0 top-full mt-1 z-20 bg-[#1a1a1a] border border-[rgba(255,255,255,0.08)] rounded-lg shadow-xl overflow-hidden min-w-[130px]">
+                                        <button
+                                            onClick={() => { setShowCreateForm(true); setShowAddMenu(false); }}
+                                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
+                                        >
+                                            <Plus className="w-3.5 h-3.5 text-[#E0B954]" />
+                                            New Item
+                                        </button>
+                                        <button
+                                            onClick={() => { setShowCreateSprintModal(true); setShowAddMenu(false); }}
+                                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
+                                        >
+                                            <Plus className="w-3.5 h-3.5 text-[#E0B954]" />
+                                            New Sprint
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
                     </div>
                 </div>
             </header>
