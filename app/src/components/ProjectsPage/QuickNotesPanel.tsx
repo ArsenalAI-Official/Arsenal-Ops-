@@ -16,7 +16,7 @@ const QuickNotesPanel = ({
     notepadSaved,
 }: QuickNotesPanelProps) => {
     return (
-        <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
+        <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2 pointer-events-none">
             <div className={`transition-all duration-300 origin-bottom-right ${
                 notepadOpen
                     ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
@@ -55,7 +55,7 @@ const QuickNotesPanel = ({
 
             <button
                 onClick={() => setNotepadOpen(o => !o)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all duration-200 shadow-lg ${
+                className={`pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all duration-200 shadow-lg ${
                     notepadOpen
                         ? 'bg-[#1a1a1a] border-[rgba(255,255,255,0.12)] text-[#a3a3a3] hover:text-white'
                         : 'bg-[#1a1a1a] border-[rgba(255,255,255,0.08)] text-[#737373] hover:text-[#a3a3a3] hover:border-[rgba(255,255,255,0.12)]'
