@@ -1,5 +1,6 @@
-import { Layers, Settings, LogOut } from 'lucide-react';
+import { Settings, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import arsenalOpsLogo from '@/assets/images/arsenal-ops-logo.png';
 
 interface AppHeaderProps {
     user: { name: string; role: string } | null;
@@ -11,15 +12,7 @@ const AppHeader = ({ user, onAdminClick, onLogout }: AppHeaderProps) => {
     return (
         <header className="border-b border-[rgba(255,255,255,0.05)] bg-[#080808]/90 backdrop-blur-xl sticky top-0 z-50">
             <div className="max-w-[1400px] mx-auto px-8 py-5 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#E0B954] via-[#B8872A] to-[#4338CA] flex items-center justify-center shadow-lg shadow-[#B8872A]/25">
-                        <Layers className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-bold tracking-tight text-white">Arsenal Ops</h1>
-                        <p className="text-xs text-[#737373] font-medium">Project Management</p>
-                    </div>
-                </div>
+                <img src={arsenalOpsLogo} alt="Arsenal Ops" className="h-11 w-auto" />
                 <div className="flex items-center gap-3">
                     {user && (
                         <div className="flex items-center gap-2 mr-2">
