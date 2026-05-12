@@ -82,6 +82,24 @@ interface HoursOnOthersTicket {
     logged_at: string;
 }
 
+interface CapacityTicket {
+    id: number;
+    key: string;
+    title: string;
+    status: string;
+    priority: string;
+    project_id: number;
+    project_name: string | null;
+    estimated_hours: number;
+    logged_hours: number;
+    remaining_hours: number;
+    started_at: string | null;
+    last_assigned_at: string | null;
+    completed_at: string | null;
+    counted_hours: number;
+    counted_basis: string;
+}
+
 interface DeveloperHours {
     developer_id: number;
     developer_name: string;
@@ -96,6 +114,15 @@ interface DeveloperHours {
     my_tickets: TicketBreakdown[];
     hours_logged_on_others_tickets: HoursOnOthersTicket[];
     attribution_note: string;
+    // Sat-Fri capacity breakdown for THIS project (matches admin capacity rules)
+    week_start?: string;
+    week_end?: string;
+    this_week_in_progress_hours?: number;
+    this_week_in_review_hours?: number;
+    this_week_done_hours?: number;
+    this_week_capacity_used?: number;
+    this_week_remaining_capacity?: number;
+    this_week_tickets?: CapacityTicket[];
 }
 
 interface WeeklyHours {
@@ -545,10 +572,38 @@ export default function PMView({ projectId, token, isAdmin = false, userRestrict
                                                             {dev.logged_hours}h
                                                         </span>
                                                     </td>
-                                                    <td className="py-3 px-4 text-sm text-right">
-                                                        <span className={dev.current_week_logged > 0 ? 'text-[#C79E3B] font-semibold' : 'text-[#737373]'}>
-                                                            {dev.current_week_logged}h
-                                                        </span>
+                                                    <td className="py-3 px-4 text-sm min-w-[260px]">
+                                                        {(() => {
+                                                            const inProgressH = dev.this_week_in_progress_hours ?? 0;
+                                                            const inReviewH = dev.this_week_in_review_hours ?? 0;
+                                                            const doneH = dev.this_week_done_hours ?? 0;
+                                                            const capUsed = dev.this_week_capacity_used ?? 0;
+                                                            return (
+                                                                <div className="flex flex-col items-end gap-1">
+                                                                    <div className="flex items-center gap-2 w-full max-w-[220px]">
+                                                                        <div className="flex-1 h-2 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden flex">
+                                                                            {capUsed > 0 && (
+                                                                                <>
+                                                                                    <div className="h-full bg-[#E0B954]" style={{ width: `${Math.min(100, (inProgressH / 40) * 100)}%` }} title={`${inProgressH}h in-progress`} />
+                                                                                    <div className="h-full bg-[#A78BFA]" style={{ width: `${Math.min(100, (inReviewH / 40) * 100)}%` }} title={`${inReviewH}h in-review`} />
+                                                                                    <div className="h-full bg-[#34D399]" style={{ width: `${Math.min(100, (doneH / 40) * 100)}%` }} title={`${doneH}h done`} />
+                                                                                </>
+                                                                            )}
+                                                                        </div>
+                                                                        <span className={`text-xs font-mono tabular-nums whitespace-nowrap ${capUsed > 0 ? 'text-[#C79E3B] font-semibold' : 'text-[#737373]'}`}>
+                                                                            {capUsed}h/40h
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="text-[10px] text-[#737373] flex items-center gap-1.5 flex-wrap justify-end">
+                                                                        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-[#E0B954]" />{inProgressH}h prog</span>
+                                                                        <span className="text-[rgba(255,255,255,0.15)]">·</span>
+                                                                        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-[#A78BFA]" />{inReviewH}h rev</span>
+                                                                        <span className="text-[rgba(255,255,255,0.15)]">·</span>
+                                                                        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-[#34D399]" />{doneH}h done</span>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })()}
                                                     </td>
                                                     <td className="py-3 px-4 text-sm text-right">
                                                         <span className={dev.remaining_hours > 0 ? 'text-[#F59E0B]' : 'text-[#737373]'}>
@@ -568,6 +623,71 @@ export default function PMView({ projectId, token, isAdmin = false, userRestrict
                                                     <tr className="bg-[rgba(255,255,255,0.01)]">
                                                         <td colSpan={8} className="py-4 px-4">
                                                             <div className="space-y-4">
+                                                                {/* This Week — by status breakdown (Sat-Fri) */}
+                                                                {(dev.this_week_tickets && dev.this_week_tickets.length > 0) && (
+                                                                    <div>
+                                                                        <div className="flex items-center justify-between mb-2">
+                                                                            <h4 className="text-xs font-medium text-[#C79E3B] uppercase">
+                                                                                This Week — by status
+                                                                            </h4>
+                                                                            {dev.week_start && dev.week_end && (
+                                                                                <span className="text-[10px] text-[#737373] font-mono">
+                                                                                    {new Date(dev.week_start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                                                                    {' → '}
+                                                                                    {new Date(dev.week_end).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                                                                    {' (Sat → Fri, UTC)'}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                                            {([
+                                                                                { key: 'in_progress', label: 'In progress', color: '#E0B954', total: dev.this_week_in_progress_hours ?? 0 },
+                                                                                { key: 'in_review', label: 'In review', color: '#A78BFA', total: dev.this_week_in_review_hours ?? 0 },
+                                                                                { key: 'done', label: 'Done this week', color: '#34D399', total: dev.this_week_done_hours ?? 0 },
+                                                                            ] as const).map(group => {
+                                                                                const groupTickets = (dev.this_week_tickets ?? []).filter(t => t.status === group.key);
+                                                                                return (
+                                                                                    <div key={group.key} className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-3">
+                                                                                        <div className="flex items-center justify-between mb-2">
+                                                                                            <div className="flex items-center gap-2">
+                                                                                                <span className="w-2 h-2 rounded-sm" style={{ background: group.color }} />
+                                                                                                <span className="text-xs font-semibold text-white">{group.label}</span>
+                                                                                                <span className="text-[10px] text-[#737373]">({groupTickets.length})</span>
+                                                                                            </div>
+                                                                                            <span className="text-xs font-mono tabular-nums" style={{ color: group.color }}>{group.total}h</span>
+                                                                                        </div>
+                                                                                        {groupTickets.length === 0 ? (
+                                                                                            <div className="text-[11px] text-[#737373] py-1">No tickets</div>
+                                                                                        ) : (
+                                                                                            <ul className="space-y-1.5">
+                                                                                                {groupTickets.map(t => (
+                                                                                                    <li key={t.id} className="flex items-start gap-2 text-xs">
+                                                                                                        <span className="font-mono text-[#E0B954] mt-0.5 flex-shrink-0">{t.key}</span>
+                                                                                                        <div className="flex-1 min-w-0">
+                                                                                                            <div className="text-white truncate">{t.title}</div>
+                                                                                                            <div className="text-[10px] text-[#737373] mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                                                                                                <span>est {t.estimated_hours}h</span>
+                                                                                                                <span className="text-[rgba(255,255,255,0.15)]">·</span>
+                                                                                                                <span>logged {t.logged_hours}h</span>
+                                                                                                                {t.counted_basis === 'remaining (transferred)' && (
+                                                                                                                    <span className="px-1 py-0.5 rounded bg-[#FBBF24]/15 text-[#FBBF24] text-[9px] font-semibold uppercase tracking-wider">transferred</span>
+                                                                                                                )}
+                                                                                                            </div>
+                                                                                                        </div>
+                                                                                                        <span className="font-mono tabular-nums flex-shrink-0" style={{ color: group.color }} title={`Counted as ${t.counted_basis}`}>
+                                                                                                            +{t.counted_hours}h
+                                                                                                        </span>
+                                                                                                    </li>
+                                                                                                ))}
+                                                                                            </ul>
+                                                                                        )}
+                                                                                    </div>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+
                                                                 {/* My Tickets Section */}
                                                                 <div>
                                                                     <h4 className="text-xs font-medium text-[#737373] uppercase mb-2">My Assigned Tickets</h4>

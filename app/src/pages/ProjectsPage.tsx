@@ -51,7 +51,7 @@ const ProjectsPage = () => {
     const [myTaskTab, setMyTaskTab] = useState<'upcoming' | 'overdue' | 'completed' | 'personal'>('upcoming');
     const [myTasksLoading, setMyTasksLoading] = useState(false);
     const [showAllTasks, setShowAllTasks] = useState(false);
-const [selectedTask, setSelectedTask] = useState<MyTask | null>(null);
+    const [selectedTask, setSelectedTask] = useState<MyTask | null>(null);
 
     // Personal Tasks
     const [personalTasks, setPersonalTasks] = useState<PersonalTask[]>([]);
@@ -338,8 +338,6 @@ const [selectedTask, setSelectedTask] = useState<MyTask | null>(null);
             toast.error('Failed to update task');
         }
     };
-
-    // ---------- Project actions ----------
 
     const handleAddDeveloper = () => {
         if (!selectedDeveloperId || !newRole.trim()) {

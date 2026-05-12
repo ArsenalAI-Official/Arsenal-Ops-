@@ -299,8 +299,11 @@ async def get_my_tasks(
             "tags": item.tags or [],
             "acceptance_criteria": item.acceptance_criteria or [],
             "parent_id": item.parent_id,
+            "parent_key": item.parent.key if item.parent else None,
             "epic_id": item.epic_id,
+            "epic_key": item.epic.key if item.epic else None,
             "sprint_id": item.sprint_id,
+            "sprint": item.sprint.name if item.sprint else "Backlog",
         })
     
     return result
@@ -364,7 +367,8 @@ async def create_work_item(
         start_date=datetime.fromisoformat(item.start_date) if item.start_date else None,
         due_date=datetime.fromisoformat(item.due_date) if item.due_date else None,
         started_at=datetime.utcnow() if item.status == "in_progress" else None,
-        completed_at=datetime.utcnow() if item.status == "done" else None
+        completed_at=datetime.utcnow() if item.status == "done" else None,
+        last_assigned_at=datetime.utcnow() if item.assignee_id else None,
     )
     db.add(work_item)
     db.flush()  # assigns work_item.id without committing
@@ -452,6 +456,9 @@ async def update_work_item(
     if old_assignee_id and item.assignee:
         old_assignee_name = item.assignee.name
     
+    # Track old status before update for status change notification
+    old_status = item.status
+    
     update_data = update.dict(exclude_unset=True)
     
     # Handle frontend compatibility: assigned_hours -> estimated_hours
@@ -480,7 +487,8 @@ async def update_work_item(
             setattr(item, key, value)
     
     # If sprint_id was changed, set due_date to sprint end_date (Friday)
-    if 'sprint_id' in update_data:
+    # Skip when the caller explicitly provided a due_date — user-picked date wins.
+    if 'sprint_id' in update_data and 'due_date' not in update_data:
         new_sprint_id = update_data['sprint_id']
         if new_sprint_id:
             sprint = db.query(Sprint).filter(Sprint.id == new_sprint_id).first()
@@ -501,6 +509,8 @@ async def update_work_item(
         new_assignee_id = update_data['assignee_id']
         # Only create comment if assignee actually changed
         if new_assignee_id != old_assignee_id:
+            # Stamp the transfer time so the new assignee's capacity uses remaining (not estimated)
+            item.last_assigned_at = datetime.utcnow()
             from models.developer import Developer
             new_assignee_name = "Unassigned"
             if new_assignee_id:
@@ -567,6 +577,48 @@ async def update_work_item(
     db.commit()
     db.refresh(item)
     
+    # Send status change email notifications to assignee and creator/reporter
+    if 'status' in update_data and update_data['status'] != old_status:
+        from models.developer import Developer
+        new_status = update_data['status']
+        changer_name = current_user.name if hasattr(current_user, 'name') and current_user.name else current_user.email
+        notified_emails = set()  # Avoid sending duplicate emails
+        
+        # Notify the assignee (if not the person making the change)
+        if item.assignee_id and item.assignee and item.assignee.email:
+            assignee_dev = item.assignee
+            if assignee_dev.email != current_user.email:
+                email_service.send_status_change_notification(
+                    to_email=assignee_dev.email,
+                    to_name=assignee_dev.name,
+                    changed_by=changer_name,
+                    work_item_key=item.key,
+                    work_item_title=item.title,
+                    old_status=old_status,
+                    new_status=new_status,
+                    project_id=item.project_id,
+                    work_item_id=item.id,
+                    role="assignee"
+                )
+                notified_emails.add(assignee_dev.email)
+        
+        # Notify the creator/reporter (if different from assignee and not the person making the change)
+        if item.reporter_id and item.reporter and item.reporter.email:
+            reporter_dev = item.reporter
+            if reporter_dev.email != current_user.email and reporter_dev.email not in notified_emails:
+                email_service.send_status_change_notification(
+                    to_email=reporter_dev.email,
+                    to_name=reporter_dev.name,
+                    changed_by=changer_name,
+                    work_item_key=item.key,
+                    work_item_title=item.title,
+                    old_status=old_status,
+                    new_status=new_status,
+                    project_id=item.project_id,
+                    work_item_id=item.id,
+                    role="creator"
+                )
+    
     # Update epic status if this item's status changed and it's linked to an epic
     if 'status' in update_data and item.epic_id:
         update_epic_status_from_stories(item.epic_id, db)
@@ -594,7 +646,11 @@ async def update_work_item(
     assignee_name = "Unassigned"
     if item.assignee_id and item.assignee:
         assignee_name = item.assignee.name
-    
+
+    sprint_name = "Backlog"
+    if item.sprint_id and item.sprint:
+        sprint_name = item.sprint.name
+
     return {
         "id": str(item.id),
         "key": item.key,
@@ -605,14 +661,23 @@ async def update_work_item(
         "priority": item.priority,
         "story_points": item.story_points or 0,
         "assigned_hours": item.estimated_hours or 0,
+        "estimated_hours": item.estimated_hours or 0,
         "remaining_hours": item.remaining_hours or 0,
-        "logged_hours": item.logged_hours or 0,
         "logged_hours": item.logged_hours or 0,
         "assignee": assignee_name,
         "assignee_id": item.assignee_id,
-        "sprint": "Backlog",
+        "sprint": sprint_name,
+        "sprint_id": item.sprint_id,
         "epic": "",
+        "epic_id": item.epic_id,
+        "parent_id": item.parent_id,
         "tags": item.tags or [],
+        "acceptance_criteria": item.acceptance_criteria or [],
+        "due_date": item.due_date.isoformat() if item.due_date else None,
+        "start_date": item.start_date.isoformat() if item.start_date else None,
+        "is_overdue": bool(item.due_date and item.due_date < datetime.utcnow() and item.status != "done"),
+        "started_at": item.started_at.isoformat() if item.started_at else None,
+        "completed_at": item.completed_at.isoformat() if item.completed_at else None,
         "created_at": item.created_at.isoformat() if item.created_at else None,
         "updated_at": item.updated_at.isoformat() if item.updated_at else None,
     }
@@ -731,8 +796,6 @@ async def log_hours(
         # Fallback: attribute to the person logging the time if no assignee
         developer = db.query(Developer).filter(Developer.email == current_user.email).first()
     
-    print(f"DEBUG log-hours: current_user.email={current_user.email}, assignee_id={item.assignee_id}, logger_developer={developer.id if developer else 'NOT FOUND'}")
-    
     # Create time entry
     time_entry = TimeEntry(
         work_item_id=item_id,
@@ -741,7 +804,6 @@ async def log_hours(
         description=request.description
     )
     db.add(time_entry)
-    print(f"DEBUG log-hours: Created TimeEntry developer_id={time_entry.developer_id}, hours={request.hours}")
     
     # Update work item totals
     item.logged_hours = (item.logged_hours or 0) + request.hours
@@ -1446,25 +1508,19 @@ async def get_hours_analytics(
     work_item_assignee_map = {item.id: item.assignee_id for item in items}
     work_item_map = {item.id: item for item in items}
     dev_map = {d.id: d for d in developers}
-    
-    print(f"DEBUG: Found {len(all_time_entries)} time entries for project {project_id}")
-    for te in all_time_entries:
-        effective_dev_id = te.developer_id or work_item_assignee_map.get(te.work_item_id)
-        print(f"DEBUG: TimeEntry id={te.id}, developer_id={te.developer_id}, effective={effective_dev_id}, hours={te.hours}")
-    
+
     for dev in developers:
         # Tickets currently assigned to this developer (exclude epics to avoid duplication)
         dev_items = [item for item in items if item.assignee_id == dev.id and item.type != WorkItemType.EPIC.value]
-        
+
         # Hours logged BY this developer (their own time entries where developer_id = dev.id)
         # OR if developer_id is NULL, fall back to ticket assignee attribution
         dev_time_entries = [
-            te for te in all_time_entries 
+            te for te in all_time_entries
             if te.developer_id == dev.id or
                (te.developer_id is None and work_item_assignee_map.get(te.work_item_id) == dev.id)
         ]
         logged = sum(te.hours for te in dev_time_entries)
-        print(f"DEBUG: Developer {dev.name} (id={dev.id}) logged {logged}h from {len(dev_time_entries)} personal entries")
         
         # Allocated = total estimated hours on all assigned tickets
         allocated = sum(
@@ -1483,25 +1539,18 @@ async def get_hours_analytics(
         
         completed_items = [item for item in dev_items if item.status == WorkItemStatus.DONE.value]
         
-        # Current week logged hours for this developer (Sunday to Saturday)
-        from datetime import timedelta
-        # Find Sunday of current week (weekday(): Monday=0, Sunday=6)
-        today = datetime.utcnow()
-        days_since_sunday = (today.weekday() + 1) % 7  # Days since last Sunday
-        current_week_start = today - timedelta(days=days_since_sunday)
-        current_week_start = current_week_start.replace(hour=0, minute=0, second=0, microsecond=0)
-        current_week_end = current_week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
-        
-        # Debug logging
-        print(f"DEBUG: Week range {current_week_start} to {current_week_end}")
-        for te in dev_time_entries:
-            if te.logged_at:
-                print(f"DEBUG: Entry logged_at={te.logged_at}, in_range={current_week_start <= te.logged_at <= current_week_end}")
-        
+        # Current week boundaries (Saturday → Friday, UTC) — shared with admin capacity.
+        from services.capacity_service import week_boundaries, compute_capacity_breakdown
+        current_week_start, current_week_end = week_boundaries()
+
         current_week_logged = sum(
             te.hours for te in dev_time_entries
             if te.logged_at and current_week_start <= te.logged_at <= current_week_end
         )
+
+        # Status-based weekly capacity breakdown for THIS developer scoped to THIS project.
+        # Mirrors /api/admin/developers/capacity but filtered to the current project.
+        capacity_breakdown = compute_capacity_breakdown(dev_items, current_week_start)
         
         # Build detailed ticket breakdown for this developer
         ticket_breakdown = []
@@ -1558,7 +1607,16 @@ async def get_hours_analytics(
             "completed_items": len(completed_items),
             "my_tickets": ticket_breakdown,
             "hours_logged_on_others_tickets": hours_on_others_tickets,
-            "attribution_note": "Hours attributed to the person who logged them, not the ticket assignee"
+            "attribution_note": "Hours attributed to the person who logged them, not the ticket assignee",
+            # Sat-Fri capacity breakdown scoped to this project (matches admin capacity rules)
+            "week_start": current_week_start.isoformat(),
+            "week_end": current_week_end.isoformat(),
+            "this_week_in_progress_hours": capacity_breakdown["this_week_in_progress_hours"],
+            "this_week_in_review_hours": capacity_breakdown["this_week_in_review_hours"],
+            "this_week_done_hours": capacity_breakdown["this_week_done_hours"],
+            "this_week_capacity_used": capacity_breakdown["this_week_capacity_used"],
+            "this_week_remaining_capacity": capacity_breakdown["this_week_remaining_capacity"],
+            "this_week_tickets": capacity_breakdown["tickets"],
         })
     
     # Weekly breakdown - based on calendar weeks (Monday to Sunday)

@@ -1,6 +1,6 @@
 """Admin router - Employee and developer management"""
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
@@ -150,75 +150,41 @@ async def list_employees(db: Session = Depends(get_db)):
 @router.get("/developers/capacity")
 async def get_developers_capacity(db: Session = Depends(get_db)):
     """Get weekly capacity for all developers across all projects.
-    
-    Rules:
-    1. In-progress tickets:
-       - Moved to in_progress BEFORE this week → remaining_hours
-       - Moved to in_progress THIS week → estimated_hours (allocated)
-    2. Done tickets (completed this week) → developer's own logged hours
-    3. Transferred tickets:
-       - Transferred to me this week → my logged hours + remaining hours
-       - Overrides rule 1 when a transfer happened this week
+
+    Saturday-Friday week. See backend/services/capacity_service.py for the rules.
+    Response embeds a per-ticket breakdown so the UI can drill down without a
+    second round-trip.
     """
-    from datetime import timedelta, datetime as dt
-    
-    # Week boundaries: Monday 00:00 → Sunday 23:59
-    today = dt.utcnow()
-    week_start = today - timedelta(days=today.weekday())
-    week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
-    week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
-    
-    developers = db.query(Developer).all()
+    from services.capacity_service import week_boundaries, compute_capacity_breakdown
+
+    week_start, week_end = week_boundaries()
+
+    # Single query that eager-loads each developer's assigned work items + each
+    # work item's project. Replaces the prior N+1 (1 query per developer).
+    developers = (
+        db.query(Developer)
+        .options(
+            joinedload(Developer.assigned_work_items).joinedload(WorkItem.project),
+            joinedload(Developer.projects),
+        )
+        .all()
+    )
+
     result = []
-    
     for dev in developers:
-        dev_items = db.query(WorkItem).filter(WorkItem.assignee_id == dev.id).all()
-        
-        in_progress_hours = 0
-        in_review_hours = 0
-        done_hours = 0
-        
-        for item in dev_items:
-            estimated = item.estimated_hours or 0
-            logged = item.logged_hours or 0
-            remaining = max(0, estimated - logged)
-            
-            if item.status == "in_progress":
-                # Rule 1: Started this week → full estimated (booked for the task)
-                #         Started before this week → remaining only (carry forward)
-                if item.started_at and item.started_at >= week_start:
-                    in_progress_hours += estimated
-                else:
-                    in_progress_hours += remaining
-            
-            elif item.status == "in_review":
-                # Developer finished work, pushed to review
-                # Count logged hours (work they actually did)
-                in_review_hours += logged
-            
-            elif item.status == "done":
-                # Only count if completed THIS week
-                if item.completed_at and item.completed_at >= week_start:
-                    done_hours += logged
-        
-        # Total capacity = active work + completed work this week
-        capacity_used = in_progress_hours + in_review_hours + done_hours
-        remaining_capacity = max(0, 40 - capacity_used)
-        
+        breakdown = compute_capacity_breakdown(dev.assigned_work_items or [], week_start)
         result.append({
             "developer_id": dev.id,
             "developer_name": dev.name,
             "developer_email": dev.email,
             "avatar_url": dev.avatar_url,
             "project_count": len(dev.projects) if dev.projects else 0,
-            "this_week_in_progress_hours": in_progress_hours,
-            "this_week_in_review_hours": in_review_hours,
-            "this_week_done_hours": done_hours,
-            "this_week_capacity_used": capacity_used,
-            "this_week_remaining_capacity": remaining_capacity,
-            "specialization": getattr(dev, 'specialization', None)
+            "week_start": week_start.isoformat(),
+            "week_end": week_end.isoformat(),
+            "specialization": getattr(dev, 'specialization', None),
+            **breakdown,
         })
-    
+
     return result
 
 

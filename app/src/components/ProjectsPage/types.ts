@@ -65,6 +65,7 @@ export interface MyTask {
     sprint?: string;
     parent_key?: string | null;
     epic_key?: string | null;
+    is_personal?: boolean;
 }
 
 export interface PersonalTask {

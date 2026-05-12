@@ -279,5 +279,118 @@ Log in to Arsenal Ops to respond or view more details.
         )
 
 
+    def send_status_change_notification(
+        self,
+        to_email: str,
+        to_name: str,
+        changed_by: str,
+        work_item_key: str,
+        work_item_title: str,
+        old_status: str,
+        new_status: str,
+        project_id: int,
+        work_item_id: int,
+        role: str = "assignee"
+    ) -> bool:
+        """Send notification when a ticket's status changes"""
+        frontend_url = os.getenv("FRONTEND_URL", "https://arsenal-ops.vercel.app")
+        ticket_link = f"{frontend_url}/project/{project_id}/board/{work_item_id}"
+        
+        status_colors = {
+            "backlog": "#9CA3AF",
+            "todo": "#6B7280",
+            "in_progress": "#3B82F6",
+            "in_review": "#F59E0B",
+            "done": "#10B981"
+        }
+        status_labels = {
+            "backlog": "Backlog",
+            "todo": "To Do",
+            "in_progress": "In Progress",
+            "in_review": "In Review",
+            "done": "Done"
+        }
+        
+        old_color = status_colors.get(old_status, "#6B7280")
+        new_color = status_colors.get(new_status, "#6B7280")
+        old_label = status_labels.get(old_status, old_status)
+        new_label = status_labels.get(new_status, new_status)
+        
+        role_text = "You are the assignee" if role == "assignee" else "You are the creator"
+        
+        html_body = f"""
+        <html>
+        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 0; margin: 0; background-color: #f5f5f5;">
+            <div style="max-width: 600px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); margin-top: 20px;">
+                <div style="border-left: 4px solid {new_color}; padding-left: 20px; margin-bottom: 30px;">
+                    <h2 style="color: #1f2937; margin: 0 0 10px 0; font-size: 24px;">
+                        Status Updated
+                    </h2>
+                    <p style="color: #6b7280; margin: 0; font-size: 14px;">
+                        {role_text} of this ticket
+                    </p>
+                </div>
+                
+                <div style="background: #f9fafb; padding: 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #e5e7eb;">
+                    <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">
+                        <strong>{work_item_key}</strong>
+                    </p>
+                    <h3 style="margin: 10px 0; color: #1f2937; font-size: 18px;">
+                        {work_item_title}
+                    </h3>
+                    <div style="display: flex; align-items: center; margin-top: 15px;">
+                        <span style="background: {old_color}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 13px; font-weight: 600;">
+                            {old_label}
+                        </span>
+                        <span style="margin: 0 10px; color: #9CA3AF; font-size: 18px;">&rarr;</span>
+                        <span style="background: {new_color}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 13px; font-weight: 600;">
+                            {new_label}
+                        </span>
+                    </div>
+                </div>
+                
+                <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #3b82f6;">
+                    <p style="margin: 0; color: #1e40af; font-size: 14px;">
+                        <strong>{changed_by}</strong> changed the status
+                    </p>
+                </div>
+                
+                <div style="margin-top: 30px; text-align: center;">
+                    <a href="{ticket_link}" style="display: inline-block; background-color: {new_color}; color: white; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: bold; margin-bottom: 20px;">View Ticket</a>
+                </div>
+                
+                <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                    <p style="color: #6b7280; font-size: 12px; margin: 0;">
+                        This is an automated notification from <strong>Arsenal Ops</strong>. 
+                        Log in to view and manage your tasks.
+                    </p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        text_body = f"""
+Status Update
+
+Ticket {work_item_key}: {work_item_title}
+
+Status changed: {old_label} → {new_label}
+Changed by: {changed_by}
+{role_text} of this ticket.
+
+View Ticket: {ticket_link}
+
+Log in to Arsenal Ops to view and manage your tasks.
+        """
+        
+        return self.send_email(
+            to_email=to_email,
+            subject=f"Status Update: {work_item_key} — {old_label} → {new_label}",
+            html_body=html_body,
+            text_body=text_body
+        )
+
+
 # Create a singleton instance
 email_service = EmailService()
