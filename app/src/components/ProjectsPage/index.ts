@@ -9,6 +9,7 @@ export { default as AddPersonalTaskDialog } from './AddPersonalTaskDialog';
 export { default as ConvertToTicketDialog } from './ConvertToTicketDialog';
 export { default as EditPersonalTaskDialog } from './EditPersonalTaskDialog';
 export { default as CreateProjectDialog } from './CreateProjectDialog';
+export { default as StatusDotMenu } from './StatusDotMenu';
 export * from './types';
 export * from './utils';
 export * from './constants';

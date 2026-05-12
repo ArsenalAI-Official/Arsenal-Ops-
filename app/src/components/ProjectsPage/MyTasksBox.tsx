@@ -12,7 +12,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import type { MyTask, PersonalTask } from './types';
 import { parseLocalDate } from './utils';
-import { STATUS_BARS, STATUS_COLOR } from './constants';
+import { STATUS_BARS } from './constants';
+import StatusDotMenu from './StatusDotMenu';
 
 type MyTaskTab = 'upcoming' | 'overdue' | 'completed' | 'personal';
 
@@ -31,6 +32,7 @@ interface MyTasksBoxProps {
     onDeletePersonalTask: (taskId: number) => void;
     onTogglePersonalTaskComplete: (task: PersonalTask) => void;
     onNavigateToPersonalTasks: () => void;
+    onChangeTaskStatus: (task: MyTask, newStatus: string) => void;
 }
 
 const priorityColor = (priority: string): string => {
@@ -75,6 +77,7 @@ const MyTasksBox = ({
     onDeletePersonalTask,
     onTogglePersonalTaskComplete,
     onNavigateToPersonalTasks,
+    onChangeTaskStatus,
 }: MyTasksBoxProps) => {
     const filteredMyTasks = myTasks.filter(t => {
         if (myTaskTab === 'upcoming') return t.status !== 'done' && !t.is_overdue;
@@ -235,21 +238,21 @@ const MyTasksBox = ({
                     visibleTasks.map(task => (
                         <div
                             key={task.id}
-                            className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer group"
+                            className="flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer group"
                             onClick={() => onSelectTask(task)}
                         >
-                            <div
-                                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                style={{ backgroundColor: STATUS_COLOR[task.status] || '#555' }}
-                            />
+                            <span className="text-xs px-2 py-0.5 rounded-md bg-[rgba(224,185,84,0.08)] text-[#C79E3B] truncate max-w-[90px] flex-shrink-0">
+                                {task.project_name}
+                            </span>
                             <span className={`flex-1 text-sm truncate ${
                                 task.status === 'done' ? 'line-through text-[#555]' : 'text-[#f5f5f5]'
                             }`}>
                                 {task.title}
                             </span>
-                            <span className="text-xs px-2 py-0.5 rounded-md bg-[rgba(224,185,84,0.08)] text-[#C79E3B] truncate max-w-[110px] flex-shrink-0">
-                                {task.project_name}
-                            </span>
+                            <StatusDotMenu
+                                status={task.status}
+                                onChange={(newStatus) => onChangeTaskStatus(task, newStatus)}
+                            />
                             {(myTaskTab === 'upcoming' || myTaskTab === 'overdue') && task.priority && task.priority !== 'critical' && (() => {
                                 const color = priorityColor(task.priority);
                                 return (

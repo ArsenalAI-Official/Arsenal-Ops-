@@ -415,6 +415,27 @@ const [selectedTask, setSelectedTask] = useState<MyTask | null>(null);
         setSelectedTask(updated);
     };
 
+    const handleChangeMyTaskStatus = async (task: MyTask, newStatus: string) => {
+        const previousStatus = task.status;
+        setMyTasks(prev => prev.map(t =>
+            t.id === task.id
+                ? { ...t, status: newStatus, is_overdue: newStatus === 'done' ? false : t.is_overdue }
+                : t
+        ));
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/workitems/${task.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ status: newStatus }),
+            });
+            if (!res.ok) throw new Error('Failed');
+            if (newStatus === 'done') toast.success(`${task.key || 'Task'} completed 🎉`);
+        } catch {
+            setMyTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: previousStatus } : t));
+            toast.error('Failed to update status');
+        }
+    };
+
     return (
         <div className="h-screen flex flex-col bg-[#080808] text-[#F4F6FF]">
             <Toaster position="top-right" theme="dark" richColors />
@@ -462,6 +483,7 @@ const [selectedTask, setSelectedTask] = useState<MyTask | null>(null);
                         onDeletePersonalTask={deletePersonalTask}
                         onTogglePersonalTaskComplete={togglePersonalTaskComplete}
                         onNavigateToPersonalTasks={() => navigate('/personal-tasks')}
+                        onChangeTaskStatus={handleChangeMyTaskStatus}
                     />
 
                 </div>
