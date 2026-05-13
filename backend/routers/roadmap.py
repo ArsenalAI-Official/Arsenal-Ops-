@@ -243,7 +243,7 @@ async def parse_roadmap_file(
 
 
 @router.post("/commit")
-async def commit_roadmap_tickets(
+def commit_roadmap_tickets(
     request: RoadmapCommitRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)

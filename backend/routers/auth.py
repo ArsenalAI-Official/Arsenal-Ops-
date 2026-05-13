@@ -124,7 +124,7 @@ def get_current_admin(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/login", response_model=Token)
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """Login with email and password"""
     user = db.query(User).filter(User.email == form_data.username).first()
     if not user:
@@ -170,7 +170,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
 
 
 @router.post("/change-password")
-async def change_password(
+def change_password(
     password_data: PasswordChange,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -193,7 +193,7 @@ async def change_password(
 
 
 @router.post("/admin/create-user", response_model=dict)
-async def create_user(
+def create_user(
     user_data: UserCreate,
     admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
@@ -251,7 +251,7 @@ async def create_user(
 
 
 @router.get("/admin/users", response_model=list)
-async def list_users(
+def list_users(
     admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
@@ -261,7 +261,7 @@ async def list_users(
 
 
 @router.post("/admin/reset-password")
-async def admin_reset_password(
+def admin_reset_password(
     reset_data: PasswordReset,
     admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
@@ -288,7 +288,7 @@ class RoleUpdate(BaseModel):
     role: str
 
 @router.put("/admin/users/{user_id}/role")
-async def update_user_role(
+def update_user_role(
     user_id: int,
     role_data: RoleUpdate,
     admin: User = Depends(get_current_admin),
@@ -325,7 +325,7 @@ async def update_user_role(
 
 @router.delete("/admin/users/{user_id}")
 @router.delete("/admin/users/{user_id}/")  # Support trailing slash
-async def delete_user(
+def delete_user(
     user_id: int,
     admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
@@ -367,7 +367,7 @@ async def delete_user(
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user_info(current_user: User = Depends(get_current_user)):
+def get_current_user_info(current_user: User = Depends(get_current_user)):
     """Get current user info"""
     return {
         "id": current_user.id,
@@ -379,7 +379,7 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/google-login", response_model=Token)
-async def google_login(
+def google_login(
     request: GoogleLoginRequest,
     db: Session = Depends(get_db)
 ):
@@ -493,7 +493,7 @@ async def google_login(
 
 
 @router.get("/google/config")
-async def get_google_config():
+def get_google_config():
     """
     Get Google Client ID for frontend configuration
     Frontend needs this to initialize Google Sign-In
@@ -528,7 +528,7 @@ class CustomRestrictionResponse(BaseModel):
 
 
 @router.get("/admin/custom-restrictions")
-async def list_custom_restrictions(db: Session = Depends(get_db), current_user: User = Depends(get_current_admin)):
+def list_custom_restrictions(db: Session = Depends(get_db), current_user: User = Depends(get_current_admin)):
     """
     List all custom restrictions
     Admin only
@@ -549,7 +549,7 @@ async def list_custom_restrictions(db: Session = Depends(get_db), current_user: 
 
 
 @router.post("/admin/custom-restrictions")
-async def create_custom_restriction(
+def create_custom_restriction(
     req: CustomRestrictionRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin)
@@ -587,7 +587,7 @@ async def create_custom_restriction(
 
 
 @router.put("/admin/custom-restrictions/{restriction_id}")
-async def update_custom_restriction(
+def update_custom_restriction(
     restriction_id: int,
     req: CustomRestrictionRequest,
     db: Session = Depends(get_db),
@@ -631,7 +631,7 @@ async def update_custom_restriction(
 
 
 @router.delete("/admin/custom-restrictions/{restriction_id}")
-async def delete_custom_restriction(
+def delete_custom_restriction(
     restriction_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin)
@@ -656,7 +656,7 @@ async def delete_custom_restriction(
 
 
 @router.post("/admin/users/{user_id}/custom-restrictions/{restriction_id}")
-async def assign_restriction_to_user(
+def assign_restriction_to_user(
     user_id: int,
     restriction_id: int,
     db: Session = Depends(get_db),
@@ -696,7 +696,7 @@ async def assign_restriction_to_user(
 
 
 @router.delete("/admin/users/{user_id}/custom-restrictions/{restriction_id}")
-async def remove_restriction_from_user(
+def remove_restriction_from_user(
     user_id: int,
     restriction_id: int,
     db: Session = Depends(get_db),
@@ -736,7 +736,7 @@ async def remove_restriction_from_user(
 
 
 @router.get("/admin/users/{user_id}/custom-restrictions")
-async def get_user_custom_restrictions(
+def get_user_custom_restrictions(
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin)
@@ -765,7 +765,7 @@ async def get_user_custom_restrictions(
 
 
 @router.get("/me/custom-restrictions")
-async def get_my_custom_restrictions(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_my_custom_restrictions(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Get current user's custom restrictions
     Accessible to all authenticated users

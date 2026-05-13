@@ -75,7 +75,7 @@ def extract_mentions(content: str, db: Session) -> List[int]:
 
 
 @router.get("/workitem/{work_item_id}", response_model=List[CommentResponse])
-async def get_comments(
+def get_comments(
     work_item_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -107,7 +107,7 @@ async def get_comments(
 
 
 @router.post("/", response_model=CommentResponse)
-async def create_comment(
+def create_comment(
     comment: CommentCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -172,7 +172,7 @@ async def create_comment(
 
 
 @router.put("/{comment_id}", response_model=CommentResponse)
-async def update_comment(
+def update_comment(
     comment_id: int,
     update: CommentUpdate,
     db: Session = Depends(get_db),
@@ -207,7 +207,7 @@ async def update_comment(
 
 
 @router.delete("/{comment_id}")
-async def delete_comment(
+def delete_comment(
     comment_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -224,7 +224,7 @@ async def delete_comment(
 
 
 @router.get("/project/{project_id}/business-review", response_model=List[dict])
-async def get_business_review_comments(
+def get_business_review_comments(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -266,7 +266,7 @@ async def get_business_review_comments(
 
 
 @router.patch("/{comment_id}/resolve")
-async def toggle_comment_resolved(
+def toggle_comment_resolved(
     comment_id: int,
     is_resolved: bool,
     db: Session = Depends(get_db),

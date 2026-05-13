@@ -217,7 +217,7 @@ def format_project(project: Project, db: Session) -> dict:
 
 
 @router.post("/")
-async def create_project(
+def create_project(
     project: ProjectCreate, 
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -304,7 +304,7 @@ async def create_project(
 
 
 @router.get("/")
-async def list_projects(
+def list_projects(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -326,7 +326,7 @@ async def list_projects(
 
 
 @router.get("/{project_id}")
-async def get_project(
+def get_project(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -337,7 +337,7 @@ async def get_project(
 
 
 @router.put("/{project_id}")
-async def update_project(
+def update_project(
     project_id: int,
     update: ProjectUpdate,
     db: Session = Depends(get_db),
@@ -397,7 +397,7 @@ async def update_project(
 
 
 @router.delete("/{project_id}")
-async def delete_project(
+def delete_project(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -421,7 +421,7 @@ async def delete_project(
 
 
 @router.post("/{project_id}/github-invite")
-async def send_github_invitations(
+def send_github_invitations(
     project_id: int, 
     role: str = "push",  # pull, push, admin, maintain, triage
     db: Session = Depends(get_db),
@@ -496,7 +496,7 @@ async def send_github_invitations(
 
 
 @router.get("/{project_id}/github-status")
-async def check_github_status(
+def check_github_status(
     project_id: int, 
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -530,7 +530,7 @@ async def check_github_status(
 
 
 @router.post("/{project_id}/developers")
-async def add_developer_to_project(
+def add_developer_to_project(
     project_id: int, 
     assignment: DeveloperAssignment, 
     db: Session = Depends(get_db),
@@ -571,7 +571,7 @@ async def add_developer_to_project(
 
 
 @router.delete("/{project_id}/developers/{developer_id}")
-async def remove_developer_from_project(
+def remove_developer_from_project(
     project_id: int, 
     developer_id: int, 
     db: Session = Depends(get_db),
@@ -607,7 +607,7 @@ async def remove_developer_from_project(
 # ============== PROJECT ADMIN MANAGEMENT ==============
 
 @router.put("/{project_id}/developers/{developer_id}/admin")
-async def set_developer_as_admin(
+def set_developer_as_admin(
     project_id: int,
     developer_id: int,
     db: Session = Depends(get_db),
@@ -640,7 +640,7 @@ async def set_developer_as_admin(
 
 
 @router.put("/{project_id}/developers/{developer_id}/member")
-async def remove_admin_from_developer(
+def remove_admin_from_developer(
     project_id: int,
     developer_id: int,
     db: Session = Depends(get_db),
@@ -706,7 +706,7 @@ class GoalUpdate(BaseModel):
     due_date: Optional[datetime] = None
 
 @router.get("/{project_id}/goals")
-async def get_project_goals(
+def get_project_goals(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -720,7 +720,7 @@ async def get_project_goals(
 
 
 @router.post("/{project_id}/goals")
-async def create_project_goal(
+def create_project_goal(
     project_id: int,
     goal: GoalCreate,
     db: Session = Depends(get_db),
@@ -757,7 +757,7 @@ async def create_project_goal(
 
 
 @router.put("/goals/{goal_id}")
-async def update_project_goal(
+def update_project_goal(
     goal_id: int,
     goal_update: GoalUpdate,
     db: Session = Depends(get_db),
@@ -804,7 +804,7 @@ async def update_project_goal(
 
 
 @router.delete("/goals/{goal_id}")
-async def delete_project_goal(
+def delete_project_goal(
     goal_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -842,7 +842,7 @@ class MilestoneCreate(BaseModel):
     due_date: Optional[datetime] = None
 
 @router.get("/{project_id}/milestones")
-async def get_project_milestones(
+def get_project_milestones(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -856,7 +856,7 @@ async def get_project_milestones(
 
 
 @router.post("/{project_id}/milestones")
-async def create_project_milestone(
+def create_project_milestone(
     project_id: int,
     milestone: MilestoneCreate,
     db: Session = Depends(get_db),
@@ -893,7 +893,7 @@ async def create_project_milestone(
 
 
 @router.put("/milestones/{milestone_id}")
-async def update_project_milestone(
+def update_project_milestone(
     milestone_id: int,
     milestone_update: MilestoneCreate,
     db: Session = Depends(get_db),
@@ -917,7 +917,7 @@ async def update_project_milestone(
 
 
 @router.post("/milestones/{milestone_id}/complete")
-async def complete_project_milestone(
+def complete_project_milestone(
     milestone_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -950,7 +950,7 @@ async def complete_project_milestone(
 
 
 @router.delete("/milestones/{milestone_id}")
-async def delete_project_milestone(
+def delete_project_milestone(
     milestone_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -983,7 +983,7 @@ async def delete_project_milestone(
 # --- Activity Feed ---
 
 @router.get("/{project_id}/activity")
-async def get_project_activity(
+def get_project_activity(
     project_id: int,
     limit: int = 50,
     db: Session = Depends(get_db),
@@ -1048,7 +1048,7 @@ def calculate_hours_excluding_weekends(total_hours: int, start_date: datetime, e
     return int(hours_per_day * working_days)
 
 @router.get("/{project_id}/workload")
-async def get_project_workload(
+def get_project_workload(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -1162,7 +1162,7 @@ class ProjectFileResponse(BaseModel):
 
 
 @router.get("/{project_id}/files")
-async def get_project_files(
+def get_project_files(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -1251,7 +1251,7 @@ async def upload_project_file(
 
 
 @router.get("/{project_id}/files/{file_id}/download")
-async def download_project_file(
+def download_project_file(
     project_id: int,
     file_id: int,
     db: Session = Depends(get_db),
@@ -1288,7 +1288,7 @@ async def download_project_file(
 
 
 @router.delete("/{project_id}/files/{file_id}")
-async def delete_project_file(
+def delete_project_file(
     project_id: int,
     file_id: int,
     db: Session = Depends(get_db),
@@ -1342,7 +1342,7 @@ class ProjectLinkResponse(BaseModel):
 
 
 @router.get("/{project_id}/links", response_model=List[ProjectLinkResponse])
-async def get_project_links(project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def get_project_links(project_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Get all links for a project"""
     from models.project_link import ProjectLink
     
@@ -1361,7 +1361,7 @@ async def get_project_links(project_id: int, db: Session = Depends(get_db), user
 
 
 @router.post("/{project_id}/links", response_model=ProjectLinkResponse)
-async def create_project_link(project_id: int, link_data: ProjectLinkCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def create_project_link(project_id: int, link_data: ProjectLinkCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Create a new link for a project"""
     from models.project_link import ProjectLink
     
@@ -1386,7 +1386,7 @@ async def create_project_link(project_id: int, link_data: ProjectLinkCreate, db:
 
 
 @router.delete("/{project_id}/links/{link_id}")
-async def delete_project_link(project_id: int, link_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def delete_project_link(project_id: int, link_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Delete a link from a project"""
     from models.project_link import ProjectLink
     

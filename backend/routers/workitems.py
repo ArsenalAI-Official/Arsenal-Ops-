@@ -169,7 +169,7 @@ class SprintCreate(BaseModel):
 
 
 @router.get("/")
-async def list_work_items(
+def list_work_items(
     project_id: int = None, 
     status: str = None, 
     type: str = None, 
@@ -256,7 +256,7 @@ async def list_work_items(
 
 
 @router.get("/my-tasks")
-async def get_my_tasks(
+def get_my_tasks(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -309,7 +309,7 @@ async def get_my_tasks(
 
 
 @router.get("/{item_id}")
-async def get_work_item(
+def get_work_item(
     item_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -322,7 +322,7 @@ async def get_work_item(
 
 
 @router.post("/")
-async def create_work_item(
+def create_work_item(
     item: WorkItemCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -443,7 +443,7 @@ async def create_work_item(
 
 
 @router.put("/{item_id}")
-async def update_work_item(
+def update_work_item(
     item_id: int,
     update: WorkItemUpdate,
     db: Session = Depends(get_db),
@@ -691,7 +691,7 @@ async def update_work_item(
 
 
 @router.put("/batch/status")
-async def batch_update_status(
+def batch_update_status(
     update: BatchStatusUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -727,7 +727,7 @@ async def batch_update_status(
 
 
 @router.delete("/{item_id}")
-async def delete_work_item(
+def delete_work_item(
     item_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -770,7 +770,7 @@ class LogHoursRequest(BaseModel):
 
 
 @router.post("/{item_id}/log-hours")
-async def log_hours(
+def log_hours(
     item_id: int,
     request: LogHoursRequest,
     db: Session = Depends(get_db),
@@ -837,7 +837,7 @@ async def log_hours(
 
 
 @router.get("/{item_id}/time-entries")
-async def get_work_item_time_entries(
+def get_work_item_time_entries(
     item_id: int,
     this_week_only: bool = False,
     db: Session = Depends(get_db),
@@ -1026,7 +1026,7 @@ async def generate_work_items(
 
 # Sprint endpoints
 @router.post("/sprints")
-async def create_sprint(
+def create_sprint(
     sprint: SprintCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -1053,7 +1053,7 @@ async def create_sprint(
 
 
 @router.get("/sprints/list")
-async def list_sprints(
+def list_sprints(
     project_id: int = None,
     status: str = None,
     db: Session = Depends(get_db),
@@ -1069,7 +1069,7 @@ async def list_sprints(
 
 
 @router.get("/sprints/{sprint_id}")
-async def get_sprint(
+def get_sprint(
     sprint_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -1082,7 +1082,7 @@ async def get_sprint(
 
 
 @router.put("/sprints/{sprint_id}/activate")
-async def activate_sprint(
+def activate_sprint(
     sprint_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -1100,7 +1100,7 @@ async def activate_sprint(
 
 
 @router.put("/sprints/{sprint_id}/complete")
-async def complete_sprint(
+def complete_sprint(
     sprint_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -1130,7 +1130,7 @@ class MoveTicketRequest(BaseModel):
 
 
 @router.put("/{item_id}/move-sprint")
-async def move_ticket_to_sprint(
+def move_ticket_to_sprint(
     item_id: int,
     request: MoveTicketRequest,
     db: Session = Depends(get_db),
@@ -1196,7 +1196,7 @@ async def move_ticket_to_sprint(
 
 
 @router.get("/projects/{project_id}/sprints")
-async def list_project_sprints(
+def list_project_sprints(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -1273,7 +1273,7 @@ async def list_project_sprints(
 
 
 @router.get("/projects/{project_id}/analytics")
-async def get_project_analytics(
+def get_project_analytics(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -1374,7 +1374,7 @@ async def get_project_analytics(
 
 
 @router.get("/projects/{project_id}/hours-analytics")
-async def get_hours_analytics(
+def get_hours_analytics(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -1793,7 +1793,7 @@ class DependencyCreate(BaseModel):
 
 
 @router.get("/{item_id}/dependencies")
-async def get_item_dependencies(
+def get_item_dependencies(
     item_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -1813,7 +1813,7 @@ async def get_item_dependencies(
 
 
 @router.post("/{item_id}/dependencies")
-async def add_item_dependency(
+def add_item_dependency(
     item_id: int,
     dependency: DependencyCreate,
     db: Session = Depends(get_db),
@@ -1868,7 +1868,7 @@ async def add_item_dependency(
 
 
 @router.delete("/{item_id}/dependencies/{dep_id}")
-async def remove_item_dependency(
+def remove_item_dependency(
     item_id: int,
     dep_id: int,
     db: Session = Depends(get_db),
@@ -1907,7 +1907,7 @@ async def remove_item_dependency(
 # ============== DEBUG ENDPOINTS ==============
 
 @router.get("/projects/{project_id}/hours-debug")
-async def debug_hours_calculation(
+def debug_hours_calculation(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -2064,7 +2064,7 @@ async def debug_hours_calculation(
 
 
 @router.post("/projects/{project_id}/repair-hours")
-async def repair_hours_calculation(
+def repair_hours_calculation(
     project_id: int,
     dry_run: bool = True,
     db: Session = Depends(get_db),

@@ -44,7 +44,7 @@ class DeveloperResponse(BaseModel):
 
 
 @router.post("/", response_model=DeveloperResponse)
-async def create_developer(
+def create_developer(
     developer: DeveloperCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -68,7 +68,7 @@ async def create_developer(
 
 
 @router.get("/", response_model=List[DeveloperResponse])
-async def list_developers(
+def list_developers(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -78,7 +78,7 @@ async def list_developers(
 
 
 @router.get("/{developer_id}", response_model=DeveloperResponse)
-async def get_developer(
+def get_developer(
     developer_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -91,7 +91,7 @@ async def get_developer(
 
 
 @router.put("/{developer_id}", response_model=DeveloperResponse)
-async def update_developer(
+def update_developer(
     developer_id: int,
     update: DeveloperUpdate,
     db: Session = Depends(get_db),
@@ -123,7 +123,7 @@ async def update_developer(
 
 
 @router.delete("/{developer_id}")
-async def delete_developer(
+def delete_developer(
     developer_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)

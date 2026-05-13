@@ -72,7 +72,7 @@ SPECIALIZATIONS = [
 
 
 @router.get("/stats", response_model=DashboardStats)
-async def get_dashboard_stats(db: Session = Depends(get_db)):
+def get_dashboard_stats(db: Session = Depends(get_db)):
     """Get admin dashboard statistics"""
     from models.sprint import Sprint
     from models.developer import Developer
@@ -122,7 +122,7 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
 
 
 @router.get("/employees", response_model=List[EmployeeResponse])
-async def list_employees(db: Session = Depends(get_db)):
+def list_employees(db: Session = Depends(get_db)):
     """Get all employees/developers"""
     developers = db.query(Developer).all()
     
@@ -148,7 +148,7 @@ async def list_employees(db: Session = Depends(get_db)):
 
 
 @router.get("/developers/capacity")
-async def get_developers_capacity(db: Session = Depends(get_db)):
+def get_developers_capacity(db: Session = Depends(get_db)):
     """Get weekly capacity for all developers across all projects.
 
     Saturday-Friday week. See backend/services/capacity_service.py for the rules.
@@ -213,7 +213,7 @@ class EmployeeTicketResponse(BaseModel):
 
 
 @router.get("/employees/{employee_id}/in-progress-tickets", response_model=List[EmployeeTicketResponse])
-async def get_employee_in_progress_tickets(employee_id: int, db: Session = Depends(get_db)):
+def get_employee_in_progress_tickets(employee_id: int, db: Session = Depends(get_db)):
     """Get all active tickets assigned to an employee across all projects, sorted by priority"""
     from sqlalchemy import case
     
@@ -271,7 +271,7 @@ async def get_employee_in_progress_tickets(employee_id: int, db: Session = Depen
 
 
 @router.post("/employees", response_model=EmployeeResponse)
-async def create_employee(employee: EmployeeCreate, db: Session = Depends(get_db)):
+def create_employee(employee: EmployeeCreate, db: Session = Depends(get_db)):
     """Create a new employee/developer"""
     from models.user import User, UserRole
     
@@ -333,7 +333,7 @@ async def create_employee(employee: EmployeeCreate, db: Session = Depends(get_db
 
 
 @router.put("/employees/{employee_id}", response_model=EmployeeResponse)
-async def update_employee(
+def update_employee(
     employee_id: int,
     update: EmployeeUpdate,
     db: Session = Depends(get_db)
@@ -386,7 +386,7 @@ async def update_employee(
 
 
 @router.delete("/employees/{employee_id}")
-async def delete_employee(employee_id: int, db: Session = Depends(get_db)):
+def delete_employee(employee_id: int, db: Session = Depends(get_db)):
     """Delete an employee/developer and their user account"""
     from models.user import User
     
@@ -412,7 +412,7 @@ async def delete_employee(employee_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/specializations")
-async def get_specializations():
+def get_specializations():
     """Get list of available specializations"""
     return {"specializations": SPECIALIZATIONS}
 
@@ -442,7 +442,7 @@ class ProjectResponse(BaseModel):
 
 
 @router.get("/projects", response_model=List[ProjectResponse])
-async def list_all_projects(db: Session = Depends(get_db)):
+def list_all_projects(db: Session = Depends(get_db)):
     """Get all projects with stats for admin"""
     projects = db.query(Project).all()
     
@@ -470,7 +470,7 @@ async def list_all_projects(db: Session = Depends(get_db)):
 
 
 @router.put("/projects/{project_id}/github")
-async def update_project_github(
+def update_project_github(
     project_id: int,
     update: ProjectGitHubUpdate,
     db: Session = Depends(get_db)

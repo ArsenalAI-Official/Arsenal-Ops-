@@ -216,7 +216,7 @@ async def analyze_prd_text(
 
 
 @router.get("/projects/{project_id}/architectures")
-async def get_project_architectures(
+def get_project_architectures(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -230,7 +230,7 @@ async def get_project_architectures(
 
 
 @router.get("/projects/{project_id}/analysis")
-async def get_project_analysis(
+def get_project_analysis(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -247,7 +247,7 @@ async def get_project_analysis(
 
 
 @router.get("/architectures/{architecture_id}")
-async def get_architecture(
+def get_architecture(
     architecture_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -261,7 +261,7 @@ async def get_architecture(
 
 
 @router.put("/architectures/{architecture_id}")
-async def update_architecture(
+def update_architecture(
     architecture_id: int,
     update: ArchitectureUpdate,
     db: Session = Depends(get_db),
@@ -341,7 +341,7 @@ async def ai_refine_architecture(
 
 
 @router.post("/architectures/{architecture_id}/select")
-async def select_architecture(
+def select_architecture(
     architecture_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)

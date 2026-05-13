@@ -47,7 +47,7 @@ class ConvertToTicketRequest(BaseModel):
 
 
 @router.get("/")
-async def get_personal_tasks(
+def get_personal_tasks(
     status: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -63,7 +63,7 @@ async def get_personal_tasks(
 
 
 @router.post("/")
-async def create_personal_task(
+def create_personal_task(
     request: CreatePersonalTaskRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -88,7 +88,7 @@ async def create_personal_task(
 
 
 @router.get("/{task_id}")
-async def get_personal_task(
+def get_personal_task(
     task_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -106,7 +106,7 @@ async def get_personal_task(
 
 
 @router.put("/{task_id}")
-async def update_personal_task(
+def update_personal_task(
     task_id: int,
     request: UpdatePersonalTaskRequest,
     db: Session = Depends(get_db),
@@ -147,7 +147,7 @@ async def update_personal_task(
 
 
 @router.delete("/{task_id}")
-async def delete_personal_task(
+def delete_personal_task(
     task_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -168,7 +168,7 @@ async def delete_personal_task(
 
 
 @router.post("/{task_id}/convert-to-ticket")
-async def convert_to_ticket(
+def convert_to_ticket(
     task_id: int,
     request: ConvertToTicketRequest,
     db: Session = Depends(get_db),
