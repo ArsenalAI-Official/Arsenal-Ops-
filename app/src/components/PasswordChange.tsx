@@ -75,7 +75,9 @@ export function PasswordChange() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="currentPassword" className="text-[#a3a3a3]">Current Password</Label>
+              <Label htmlFor="currentPassword" className="text-[#a3a3a3]">
+                Current Password
+              </Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737373]" />
                 <Input
@@ -92,13 +94,19 @@ export function PasswordChange() {
                   onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-[#737373] hover:text-white"
                 >
-                  {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showCurrentPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="newPassword" className="text-[#a3a3a3]">New Password</Label>
+              <Label htmlFor="newPassword" className="text-[#a3a3a3]">
+                New Password
+              </Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737373]" />
                 <Input
@@ -121,7 +129,9 @@ export function PasswordChange() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword" className="text-[#a3a3a3]">Confirm New Password</Label>
+              <Label htmlFor="confirmPassword" className="text-[#a3a3a3]">
+                Confirm New Password
+              </Label>
               <div className="relative">
                 <CheckCircle2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737373]" />
                 <Input

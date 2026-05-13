@@ -1,29 +1,39 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  ReactNode,
+} from 'react';
 import { API_BASE_URL } from '@/config/api';
 
 interface User {
   id: number;
   email: string;
   name: string;
-  role: string;  // Comma-separated roles: 'admin', 'project_manager', 'developer', or 'admin,project_manager'
+  role: string; // Comma-separated roles: 'admin', 'project_manager', 'developer', or 'admin,project_manager'
   is_first_login: boolean;
 }
 
 // Helper functions for role checking
 export const hasRole = (userRole: string | undefined, requiredRole: string): boolean => {
   if (!userRole) return false;
-  const roles = userRole.split(',').map(r => r.trim());
+  const roles = userRole.split(',').map((r) => r.trim());
   return roles.includes(requiredRole);
 };
 
 export const hasAnyRole = (userRole: string | undefined, requiredRoles: string[]): boolean => {
   if (!userRole) return false;
-  const roles = userRole.split(',').map(r => r.trim());
-  return requiredRoles.some(role => roles.includes(role));
+  const roles = userRole.split(',').map((r) => r.trim());
+  return requiredRoles.some((role) => roles.includes(role));
 };
 
 export const isAdmin = (user: User | null): boolean => hasRole(user?.role, 'admin');
-export const isProjectManager = (user: User | null): boolean => hasAnyRole(user?.role, ['admin', 'project_manager']);
+export const isProjectManager = (user: User | null): boolean =>
+  hasAnyRole(user?.role, ['admin', 'project_manager']);
 export const isDeveloper = (user: User | null): boolean => hasRole(user?.role, 'developer');
 
 interface AuthContextType {
@@ -88,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: {
-          'Authorization': `Bearer ${currentToken}`,
+          Authorization: `Bearer ${currentToken}`,
         },
       });
 
@@ -220,7 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
       });

@@ -2,48 +2,48 @@
 
 :root {
   /* Arsenal AI Color Palette */
-  --color-bg:           #080808;
-  --color-surface:      #121212;
-  --color-surface-2:    #1a1a1a;
-  --color-surface-3:    #222222;
+  --color-bg: #080808;
+  --color-surface: #121212;
+  --color-surface-2: #1a1a1a;
+  --color-surface-3: #222222;
 
-  --color-border:       #2a2a2a;
-  --color-border-2:     #333333;
-  --color-border-3:     #444444;
+  --color-border: #2a2a2a;
+  --color-border-2: #333333;
+  --color-border-3: #444444;
 
-  --color-text:         #f5f5f5;
-  --color-text-muted:   #a3a3a3;
-  --color-text-subtle:  #737373;
+  --color-text: #f5f5f5;
+  --color-text-muted: #a3a3a3;
+  --color-text-subtle: #737373;
 
   /* Gold Accent */
-  --color-gold:         #E0B954;
-  --color-gold-light:   #F3D57E;
-  --color-gold-lighter: #F7E6A8;
-  --color-gold-dark:    #C79E3B;
-  --color-gold-darker:  #B8872A;
+  --color-gold: #e0b954;
+  --color-gold-light: #f3d57e;
+  --color-gold-lighter: #f7e6a8;
+  --color-gold-dark: #c79e3b;
+  --color-gold-darker: #b8872a;
 
   /* Status Colors */
-  --color-success:      #E0B954;
-  --color-warning:      #F59E0B;
-  --color-error:        #EF4444;
-  --color-info:         #3B82F6;
+  --color-success: #e0b954;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
 
   /* Shadows */
-  --shadow-glow-gold:   0 8px 24px -4px rgba(224,185,84,0.25);
-  --shadow-glow-sm:     0 4px 12px -2px rgba(224,185,84,0.15);
-  --shadow-card:        0 1px 3px rgba(0,0,0,0.4);
-  --shadow-elevated:    0 8px 32px rgba(0,0,0,0.5);
+  --shadow-glow-gold: 0 8px 24px -4px rgba(224, 185, 84, 0.25);
+  --shadow-glow-sm: 0 4px 12px -2px rgba(224, 185, 84, 0.15);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.5);
 
   /* Transitions */
-  --transition-fast:    0.15s ease;
-  --transition-base:    0.2s ease;
-  --transition-slow:    0.3s ease;
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.2s ease;
+  --transition-slow: 0.3s ease;
 
   /* Border radius */
-  --radius-sm:  6px;
-  --radius-md:  10px;
-  --radius-lg:  14px;
-  --radius-xl:  18px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
   --radius-pill: 50px;
 }
 
@@ -60,7 +60,14 @@ html {
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family:
+    'Inter',
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
   background-color: var(--color-bg);
   color: var(--color-text);
   overflow-x: hidden;
@@ -68,17 +75,24 @@ body {
 }
 
 /* ─── Scrollbar ─────────────────────────────── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
 ::-webkit-scrollbar-thumb {
   background: #2a2a2a;
   border-radius: 4px;
 }
-::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3a;
+}
 
 /* ─── Focus ─────────────────────────────────── */
 *:focus-visible {
-  outline: 2px solid rgba(224,185,84,0.6);
+  outline: 2px solid rgba(224, 185, 84, 0.6);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -90,17 +104,25 @@ select option {
 }
 
 /* ─── Transitions ───────────────────────────── */
-button, a, input, select, textarea {
+button,
+a,
+input,
+select,
+textarea {
   transition: all var(--transition-base);
 }
 
 /* ─── Draggable ─────────────────────────────── */
-[draggable="true"] { cursor: grab; }
-[draggable="true"]:active { cursor: grabbing; }
+[draggable='true'] {
+  cursor: grab;
+}
+[draggable='true']:active {
+  cursor: grabbing;
+}
 
 /* ─── Text gradient ─────────────────────────── */
 .text-gold-gradient {
-  background: linear-gradient(135deg, #F7E6A8 0%, #E0B954 100%);
+  background: linear-gradient(135deg, #f7e6a8 0%, #e0b954 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -108,7 +130,7 @@ button, a, input, select, textarea {
 
 /* ─── Gold glow button ──────────────────────── */
 .btn-gold {
-  background: linear-gradient(135deg, #F3D57E 0%, #E0B954 100%);
+  background: linear-gradient(135deg, #f3d57e 0%, #e0b954 100%);
   color: #080808;
   font-weight: 700;
   border-radius: var(--radius-pill);
@@ -117,13 +139,13 @@ button, a, input, select, textarea {
 }
 .btn-gold:hover {
   opacity: 0.9;
-  box-shadow: 0 12px 32px -4px rgba(224,185,84,0.35);
+  box-shadow: 0 12px 32px -4px rgba(224, 185, 84, 0.35);
   transform: translateY(-1px);
 }
 
 /* ─── Glassmorphism panels ──────────────────── */
 .glass-panel {
-  background: rgba(18,18,18,0.9);
+  background: rgba(18, 18, 18, 0.9);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid #2a2a2a;
@@ -131,7 +153,10 @@ button, a, input, select, textarea {
 
 /* ─── Card hover lift ───────────────────────── */
 .card-hover {
-  transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
+  transition:
+    transform var(--transition-base),
+    box-shadow var(--transition-base),
+    border-color var(--transition-base);
 }
 .card-hover:hover {
   transform: translateY(-2px);
@@ -141,36 +166,51 @@ button, a, input, select, textarea {
 
 /* ─── Arsenal gold border accent ────────────── */
 .border-gold {
-  border-color: rgba(224,185,84,0.3) !important;
+  border-color: rgba(224, 185, 84, 0.3) !important;
 }
 
 /* ─── Animations ────────────────────────────── */
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .animate-fade-in-up {
   animation: fadeInUp 0.25s ease-out;
 }
 
 @keyframes shimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 .animate-shimmer {
   background: linear-gradient(
     90deg,
-    rgba(255,255,255,0.02) 25%,
-    rgba(255,255,255,0.06) 50%,
-    rgba(255,255,255,0.02) 75%
+    rgba(255, 255, 255, 0.02) 25%,
+    rgba(255, 255, 255, 0.06) 50%,
+    rgba(255, 255, 255, 0.02) 75%
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
 
 @keyframes goldPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(224,185,84,0); }
-  50%       { box-shadow: 0 0 0 6px rgba(224,185,84,0.12); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(224, 185, 84, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(224, 185, 84, 0.12);
+  }
 }
 .animate-gold-pulse {
   animation: goldPulse 2s ease-in-out infinite;
@@ -178,24 +218,38 @@ button, a, input, select, textarea {
 
 /* ─── Page entry animation ──────────────────── */
 @keyframes pageEnter {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .page-enter {
   animation: pageEnter 0.3s ease-out;
 }
 
 /* ─── Status dot colors ─────────────────────── */
-.status-active   { background: #E0B954; }
-.status-planning { background: #737373; }
-.status-done     { background: #E0B954; }
-.status-blocked  { background: #EF4444; }
+.status-active {
+  background: #e0b954;
+}
+.status-planning {
+  background: #737373;
+}
+.status-done {
+  background: #e0b954;
+}
+.status-blocked {
+  background: #ef4444;
+}
 
 /* ─── Gold tag / badge ──────────────────────── */
 .badge-gold {
-  background: rgba(224,185,84,0.12);
-  color: #E0B954;
-  border: 1px solid rgba(224,185,84,0.25);
+  background: rgba(224, 185, 84, 0.12);
+  color: #e0b954;
+  border: 1px solid rgba(224, 185, 84, 0.25);
   border-radius: var(--radius-pill);
   font-size: 11px;
   font-weight: 600;
@@ -204,11 +258,13 @@ button, a, input, select, textarea {
 
 /* ─── Table row hover ───────────────────────── */
 tbody tr:hover {
-  background: rgba(255,255,255,0.02);
+  background: rgba(255, 255, 255, 0.02);
 }
 
 /* ─── Input focus gold ──────────────────────── */
-input:focus, textarea:focus, select:focus {
-  border-color: rgba(224,185,84,0.5) !important;
-  box-shadow: 0 0 0 3px rgba(224,185,84,0.1) !important;
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: rgba(224, 185, 84, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(224, 185, 84, 0.1) !important;
 }
