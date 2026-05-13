@@ -279,10 +279,13 @@ const ProjectsPage = () => {
     });
     const taskSprints = sprintsQuery.data ?? [];
 
-    // myTasksLocal mirrors server data but can be updated optimistically.
-    // useEffect at the bottom syncs server data into this whenever a fetch completes.
-    const [myTasksLocal, setMyTasksLocal] = useState<MyTask[]>([]);
-    const myTasks = myTasksLocal;
+    const myTasks = myTasksQuery.data ?? [];
+
+    // Apply an optimistic update directly inside the ['myTasks'] cache.
+    // This is the canonical react-query pattern — the cache IS the source
+    // of truth, so callers do not need a parallel local state.
+    const patchMyTasksCache = (updater: (old: MyTask[]) => MyTask[]) =>
+        queryClient.setQueryData<MyTask[]>(['myTasks'], (old) => updater(old ?? []));
 
     // ── mutations: personal tasks ─────────────────────────────────────────────
     const invalidatePersonalTasks = () =>
@@ -466,7 +469,7 @@ const ProjectsPage = () => {
             }),
         onSuccess: (updated, { itemId, targetSprintId }) => {
             const merged = { ...selectedTask, ...updated } as MyTask;
-            setMyTasksLocal(prev => prev.map(t => t.id === itemId ? merged : t));
+            patchMyTasksCache((old) => old.map(t => t.id === itemId ? merged : t));
             if (selectedTask?.id === itemId) setSelectedTask(merged);
             toast.success(targetSprintId ? 'Moved to sprint' : 'Moved to backlog');
             if (sprintProjectId) queryClient.invalidateQueries({ queryKey: ['sprints', sprintProjectId] });
@@ -503,7 +506,7 @@ const ProjectsPage = () => {
         onSuccess: (data, { taskId }) => {
             const updated = { ...selectedTask, logged_hours: data.logged_hours, remaining_hours: data.remaining_hours } as MyTask;
             setSelectedTask(updated);
-            setMyTasksLocal(prev => prev.map(t => t.id === taskId ? updated : t));
+            patchMyTasksCache((old) => old.map(t => t.id === taskId ? updated : t));
             toast.success(`Logged ${data.logged_hours}h! Remaining: ${data.remaining_hours}h`);
             queryClient.invalidateQueries({ queryKey: ['myTasks'] });
         },
@@ -532,7 +535,7 @@ const ProjectsPage = () => {
             const mergedTask = { ...selectedTask, ...editingTaskForm, ...updatedTask } as MyTask;
             setSelectedTask(mergedTask);
             setIsEditingTask(false);
-            setMyTasksLocal(prev => prev.map(t => t.id === updatedTask.id ? mergedTask : t));
+            patchMyTasksCache((old) => old.map(t => t.id === updatedTask.id ? mergedTask : t));
             toast.success('Task updated successfully');
             queryClient.invalidateQueries({ queryKey: ['myTasks'] });
         },
@@ -580,7 +583,7 @@ const ProjectsPage = () => {
     // Quick status change (optimistic)
     const handleStatusChange = (task: MyTask, newStatus: string) => {
         const updated = { ...task, status: newStatus } as MyTask;
-        setMyTasksLocal(prev => prev.map(t => t.id === task.id ? updated : t));
+        patchMyTasksCache((old) => old.map(t => t.id === task.id ? updated : t));
         if (selectedTask?.id === task.id) setSelectedTask(updated);
         apiFetch(`/api/workitems/${task.id}`, {
             method: 'PUT',
@@ -622,7 +625,7 @@ const ProjectsPage = () => {
                 const due = new Date(dueValue + 'T00:00:00');
                 isOverdue = due < today && task.status !== 'done';
             }
-            setMyTasksLocal(prev => prev.map(t => t.id === task.id ? { ...t, due_date: dueValue, is_overdue: isOverdue } : t));
+            patchMyTasksCache((old) => old.map(t => t.id === task.id ? { ...t, due_date: dueValue, is_overdue: isOverdue } : t));
             apiFetch(`/api/workitems/${task.id}`, {
                 method: 'PUT',
                 body: JSON.stringify({ due_date: dueValue }),
@@ -823,11 +826,6 @@ const ProjectsPage = () => {
         }, 800);
         return () => clearTimeout(timer);
     }, [notepadContent, user?.id]);
-
-    // Sync myTasksQuery data into local state (used for optimistic updates)
-    useEffect(() => {
-        if (myTasksQuery.data) setMyTasksLocal(myTasksQuery.data);
-    }, [myTasksQuery.data]);
 
     // Computed chart data (used by My Overview stacked bar)
     const overviewStats = {
