@@ -472,8 +472,8 @@ const ProjectDetail = () => {
                 body: JSON.stringify(updates),
             }),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['workItems', { project_id: id }] });
             queryClient.invalidateQueries({ queryKey: ['workItems'] });
+            queryClient.invalidateQueries({ queryKey: ['myTasks'] });
         },
         onError: () => toast.error('Failed to update task'),
     });
@@ -486,8 +486,8 @@ const ProjectDetail = () => {
             }),
         onSuccess: () => {
             toast.success('Task created!');
-            queryClient.invalidateQueries({ queryKey: ['workItems', { project_id: id }] });
             queryClient.invalidateQueries({ queryKey: ['workItems'] });
+            queryClient.invalidateQueries({ queryKey: ['myTasks'] });
         },
         onError: () => toast.error('Failed to create task'),
     });

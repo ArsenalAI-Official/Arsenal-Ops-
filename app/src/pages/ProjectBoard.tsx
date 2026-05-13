@@ -352,9 +352,13 @@ const ProjectBoard = () => {
             .filter(Boolean)
     )).sort();
 
-    // Helper: invalidate workItems list (prefix match)
-    const invalidateWorkItems = () =>
+    // Helper: invalidate workItems list (prefix match) plus the current user's
+    // MyTasks view, which any work-item write may affect if the assignee is
+    // the active user.
+    const invalidateWorkItems = () => {
         queryClient.invalidateQueries({ queryKey: ['workItems'] });
+        queryClient.invalidateQueries({ queryKey: ['myTasks'] });
+    };
     // Helper: invalidate project (stats)
     const invalidateProject = () =>
         queryClient.invalidateQueries({ queryKey: ['project', id] });

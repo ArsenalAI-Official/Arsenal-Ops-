@@ -473,6 +473,8 @@ const ProjectsPage = () => {
             if (selectedTask?.id === itemId) setSelectedTask(merged);
             toast.success(targetSprintId ? 'Moved to sprint' : 'Moved to backlog');
             if (sprintProjectId) queryClient.invalidateQueries({ queryKey: ['sprints', sprintProjectId] });
+            queryClient.invalidateQueries({ queryKey: ['workItems'] });
+            queryClient.invalidateQueries({ queryKey: ['myTasks'] });
         },
         onError: () => toast.error('Failed to move ticket'),
     });
@@ -509,6 +511,7 @@ const ProjectsPage = () => {
             patchMyTasksCache((old) => old.map(t => t.id === taskId ? updated : t));
             toast.success(`Logged ${data.logged_hours}h! Remaining: ${data.remaining_hours}h`);
             queryClient.invalidateQueries({ queryKey: ['myTasks'] });
+            queryClient.invalidateQueries({ queryKey: ['workItems'] });
         },
         onError: () => toast.error('Failed to log hours'),
     });
@@ -538,6 +541,7 @@ const ProjectsPage = () => {
             patchMyTasksCache((old) => old.map(t => t.id === updatedTask.id ? mergedTask : t));
             toast.success('Task updated successfully');
             queryClient.invalidateQueries({ queryKey: ['myTasks'] });
+            queryClient.invalidateQueries({ queryKey: ['workItems'] });
         },
         onError: () => toast.error('Failed to update task'),
     });
@@ -588,6 +592,8 @@ const ProjectsPage = () => {
         apiFetch(`/api/workitems/${task.id}`, {
             method: 'PUT',
             body: JSON.stringify({ status: newStatus }),
+        }).then(() => {
+            queryClient.invalidateQueries({ queryKey: ['workItems'] });
         }).catch(() => {
             toast.error('Failed to update status');
             queryClient.invalidateQueries({ queryKey: ['myTasks'] });
@@ -631,6 +637,7 @@ const ProjectsPage = () => {
                 body: JSON.stringify({ due_date: dueValue }),
             }).then(() => {
                 toast.success(cleared ? 'Due date cleared' : 'Due date updated');
+                queryClient.invalidateQueries({ queryKey: ['workItems'] });
             }).catch(() => {
                 toast.error('Failed to update due date');
                 queryClient.invalidateQueries({ queryKey: ['myTasks'] });
