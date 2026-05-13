@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, ApiError } from '@/lib/api';
 import {
     PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line
 } from 'recharts';
@@ -308,7 +308,7 @@ const ProjectDetail = () => {
     });
     const project = projectQuery.data ?? null;
     const isLoading = projectQuery.isLoading;
-    const accessDenied = !!(projectQuery.error && (projectQuery.error as any)?.status === 403);
+    const accessDenied = projectQuery.error instanceof ApiError && projectQuery.error.status === 403;
 
     // Show toast when 403 is encountered
     useEffect(() => {

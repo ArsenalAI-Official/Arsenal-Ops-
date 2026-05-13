@@ -924,7 +924,7 @@ const ProjectBoard = () => {
             setArchitectures(prev => prev.map(a => a.id === archId ? updated : a));
             toast.success('Architecture saved!');
             setEditingArchitecture(null);
-        } catch (err) {
+        } catch {
             toast.error('Failed to save architecture');
         }
     };
@@ -947,7 +947,7 @@ const ProjectBoard = () => {
                 total_estimated_hours: data.total_estimated_hours,
                 sprint_recommendation: data.sprint_recommendation,
             });
-        } catch (err) {
+        } catch {
             toast.error('Failed to generate tickets');
             setAiStep('architectures');
         } finally {
