@@ -80,6 +80,15 @@ class WorkItem(Base):
     start_date = Column(DateTime)  # For Gantt chart - planned start date
     
     # Relationships
+    #
+    # N+1 footgun: ``assignee``, ``sprint``, ``parent``, and ``epic`` are the
+    # most commonly accessed relationships from list endpoints. Any handler
+    # that loops over work items and reads ``item.assignee.name`` (or .sprint,
+    # .parent, .epic) MUST eager-load with ``selectinload`` on the base query,
+    # otherwise SQLAlchemy issues one extra SELECT per item. See
+    # ``list_work_items`` and ``get_my_tasks`` in routers/workitems.py for the
+    # pattern, and ``get_project_workload`` in routers/projects.py for the
+    # same pattern outside the workitems router.
     project = relationship("Project", back_populates="work_items")
     sprint = relationship("Sprint", back_populates="work_items")
     assignee = relationship("Developer", foreign_keys=[assignee_id], back_populates="assigned_work_items")

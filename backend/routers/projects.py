@@ -1126,9 +1126,15 @@ def get_project_workload(
 
     from models.work_item import WorkItem
     from services.capacity_service import week_boundaries, compute_capacity_breakdown
+    from sqlalchemy.orm import selectinload
 
     week_start, week_end = week_boundaries()
-    items = db.query(WorkItem).filter(WorkItem.project_id == project_id).all()
+    items = (
+        db.query(WorkItem)
+        .options(selectinload(WorkItem.assignee))
+        .filter(WorkItem.project_id == project_id)
+        .all()
+    )
 
     workload_data: dict = {}
 
