@@ -4,13 +4,13 @@
 # dependencies remain in ``requirements.txt`` — moving them here is a
 # separate, larger change.
 #
-# Usage (from repo root):
+# Usage (from repo root, with backend/requirements.txt installed):
 #
-#     uv tool install ruff
-#     uv tool run ruff check backend/             # lint
-#     uv tool run ruff check backend/ --fix       # autofix where possible
-#     uv tool run ruff format backend/            # apply formatter
-#     uv tool run ruff format --check backend/    # verify formatting (CI mode)
+#     pip install -r backend/requirements.txt    # includes ruff (pinned)
+#     ruff check backend/                        # lint
+#     ruff check backend/ --fix                  # autofix where possible
+#     ruff format backend/                       # apply formatter
+#     ruff format --check backend/               # verify formatting (CI mode)
 #
 # The CI workflow at .github/workflows/lint.yml runs the last two commands
 # without ``--fix`` / without writes on every PR. CI failures are visible
