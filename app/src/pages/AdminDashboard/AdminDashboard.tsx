@@ -20,8 +20,6 @@ import {
   Plus,
   Pencil,
   Trash2,
-  X,
-  Save,
   ArrowLeft,
   BarChart3,
   Github,
@@ -44,6 +42,13 @@ import { Input } from '@/components/ui/input';
 import { toast, Toaster } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
+import RoleManagementModal from './modals/RoleManagementModal';
+import RestrictionModal from './modals/RestrictionModal';
+import EmployeeModal from './modals/EmployeeModal';
+import UserModal from './modals/UserModal';
+import UserRestrictionsModal from './modals/UserRestrictionsModal';
+import GitHubSettingsModal from './modals/GitHubSettingsModal';
+import ProjectMembersModal from './modals/ProjectMembersModal';
 
 interface Employee {
   id: number;
@@ -2229,724 +2234,83 @@ const AdminDashboard = () => {
       </div>
 
       {/* Role Management Modal */}
-      {openRoleDropdown && users.find((u) => u.id === openRoleDropdown) && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setOpenRoleDropdown(null)}
-        >
-          <div
-            className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-sm shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
-              <h2 className="text-lg font-bold text-white">
-                Edit Roles - {users.find((u) => u.id === openRoleDropdown)?.name}
-              </h2>
-              <button
-                onClick={() => setOpenRoleDropdown(null)}
-                className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-5 space-y-3">
-              {['admin', 'project_manager', 'developer'].map((role) => {
-                const user = users.find((u) => u.id === openRoleDropdown);
-                const isChecked = user?.role.includes(role) || false;
-                return (
-                  <label
-                    key={role}
-                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-[rgba(255,255,255,0.02)] cursor-pointer transition"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={() => user && handleToggleUserRole(user, role)}
-                      className="w-5 h-5 rounded cursor-pointer"
-                    />
-                    <div className="flex-1">
-                      <span className="text-sm text-white font-medium">{toPascalCase(role)}</span>
-                      <p className="text-xs text-[#737373] mt-0.5">
-                        {role === 'admin' && 'Full system access and user management'}
-                        {role === 'project_manager' && 'Manage projects and team workload'}
-                        {role === 'developer' && 'Access to assigned projects and tasks'}
-                      </p>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-            <div className="flex justify-end gap-2 p-5 border-t border-[rgba(255,255,255,0.05)]">
-              <button
-                onClick={() => setOpenRoleDropdown(null)}
-                className="px-4 py-2 rounded-lg text-[#737373] hover:bg-[rgba(255,255,255,0.05)] transition"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <RoleManagementModal
+        openRoleDropdown={openRoleDropdown}
+        users={users}
+        setOpenRoleDropdown={setOpenRoleDropdown}
+        handleToggleUserRole={handleToggleUserRole}
+        toPascalCase={toPascalCase}
+      />
 
       {/* Custom Restriction Modal */}
-      {showRestrictionModal && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setShowRestrictionModal(false)}
-        >
-          <div
-            className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-md shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
-              <h2 className="text-lg font-bold text-white">
-                {editingRestriction ? 'Edit Restriction' : 'Add Custom Restriction'}
-              </h2>
-              <button
-                onClick={() => setShowRestrictionModal(false)}
-                className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                  Restriction Name *
-                </label>
-                <Input
-                  value={restrictionForm.name}
-                  onChange={(e) => setRestrictionForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g., NoWorkload, NoAnalytics"
-                  className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                  Tab Name *
-                </label>
-                <select
-                  value={restrictionForm.tab_name}
-                  onChange={(e) => setRestrictionForm((f) => ({ ...f, tab_name: e.target.value }))}
-                  className="w-full bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10 px-3 text-sm"
-                >
-                  <option value="">Select a tab...</option>
-                  <option value="project_manager">Project Manager</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                  Subsection *
-                </label>
-                <Input
-                  value={restrictionForm.subsection}
-                  onChange={(e) =>
-                    setRestrictionForm((f) => ({ ...f, subsection: e.target.value }))
-                  }
-                  placeholder="e.g., workload, analytics, timeline"
-                  className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10"
-                />
-                <p className="text-[10px] text-[#737373] mt-1">
-                  The subsection within the tab that will be hidden from users with this
-                  restriction.
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 p-5 border-t border-[rgba(255,255,255,0.05)]">
-              <button
-                onClick={() => setShowRestrictionModal(false)}
-                className="px-4 py-2 rounded-lg text-[#737373] hover:bg-[rgba(255,255,255,0.05)] transition"
-              >
-                Cancel
-              </button>
-              <Button
-                onClick={handleSaveRestriction}
-                className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl px-6 font-medium shadow-lg shadow-[#B8872A]/20"
-              >
-                <Save className="w-4 h-4 mr-2" />
-                {editingRestriction ? 'Update' : 'Create'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <RestrictionModal
+        showRestrictionModal={showRestrictionModal}
+        editingRestriction={editingRestriction}
+        restrictionForm={restrictionForm}
+        setRestrictionForm={setRestrictionForm}
+        setShowRestrictionModal={setShowRestrictionModal}
+        handleSaveRestriction={handleSaveRestriction}
+      />
 
       {/* Employee Modal */}
-      {showEmployeeModal && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setShowEmployeeModal(false)}
-        >
-          <div
-            className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-md shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
-              <h2 className="text-lg font-bold text-white">
-                {editingEmployee ? 'Edit Employee' : 'Add Employee'}
-              </h2>
-              <button
-                onClick={() => setShowEmployeeModal(false)}
-                className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="text-xs font-medium text-[#737373] block mb-1.5">Name *</label>
-                <Input
-                  value={employeeForm.name}
-                  onChange={(e) => setEmployeeForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="John Doe"
-                  className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-[#737373] block mb-1.5">Email *</label>
-                <Input
-                  type="email"
-                  value={employeeForm.email}
-                  onChange={(e) => setEmployeeForm((f) => ({ ...f, email: e.target.value }))}
-                  placeholder="john@company.com"
-                  className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                  GitHub Username
-                </label>
-                <Input
-                  value={employeeForm.github_username}
-                  onChange={(e) =>
-                    setEmployeeForm((f) => ({ ...f, github_username: e.target.value }))
-                  }
-                  placeholder="johndoe"
-                  className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                  Specialization
-                </label>
-                <select
-                  value={employeeForm.specialization}
-                  onChange={(e) =>
-                    setEmployeeForm((f) => ({ ...f, specialization: e.target.value }))
-                  }
-                  className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
-                >
-                  <option value="">Select specialization</option>
-                  <option value="frontend">Frontend</option>
-                  <option value="backend">Backend</option>
-                  <option value="fullstack">Full Stack</option>
-                  <option value="devops">DevOps</option>
-                  <option value="qa">QA</option>
-                  <option value="mobile">Mobile</option>
-                  <option value="data">Data</option>
-                  <option value="ml">Machine Learning</option>
-                  <option value="design">Design</option>
-                  <option value="pm">Product Manager</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 p-5 border-t border-[rgba(255,255,255,0.05)]">
-              <Button
-                variant="ghost"
-                onClick={() => setShowEmployeeModal(false)}
-                className="text-[#737373] rounded-xl px-5"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSaveEmployee}
-                className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl px-6 font-medium shadow-lg shadow-[#B8872A]/20"
-              >
-                <Save className="w-4 h-4 mr-2" />
-                {editingEmployee ? 'Update' : 'Create'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <EmployeeModal
+        showEmployeeModal={showEmployeeModal}
+        editingEmployee={editingEmployee}
+        employeeForm={employeeForm}
+        setEmployeeForm={setEmployeeForm}
+        setShowEmployeeModal={setShowEmployeeModal}
+        handleSaveEmployee={handleSaveEmployee}
+      />
 
       {/* User Modal */}
-      {showUserModal && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setShowUserModal(false)}
-        >
-          <div
-            className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-md shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
-              <h2 className="text-lg font-bold text-white">Add New User</h2>
-              <button
-                onClick={() => setShowUserModal(false)}
-                className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-5 space-y-4">
-              {generatedPassword ? (
-                <div className="space-y-4">
-                  <div className="p-4 bg-[rgba(224,185,84,0.1)] border border-[rgba(224,185,84,0.2)] rounded-xl">
-                    <p className="text-sm text-[#E0B954] font-medium mb-2">
-                      User Created Successfully!
-                    </p>
-                    <p className="text-xs text-[#a3a3a3] mb-2">
-                      Share this temporary password with the user:
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 bg-[rgba(244,246,255,0.05)] px-3 py-2 rounded-lg text-sm text-white font-mono">
-                        {generatedPassword}
-                      </code>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          navigator.clipboard.writeText(generatedPassword);
-                          toast.success('Copied to clipboard');
-                        }}
-                        className="text-[#737373] hover:text-white"
-                      >
-                        Copy
-                      </Button>
-                    </div>
-                  </div>
-                  <p className="text-xs text-[#737373]">
-                    They will be required to change this password on first login.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div>
-                    <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                      Name *
-                    </label>
-                    <Input
-                      value={userForm.name}
-                      onChange={(e) => setUserForm((f) => ({ ...f, name: e.target.value }))}
-                      placeholder="John Doe"
-                      className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                      Email *
-                    </label>
-                    <Input
-                      type="email"
-                      value={userForm.email}
-                      onChange={(e) => setUserForm((f) => ({ ...f, email: e.target.value }))}
-                      placeholder="john@company.com"
-                      className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-[#737373] block mb-2">Roles</label>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={userForm.roles.includes('admin')}
-                          onChange={() => handleRoleToggle('admin')}
-                          className="w-4 h-4 rounded border-[rgba(244,246,255,0.2)] bg-[rgba(255,255,255,0.025)] text-[#E0B954] focus:ring-[#E0B954]"
-                        />
-                        <span className="text-sm text-[#f5f5f5]">Admin</span>
-                        <span className="text-xs text-[#737373]">(Full access)</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={userForm.roles.includes('project_manager')}
-                          onChange={() => handleRoleToggle('project_manager')}
-                          className="w-4 h-4 rounded border-[rgba(244,246,255,0.2)] bg-[rgba(255,255,255,0.025)] text-[#C79E3B] focus:ring-[#C79E3B]"
-                        />
-                        <span className="text-sm text-[#f5f5f5]">Project Manager</span>
-                        <span className="text-xs text-[#737373]">(PM tab access)</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={userForm.roles.includes('developer')}
-                          onChange={() => handleRoleToggle('developer')}
-                          className="w-4 h-4 rounded border-[rgba(244,246,255,0.2)] bg-[rgba(255,255,255,0.025)] text-[#E0B954] focus:ring-[#E0B954]"
-                        />
-                        <span className="text-sm text-[#f5f5f5]">Developer</span>
-                        <span className="text-xs text-[#737373]">(Project access)</span>
-                      </label>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-            <div className="flex justify-end gap-3 p-5 border-t border-[rgba(255,255,255,0.05)]">
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setShowUserModal(false);
-                  setGeneratedPassword(null);
-                }}
-                className="text-[#737373] rounded-xl px-5"
-              >
-                {generatedPassword ? 'Close' : 'Cancel'}
-              </Button>
-              {!generatedPassword && (
-                <Button
-                  onClick={handleSaveUser}
-                  className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl px-6 font-medium shadow-lg shadow-[#B8872A]/20"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create User
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <UserModal
+        showUserModal={showUserModal}
+        userForm={userForm}
+        setUserForm={setUserForm}
+        generatedPassword={generatedPassword}
+        setGeneratedPassword={setGeneratedPassword}
+        setShowUserModal={setShowUserModal}
+        handleSaveUser={handleSaveUser}
+        handleRoleToggle={handleRoleToggle}
+      />
 
       {/* User Restrictions Modal */}
-      {showUserRestrictionsModal && selectedUserForRestrictions && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setShowUserRestrictionsModal(false)}
-        >
-          <div
-            className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-md shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
-              <div>
-                <h2 className="text-lg font-bold text-white">Manage Restrictions</h2>
-                <p className="text-xs text-[#737373] mt-0.5">{selectedUserForRestrictions.name}</p>
-              </div>
-              <button
-                onClick={() => setShowUserRestrictionsModal(false)}
-                className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-5 space-y-2 max-h-96 overflow-y-auto">
-              {userRestrictionsLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin w-6 h-6 border-2 border-[#E0B954] border-t-transparent rounded-full" />
-                </div>
-              ) : customRestrictions.length === 0 ? (
-                <p className="text-sm text-[#737373] text-center py-8">
-                  No custom restrictions available
-                </p>
-              ) : (
-                customRestrictions.map((restriction) => (
-                  <label
-                    key={restriction.id}
-                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-[rgba(255,255,255,0.02)] cursor-pointer transition"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={userRestrictionsList.includes(restriction.id)}
-                      onChange={(e) =>
-                        handleToggleUserRestriction(restriction.id, e.target.checked)
-                      }
-                      className="w-5 h-5 rounded cursor-pointer"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm text-white font-medium block">
-                        {restriction.name}
-                      </span>
-                      <p className="text-xs text-[#737373] mt-0.5">
-                        {toPascalCase(restriction.tab_name)} →{' '}
-                        {toPascalCase(restriction.subsection)}
-                      </p>
-                    </div>
-                  </label>
-                ))
-              )}
-            </div>
-            <div className="flex justify-end gap-2 p-5 border-t border-[rgba(255,255,255,0.05)]">
-              <button
-                onClick={() => setShowUserRestrictionsModal(false)}
-                className="px-4 py-2 rounded-lg text-[#737373] hover:bg-[rgba(255,255,255,0.05)] transition"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <UserRestrictionsModal
+        showUserRestrictionsModal={showUserRestrictionsModal}
+        selectedUserForRestrictions={selectedUserForRestrictions}
+        customRestrictions={customRestrictions}
+        userRestrictionsList={userRestrictionsList}
+        userRestrictionsLoading={userRestrictionsLoading}
+        setShowUserRestrictionsModal={setShowUserRestrictionsModal}
+        handleToggleUserRestriction={handleToggleUserRestriction}
+        toPascalCase={toPascalCase}
+      />
 
       {/* GitHub Settings Modal */}
-      {showGitHubModal && editingProject && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setShowGitHubModal(false)}
-        >
-          <div
-            className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-md shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
-              <div>
-                <h2 className="text-lg font-bold text-white">GitHub Settings</h2>
-                <p className="text-xs text-[#737373] mt-0.5">{editingProject.name}</p>
-              </div>
-              <button
-                onClick={() => setShowGitHubModal(false)}
-                className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                  Repository URL
-                </label>
-                <Input
-                  value={gitHubForm.github_repo_url}
-                  onChange={(e) =>
-                    setGitHubForm((f) => ({ ...f, github_repo_url: e.target.value }))
-                  }
-                  placeholder="https://github.com/org/repo"
-                  className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                  Repository Name (org/repo)
-                </label>
-                <Input
-                  value={gitHubForm.github_repo_name}
-                  onChange={(e) =>
-                    setGitHubForm((f) => ({ ...f, github_repo_name: e.target.value }))
-                  }
-                  placeholder="myorg/myrepo"
-                  className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                  GitHub Token
-                </label>
-                <Input
-                  type="password"
-                  value={gitHubForm.github_token}
-                  onChange={(e) => setGitHubForm((f) => ({ ...f, github_token: e.target.value }))}
-                  placeholder={
-                    editingProject.has_github_token
-                      ? 'Token already set (leave empty to keep)'
-                      : 'ghp_xxxx...'
-                  }
-                  className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10"
-                />
-                <p className="text-[10px] text-[#737373] mt-1">
-                  Token needs repo scope for invitations. Leave empty to keep existing token.
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 p-5 border-t border-[rgba(255,255,255,0.05)]">
-              <Button
-                variant="ghost"
-                onClick={() => setShowGitHubModal(false)}
-                className="text-[#737373] rounded-xl px-5"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSaveGitHubSettings}
-                className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl px-6 font-medium shadow-lg shadow-[#B8872A]/20"
-              >
-                <Github className="w-4 h-4 mr-2" />
-                Save Settings
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <GitHubSettingsModal
+        showGitHubModal={showGitHubModal}
+        editingProject={editingProject}
+        gitHubForm={gitHubForm}
+        setGitHubForm={setGitHubForm}
+        setShowGitHubModal={setShowGitHubModal}
+        handleSaveGitHubSettings={handleSaveGitHubSettings}
+      />
 
       {/* Project Members Modal */}
-      {showProjectMembersModal && selectedProjectForMembers && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setShowProjectMembersModal(false)}
-        >
-          <div
-            className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-2xl shadow-2xl max-h-[85vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
-              <div>
-                <h2 className="text-lg font-bold text-white">Project Members</h2>
-                <div className="text-xs text-[#737373] mt-0.5">
-                  {selectedProjectForMembers.name}
-                </div>
-              </div>
-              <button
-                onClick={() => setShowProjectMembersModal(false)}
-                className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-5 space-y-5 overflow-y-auto">
-              {/* Current members */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-semibold text-[#a3a3a3] uppercase tracking-wider">
-                    Current Members
-                  </h3>
-                  <span className="text-xs text-[#737373]">{projectMembers.length} total</span>
-                </div>
-                {projectMembersLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin w-6 h-6 border-2 border-[#E0B954] border-t-transparent rounded-full" />
-                  </div>
-                ) : projectMembers.length === 0 ? (
-                  <div className="text-center py-8 text-sm text-[#737373] bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl">
-                    No members assigned yet.
-                  </div>
-                ) : (
-                  <ul className="space-y-2">
-                    {projectMembers.map((m) => (
-                      <li
-                        key={m.id}
-                        className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)]"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-8 h-8 rounded-full bg-[rgba(224,185,84,0.2)] flex items-center justify-center text-sm font-medium text-[#E0B954] flex-shrink-0">
-                            {m.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium text-white truncate flex items-center gap-2">
-                              {m.name}
-                              {m.is_admin && (
-                                <span className="px-1.5 py-0.5 rounded bg-[rgba(224,185,84,0.15)] text-[#E0B954] text-[9px] font-semibold uppercase tracking-wider">
-                                  Admin
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-xs text-[#737373] truncate">
-                              {m.email}
-                              {m.role && <span className="ml-2 capitalize">· {m.role}</span>}
-                            </div>
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveProjectMember(m.id)}
-                          disabled={removeMemberMutation.isPending}
-                          className="text-red-400 hover:text-red-300 h-8 w-8 p-0 flex-shrink-0"
-                          title="Remove from project"
-                        >
-                          {removeMemberMutation.isPending ? (
-                            <div className="w-3.5 h-3.5 border border-red-400/30 border-t-red-400 rounded-full animate-spin" />
-                          ) : (
-                            <Trash2 className="w-4 h-4" />
-                          )}
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              {/* Add member */}
-              <div>
-                <h3 className="text-xs font-semibold text-[#a3a3a3] uppercase tracking-wider mb-2">
-                  Add Member
-                </h3>
-                {(() => {
-                  const assignedIds = new Set(projectMembers.map((m) => m.id));
-                  const available = employees.filter((e) => !assignedIds.has(e.id));
-                  return (
-                    <div className="p-3 rounded-xl bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] space-y-3">
-                      {available.length === 0 ? (
-                        <div className="text-xs text-[#737373] py-2 text-center">
-                          All employees are already on this project.
-                        </div>
-                      ) : (
-                        <>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                              <label className="text-[10px] font-medium text-[#737373] uppercase tracking-wider block mb-1.5">
-                                Employee
-                              </label>
-                              <select
-                                value={addMemberForm.developer_id}
-                                onChange={(e) =>
-                                  setAddMemberForm((f) => ({ ...f, developer_id: e.target.value }))
-                                }
-                                className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
-                              >
-                                <option value="">Select an employee</option>
-                                {available.map((emp) => (
-                                  <option key={emp.id} value={emp.id}>
-                                    {emp.name} · {emp.email}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-medium text-[#737373] uppercase tracking-wider block mb-1.5">
-                                Role
-                              </label>
-                              <select
-                                value={addMemberForm.role}
-                                onChange={(e) =>
-                                  setAddMemberForm((f) => ({ ...f, role: e.target.value }))
-                                }
-                                className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
-                              >
-                                <option value="developer">Developer</option>
-                                <option value="lead">Lead</option>
-                                <option value="qa">QA</option>
-                                <option value="designer">Designer</option>
-                                <option value="pm">Product Manager</option>
-                              </select>
-                            </div>
-                          </div>
-                          <Button
-                            onClick={handleAddProjectMember}
-                            disabled={addMemberMutation.isPending || !addMemberForm.developer_id}
-                            className="w-full h-9 bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl font-medium disabled:opacity-50"
-                          >
-                            {addMemberMutation.isPending ? (
-                              <>
-                                <div className="w-3.5 h-3.5 border border-white/30 border-t-white rounded-full animate-spin mr-2" />
-                                Adding...
-                              </>
-                            ) : (
-                              <>
-                                <Plus className="w-4 h-4 mr-1.5" />
-                                Add to Project
-                              </>
-                            )}
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 p-5 border-t border-[rgba(255,255,255,0.05)]">
-              <Button
-                variant="ghost"
-                onClick={() => setShowProjectMembersModal(false)}
-                className="text-[#737373] rounded-xl px-5"
-              >
-                Close
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ProjectMembersModal
+        showProjectMembersModal={showProjectMembersModal}
+        selectedProjectForMembers={selectedProjectForMembers}
+        projectMembers={projectMembers}
+        projectMembersLoading={projectMembersLoading}
+        employees={employees}
+        addMemberForm={addMemberForm}
+        setAddMemberForm={setAddMemberForm}
+        addMemberMutation={addMemberMutation}
+        removeMemberMutation={removeMemberMutation}
+        setShowProjectMembersModal={setShowProjectMembersModal}
+        handleAddProjectMember={handleAddProjectMember}
+        handleRemoveProjectMember={handleRemoveProjectMember}
+      />
     </div>
   );
 };
