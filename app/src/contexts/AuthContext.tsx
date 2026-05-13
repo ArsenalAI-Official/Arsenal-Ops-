@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
 import { API_BASE_URL } from '@/config/api';
 
 interface User {
@@ -36,7 +36,6 @@ interface AuthContextType {
   logout: () => void;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   checkAuth: () => Promise<void>;
-  idleTime: number;
   showWarning: boolean;
   dismissWarning: () => void;
 }
@@ -62,68 +61,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [isLoading, setIsLoading] = useState(!!token); // Only loading if we have a token
-  const [idleTime, setIdleTime] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
-  
+
   const lastActivityRef = useRef(Date.now());
+  // Mirrors `showWarning` so `updateActivity` can read it in O(1) without
+  // re-subscribing the event listeners every time the state changes.
+  const showWarningRef = useRef(false);
   const isAuthenticated = !!user && !!token;
 
-  // Check authentication on mount and when token changes
-  useEffect(() => {
-    // If there's a token in localStorage, validate it
-    if (token) {
-      checkAuth();
-    } else {
-      setIsLoading(false);
-    }
+  const logout = useCallback(() => {
+    setUser(null);
+    setToken(null);
+    showWarningRef.current = false;
+    setShowWarning(false);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
   }, []);
 
-  // Activity tracking
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    const updateActivity = () => {
-      lastActivityRef.current = Date.now();
-      setIdleTime(0);
-      setShowWarning(false);
-    };
-
-    // Track user activity
-    const events = ['mousedown', 'keydown', 'touchstart', 'scroll', 'mousemove'];
-    events.forEach(event => {
-      document.addEventListener(event, updateActivity, true);
-    });
-
-    // Check idle time every minute
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const idle = now - lastActivityRef.current;
-      setIdleTime(idle);
-
-      if (idle >= IDLE_TIMEOUT) {
-        // Auto logout after 30 minutes
-        logout();
-      } else if (idle >= WARNING_TIME) {
-        // Show warning at 25 minutes
-        setShowWarning(true);
-      }
-    }, 60000); // Check every minute
-
-    return () => {
-      events.forEach(event => {
-        document.removeEventListener(event, updateActivity, true);
-      });
-      clearInterval(interval);
-    };
-  }, [isAuthenticated]);
-
-  const dismissWarning = () => {
-    setShowWarning(false);
-    lastActivityRef.current = Date.now();
-    setIdleTime(0);
-  };
-
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     try {
       const currentToken = token || localStorage.getItem('token');
       if (!currentToken) {
@@ -133,10 +88,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: {
-          'Authorization': `Bearer ${currentToken}`
-        }
+          'Authorization': `Bearer ${currentToken}`,
+        },
       });
-      
+
       if (response.ok) {
         const userData = await response.json();
         setUser(userData);
@@ -153,19 +108,77 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [token, logout]);
 
-  const login = async (email: string, password: string) => {
+  // Check authentication on mount only. checkAuth is intentionally excluded
+  // from deps — we re-validate on token change via the regular login flow,
+  // not by re-running this effect.
+  useEffect(() => {
+    if (token) {
+      checkAuth();
+    } else {
+      setIsLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Activity tracking
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const updateActivity = () => {
+      lastActivityRef.current = Date.now();
+      // No-op guard. mousedown/keydown/touchstart/scroll can fire many times
+      // per second; without this, every event would re-render AuthProvider
+      // and every useAuth() consumer in the app. We only need to update
+      // state when the warning is actually showing.
+      if (showWarningRef.current) {
+        showWarningRef.current = false;
+        setShowWarning(false);
+      }
+    };
+
+    // `mousemove` deliberately excluded — fires at ~60Hz and mouse motion
+    // does not need to extend a session (clicks/keys/touch do). Including it
+    // caused AuthProvider to re-render on every pixel of cursor movement.
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach((event) => {
+      document.addEventListener(event, updateActivity, true);
+    });
+
+    const interval = setInterval(() => {
+      const idle = Date.now() - lastActivityRef.current;
+      if (idle >= IDLE_TIMEOUT) {
+        logout();
+      } else if (idle >= WARNING_TIME && !showWarningRef.current) {
+        showWarningRef.current = true;
+        setShowWarning(true);
+      }
+    }, 60000);
+
+    return () => {
+      events.forEach((event) => {
+        document.removeEventListener(event, updateActivity, true);
+      });
+      clearInterval(interval);
+    };
+  }, [isAuthenticated, logout]);
+
+  const dismissWarning = useCallback(() => {
+    showWarningRef.current = false;
+    setShowWarning(false);
+    lastActivityRef.current = Date.now();
+  }, []);
+
+  const login = useCallback(async (email: string, password: string) => {
     const formData = new URLSearchParams();
     formData.append('username', email);
     formData.append('password', password);
 
     const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: formData
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData,
     });
 
     if (!response.ok) {
@@ -179,16 +192,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('token', data.access_token);
     localStorage.setItem('user', JSON.stringify(data.user));
     lastActivityRef.current = Date.now();
-    setIdleTime(0);
-  };
+  }, []);
 
-  const loginWithGoogle = async (idToken: string) => {
+  const loginWithGoogle = useCallback(async (idToken: string) => {
     const response = await fetch(`${API_BASE_URL}/api/auth/google-login`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ token: idToken })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: idToken }),
     });
 
     if (!response.ok) {
@@ -202,39 +212,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('token', data.access_token);
     localStorage.setItem('user', JSON.stringify(data.user));
     lastActivityRef.current = Date.now();
-    setIdleTime(0);
-  };
+  }, []);
 
-  const logout = () => {
-    setUser(null);
-    setToken(null);
-    setIdleTime(0);
-    setShowWarning(false);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-  };
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      const response = await fetch(`${API_BASE_URL}/api/auth/change-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+      });
 
-  const changePassword = async (currentPassword: string, newPassword: string) => {
-    const response = await fetch(`${API_BASE_URL}/api/auth/change-password`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
-    });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to change password');
+      }
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to change password');
-    }
+      // Update user state to reflect password changed
+      setUser((prev) => (prev ? { ...prev, is_first_login: false } : null));
+    },
+    [token],
+  );
 
-    // Update user state to reflect password changed
-    setUser(prev => prev ? { ...prev, is_first_login: false } : null);
-  };
-
-  return (
-    <AuthContext.Provider value={{
+  const value = useMemo<AuthContextType>(
+    () => ({
       user,
       token,
       isLoading,
@@ -244,13 +247,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       changePassword,
       checkAuth,
-      idleTime,
       showWarning,
-      dismissWarning
-    }}>
-      {children}
-    </AuthContext.Provider>
+      dismissWarning,
+    }),
+    [
+      user,
+      token,
+      isLoading,
+      isAuthenticated,
+      showWarning,
+      login,
+      loginWithGoogle,
+      logout,
+      changePassword,
+      checkAuth,
+      dismissWarning,
+    ],
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
