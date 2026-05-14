@@ -23,6 +23,7 @@ import {
   Bug,
   Target,
 } from 'lucide-react';
+import { parseLocalDateOptional as parseLocalDate } from '@/lib/dates';
 
 interface WorkItem {
   id: string;
@@ -352,7 +353,7 @@ const ListView: React.FC<ListViewProps> = ({ workItems, onTaskClick }) => {
                       </td>
                       <td className="py-3 px-4 text-[#a3a3a3]">{item.assignee || 'Unassigned'}</td>
                       <td className="py-3 px-4 text-[#a3a3a3]">
-                        {item.due_date ? new Date(item.due_date).toLocaleDateString() : '-'}
+                        {parseLocalDate(item.due_date)?.toLocaleDateString() ?? '-'}
                       </td>
                       <td className="py-3 px-4 text-[#a3a3a3]">
                         {item.estimated_hours || 0}h / {item.logged_hours || 0}h
@@ -457,9 +458,7 @@ const ListView: React.FC<ListViewProps> = ({ workItems, onTaskClick }) => {
                   },
                   {
                     label: 'Due Date',
-                    value: selectedItem.due_date
-                      ? new Date(selectedItem.due_date).toLocaleDateString()
-                      : 'Not set',
+                    value: parseLocalDate(selectedItem.due_date)?.toLocaleDateString() ?? 'Not set',
                   },
                 ].map(({ label, value }) => (
                   <div key={label} className="bg-[rgba(255,255,255,0.025)] rounded-xl p-3">
@@ -495,7 +494,11 @@ const ListView: React.FC<ListViewProps> = ({ workItems, onTaskClick }) => {
 
               {/* Child items */}
               {(() => {
-                const children = workItems.filter((i) => i.parent_id === parseInt(selectedItem.id));
+                // Compare as strings so we don't silently break on non-numeric
+                // work-item ids (parseInt('abc') is NaN and matches nothing).
+                const children = workItems.filter(
+                  (i) => i.parent_id != null && String(i.parent_id) === String(selectedItem.id),
+                );
                 return children.length > 0 ? (
                   <div>
                     <p className="text-xs font-medium text-[#737373] mb-2">
