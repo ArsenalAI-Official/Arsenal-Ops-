@@ -9,8 +9,8 @@ import string
 import sys
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.security import OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlalchemy import func
@@ -30,7 +30,55 @@ SECRET_KEY = "your-secret-key-change-in-production"  # Change this in production
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+# Cookie config. The JWT is set as an httpOnly cookie so it isn't readable by
+# any injected script (XSS still can't exfiltrate it). The Authorization
+# header path is kept as a fallback for API tooling, integration tests, and
+# any non-browser clients.
+COOKIE_NAME = "access_token"
+# Cookie security flags:
+# - Secure: cookie only sent over HTTPS. Set COOKIE_SECURE=0 for local HTTP dev.
+# - SameSite: "lax" means the cookie travels on top-level navigations but not
+#   on cross-site sub-resource requests — sufficient for CSRF protection on
+#   our origins given the explicit CORS allow_origins whitelist.
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "1") == "1"
+COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")
+
+
+def set_auth_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=token,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        path="/",
+    )
+
+
+def clear_auth_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=COOKIE_NAME,
+        path="/",
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+    )
+
+
+def get_token_from_request(request: Request) -> str:
+    """Read the JWT from the httpOnly cookie (preferred) or the
+    Authorization header (fallback for API tools and tests)."""
+    cookie_token = request.cookies.get(COOKIE_NAME)
+    if cookie_token:
+        return cookie_token
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        return auth[7:]
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Not authenticated",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 # Pydantic models
@@ -98,7 +146,9 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+def get_current_user(
+    token: str = Depends(get_token_from_request), db: Session = Depends(get_db)
+):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -154,7 +204,11 @@ def require_capability(cap: str):
 
 
 @router.post("/login", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def login(
+    response: Response,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
     """Login with email and password"""
     user = db.query(User).filter(User.email == form_data.username).first()
     if not user:
@@ -183,6 +237,8 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         data={"sub": str(user.id)}, expires_delta=access_token_expires
     )
 
+    set_auth_cookie(response, access_token)
+
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -194,6 +250,13 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             "is_first_login": user.is_first_login,
         },
     }
+
+
+@router.post("/logout")
+def logout(response: Response):
+    """Clear the auth cookie. Safe to call when not logged in."""
+    clear_auth_cookie(response)
+    return {"ok": True}
 
 
 @router.post("/change-password")
@@ -387,7 +450,11 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/google-login", response_model=Token)
-def google_login(request: GoogleLoginRequest, db: Session = Depends(get_db)):
+def google_login(
+    request: GoogleLoginRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     """
     Google SSO Login Endpoint
 
@@ -477,6 +544,8 @@ def google_login(request: GoogleLoginRequest, db: Session = Depends(get_db)):
         data={"sub": str(user.id)}, expires_delta=access_token_expires
     )
 
+    set_auth_cookie(response, access_token)
+
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -511,7 +580,7 @@ def dev_login_available():
 
 
 @router.post("/dev-login", response_model=Token)
-def dev_login(db: Session = Depends(get_db)):
+def dev_login(response: Response, db: Session = Depends(get_db)):
     """Issue a JWT for a local admin user without going through Google SSO.
 
     Only enabled when DEV_AUTH_BYPASS=1 is set on the backend process. Idempotent:
@@ -548,6 +617,7 @@ def dev_login(db: Session = Depends(get_db)):
         data={"sub": str(user.id)},
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
+    set_auth_cookie(response, access_token)
     return {
         "access_token": access_token,
         "token_type": "bearer",
