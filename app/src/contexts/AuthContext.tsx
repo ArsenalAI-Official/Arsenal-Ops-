@@ -139,20 +139,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const updateActivity = () => {
       lastActivityRef.current = Date.now();
-      // No-op guard. mousedown/keydown/touchstart/scroll can fire many times
-      // per second; without this, every event would re-render AuthProvider
-      // and every useAuth() consumer in the app. We only need to update
-      // state when the warning is actually showing.
+      // No-op guard. mousedown/keydown/touchstart can fire several times per
+      // second; without this, every event would re-render AuthProvider and
+      // every useAuth() consumer. Only set state when the warning is up.
       if (showWarningRef.current) {
         showWarningRef.current = false;
         setShowWarning(false);
       }
     };
 
-    // `mousemove` deliberately excluded — fires at ~60Hz and mouse motion
-    // does not need to extend a session (clicks/keys/touch do). Including it
-    // caused AuthProvider to re-render on every pixel of cursor movement.
-    const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
+    // `mousemove` is excluded (60Hz noise; cursor motion is not engagement).
+    // `scroll` is also excluded — it fires continuously during a scroll
+    // gesture and adds nothing meaningful: the click/key/touch that
+    // initiated the scroll already counted as activity, and a user who is
+    // *only* scrolling (no clicks/keys/touch) for 23+ hours is exactly the
+    // idle-warning case the timeout is meant to catch.
+    const events = ['mousedown', 'keydown', 'touchstart'];
     events.forEach((event) => {
       document.addEventListener(event, updateActivity, true);
     });
