@@ -554,15 +554,18 @@ const AdminDashboard = () => {
   };
 
   const saveEmployeeMutation = useMutation({
-    mutationFn: () => {
-      const url = editingEmployee
-        ? `/api/admin/employees/${editingEmployee.id}`
+    // Pass employeeId + form snapshot in vars so the request body and
+    // success-path messaging don't read stale state if the user edits the
+    // form or changes target after submit (audit F-C8).
+    mutationFn: (vars: { employeeId: number | null; form: typeof employeeForm }) => {
+      const url = vars.employeeId
+        ? `/api/admin/employees/${vars.employeeId}`
         : `/api/admin/employees`;
-      const method = editingEmployee ? 'PUT' : 'POST';
-      return apiFetch<Employee>(url, { method, body: JSON.stringify(employeeForm) });
+      const method = vars.employeeId ? 'PUT' : 'POST';
+      return apiFetch<Employee>(url, { method, body: JSON.stringify(vars.form) });
     },
-    onSuccess: () => {
-      toast.success(editingEmployee ? 'Employee updated!' : 'Employee created!');
+    onSuccess: (_data, vars) => {
+      toast.success(vars.employeeId ? 'Employee updated!' : 'Employee created!');
       setShowEmployeeModal(false);
       queryClient.invalidateQueries({ queryKey: ['admin', 'employees'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] });
@@ -576,7 +579,10 @@ const AdminDashboard = () => {
       toast.error('Name and email are required');
       return;
     }
-    saveEmployeeMutation.mutate();
+    saveEmployeeMutation.mutate({
+      employeeId: editingEmployee?.id ?? null,
+      form: employeeForm,
+    });
   };
 
   const deleteEmployeeMutation = useMutation({
@@ -1040,6 +1046,7 @@ const AdminDashboard = () => {
               { id: 'projects', label: 'Projects', icon: FolderKanban },
               { id: 'users', label: 'Users', icon: Shield },
               { id: 'roles', label: 'Roles', icon: KeyRound },
+              { id: 'developers-capacity', label: 'Capacity', icon: TrendingUp },
             ].map((tab) => (
               <button
                 key={tab.id}
