@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle, Lock, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -29,8 +29,44 @@ export function Login() {
       .catch(() => setDevLoginAvailable(false));
   }, []);
 
+  // Handle Google Sign-In callback. Defined first so the ref-keeping effect
+  // below can pick it up. The ref pattern is required because Google's SDK
+  // captures the callback at initialize() time — once — and won't pick up
+  // a re-rendered closure. Without it, post-initialize state changes
+  // (loginWithGoogle reference, isLoading setter, etc.) would be invisible
+  // to the SDK when the user actually clicks Sign-In (audit F-C7).
+  const handleGoogleSignIn = async (response: any) => {
+    if (response.credential) {
+      setIsLoading(true);
+      setError(null);
+      try {
+        await loginWithGoogle(response.credential);
+        toast.success('Login successful!');
+        // The redirect will be handled by App.tsx useEffect
+      } catch (error: any) {
+        const errorMessage = error.message || 'Google login failed';
+        setError(errorMessage);
+        toast.error(errorMessage);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  // Ref always points at the latest handleGoogleSignIn so the stable wrapper
+  // passed to Google's SDK invokes the current closure.
+  const handleGoogleSignInRef = useRef(handleGoogleSignIn);
+  useEffect(() => {
+    handleGoogleSignInRef.current = handleGoogleSignIn;
+  });
+
   // Load Google Sign-In SDK and wait for it to be ready
   useEffect(() => {
+    // Stable wrapper — Google's SDK only reads `callback` once, at
+    // initialize() time. We hand it a function that always dispatches to
+    // the latest handler via the ref above.
+    const callback = (response: any) => handleGoogleSignInRef.current(response);
+
     // Fetch Google Client ID from backend first
     const fetchGoogleConfig = async () => {
       try {
@@ -51,7 +87,7 @@ export function Login() {
               if (window.google?.accounts?.id) {
                 window.google.accounts.id.initialize({
                   client_id: data.client_id,
-                  callback: handleGoogleSignIn,
+                  callback,
                 });
                 setGoogleReady(true);
               }
@@ -61,7 +97,7 @@ export function Login() {
           } else if (window.google?.accounts?.id) {
             window.google.accounts.id.initialize({
               client_id: data.client_id,
-              callback: handleGoogleSignIn,
+              callback,
             });
             setGoogleReady(true);
           }
@@ -74,25 +110,6 @@ export function Login() {
 
     fetchGoogleConfig();
   }, []);
-
-  // Handle Google Sign-In callback
-  const handleGoogleSignIn = async (response: any) => {
-    if (response.credential) {
-      setIsLoading(true);
-      setError(null);
-      try {
-        await loginWithGoogle(response.credential);
-        toast.success('Login successful!');
-        // The redirect will be handled by App.tsx useEffect
-      } catch (error: any) {
-        const errorMessage = error.message || 'Google login failed';
-        setError(errorMessage);
-        toast.error(errorMessage);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-  };
 
   // Trigger Google Sign-In
   const handleSignInClick = () => {
