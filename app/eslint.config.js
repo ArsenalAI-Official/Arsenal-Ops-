@@ -38,6 +38,9 @@ export default defineConfig([
           caughtErrors: 'none',
         },
       ],
+      // Console statements ship to production unless deliberately allowed.
+      // `console.warn`/`console.error` stay clean for genuine error paths.
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
   {

@@ -561,14 +561,12 @@ const ProjectDetail = () => {
       Object.keys(updateData).forEach((key) => {
         if (updateData[key] === undefined) delete updateData[key];
       });
-      console.log('Sending update data:', updateData);
       return apiFetch<Project>(`/api/projects/${project.id}`, {
         method: 'PUT',
         body: JSON.stringify(updateData),
       });
     },
-    onSuccess: (responseData) => {
-      console.log('Update response:', responseData);
+    onSuccess: () => {
       toast.success('Project updated!');
       setIsEditing(false);
       queryClient.invalidateQueries({ queryKey: ['project', id] });
