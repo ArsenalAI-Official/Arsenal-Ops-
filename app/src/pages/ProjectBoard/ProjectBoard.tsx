@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import TimeEntriesTable from '@/components/TimeEntriesTable';
 import TicketContributors from '@/components/TicketContributors';
 import {
   ArrowLeft,
@@ -41,6 +40,7 @@ import { ReviewerView } from '@/components/ProjectHub';
 import AIPlanningModal from './modals/AIPlanningModal';
 import CreateItemModal from './modals/CreateItemModal';
 import CreateSprintModal from './modals/CreateSprintModal';
+import BoardColumn from './components/BoardColumn';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
 
@@ -159,7 +159,7 @@ const PRIORITY_COLORS = {
 const ProjectBoard = () => {
   const { id, ticketId } = useParams<{ id: string; ticketId?: string }>();
   const navigate = useNavigate();
-  const { token } = useAuth(); // kept for legacy child components (TimeEntriesTable, TicketContributors, ReviewerView)
+  const { token } = useAuth(); // kept for legacy child components (KanbanCard→TimeEntriesTable, TicketContributors, ReviewerView)
   const queryClient = useQueryClient();
   const [showReviewer, setShowReviewer] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -1315,177 +1315,26 @@ const ProjectBoard = () => {
         {viewMode === 'board' ? (
           /* KANBAN BOARD VIEW */
           <div className="flex gap-4 p-6 min-h-[calc(100vh-140px)]">
-            {(Object.keys(STATUS_CONFIG) as Array<keyof typeof STATUS_CONFIG>).map((status) => {
-              const config = STATUS_CONFIG[status];
-              const columnItems = filteredItems.filter((item) => item.status === status);
-              const isDropTarget = dragOverColumn === status;
-
-              return (
-                <div
-                  key={status}
-                  className={`flex-1 min-w-[280px] max-w-[360px] flex flex-col rounded-2xl border transition-all duration-200 ${
-                    isDropTarget
-                      ? 'border-[#E0B954]/40 bg-[#E0B954]/5 shadow-lg shadow-[#E0B954]/10'
-                      : 'border-[rgba(255,255,255,0.05)] bg-[rgba(255,255,255,0.02)]'
-                  }`}
-                  onDragOver={(e) => handleDragOver(e, status)}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, status)}
-                >
-                  {/* Column Header */}
-                  <div className="px-4 py-3 border-b border-[rgba(255,255,255,0.05)] flex items-center justify-between flex-shrink-0">
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        className="w-2.5 h-2.5 rounded-full"
-                        style={{
-                          backgroundColor: config.color,
-                          boxShadow: `0 0 8px ${config.color}44`,
-                        }}
-                      />
-                      <span className="font-semibold text-sm text-white">{config.label}</span>
-                    </div>
-                    <Badge className="bg-[rgba(255,255,255,0.05)] text-[#737373] border-0 text-xs font-medium px-2 py-0.5">
-                      {columnItems.length}
-                    </Badge>
-                  </div>
-
-                  {/* Cards */}
-                  <div className="flex-1 p-3 space-y-2.5 overflow-y-auto">
-                    {columnItems.map((item) => {
-                      const typeInfo = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
-                      const TypeIcon = typeInfo.icon;
-                      const priorityStyle =
-                        PRIORITY_COLORS[item.priority] || PRIORITY_COLORS.medium;
-                      const hoursProgress =
-                        item.assigned_hours > 0
-                          ? ((item.assigned_hours - item.remaining_hours) / item.assigned_hours) *
-                            100
-                          : 0;
-
-                      return (
-                        <div
-                          key={item.id}
-                          draggable
-                          onDragStart={() => handleDragStart(item.id)}
-                          onMouseEnter={() => prefetchComments(item.id)}
-                          onClick={() => {
-                            navigate(`/project/${id}/board/${item.id}`);
-                            setIsEditing(false);
-                            setEditForm({});
-                          }}
-                          className={`group bg-[rgba(255,255,255,0.025)] rounded-xl border border-[rgba(255,255,255,0.05)] p-3.5 cursor-pointer transition-all duration-200 hover:border-[rgba(244,246,255,0.15)] hover:bg-[rgba(244,246,255,0.05)] hover:shadow-lg hover:shadow-black/20 ${
-                            draggedItem === item.id ? 'opacity-40 scale-95' : ''
-                          }`}
-                        >
-                          {/* Type + Key */}
-                          <div className="flex items-center gap-2 mb-2.5">
-                            <div
-                              className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium"
-                              style={{ backgroundColor: typeInfo.bg, color: typeInfo.color }}
-                            >
-                              <TypeIcon className="w-3 h-3" />
-                              {typeInfo.label}
-                            </div>
-                            <span className="text-[10px] text-[#E0B954] font-mono font-medium">
-                              {item.key}
-                            </span>
-                          </div>
-
-                          {/* Title */}
-                          <h4 className="text-sm font-medium text-[#f5f5f5] mb-3 line-clamp-2 leading-snug">
-                            {item.title}
-                          </h4>
-
-                          {/* Progress Bar */}
-                          <div className="mb-3">
-                            <div className="flex justify-between text-[10px] text-[#737373] mb-1">
-                              <span className="flex items-center gap-1">
-                                <Clock className="w-2.5 h-2.5" />
-                                {item.remaining_hours}h left
-                              </span>
-                              <span className="flex items-center gap-2">
-                                <span className="text-[#E0B954]">
-                                  {item.logged_hours || 0}h logged
-                                </span>
-                                <span>/ {item.assigned_hours}h</span>
-                              </span>
-                            </div>
-                            <div className="h-1 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden">
-                              <div
-                                className="h-full rounded-full transition-all duration-500"
-                                style={{
-                                  width: `${hoursProgress}%`,
-                                  background: `linear-gradient(90deg, ${config.color}, ${config.color}AA)`,
-                                }}
-                              />
-                            </div>
-                          </div>
-
-                          {/* Bottom: Points + Priority + Assignee */}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-md bg-[#E0B954]/15 flex items-center justify-center">
-                                <span className="text-[10px] font-bold text-[#E0B954]">
-                                  {item.story_points}
-                                </span>
-                              </div>
-                              <Badge
-                                variant="outline"
-                                className={`text-[10px] px-1.5 py-0 h-5 ${priorityStyle.border} ${priorityStyle.text}`}
-                              >
-                                {item.priority}
-                              </Badge>
-                            </div>
-                            {item.assignee && item.assignee !== 'Unassigned' && (
-                              <div
-                                className="w-6 h-6 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center"
-                                title={item.assignee}
-                              >
-                                <span className="text-[10px] font-semibold text-white">
-                                  {item.assignee?.charAt?.(0)?.toUpperCase() || '?'}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Tags */}
-                          {item.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {item.tags.slice(0, 2).map((tag) => (
-                                <span
-                                  key={tag}
-                                  className="text-[9px] px-1.5 py-0.5 rounded-md bg-[rgba(255,255,255,0.05)] text-[#737373]"
-                                >
-                                  {tag}
-                                </span>
-                              ))}
-                              {item.tags.length > 2 && (
-                                <span className="text-[9px] text-[#737373]">
-                                  +{item.tags.length - 2}
-                                </span>
-                              )}
-                            </div>
-                          )}
-
-                          {/* This Week Time Entries Table */}
-                          <TimeEntriesTable workItemId={item.id} token={token || ''} />
-                        </div>
-                      );
-                    })}
-
-                    {/* Empty state */}
-                    {columnItems.length === 0 && (
-                      <div className="flex flex-col items-center justify-center py-12 text-center">
-                        <div className="w-10 h-10 rounded-xl bg-[rgba(255,255,255,0.03)] flex items-center justify-center mb-2">
-                          <config.icon className="w-5 h-5 text-[#334155]" />
-                        </div>
-                        <p className="text-xs text-[#334155]">No items</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {(Object.keys(STATUS_CONFIG) as Array<keyof typeof STATUS_CONFIG>).map((status) => (
+              <BoardColumn
+                key={status}
+                status={status}
+                columnItems={filteredItems.filter((item) => item.status === status)}
+                dragOverColumn={dragOverColumn}
+                draggedItem={draggedItem}
+                token={token || ''}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onCardDragStart={handleDragStart}
+                onCardMouseEnter={prefetchComments}
+                onCardClick={(itemId) => {
+                  navigate(`/project/${id}/board/${itemId}`);
+                  setIsEditing(false);
+                  setEditForm({});
+                }}
+              />
+            ))}
           </div>
         ) : (
           /* LIST VIEW */
