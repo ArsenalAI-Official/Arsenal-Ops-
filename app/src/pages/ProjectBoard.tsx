@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import TimeEntriesTable from '@/components/TimeEntriesTable';
@@ -291,8 +291,11 @@ const ProjectBoard = () => {
   const project = projectQuery.data ?? null;
   const isLoading = projectQuery.isLoading;
 
-  // Filters object drives the query key so filter changes auto-refetch
-  const workItemFilters = { project_id: id };
+  // Filters object drives the query key so filter changes auto-refetch.
+  // useMemo keeps the reference stable across renders so the query key
+  // (and any closures holding it) stay equal — see CLAUDE.md "Stabilize
+  // empty-default arrays" / queryClient.ts convention.
+  const workItemFilters = useMemo(() => ({ project_id: id }), [id]);
   const workItemsQuery = useQuery<WorkItem[]>({
     queryKey: ['workItems', workItemFilters],
     queryFn: () => apiFetch<WorkItem[]>(`/api/workitems/?project_id=${id}`),
@@ -438,7 +441,9 @@ const ProjectBoard = () => {
         body: JSON.stringify({ status: newStatus }),
       }),
     onMutate: async ({ itemId, newStatus }) => {
-      await queryClient.cancelQueries({ queryKey: ['workItems', workItemFilters] });
+      // Cancel by prefix so sibling ['workItems', ...] queries (with other
+      // filters) can't overwrite the optimistic state mid-flight.
+      await queryClient.cancelQueries({ queryKey: ['workItems'] });
       const previous = queryClient.getQueryData<WorkItem[]>(['workItems', workItemFilters]);
       queryClient.setQueryData<WorkItem[]>(['workItems', workItemFilters], (old) =>
         (old ?? []).map((t) =>
@@ -677,21 +682,32 @@ const ProjectBoard = () => {
     setMentionFilter('');
   };
 
-  // Submit comment mutation
+  // Submit comment mutation — captures workItemId in vars so a drawer-close
+  // race can't make us invalidate ['workItem', undefined, 'comments'].
   const submitCommentMutation = useMutation({
-    mutationFn: (commentType: 'comment' | 'blocker' | 'business_review') =>
+    mutationFn: ({
+      workItemId,
+      content,
+      authorId,
+      commentType,
+    }: {
+      workItemId: string;
+      content: string;
+      authorId: number;
+      commentType: 'comment' | 'blocker' | 'business_review';
+    }) =>
       apiFetch('/api/comments/', {
         method: 'POST',
         body: JSON.stringify({
-          work_item_id: parseInt(selectedItem!.id),
-          content: newComment,
-          author_id: project?.developers?.[0]?.id || 1,
+          work_item_id: parseInt(workItemId),
+          content,
+          author_id: authorId,
           comment_type: commentType,
         }),
       }),
-    onSuccess: (_data, commentType) => {
+    onSuccess: (_data, { workItemId, commentType }) => {
       setNewComment('');
-      queryClient.invalidateQueries({ queryKey: ['workItem', selectedItem?.id, 'comments'] });
+      queryClient.invalidateQueries({ queryKey: ['workItem', workItemId, 'comments'] });
       const messages = {
         blocker: 'Blocker reported!',
         business_review: 'Business Review comment added!',
@@ -706,7 +722,12 @@ const ProjectBoard = () => {
     commentType: 'comment' | 'blocker' | 'business_review' = 'comment',
   ) => {
     if (!selectedItem || !newComment.trim()) return;
-    submitCommentMutation.mutate(commentType);
+    submitCommentMutation.mutate({
+      workItemId: selectedItem.id,
+      content: newComment,
+      authorId: project?.developers?.[0]?.id || 1,
+      commentType,
+    });
   };
 
   // Render comment with mentions highlighted and links as clickable
@@ -1143,7 +1164,8 @@ const ProjectBoard = () => {
         body: JSON.stringify({ status: newStatus }),
       }),
     onMutate: async ({ itemId, newStatus }) => {
-      await queryClient.cancelQueries({ queryKey: ['workItems', workItemFilters] });
+      // Prefix cancel — see moveMutation above.
+      await queryClient.cancelQueries({ queryKey: ['workItems'] });
       const previous = queryClient.getQueryData<WorkItem[]>(['workItems', workItemFilters]);
       queryClient.setQueryData<WorkItem[]>(['workItems', workItemFilters], (old) =>
         (old ?? []).map((t) =>
