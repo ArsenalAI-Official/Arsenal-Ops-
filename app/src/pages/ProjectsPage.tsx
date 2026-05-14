@@ -27,6 +27,7 @@ import type {
   CreateProjectForm,
   SelectedDeveloper,
 } from '@/components/ProjectsPage';
+import { parseLocalDateOptional as parseLocalDate } from '@/lib/dates';
 
 const ProjectsPage = () => {
   const navigate = useNavigate();
@@ -423,8 +424,8 @@ const ProjectsPage = () => {
           if (dueValue) {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
-            const due = new Date(dueValue + 'T00:00:00');
-            isOverdue = due < today && t.status !== 'done';
+            const due = parseLocalDate(dueValue);
+            isOverdue = !!due && due < today && t.status !== 'done';
           }
           return { ...t, due_date: dueValue, is_overdue: isOverdue };
         }),

@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { API_BASE_URL } from '@/config/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { parseLocalDate } from '@/lib/dates';
 import HoursDebugPanel from './HoursDebugPanel';
 
 interface Sprint {
@@ -306,8 +307,8 @@ export default function PMView({ projectId, token, isAdmin = false, sprints = []
                   const now = new Date();
                   let expectedPct = 0;
                   if (sprint.start_date && sprint.end_date) {
-                    const start = new Date(sprint.start_date);
-                    const end = new Date(sprint.end_date);
+                    const start = parseLocalDate(sprint.start_date);
+                    const end = parseLocalDate(sprint.end_date);
                     const totalMs = end.getTime() - start.getTime();
                     const elapsedMs = Math.min(now.getTime() - start.getTime(), totalMs);
                     expectedPct =
@@ -368,12 +369,12 @@ export default function PMView({ projectId, token, isAdmin = false, sprints = []
                           {sprint.start_date && sprint.end_date && (
                             <p className="text-xs text-[#737373]">
                               📅{' '}
-                              {new Date(sprint.start_date).toLocaleDateString(undefined, {
+                              {parseLocalDate(sprint.start_date).toLocaleDateString(undefined, {
                                 month: 'short',
                                 day: 'numeric',
                               })}{' '}
                               –{' '}
-                              {new Date(sprint.end_date).toLocaleDateString(undefined, {
+                              {parseLocalDate(sprint.end_date).toLocaleDateString(undefined, {
                                 month: 'short',
                                 day: 'numeric',
                                 year: 'numeric',

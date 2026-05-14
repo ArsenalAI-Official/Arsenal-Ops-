@@ -13,6 +13,7 @@ import {
   Bug,
   Target,
 } from 'lucide-react';
+import { parseLocalDate, parseLocalDateOptional } from '@/lib/dates';
 
 interface WorkItem {
   id: string;
@@ -83,14 +84,6 @@ interface TimelineViewProps {
 }
 
 type ZoomLevel = 'day' | 'week' | 'month';
-
-/** Parse a date string into local midnight — timezone-safe */
-function parseLocalDate(str: string): Date {
-  const clean = str.endsWith('Z') ? str.slice(0, -1) : str;
-  const datePart = clean.includes('T') ? clean.split('T')[0] : clean;
-  const [year, month, day] = datePart.split('-').map(Number);
-  return new Date(year, month - 1, day, 0, 0, 0, 0);
-}
 
 /** Add days to a date, returns new Date */
 function addDays(date: Date, days: number): Date {
@@ -815,15 +808,15 @@ const TimelineView: React.FC<TimelineViewProps> = ({
                   },
                   {
                     label: 'Start Date',
-                    value: selectedItem.start_date
-                      ? new Date(selectedItem.start_date).toLocaleDateString()
-                      : 'Not set',
+                    value:
+                      parseLocalDateOptional(selectedItem.start_date)?.toLocaleDateString() ??
+                      'Not set',
                   },
                   {
                     label: 'Due Date',
-                    value: selectedItem.due_date
-                      ? new Date(selectedItem.due_date).toLocaleDateString()
-                      : 'Not set',
+                    value:
+                      parseLocalDateOptional(selectedItem.due_date)?.toLocaleDateString() ??
+                      'Not set',
                   },
                 ].map(({ label, value }) => (
                   <div key={label} className="bg-[rgba(255,255,255,0.025)] rounded-xl p-3">

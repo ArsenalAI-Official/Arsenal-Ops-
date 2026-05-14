@@ -33,13 +33,7 @@ import {
 } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
-
-// Helper function to parse YYYY-MM-DD string to local Date object (avoids UTC timezone issues)
-const parseLocalDate = (dateString: string | undefined): Date | undefined => {
-  if (!dateString) return undefined;
-  const [year, month, day] = dateString.split('-');
-  return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-};
+import { parseLocalDateOptional as parseLocalDate } from '@/lib/dates';
 
 interface PersonalTask {
   id: number;

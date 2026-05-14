@@ -5,6 +5,7 @@ import { enUS } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { parseLocalDate } from '@/lib/dates';
 
 interface WorkItem {
   id: string;
@@ -48,26 +49,6 @@ interface CalendarEvent {
   end: Date;
   allDay: boolean;
   resource: any;
-}
-
-/**
- * Parse a date string into a local-midnight Date object.
- * Handles both ISO datetime strings ("2026-03-15T00:00:00") and
- * date-only strings ("2026-03-15") correctly across all timezones.
- *
- * The key insight: "2026-03-15T00:00:00" without a 'Z' suffix is treated
- * by JavaScript as LOCAL time already — no shift needed.
- * But "2026-03-15T00:00:00Z" (with Z) would shift to local time, so we
- * strip the time component and reconstruct as local midnight to be safe.
- */
-function parseLocalDate(str: string): Date {
-  // Remove any trailing Z to treat as local time, not UTC
-  const clean = str.endsWith('Z') ? str.slice(0, -1) : str;
-  // Extract YYYY-MM-DD portion (handles both "2026-03-15" and "2026-03-15T00:00:00")
-  const datePart = clean.includes('T') ? clean.split('T')[0] : clean;
-  const [year, month, day] = datePart.split('-').map(Number);
-  // Construct at local midnight — timezone-safe for any locale
-  return new Date(year, month - 1, day, 0, 0, 0, 0);
 }
 
 const locales = {
@@ -178,7 +159,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
     // Check if overdue
     const isOverdue =
-      item.due_date && new Date(item.due_date) < new Date() && item.status !== 'done';
+      item.due_date && parseLocalDate(item.due_date) < new Date() && item.status !== 'done';
     if (isOverdue) {
       backgroundColor = '#EF4444';
     }

@@ -69,13 +69,7 @@ import { toast, Toaster } from 'sonner';
 const MermaidRenderer = lazy(() => import('@/components/MermaidRenderer'));
 const ArchitectureEditor = lazy(() => import('@/components/ArchitectureEditor'));
 import { useAuth } from '@/contexts/AuthContext';
-
-// Helper function to parse YYYY-MM-DD string to local Date object (avoids UTC timezone issues)
-const parseLocalDate = (dateString: string | undefined): Date | undefined => {
-  if (!dateString) return undefined;
-  const [year, month, day] = dateString.split('-');
-  return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-};
+import { parseLocalDateOptional as parseLocalDate } from '@/lib/dates';
 
 interface Developer {
   id: number;
@@ -1255,9 +1249,7 @@ const ProjectDetail = () => {
                       <div>
                         <span className="text-xs text-[#737373]">End Date</span>
                         <p className="text-sm text-[#f5f5f5]">
-                          {project.end_date
-                            ? new Date(project.end_date).toLocaleDateString()
-                            : 'Not set'}
+                          {parseLocalDate(project.end_date)?.toLocaleDateString() ?? 'Not set'}
                         </p>
                       </div>
                     </div>
@@ -2246,7 +2238,7 @@ const ProjectDetail = () => {
                           {sprint.start_date && sprint.end_date && (
                             <>
                               <span>·</span>
-                              <span>{new Date(sprint.end_date).toLocaleDateString()}</span>
+                              <span>{parseLocalDate(sprint.end_date)?.toLocaleDateString()}</span>
                             </>
                           )}
                         </div>

@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Briefcase, AlertTriangle, CheckCircle2, Calendar } from 'lucide-react';
+import { parseLocalDate } from '@/lib/dates';
 
 interface Task {
   id: string;
@@ -37,13 +38,13 @@ const MyTasksView: React.FC<MyTasksViewProps> = ({ tasks, onTaskClick }) => {
       case 'today':
         return tasks.filter((task) => {
           if (!task.due_date) return false;
-          const dueDate = new Date(task.due_date);
+          const dueDate = parseLocalDate(task.due_date);
           return dueDate >= today && dueDate < new Date(today.getTime() + 24 * 60 * 60 * 1000);
         });
       case 'week':
         return tasks.filter((task) => {
           if (!task.due_date) return false;
-          const dueDate = new Date(task.due_date);
+          const dueDate = parseLocalDate(task.due_date);
           return dueDate >= today && dueDate <= weekEnd;
         });
       case 'overdue':
@@ -204,7 +205,7 @@ const MyTasksView: React.FC<MyTasksViewProps> = ({ tasks, onTaskClick }) => {
                           {task.due_date && (
                             <div className="flex items-center gap-1 text-[#737373] text-sm mb-1">
                               <Calendar className="w-3 h-3" />
-                              {new Date(task.due_date).toLocaleDateString()}
+                              {parseLocalDate(task.due_date).toLocaleDateString()}
                             </div>
                           )}
                           {task.logged_hours !== undefined &&
