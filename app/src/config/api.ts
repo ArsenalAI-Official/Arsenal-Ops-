@@ -1,8 +1,16 @@
 // API Configuration
-// In development, use localhost
-// In production, use environment variable or default
+// In development, use localhost.
+// In production, VITE_API_URL must be set explicitly — production builds
+// refuse to boot with the localhost fallback so a missing env var becomes
+// loud at deploy time instead of silently hitting a non-routable host.
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const configured = import.meta.env.VITE_API_URL;
 
-// For production deployment, set VITE_API_URL in your .env file or Vercel environment variables
-// Example: VITE_API_URL=https://your-api.onrender.com
+if (import.meta.env.PROD && !configured) {
+  throw new Error(
+    'VITE_API_URL is required in production builds. Set it in your deploy env ' +
+      '(e.g. Vercel project settings) before rebuilding.',
+  );
+}
+
+export const API_BASE_URL = configured || 'http://localhost:8000';

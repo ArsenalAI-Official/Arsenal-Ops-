@@ -1,8 +1,16 @@
-import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useNavigate,
+  useLocation,
+  Navigate,
+} from 'react-router-dom';
+import type { ReactElement } from 'react';
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AuthProvider, useAuth, isAdmin } from './contexts/AuthContext';
 import { Login } from './components/Login';
 import { PasswordChange } from './components/PasswordChange';
 import { Button } from '@/components/ui/button';
@@ -82,6 +90,18 @@ function IdleWarningModal({
   );
 }
 
+// Defense-in-depth: even though /api/auth/admin/* endpoints check the role
+// server-side, an authenticated non-admin should not be able to mount the
+// admin dashboard (firing 6 queries and exposing the UI). Server is still
+// the security boundary; this just prevents accidental exposure.
+function RequireAdmin({ children }: { children: ReactElement }) {
+  const { user } = useAuth();
+  if (!isAdmin(user)) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+}
+
 function AuthenticatedRoutes() {
   const { user, isLoading, isAuthenticated, showWarning, dismissWarning, logout } = useAuth();
   const navigate = useNavigate();
@@ -156,7 +176,14 @@ function AuthenticatedRoutes() {
           <Route path="/project/:id" element={<ProjectDetail />} />
           <Route path="/project/:id/board" element={<ProjectBoard />} />
           <Route path="/project/:id/board/:ticketId" element={<ProjectBoard />} />
-          <Route path="/admin" element={<AdminDashboard />} />
+          <Route
+            path="/admin"
+            element={
+              <RequireAdmin>
+                <AdminDashboard />
+              </RequireAdmin>
+            }
+          />
         </Routes>
       </Suspense>
     </>
