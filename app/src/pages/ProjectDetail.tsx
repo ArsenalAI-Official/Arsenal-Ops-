@@ -291,15 +291,20 @@ const ProjectDetail = () => {
   const initialTab = (searchParams.get('tab') as TabType) || 'overview';
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   // Keep ?tab= in sync with the active tab so refresh / share works.
+  // searchParams + setSearchParams included in deps to satisfy
+  // exhaustive-deps; the current !== activeTab guard prevents loops.
+  // The setSearchParams call inside the effect is the intended URL→state
+  // mirror, hence the per-statement disable.
   useEffect(() => {
     const current = searchParams.get('tab');
     if (current !== activeTab) {
       const next = new URLSearchParams(searchParams);
       if (activeTab === 'overview') next.delete('tab');
       else next.set('tab', activeTab);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- mirroring activeTab into the URL is the whole point of this effect
       setSearchParams(next, { replace: true });
     }
-  }, [activeTab]);
+  }, [activeTab, searchParams, setSearchParams]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Project>>({});
