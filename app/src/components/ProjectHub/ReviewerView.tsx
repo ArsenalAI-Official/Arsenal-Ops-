@@ -69,12 +69,16 @@ const ReviewerView: React.FC<ReviewerViewProps> = ({
   // Filter to in_review items only
   const reviewItems = workItems.filter((item) => item.status === 'in_review');
 
-  // Fetch comments for each review item
+  // Fetch comments for each review item. Key the effect on the set of ids
+  // (not just the count) so churn — one item leaves in_review, another
+  // enters — still triggers fetches for the new item (audit F-M9).
+  const reviewItemIdsKey = reviewItems.map((i) => i.id).join(',');
   useEffect(() => {
     reviewItems.forEach((item) => {
       fetchComments(item.id);
     });
-  }, [reviewItems.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed on the id list (reviewItems identity changes every render; fetchComments is stable)
+  }, [reviewItemIdsKey]);
 
   const fetchComments = async (itemId: string) => {
     try {
