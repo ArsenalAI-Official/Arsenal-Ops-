@@ -401,57 +401,6 @@ def run_migrations():
         except Exception as e:
             print(f"[MIGRATION ERROR] {e}")
 
-        # Migration: Create custom_restrictions table if not exists
-        try:
-            result = conn.execute(text("""
-                SELECT table_name 
-                FROM information_schema.tables 
-                WHERE table_name = 'custom_restrictions'
-            """))
-            
-            if not result.fetchone():
-                print("[MIGRATION] Creating custom_restrictions table...")
-                conn.execute(text("""
-                    CREATE TABLE custom_restrictions (
-                        id SERIAL PRIMARY KEY,
-                        name VARCHAR(255) NOT NULL UNIQUE,
-                        tab_name VARCHAR(100) NOT NULL,
-                        subsection VARCHAR(100) NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        CONSTRAINT fk_custom_restrictions_name UNIQUE (name)
-                    )
-                """))
-                conn.execute(text("CREATE INDEX idx_custom_restrictions_name ON custom_restrictions(name)"))
-                conn.execute(text("CREATE INDEX idx_custom_restrictions_created ON custom_restrictions(created_at)"))
-                conn.commit()
-                print("[MIGRATION] custom_restrictions table created!")
-        except Exception as e:
-            print(f"[MIGRATION ERROR] {e}")
-
-        # Migration: Create user_custom_restrictions junction table if not exists
-        try:
-            result = conn.execute(text("""
-                SELECT table_name 
-                FROM information_schema.tables 
-                WHERE table_name = 'user_custom_restrictions'
-            """))
-            
-            if not result.fetchone():
-                print("[MIGRATION] Creating user_custom_restrictions table...")
-                conn.execute(text("""
-                    CREATE TABLE user_custom_restrictions (
-                        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                        custom_restriction_id INTEGER REFERENCES custom_restrictions(id) ON DELETE CASCADE,
-                        PRIMARY KEY (user_id, custom_restriction_id)
-                    )
-                """))
-                conn.execute(text("CREATE INDEX idx_user_custom_restrictions_user ON user_custom_restrictions(user_id)"))
-                conn.execute(text("CREATE INDEX idx_user_custom_restrictions_restriction ON user_custom_restrictions(custom_restriction_id)"))
-                conn.commit()
-                print("[MIGRATION] user_custom_restrictions table created!")
-        except Exception as e:
-            print(f"[MIGRATION ERROR] {e}")
-        
         # Migration: Add end_date column to projects
         try:
             result = conn.execute(text("""
@@ -560,6 +509,152 @@ def run_migrations():
         except Exception as e:
             print(f"[MIGRATION ERROR] hashed_password nullable: {e}")
 
+SYSTEM_ROLES: list[tuple[str, str, list[str]]] = [
+    ("admin", "Full system access", ["*"]),
+    ("project_manager", "Project manager access to all project tabs", ["project.*"]),
+    # Developer grants match the pre-RBAC blocklist behaviour: everything in a
+    # project except the PM tab + its subsections and the pulse admin settings.
+    ("developer", "Default developer access", [
+        "project.overview.*",
+        "project.tracker.*",
+        "project.calendar",
+        "project.pulse",
+        "project.business",
+        "project.activity",
+    ]),
+]
+
+
+def seed_rbac():
+    """Idempotent seed of system roles and backfill of user_roles from legacy users.role."""
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        # Skip silently if the RBAC tables aren't there yet (e.g. SQLite without create_all)
+        try:
+            probe = conn.execute(text("""
+                SELECT table_name FROM information_schema.tables WHERE table_name = 'roles'
+            """))
+            if not probe.fetchone():
+                return
+        except Exception:
+            # information_schema isn't available (SQLite) — let create_all build the tables and
+            # come back next startup, or rely on a Postgres-only deployment.
+            return
+
+        # Seed system roles
+        for name, desc, caps in SYSTEM_ROLES:
+            try:
+                existing = conn.execute(
+                    text("SELECT id FROM roles WHERE name = :n"),
+                    {"n": name},
+                ).fetchone()
+                if existing:
+                    continue
+                role_id = conn.execute(
+                    text("""
+                        INSERT INTO roles (name, description, is_system, created_at, updated_at)
+                        VALUES (:n, :d, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        RETURNING id
+                    """),
+                    {"n": name, "d": desc},
+                ).scalar()
+                for cap in caps:
+                    conn.execute(
+                        text("""
+                            INSERT INTO role_capabilities (role_id, capability_key)
+                            VALUES (:rid, :cap)
+                        """),
+                        {"rid": role_id, "cap": cap},
+                    )
+                conn.commit()
+                print(f"[SEED] Seeded system role '{name}' with {len(caps)} capability grant(s)")
+            except Exception as e:
+                print(f"[SEED ERROR] role '{name}': {e}")
+                conn.rollback()
+
+        # One-shot upgrade: widen 'developer' grants from the initial too-narrow seed
+        # to the post-RBAC-swap defaults. Only runs when grants exactly match the old
+        # seed (i.e. an admin hasn't customised them).
+        try:
+            OLD_DEV_GRANTS = {
+                "project.overview.prd",
+                "project.overview.architecture",
+                "project.overview.team",
+                "project.overview.resources",
+                "project.tracker.sprints",
+                "project.calendar",
+                "project.activity",
+            }
+            NEW_DEV_GRANTS = [
+                g for n, _, gs in SYSTEM_ROLES if n == "developer" for g in gs
+            ]
+            dev_row = conn.execute(
+                text("SELECT id FROM roles WHERE name = 'developer' AND is_system = TRUE")
+            ).fetchone()
+            if dev_row:
+                dev_id = dev_row[0]
+                current = {
+                    r[0]
+                    for r in conn.execute(
+                        text("SELECT capability_key FROM role_capabilities WHERE role_id = :rid"),
+                        {"rid": dev_id},
+                    ).fetchall()
+                }
+                if current == OLD_DEV_GRANTS:
+                    conn.execute(
+                        text("DELETE FROM role_capabilities WHERE role_id = :rid"),
+                        {"rid": dev_id},
+                    )
+                    for g in NEW_DEV_GRANTS:
+                        conn.execute(
+                            text(
+                                "INSERT INTO role_capabilities (role_id, capability_key) VALUES (:rid, :g)"
+                            ),
+                            {"rid": dev_id, "g": g},
+                        )
+                    conn.commit()
+                    print(
+                        "[SEED] Upgraded 'developer' role grants to match pre-RBAC blocklist behaviour"
+                    )
+        except Exception as e:
+            print(f"[SEED ERROR] developer grants upgrade: {e}")
+            conn.rollback()
+
+        # Backfill user_roles from existing users.role comma-string — only when empty
+        try:
+            count = conn.execute(text("SELECT COUNT(*) FROM user_roles")).scalar()
+            if count and count > 0:
+                return
+            users = conn.execute(
+                text("SELECT id, role FROM users WHERE role IS NOT NULL")
+            ).fetchall()
+            roles = conn.execute(text("SELECT id, name FROM roles")).fetchall()
+            role_map = {row[1]: row[0] for row in roles}
+
+            inserted = 0
+            for uid, role_str in users:
+                for r_name in [s.strip() for s in (role_str or "").split(",") if s.strip()]:
+                    rid = role_map.get(r_name)
+                    if not rid:
+                        continue
+                    conn.execute(
+                        text("""
+                            INSERT INTO user_roles (user_id, role_id, assigned_at)
+                            VALUES (:uid, :rid, CURRENT_TIMESTAMP)
+                            ON CONFLICT DO NOTHING
+                        """),
+                        {"uid": uid, "rid": rid},
+                    )
+                    inserted += 1
+            conn.commit()
+            if inserted:
+                print(f"[SEED] Backfilled {inserted} user_role assignment(s) from legacy users.role")
+        except Exception as e:
+            print(f"[SEED ERROR] user_roles backfill: {e}")
+            conn.rollback()
+
+
 def init_db():
     """Initialize database tables"""
     from models import (
@@ -567,9 +662,13 @@ def init_db():
         market_insight, developer, work_item, sprint,
         architecture, user, time_entry, task_dependency,
         project_goal, project_milestone, activity_log, project_file,
-        custom_restriction, personal_task, work_item_assignment_history
+        personal_task, work_item_assignment_history,
+        role
     )
     Base.metadata.create_all(bind=engine)
-    
+
     # Run migrations for existing databases
     run_migrations()
+
+    # Seed RBAC system roles + backfill assignments from legacy users.role
+    seed_rbac()

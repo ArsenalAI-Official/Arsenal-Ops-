@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { API_BASE_URL } from '@/config/api';
+import { useAuth } from '@/contexts/AuthContext';
 import HoursDebugPanel from './HoursDebugPanel';
 
 interface Sprint {
@@ -26,12 +27,6 @@ interface PMViewProps {
     projectId: string;
     token: string;
     isAdmin?: boolean;
-    userRestrictions?: Array<{
-        id: number;
-        name: string;
-        tab_name: string;
-        subsection: string;
-    }>;
     sprints?: Sprint[];
 }
 
@@ -135,20 +130,13 @@ interface WeeklyHours {
     items_completed: number;
 }
 
-export default function PMView({ projectId, token, isAdmin = false, userRestrictions = [], sprints = [] }: PMViewProps) {
+export default function PMView({ projectId, token, isAdmin = false, sprints = [] }: PMViewProps) {
+    const { can } = useAuth();
     const [analytics, setAnalytics] = useState<HoursAnalytics | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [expandedDeveloper, setExpandedDeveloper] = useState<number | null>(null);
     const [showDebugPanel, setShowDebugPanel] = useState(false);
     const [progressExpanded, setProgressExpanded] = useState(false);
-
-    // Helper function to check if a subsection is restricted
-    const isSubsectionRestricted = (subsectionName: string): boolean => {
-        return userRestrictions.some(r => 
-            r.tab_name.toLowerCase() === 'project_manager' && 
-            r.subsection.toLowerCase() === subsectionName.toLowerCase()
-        );
-    };
 
     useEffect(() => {
         fetchAnalytics();
@@ -196,7 +184,7 @@ export default function PMView({ projectId, token, isAdmin = false, userRestrict
     return (
         <div className="space-y-6">
             {/* Summary Cards */}
-            {!isSubsectionRestricted('summary cards') && (
+            {can('project.pm.summary_cards') && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card className="bg-[rgba(255,255,255,0.02)] border-[rgba(255,255,255,0.05)]">
                     <CardContent className="p-4">
@@ -501,7 +489,7 @@ export default function PMView({ projectId, token, isAdmin = false, userRestrict
             */}
 
             {/* Developer Hours Table */}
-            {!isSubsectionRestricted('developer hours summary') && (
+            {can('project.pm.developer_hours') && (
             <Card className="bg-[rgba(255,255,255,0.02)] border-[rgba(255,255,255,0.05)]">
                 <CardHeader>
                     <CardTitle className="text-white flex items-center gap-2">

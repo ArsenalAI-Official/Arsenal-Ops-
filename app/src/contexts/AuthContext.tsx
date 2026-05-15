@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { API_BASE_URL } from '@/config/api';
+import { matchesCapability } from '@/lib/capabilities';
 
 interface User {
   id: number;
@@ -39,6 +40,10 @@ interface AuthContextType {
   idleTime: number;
   showWarning: boolean;
   dismissWarning: () => void;
+  // RBAC capabilities
+  capabilities: string[];
+  can: (cap: string) => boolean;
+  refreshCapabilities: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -64,6 +69,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(!!token); // Only loading if we have a token
   const [idleTime, setIdleTime] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
+  const [capabilities, setCapabilities] = useState<string[]>(() => {
+    // Restore from localStorage so UI doesn't flash unauthorized on reload
+    const saved = localStorage.getItem('capabilities');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
   
   const lastActivityRef = useRef(Date.now());
   const isAuthenticated = !!user && !!token;
@@ -123,6 +141,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIdleTime(0);
   };
 
+  const fetchCapabilitiesWith = async (currentToken: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/me/capabilities`, {
+        headers: { 'Authorization': `Bearer ${currentToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const caps: string[] = Array.isArray(data?.capabilities) ? data.capabilities : [];
+        setCapabilities(caps);
+        localStorage.setItem('capabilities', JSON.stringify(caps));
+      }
+      // On non-ok, intentionally keep the previously cached set — better than wiping
+      // every gated UI on a transient backend hiccup.
+    } catch {
+      // same: keep stale cache on network error
+    }
+  };
+
+  const refreshCapabilities = async () => {
+    const currentToken = token || localStorage.getItem('token');
+    if (currentToken) await fetchCapabilitiesWith(currentToken);
+  };
+
+  const can = useCallback(
+    (cap: string) => matchesCapability(cap, capabilities),
+    [capabilities],
+  );
+
   const checkAuth = async () => {
     try {
       const currentToken = token || localStorage.getItem('token');
@@ -136,13 +182,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           'Authorization': `Bearer ${currentToken}`
         }
       });
-      
+
       if (response.ok) {
         const userData = await response.json();
         setUser(userData);
         if (!token) {
           setToken(currentToken);
         }
+        // Refresh capabilities alongside user so the two stay in sync
+        fetchCapabilitiesWith(currentToken);
       } else {
         // Token invalid, clear it
         logout();
@@ -180,6 +228,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('user', JSON.stringify(data.user));
     lastActivityRef.current = Date.now();
     setIdleTime(0);
+    fetchCapabilitiesWith(data.access_token);
   };
 
   const loginWithGoogle = async (idToken: string) => {
@@ -203,6 +252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('user', JSON.stringify(data.user));
     lastActivityRef.current = Date.now();
     setIdleTime(0);
+    fetchCapabilitiesWith(data.access_token);
   };
 
   const logout = () => {
@@ -210,8 +260,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
     setIdleTime(0);
     setShowWarning(false);
+    setCapabilities([]);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('capabilities');
   };
 
   const changePassword = async (currentPassword: string, newPassword: string) => {
@@ -246,7 +298,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       checkAuth,
       idleTime,
       showWarning,
-      dismissWarning
+      dismissWarning,
+      capabilities,
+      can,
+      refreshCapabilities,
     }}>
       {children}
     </AuthContext.Provider>

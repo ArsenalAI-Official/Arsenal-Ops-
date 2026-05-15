@@ -48,7 +48,7 @@ import { Calendar as CalendarIcon } from '@/components/ui/calendar';
 import { toast, Toaster } from 'sonner';
 import MermaidRenderer from '@/components/MermaidRenderer';
 import ArchitectureEditor from '@/components/ArchitectureEditor';
-import { useAuth, isProjectManager, isAdmin } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 import { API_BASE_URL } from '@/config/api';
 
@@ -231,19 +231,11 @@ interface ProjectLink {
     created_at?: string;
 }
 
-interface CustomRestriction {
-    id: number;
-    name: string;
-    tab_name: string;
-    subsection: string;
-    created_at?: string;
-}
-
 const ProjectDetail = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
-    const { token, user } = useAuth();
+    const { token, user, can } = useAuth();
     const [project, setProject] = useState<Project | null>(null);
     // Initial tab respects ?tab= URL param so external links (e.g. admin "Pulse Settings"
     // button) can deep-link to a specific tab on this project.
@@ -310,9 +302,6 @@ const ProjectDetail = () => {
         }
     }, [showAddLink]);
 
-    // Custom restrictions state
-    const [userRestrictions, setUserRestrictions] = useState<CustomRestriction[]>([]);
-
     // Refetch all data (used on mount and when window regains focus)
     const refetchAll = () => {
         if (!id) return;
@@ -321,7 +310,6 @@ const ProjectDetail = () => {
         fetchSprints();
         fetchHubData(); // analytics is now included inside fetchHubData
         fetchLinks();
-        fetchUserRestrictions();
     };
 
     // Fetch project data on mount
@@ -450,20 +438,6 @@ const ProjectDetail = () => {
             console.error('Failed to fetch links:', err);
         } finally {
             setLinksLoading(false);
-        }
-    };
-
-    const fetchUserRestrictions = async () => {
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/auth/me/custom-restrictions`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setUserRestrictions(data || []);
-            }
-        } catch (err) {
-            console.error('Failed to fetch user restrictions:', err);
         }
     };
 
@@ -879,41 +853,30 @@ const ProjectDetail = () => {
         );
     }
 
-    // Check if user can see PM tab: system admin, project manager, or project admin
-    const canAccessPMTab = () => {
-        if (isProjectManager(user)) return true;
-        if (!user || !project) return false;
-        return project.developers.some(
-            dev => dev.email === user.email && dev.is_admin
-        );
-    };
+    // PM tab visibility: capability OR per-project admin membership (project-level
+    // admin elevates a user to the PM tab on that specific project, regardless of
+    // global role — global RBAC capabilities can't express that, so we OR it in).
+    const isProjectAdmin = !!user && !!project && project.developers.some(
+        dev => dev.email === user.email && dev.is_admin
+    );
+    const canSeePMTab = can('project.pm') || isProjectAdmin;
 
     const tabs = [
-        { id: 'overview' as TabType, label: 'Overview', icon: Info },
-        { id: 'tracker' as TabType, label: 'Project Tracker', icon: BarChart3 },
-        { id: 'calendar' as TabType, label: 'Timeline', icon: Calendar },
-        { id: 'pulse' as TabType, label: 'Pulse', icon: TrendingUp },
-        { id: 'activity' as TabType, label: 'Activity', icon: Activity },
-        // PM tab for system admins, project managers, and project admins
-        ...(canAccessPMTab() ? [{ id: 'project_manager' as TabType, label: 'Project Manager', icon: Clock }] : []),
-        // Pulse Settings — system admins only (drives values shown on the Pulse tab)
-        ...(isAdmin(user) ? [{ id: 'pulse_settings' as TabType, label: 'Pulse Settings', icon: DollarSign }] : []),
+        ...(can('project.overview.team') || can('project.overview.prd') || can('project.overview.architecture') || can('project.overview.resources')
+            ? [{ id: 'overview' as TabType, label: 'Overview', icon: Info }] : []),
+        ...(can('project.tracker.sprints') || can('project.tracker.analytics')
+            ? [{ id: 'tracker' as TabType, label: 'Project Tracker', icon: BarChart3 }] : []),
+        ...(can('project.calendar') ? [{ id: 'calendar' as TabType, label: 'Timeline', icon: Calendar }] : []),
+        ...(can('project.pulse') ? [{ id: 'pulse' as TabType, label: 'Pulse', icon: TrendingUp }] : []),
+        ...(can('project.activity') ? [{ id: 'activity' as TabType, label: 'Activity', icon: Activity }] : []),
+        ...(canSeePMTab ? [{ id: 'project_manager' as TabType, label: 'Project Manager', icon: Clock }] : []),
+        ...(can('project.pulse.settings') ? [{ id: 'pulse_settings' as TabType, label: 'Pulse Settings', icon: DollarSign }] : []),
     ];
 
     // Filter out developers already in project
     const availableDevelopers = allDevelopers.filter(
         d => !project.developers.some(pd => pd.id === d.id)
     );
-
-    // Helper function to check if a subsection is restricted
-    // Accepts string (not just TabType) so legacy restriction rows that still
-    // reference renamed tabs (e.g. 'business' before it became 'pulse') keep working.
-    const isSubsectionRestricted = (tabName: string, subsectionName: string): boolean => {
-        return userRestrictions.some(r => 
-            r.tab_name.toLowerCase() === tabName.toLowerCase() && 
-            r.subsection.toLowerCase() === subsectionName.toLowerCase()
-        );
-    };
 
     return (
         <div className="min-h-screen bg-[#080808] text-[#F4F6FF]">
@@ -1288,7 +1251,7 @@ const ProjectDetail = () => {
                         </div>
 
                         {/* PRD Analysis Section */}
-                        {prdAnalysis && !isSubsectionRestricted('overview', 'prd analysis') && (
+                        {prdAnalysis && can('project.overview.prd') && (
                             <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl p-5">
                                 <div className="flex items-center gap-3 mb-4">
                                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center">
@@ -1477,7 +1440,7 @@ const ProjectDetail = () => {
                         )}
 
                         {/* Architecture Section */}
-                        {project.selected_architecture && !isSubsectionRestricted('overview', 'architecture') && (() => {
+                        {project.selected_architecture && can('project.overview.architecture') && (() => {
                             const arch = project.selected_architecture!;
                             return (
                             <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl overflow-hidden">
@@ -1656,7 +1619,7 @@ const ProjectDetail = () => {
                         })()}
 
                         {/* Team Section */}
-                        {!isSubsectionRestricted('overview', 'team') && (
+                        {can('project.overview.team') && (
                         <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl p-5 mb-4">
                             <div className="flex items-center justify-between mb-3">
                                 <div className="flex items-center gap-3">
@@ -1772,7 +1735,7 @@ const ProjectDetail = () => {
                 )}
 
                 {/* Files/Links Section */}
-                {activeTab === 'overview' && !hubLoading && !isSubsectionRestricted('overview', 'resources') && (
+                {activeTab === 'overview' && !hubLoading && can('project.overview.resources') && (
                     <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl p-5 mb-4 mt-6">
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-3">
@@ -1996,7 +1959,7 @@ const ProjectDetail = () => {
                     ) : (
                         <div className="space-y-4">
                             {/* Active Sprints */}
-                            {sprints.length > 0 && !isSubsectionRestricted('tracker', 'active sprints') && (
+                            {sprints.length > 0 && can('project.tracker.sprints') && (
                                 <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(224,185,84,0.12)] rounded-2xl p-5">
                                     <div className="flex items-center justify-between mb-4">
                                         <div className="flex items-center gap-3">
@@ -2071,7 +2034,7 @@ const ProjectDetail = () => {
                             )}
 
                             {/* Analytics Charts */}
-                            {analytics && !isSubsectionRestricted('tracker', 'analytics') && (
+                            {analytics && can('project.tracker.analytics') && (
                                 <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl p-5">
                                     <div className="flex items-center gap-3 mb-4">
                                         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E0B954] to-[#C79E3B] flex items-center justify-center">
@@ -2200,7 +2163,7 @@ const ProjectDetail = () => {
                                 <div className="h-96 bg-[rgba(255,255,255,0.025)] rounded-xl" />
                             </div>
                         </div>
-                    ) : !isSubsectionRestricted('calendar', 'calendar') ? (
+                    ) : can('project.calendar') ? (
                         <div className="space-y-4">
                             <TimelineView
                                 workItems={hubWorkItems}
@@ -2230,23 +2193,23 @@ const ProjectDetail = () => {
                                 </div>
                             ))}
                         </div>
-                    ) : !isSubsectionRestricted('pulse', 'pulse') && !isSubsectionRestricted('business', 'business review') ? (
+                    ) : can('project.pulse') ? (
                         <ProjectPulseView pulse={pulseData} />
                     ) : (
                         <div className="text-center py-12 text-[#737373]">This section is restricted from your view.</div>
                     )
                 )}
 
-                {/* Pulse Settings Tab — system admins only */}
+                {/* Pulse Settings Tab — gated by project.pulse.settings capability */}
                 {activeTab === 'pulse_settings' && (
-                    isAdmin(user) && id && pulseData ? (
+                    can('project.pulse.settings') && id && pulseData ? (
                         <PulseSettingsView
                             projectId={id}
                             initial={pulseData}
                             onChange={setPulseData}
                         />
                     ) : (
-                        <div className="text-center py-12 text-[#737373]">This section is restricted to system admins.</div>
+                        <div className="text-center py-12 text-[#737373]">This section is restricted from your view.</div>
                     )
                 )}
 
@@ -2264,7 +2227,7 @@ const ProjectDetail = () => {
                                 </div>
                             ))}
                         </div>
-                    ) : !isSubsectionRestricted('activity', 'activity feed') ? (
+                    ) : can('project.activity') ? (
                         <ActivityFeed activities={activities} />
                     ) : (
                         <div className="text-center py-12 text-[#737373]">This section is restricted from your view.</div>
@@ -2273,7 +2236,7 @@ const ProjectDetail = () => {
 
                 
                 {/* Project Manager Tab */}
-                {activeTab === 'project_manager' && canAccessPMTab() && (
+                {activeTab === 'project_manager' && canSeePMTab && (
                     hubLoading ? (
                         <div className="space-y-4 animate-pulse">
                             {/* PMView (with 4 cards) skeleton */}
@@ -2317,8 +2280,8 @@ const ProjectDetail = () => {
                         </div>
                     ) : (
                     <div className="space-y-4">
-                        {!isSubsectionRestricted('project_manager', 'pmview') && (
-                        <PMView projectId={id!} token={token!} userRestrictions={userRestrictions} sprints={sprints} />
+                        {can('project.pm') && (
+                            <PMView projectId={id!} token={token!} sprints={sprints} />
                         )}
                     </div>
                     )

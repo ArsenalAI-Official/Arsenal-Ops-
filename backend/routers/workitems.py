@@ -1379,7 +1379,24 @@ async def get_hours_analytics(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get hours analytics for project manager view (requires auth)"""
+    """
+    Get hours analytics for project manager view.
+    Authorized for users with the project.pm capability OR project-level admin
+    membership on this specific project (matches frontend canSeePMTab logic).
+    """
+    if not current_user.has_capability("project.pm"):
+        project = db.query(Project).filter(Project.id == project_id).first()
+        is_project_admin = bool(
+            project and any(
+                d.email == current_user.email and d.is_admin
+                for d in project.developers
+            )
+        )
+        if not is_project_admin:
+            raise HTTPException(
+                status_code=403,
+                detail="Missing required capability: project.pm or project-level admin",
+            )
     from models.developer import Developer
     
     # Verify project exists

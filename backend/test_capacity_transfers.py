@@ -31,7 +31,7 @@ from models import (  # noqa: F401
     work_item_assignment_history,
 )
 try:
-    from models import custom_restriction, personal_task  # noqa: F401
+    from models import personal_task  # noqa: F401
 except ImportError:
     pass
 

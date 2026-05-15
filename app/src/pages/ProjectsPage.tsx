@@ -132,7 +132,7 @@ interface MyTask {
 
 const ProjectsPage = () => {
     const navigate = useNavigate();
-    const { user, token, logout } = useAuth();
+    const { user, token, logout, can } = useAuth();
     const [projects, setProjects] = useState<Project[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -1178,7 +1178,7 @@ const ProjectsPage = () => {
                                 <span className="text-sm text-[#a3a3a3] hidden md:block">{user.name}</span>
                             </div>
                         )}
-                        {user?.role.includes('admin') && (
+                        {can('admin.dashboard') && (
                             <Button
                                 variant="ghost"
                                 onClick={() => navigate('/admin')}
@@ -1813,7 +1813,7 @@ const ProjectsPage = () => {
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                                {user?.role.includes('admin') && (
+                                                {can('admin.projects') && (
                                                         <button
                                                             onClick={(e) => handleDeleteProject(e, project.id)}
                                                             className="p-1 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-500/10 text-[#737373] hover:text-red-400 transition-all"

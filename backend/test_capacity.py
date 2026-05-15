@@ -25,7 +25,7 @@ from models import (
     project_goal, project_milestone, activity_log, project_file,
 )
 try:
-    from models import custom_restriction, personal_task
+    from models import personal_task
 except ImportError:
     pass
 

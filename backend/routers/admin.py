@@ -11,6 +11,7 @@ from database import get_db
 from models.developer import Developer
 from models.project import Project
 from models.work_item import WorkItem
+from routers.auth import require_capability
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -71,7 +72,11 @@ SPECIALIZATIONS = [
 ]
 
 
-@router.get("/stats", response_model=DashboardStats)
+@router.get(
+    "/stats",
+    response_model=DashboardStats,
+    dependencies=[Depends(require_capability("admin.dashboard"))],
+)
 async def get_dashboard_stats(db: Session = Depends(get_db)):
     """Get admin dashboard statistics"""
     from models.sprint import Sprint
@@ -121,7 +126,11 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
     )
 
 
-@router.get("/employees", response_model=List[EmployeeResponse])
+@router.get(
+    "/employees",
+    response_model=List[EmployeeResponse],
+    dependencies=[Depends(require_capability("admin.employees"))],
+)
 async def list_employees(db: Session = Depends(get_db)):
     """Get all employees/developers"""
     developers = db.query(Developer).all()
@@ -147,7 +156,10 @@ async def list_employees(db: Session = Depends(get_db)):
     return result
 
 
-@router.get("/developers/capacity")
+@router.get(
+    "/developers/capacity",
+    dependencies=[Depends(require_capability("admin.developers_capacity"))],
+)
 async def get_developers_capacity(db: Session = Depends(get_db)):
     """Get weekly capacity for all developers across all projects.
 
@@ -212,7 +224,11 @@ class EmployeeTicketResponse(BaseModel):
         from_attributes = True
 
 
-@router.get("/employees/{employee_id}/in-progress-tickets", response_model=List[EmployeeTicketResponse])
+@router.get(
+    "/employees/{employee_id}/in-progress-tickets",
+    response_model=List[EmployeeTicketResponse],
+    dependencies=[Depends(require_capability("admin.employees"))],
+)
 async def get_employee_in_progress_tickets(employee_id: int, db: Session = Depends(get_db)):
     """Get all active tickets assigned to an employee across all projects, sorted by priority"""
     from sqlalchemy import case
@@ -270,7 +286,11 @@ async def get_employee_in_progress_tickets(employee_id: int, db: Session = Depen
     return result
 
 
-@router.post("/employees", response_model=EmployeeResponse)
+@router.post(
+    "/employees",
+    response_model=EmployeeResponse,
+    dependencies=[Depends(require_capability("admin.employees"))],
+)
 async def create_employee(employee: EmployeeCreate, db: Session = Depends(get_db)):
     """Create a new employee/developer"""
     from models.user import User, UserRole
@@ -332,7 +352,11 @@ async def create_employee(employee: EmployeeCreate, db: Session = Depends(get_db
     )
 
 
-@router.put("/employees/{employee_id}", response_model=EmployeeResponse)
+@router.put(
+    "/employees/{employee_id}",
+    response_model=EmployeeResponse,
+    dependencies=[Depends(require_capability("admin.employees"))],
+)
 async def update_employee(
     employee_id: int,
     update: EmployeeUpdate,
@@ -385,7 +409,10 @@ async def update_employee(
     )
 
 
-@router.delete("/employees/{employee_id}")
+@router.delete(
+    "/employees/{employee_id}",
+    dependencies=[Depends(require_capability("admin.employees"))],
+)
 async def delete_employee(employee_id: int, db: Session = Depends(get_db)):
     """Delete an employee/developer and their user account"""
     from models.user import User
@@ -441,7 +468,11 @@ class ProjectResponse(BaseModel):
         from_attributes = True
 
 
-@router.get("/projects", response_model=List[ProjectResponse])
+@router.get(
+    "/projects",
+    response_model=List[ProjectResponse],
+    dependencies=[Depends(require_capability("admin.projects"))],
+)
 async def list_all_projects(db: Session = Depends(get_db)):
     """Get all projects with stats for admin"""
     projects = db.query(Project).all()
@@ -469,7 +500,10 @@ async def list_all_projects(db: Session = Depends(get_db)):
     return result
 
 
-@router.put("/projects/{project_id}/github")
+@router.put(
+    "/projects/{project_id}/github",
+    dependencies=[Depends(require_capability("admin.projects"))],
+)
 async def update_project_github(
     project_id: int,
     update: ProjectGitHubUpdate,

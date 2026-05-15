@@ -55,12 +55,27 @@ class User(Base):
     
     # Relationships
     personal_tasks = relationship("PersonalTask", back_populates="user", cascade="all, delete-orphan")
-    custom_restrictions = relationship(
-        "CustomRestriction",
-        secondary="user_custom_restrictions",
-        back_populates="users"
+    roles = relationship(
+        "Role",
+        secondary="user_roles",
+        back_populates="users",
     )
-    
+
+    def effective_capability_keys(self) -> list[str]:
+        """Union of every grant from every assigned role."""
+        keys: set[str] = set()
+        for r in self.roles:
+            for rc in r.capabilities:
+                keys.add(rc.capability_key)
+        return sorted(keys)
+
+    def has_capability(self, key: str) -> bool:
+        from capabilities import matches
+        return matches(key, self.effective_capability_keys())
+
+    def has_role_named(self, name: str) -> bool:
+        return any(r.name == name for r in self.roles)
+
     def to_dict(self):
         return {
             "id": self.id,

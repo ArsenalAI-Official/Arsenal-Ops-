@@ -8,6 +8,7 @@ from typing import Optional
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 import secrets
 import string
 import hashlib
@@ -123,6 +124,32 @@ def get_current_admin(current_user: User = Depends(get_current_user)):
     return current_user
 
 
+def require_capability(cap: str):
+    """
+    FastAPI dependency factory: 403s unless the caller's effective capabilities
+    cover `cap`. Returns the User on success so handlers can keep using
+    `current_user: User = Depends(...)`.
+
+    Usage:
+        @router.post("/pulse-settings",
+                     dependencies=[Depends(require_capability("project.pulse.settings"))])
+        async def write(...): ...
+
+    or capture the user:
+        @router.post("/pulse-settings")
+        async def write(current_user: User = Depends(require_capability("project.pulse.settings"))):
+            ...
+    """
+    def _check(current_user: User = Depends(get_current_user)) -> User:
+        if not current_user.has_capability(cap):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Missing required capability: {cap}",
+            )
+        return current_user
+    return _check
+
+
 @router.post("/login", response_model=Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """Login with email and password"""
@@ -195,7 +222,7 @@ async def change_password(
 @router.post("/admin/create-user", response_model=dict)
 async def create_user(
     user_data: UserCreate,
-    admin: User = Depends(get_current_admin),
+    admin: User = Depends(require_capability("admin.users")),
     db: Session = Depends(get_db)
 ):
     """Admin: Create a new user with auto-generated password"""
@@ -252,7 +279,7 @@ async def create_user(
 
 @router.get("/admin/users", response_model=list)
 async def list_users(
-    admin: User = Depends(get_current_admin),
+    admin: User = Depends(require_capability("admin.users")),
     db: Session = Depends(get_db)
 ):
     """Admin: List all users"""
@@ -263,7 +290,7 @@ async def list_users(
 @router.post("/admin/reset-password")
 async def admin_reset_password(
     reset_data: PasswordReset,
-    admin: User = Depends(get_current_admin),
+    admin: User = Depends(require_capability("admin.users")),
     db: Session = Depends(get_db)
 ):
     """Admin: Reset a user's password"""
@@ -291,7 +318,7 @@ class RoleUpdate(BaseModel):
 async def update_user_role(
     user_id: int,
     role_data: RoleUpdate,
-    admin: User = Depends(get_current_admin),
+    admin: User = Depends(require_capability("admin.roles")),
     db: Session = Depends(get_db)
 ):
     """Admin: Update a user's role"""
@@ -327,7 +354,7 @@ async def update_user_role(
 @router.delete("/admin/users/{user_id}/")  # Support trailing slash
 async def delete_user(
     user_id: int,
-    admin: User = Depends(get_current_admin),
+    admin: User = Depends(require_capability("admin.users")),
     db: Session = Depends(get_db)
 ):
     """Admin: Delete a user permanently"""
@@ -509,274 +536,257 @@ async def get_google_config():
     }
 
 
-# ============= Custom Restrictions Management =============
+# ============= RBAC: Roles & Capabilities =============
 
-class CustomRestrictionRequest(BaseModel):
+from models.role import Role
+from capabilities import CAPABILITIES, is_valid_grant
+
+
+class RoleCreateRequest(BaseModel):
     name: str
-    tab_name: str
-    subsection: str
-
-class CustomRestrictionResponse(BaseModel):
-    id: int
-    name: str
-    tab_name: str
-    subsection: str
-    created_at: str
-    
-    class Config:
-        from_attributes = True
+    description: Optional[str] = None
+    capability_keys: list[str] = []
 
 
-@router.get("/admin/custom-restrictions")
-async def list_custom_restrictions(db: Session = Depends(get_db), current_user: User = Depends(get_current_admin)):
-    """
-    List all custom restrictions
-    Admin only
-    """
-    from models.custom_restriction import CustomRestriction
-    
-    restrictions = db.query(CustomRestriction).order_by(CustomRestriction.created_at.desc()).all()
-    return [
-        {
-            "id": r.id,
-            "name": r.name,
-            "tab_name": r.tab_name,
-            "subsection": r.subsection,
-            "created_at": r.created_at.isoformat()
-        }
-        for r in restrictions
-    ]
+class RoleUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
 
 
-@router.post("/admin/custom-restrictions")
-async def create_custom_restriction(
-    req: CustomRestrictionRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin)
-):
-    """
-    Create a new custom restriction
-    Admin only
-    """
-    from models.custom_restriction import CustomRestriction
-    
-    # Check if restriction with this name already exists
-    existing = db.query(CustomRestriction).filter(CustomRestriction.name == req.name).first()
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Custom restriction with this name already exists"
-        )
-    
-    restriction = CustomRestriction(
-        name=req.name,
-        tab_name=req.tab_name,
-        subsection=req.subsection
-    )
-    db.add(restriction)
-    db.commit()
-    db.refresh(restriction)
-    
-    return {
-        "id": restriction.id,
-        "name": restriction.name,
-        "tab_name": restriction.tab_name,
-        "subsection": restriction.subsection,
-        "created_at": restriction.created_at.isoformat()
+class RoleCapabilitiesRequest(BaseModel):
+    capability_keys: list[str]
+
+
+def _role_to_dict(role: Role, user_count: Optional[int] = None) -> dict:
+    out = {
+        "id": role.id,
+        "name": role.name,
+        "description": role.description,
+        "is_system": role.is_system,
+        "capability_keys": role.capability_keys(),
+        "created_at": role.created_at.isoformat() if role.created_at else None,
+        "updated_at": role.updated_at.isoformat() if role.updated_at else None,
     }
+    if user_count is not None:
+        out["user_count"] = user_count
+    return out
 
 
-@router.put("/admin/custom-restrictions/{restriction_id}")
-async def update_custom_restriction(
-    restriction_id: int,
-    req: CustomRestrictionRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin)
-):
-    """
-    Update a custom restriction
-    Admin only
-    """
-    from models.custom_restriction import CustomRestriction
-    
-    restriction = db.query(CustomRestriction).filter(CustomRestriction.id == restriction_id).first()
-    if not restriction:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Custom restriction not found"
-        )
-    
-    # Check if new name conflicts with another restriction
-    if req.name != restriction.name:
-        existing = db.query(CustomRestriction).filter(CustomRestriction.name == req.name).first()
-        if existing:
+def _sync_legacy_role_column(user: User) -> None:
+    """Keep users.role comma-string in sync with user.roles so existing checks keep working."""
+    names = sorted({r.name for r in user.roles})
+    user.role = ",".join(names) if names else "developer"
+
+
+def _validate_grants_or_400(keys: list[str]) -> list[str]:
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for raw in keys:
+        key = (raw or "").strip()
+        if not key or key in seen:
+            continue
+        if not is_valid_grant(key):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Custom restriction with this name already exists"
+                detail=f"Unknown capability key: {key}",
             )
-    
-    restriction.name = req.name
-    restriction.tab_name = req.tab_name
-    restriction.subsection = req.subsection
-    db.commit()
-    db.refresh(restriction)
-    
+        seen.add(key)
+        cleaned.append(key)
+    return cleaned
+
+
+@router.get("/capabilities")
+async def list_capabilities(current_user: User = Depends(get_current_user)):
+    """Return the static capability registry. Used by the admin role-edit UI."""
+    return [{"key": k, "description": v} for k, v in CAPABILITIES.items()]
+
+
+@router.get("/me/capabilities")
+async def get_my_capabilities(current_user: User = Depends(get_current_user)):
+    """Effective capability set for the calling user (union over their roles)."""
     return {
-        "id": restriction.id,
-        "name": restriction.name,
-        "tab_name": restriction.tab_name,
-        "subsection": restriction.subsection,
-        "created_at": restriction.created_at.isoformat()
+        "roles": [r.name for r in current_user.roles],
+        "capabilities": current_user.effective_capability_keys(),
     }
 
 
-@router.delete("/admin/custom-restrictions/{restriction_id}")
-async def delete_custom_restriction(
-    restriction_id: int,
+@router.get("/admin/roles")
+async def list_roles(db: Session = Depends(get_db), current_user: User = Depends(require_capability("admin.roles"))):
+    from models.role import user_roles as ur_table
+
+    roles = db.query(Role).order_by(Role.is_system.desc(), Role.name.asc()).all()
+    rows = (
+        db.query(ur_table.c.role_id, func.count(ur_table.c.user_id))
+        .group_by(ur_table.c.role_id)
+        .all()
+    )
+    counts = {rid: c for rid, c in rows}
+    return [_role_to_dict(r, user_count=counts.get(r.id, 0)) for r in roles]
+
+
+@router.post("/admin/roles", status_code=status.HTTP_201_CREATED)
+async def create_role(
+    req: RoleCreateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin)
+    current_user: User = Depends(require_capability("admin.roles")),
 ):
-    """
-    Delete a custom restriction
-    Admin only
-    """
-    from models.custom_restriction import CustomRestriction
-    
-    restriction = db.query(CustomRestriction).filter(CustomRestriction.id == restriction_id).first()
-    if not restriction:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Custom restriction not found"
-        )
-    
-    db.delete(restriction)
+    from models.role import RoleCapability
+
+    name = req.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Role name is required")
+    if db.query(Role).filter(Role.name == name).first():
+        raise HTTPException(status_code=400, detail="Role with this name already exists")
+
+    cleaned_keys = _validate_grants_or_400(req.capability_keys)
+
+    role = Role(name=name, description=(req.description or None), is_system=False)
+    role.capabilities = [RoleCapability(capability_key=k) for k in cleaned_keys]
+    db.add(role)
     db.commit()
-    
-    return {"message": "Custom restriction deleted successfully"}
+    db.refresh(role)
+    return _role_to_dict(role, user_count=0)
 
 
-@router.post("/admin/users/{user_id}/custom-restrictions/{restriction_id}")
-async def assign_restriction_to_user(
-    user_id: int,
-    restriction_id: int,
+@router.get("/admin/roles/{role_id}")
+async def get_role(role_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_capability("admin.roles"))):
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    return _role_to_dict(role, user_count=len(role.users))
+
+
+@router.put("/admin/roles/{role_id}")
+async def update_role(
+    role_id: int,
+    req: RoleUpdateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin)
+    current_user: User = Depends(require_capability("admin.roles")),
 ):
-    """
-    Assign a custom restriction to a user
-    Admin only
-    """
-    from models.custom_restriction import CustomRestriction
-    
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+
+    if req.name is not None:
+        new_name = req.name.strip()
+        if not new_name:
+            raise HTTPException(status_code=400, detail="Role name cannot be empty")
+        if role.is_system and new_name != role.name:
+            raise HTTPException(status_code=400, detail="Cannot rename a system role")
+        if new_name != role.name and db.query(Role).filter(Role.name == new_name).first():
+            raise HTTPException(status_code=400, detail="Role with this name already exists")
+        role.name = new_name
+
+    if req.description is not None:
+        role.description = req.description.strip() or None
+
+    db.commit()
+    db.refresh(role)
+
+    # If we renamed, refresh legacy column on every assigned user
+    if req.name is not None:
+        for u in role.users:
+            _sync_legacy_role_column(u)
+        db.commit()
+
+    return _role_to_dict(role, user_count=len(role.users))
+
+
+@router.delete("/admin/roles/{role_id}")
+async def delete_role(role_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_capability("admin.roles"))):
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    if role.is_system:
+        raise HTTPException(status_code=400, detail="Cannot delete a system role")
+
+    affected_users = list(role.users)
+    db.delete(role)
+    db.commit()
+
+    for u in affected_users:
+        db.refresh(u)
+        _sync_legacy_role_column(u)
+    db.commit()
+
+    return {"message": "Role deleted"}
+
+
+@router.put("/admin/roles/{role_id}/capabilities")
+async def replace_role_capabilities(
+    role_id: int,
+    req: RoleCapabilitiesRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_capability("admin.roles")),
+):
+    from models.role import RoleCapability
+
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+
+    cleaned_keys = _validate_grants_or_400(req.capability_keys)
+
+    # Replace the entire set in one go
+    role.capabilities = [RoleCapability(capability_key=k) for k in cleaned_keys]
+    db.commit()
+    db.refresh(role)
+    return _role_to_dict(role, user_count=len(role.users))
+
+
+@router.get("/admin/users/{user_id}/roles")
+async def get_user_roles(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_capability("admin.roles")),
+):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    
-    restriction = db.query(CustomRestriction).filter(CustomRestriction.id == restriction_id).first()
-    if not restriction:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Custom restriction not found"
-        )
-    
-    # Check if already assigned
-    if restriction in user.custom_restrictions:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Restriction already assigned to user"
-        )
-    
-    user.custom_restrictions.append(restriction)
-    db.commit()
-    
-    return {"message": "Restriction assigned to user successfully"}
+        raise HTTPException(status_code=404, detail="User not found")
+    return [_role_to_dict(r) for r in user.roles]
 
 
-@router.delete("/admin/users/{user_id}/custom-restrictions/{restriction_id}")
-async def remove_restriction_from_user(
+@router.post("/admin/users/{user_id}/roles/{role_id}", status_code=status.HTTP_201_CREATED)
+async def assign_role_to_user(
     user_id: int,
-    restriction_id: int,
+    role_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin)
+    current_user: User = Depends(require_capability("admin.roles")),
 ):
-    """
-    Remove a custom restriction from a user
-    Admin only
-    """
-    from models.custom_restriction import CustomRestriction
-    
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    
-    restriction = db.query(CustomRestriction).filter(CustomRestriction.id == restriction_id).first()
-    if not restriction:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Custom restriction not found"
-        )
-    
-    # Check if assigned
-    if restriction not in user.custom_restrictions:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Restriction not assigned to user"
-        )
-    
-    user.custom_restrictions.remove(restriction)
+        raise HTTPException(status_code=404, detail="User not found")
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+
+    if role in user.roles:
+        raise HTTPException(status_code=400, detail="Role already assigned to user")
+
+    user.roles.append(role)
+    _sync_legacy_role_column(user)
     db.commit()
-    
-    return {"message": "Restriction removed from user successfully"}
+    return {"message": "Role assigned", "roles": [r.name for r in user.roles]}
 
 
-@router.get("/admin/users/{user_id}/custom-restrictions")
-async def get_user_custom_restrictions(
+@router.delete("/admin/users/{user_id}/roles/{role_id}")
+async def remove_role_from_user(
     user_id: int,
+    role_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin)
+    current_user: User = Depends(require_capability("admin.roles")),
 ):
-    """
-    Get all custom restrictions for a user
-    Admin only
-    """
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    
-    return [
-        {
-            "id": r.id,
-            "name": r.name,
-            "tab_name": r.tab_name,
-            "subsection": r.subsection,
-            "created_at": r.created_at.isoformat()
-        }
-        for r in user.custom_restrictions
-    ]
+        raise HTTPException(status_code=404, detail="User not found")
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
 
+    if role not in user.roles:
+        raise HTTPException(status_code=400, detail="Role not assigned to user")
 
-@router.get("/me/custom-restrictions")
-async def get_my_custom_restrictions(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """
-    Get current user's custom restrictions
-    Accessible to all authenticated users
-    """
-    return [
-        {
-            "id": r.id,
-            "name": r.name,
-            "tab_name": r.tab_name,
-            "subsection": r.subsection,
-            "created_at": r.created_at.isoformat()
-        }
-        for r in current_user.custom_restrictions
-    ]
+    user.roles.remove(role)
+    _sync_legacy_role_column(user)
+    db.commit()
+    return {"message": "Role removed", "roles": [r.name for r in user.roles]}

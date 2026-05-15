@@ -30,6 +30,8 @@ import {
     TrendingUp,
     Search,
     ArrowUpDown,
+    KeyRound,
+    Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -122,8 +124,24 @@ interface DashboardStats {
     tickets_by_priority: Record<string, number>;
 }
 
-type AdminTab = 'dashboard' | 'employees' | 'projects' | 'users' | 'developers-capacity' | 'custom-restrictions';
-const VALID_ADMIN_TABS: AdminTab[] = ['dashboard', 'employees', 'projects', 'users', 'developers-capacity', 'custom-restrictions'];
+type AdminTab = 'dashboard' | 'employees' | 'projects' | 'users' | 'developers-capacity' | 'roles';
+const VALID_ADMIN_TABS: AdminTab[] = ['dashboard', 'employees', 'projects', 'users', 'developers-capacity', 'roles'];
+
+interface Role {
+    id: number;
+    name: string;
+    description: string | null;
+    is_system: boolean;
+    capability_keys: string[];
+    user_count?: number;
+    created_at?: string;
+    updated_at?: string;
+}
+
+interface Capability {
+    key: string;
+    description: string;
+}
 
 const PROJECT_COLOR_PALETTE = [
     '#E0B954', '#A78BFA', '#34D399', '#60A5FA', '#F97316',
@@ -337,21 +355,17 @@ const AdminDashboard = () => {
         });
     }, [users, usersRoleFilter, usersSort]);
     
-    // Custom restrictions state
-    const [customRestrictions, setCustomRestrictions] = useState<any[]>([]);
-    const [showRestrictionModal, setShowRestrictionModal] = useState(false);
-    const [editingRestriction, setEditingRestriction] = useState<any | null>(null);
-    const [restrictionForm, setRestrictionForm] = useState({
+    // RBAC: roles + capability registry
+    const [roles, setRoles] = useState<Role[]>([]);
+    const [capabilityRegistry, setCapabilityRegistry] = useState<Capability[]>([]);
+    const [showRoleModal, setShowRoleModal] = useState(false);
+    const [editingRole, setEditingRole] = useState<Role | null>(null);
+    const [roleForm, setRoleForm] = useState<{ name: string; description: string; capability_keys: string[] }>({
         name: '',
-        tab_name: '',
-        subsection: ''
+        description: '',
+        capability_keys: [],
     });
-    
-    // User restrictions management state
-    const [showUserRestrictionsModal, setShowUserRestrictionsModal] = useState(false);
-    const [selectedUserForRestrictions, setSelectedUserForRestrictions] = useState<User | null>(null);
-    const [userRestrictionsList, setUserRestrictionsList] = useState<number[]>([]);
-    const [userRestrictionsLoading, setUserRestrictionsLoading] = useState(false);
+    const [savingRole, setSavingRole] = useState(false);
     
     // Role dropdown state
     const [openRoleDropdown, setOpenRoleDropdown] = useState<number | null>(null);
@@ -400,17 +414,15 @@ const AdminDashboard = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [statsRes, employeesRes, projectsRes, usersRes, capacityRes, restrictionsRes] = await Promise.all([
-                fetch(`${API_BASE_URL}/api/admin/stats`),
-                fetch(`${API_BASE_URL}/api/admin/employees`),
-                fetch(`${API_BASE_URL}/api/admin/projects`),
-                fetch(`${API_BASE_URL}/api/auth/admin/users`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                }),
-                fetch(`${API_BASE_URL}/api/admin/developers/capacity`),
-                fetch(`${API_BASE_URL}/api/auth/admin/custom-restrictions`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                }),
+            const authHeaders = { 'Authorization': `Bearer ${token}` };
+            const [statsRes, employeesRes, projectsRes, usersRes, capacityRes, rolesRes, capsRes] = await Promise.all([
+                fetch(`${API_BASE_URL}/api/admin/stats`, { headers: authHeaders }),
+                fetch(`${API_BASE_URL}/api/admin/employees`, { headers: authHeaders }),
+                fetch(`${API_BASE_URL}/api/admin/projects`, { headers: authHeaders }),
+                fetch(`${API_BASE_URL}/api/auth/admin/users`, { headers: authHeaders }),
+                fetch(`${API_BASE_URL}/api/admin/developers/capacity`, { headers: authHeaders }),
+                fetch(`${API_BASE_URL}/api/auth/admin/roles`, { headers: authHeaders }),
+                fetch(`${API_BASE_URL}/api/auth/capabilities`, { headers: authHeaders }),
             ]);
 
             if (statsRes.ok) setStats(await statsRes.json());
@@ -418,7 +430,8 @@ const AdminDashboard = () => {
             if (projectsRes.ok) setProjects(await projectsRes.json());
             if (usersRes.ok) setUsers(await usersRes.json());
             if (capacityRes.ok) setDeveloperCapacities(await capacityRes.json());
-            if (restrictionsRes.ok) setCustomRestrictions(await restrictionsRes.json());
+            if (rolesRes.ok) setRoles(await rolesRes.json());
+            if (capsRes.ok) setCapabilityRegistry(await capsRes.json());
         } catch (error) {
             console.error('Failed to fetch admin data:', error);
             toast.error('Failed to load dashboard data');
@@ -458,7 +471,10 @@ const AdminDashboard = () => {
 
             const response = await fetch(url, {
                 method,
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
                 body: JSON.stringify(employeeForm),
             });
 
@@ -481,6 +497,7 @@ const AdminDashboard = () => {
         try {
             const response = await fetch(`${API_BASE_URL}/api/admin/employees/${id}`, {
                 method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` },
             });
 
             if (response.ok) {
@@ -512,7 +529,10 @@ const AdminDashboard = () => {
         try {
             const response = await fetch(`${API_BASE_URL}/api/admin/projects/${editingProject.id}/github`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
                 body: JSON.stringify(gitHubForm),
             });
 
@@ -692,168 +712,224 @@ const AdminDashboard = () => {
         }
     };
 
-    const handleToggleUserRole = async (user: User, roleToToggle: string) => {
-        const currentRoles = user.role.split(',').map(r => r.trim());
-        let newRoles: string[];
-        
-        if (currentRoles.includes(roleToToggle)) {
-            // Remove role, but ensure at least one role remains
-            newRoles = currentRoles.filter(r => r !== roleToToggle);
-            if (newRoles.length === 0) newRoles = ['developer'];
-        } else {
-            newRoles = [...currentRoles, roleToToggle];
-        }
-        
-        const newRole = newRoles.join(',');
+    // Toggle a single role on/off for a user using the RBAC per-role endpoints.
+    // The backend syncs users.role comma-string, so the existing role chips stay accurate.
+    const handleToggleUserRoleById = async (user: User, role: Role, isChecked: boolean) => {
+        const url = `${API_BASE_URL}/api/auth/admin/users/${user.id}/roles/${role.id}`;
         try {
-            const response = await fetch(`${API_BASE_URL}/api/auth/admin/users/${user.id}/role`, {
-                method: 'PUT',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ role: newRole }),
+            const response = await fetch(url, {
+                method: isChecked ? 'POST' : 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` },
             });
 
             if (response.ok) {
-                toast.success('User roles updated');
+                toast.success(isChecked ? `Assigned '${role.name}'` : `Removed '${role.name}'`);
                 fetchData();
             } else {
-                toast.error('Failed to update role');
+                const error = await response.json().catch(() => ({}));
+                toast.error(error.detail || 'Failed to update role assignment');
             }
         } catch {
-            toast.error('Failed to update role');
+            toast.error('Failed to update role assignment');
         }
     };
 
-    // Custom Restrictions Handlers
-    const handleCreateRestriction = () => {
-        setEditingRestriction(null);
-        setRestrictionForm({ name: '', tab_name: '', subsection: '' });
-        setShowRestrictionModal(true);
+    // RBAC: Role CRUD handlers
+    const handleOpenCreateRole = () => {
+        setEditingRole(null);
+        setRoleForm({ name: '', description: '', capability_keys: [] });
+        setShowRoleModal(true);
     };
 
-    const handleEditRestriction = (restriction: any) => {
-        setEditingRestriction(restriction);
-        setRestrictionForm({
-            name: restriction.name,
-            tab_name: restriction.tab_name,
-            subsection: restriction.subsection
+    const handleOpenEditRole = (role: Role) => {
+        setEditingRole(role);
+        setRoleForm({
+            name: role.name,
+            description: role.description || '',
+            capability_keys: [...role.capability_keys],
         });
-        setShowRestrictionModal(true);
+        setShowRoleModal(true);
     };
 
-    const handleSaveRestriction = async () => {
-        if (!restrictionForm.name.trim() || !restrictionForm.tab_name || !restrictionForm.subsection) {
-            toast.error('All fields are required');
+    const handleSaveRole = async () => {
+        const name = roleForm.name.trim();
+        if (!name) {
+            toast.error('Role name is required');
             return;
         }
-
+        setSavingRole(true);
         try {
-            const url = editingRestriction
-                ? `${API_BASE_URL}/api/auth/admin/custom-restrictions/${editingRestriction.id}`
-                : `${API_BASE_URL}/api/auth/admin/custom-restrictions`;
-            const method = editingRestriction ? 'PUT' : 'POST';
-
-            const response = await fetch(url, {
-                method,
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify(restrictionForm),
-            });
-
-            if (response.ok) {
-                toast.success(editingRestriction ? 'Restriction updated!' : 'Restriction created!');
-                setShowRestrictionModal(false);
-                fetchData();
-            } else {
-                const error = await response.json();
-                toast.error(error.detail || 'Failed to save restriction');
-            }
-        } catch {
-            toast.error('Failed to save restriction');
-        }
-    };
-
-    const handleDeleteRestriction = async (restrictionId: number) => {
-        if (!confirm('Are you sure you want to delete this custom restriction?')) return;
-
-        try {
-            const response = await fetch(`${API_BASE_URL}/api/auth/admin/custom-restrictions/${restrictionId}`, {
-                method: 'DELETE',
-                headers: { 
-                    'Authorization': `Bearer ${token}`
-                },
-            });
-
-            if (response.ok) {
-                toast.success('Restriction deleted!');
-                fetchData();
-            } else {
-                const error = await response.json();
-                toast.error(error.detail || 'Failed to delete restriction');
-            }
-        } catch {
-            toast.error('Failed to delete restriction');
-        }
-    };
-
-    // User Restrictions Management Handlers
-    const handleOpenUserRestrictionsModal = async (user: User) => {
-        setSelectedUserForRestrictions(user);
-        setUserRestrictionsLoading(true);
-        
-        try {
-            const response = await fetch(`${API_BASE_URL}/api/auth/admin/users/${user.id}/custom-restrictions`, {
-                headers: { 
-                    'Authorization': `Bearer ${token}`
-                },
-            });
-            
-            if (response.ok) {
-                const userRestrictions = await response.json();
-                setUserRestrictionsList(userRestrictions.map((r: any) => r.id));
-            }
-        } catch {
-            toast.error('Failed to load user restrictions');
-        } finally {
-            setUserRestrictionsLoading(false);
-            setShowUserRestrictionsModal(true);
-        }
-    };
-
-    const handleToggleUserRestriction = async (restrictionId: number, isChecked: boolean) => {
-        if (!selectedUserForRestrictions) return;
-
-        try {
-            const method = isChecked ? 'POST' : 'DELETE';
-            const response = await fetch(
-                `${API_BASE_URL}/api/auth/admin/users/${selectedUserForRestrictions.id}/custom-restrictions/${restrictionId}`,
-                {
-                    method,
-                    headers: { 
-                        'Authorization': `Bearer ${token}`
+            if (editingRole) {
+                // 1. Update name/description if changed (system roles can edit description but not rename)
+                const needsMetaUpdate =
+                    name !== editingRole.name ||
+                    (roleForm.description || '') !== (editingRole.description || '');
+                if (needsMetaUpdate) {
+                    const metaRes = await fetch(`${API_BASE_URL}/api/auth/admin/roles/${editingRole.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({
+                            name: editingRole.is_system ? editingRole.name : name,
+                            description: roleForm.description.trim() || null,
+                        }),
+                    });
+                    if (!metaRes.ok) {
+                        const error = await metaRes.json().catch(() => ({}));
+                        toast.error(error.detail || 'Failed to update role');
+                        return;
+                    }
+                }
+                // 2. Replace capability set
+                const capsRes = await fetch(`${API_BASE_URL}/api/auth/admin/roles/${editingRole.id}/capabilities`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
                     },
+                    body: JSON.stringify({ capability_keys: roleForm.capability_keys }),
+                });
+                if (!capsRes.ok) {
+                    const error = await capsRes.json().catch(() => ({}));
+                    toast.error(error.detail || 'Failed to update capabilities');
+                    return;
                 }
-            );
-
-            if (response.ok) {
-                if (isChecked) {
-                    setUserRestrictionsList([...userRestrictionsList, restrictionId]);
-                } else {
-                    setUserRestrictionsList(userRestrictionsList.filter(id => id !== restrictionId));
-                }
-                toast.success(isChecked ? 'Restriction assigned!' : 'Restriction removed!');
+                toast.success(`Role '${name}' updated`);
             } else {
-                const error = await response.json();
-                toast.error(error.detail || 'Failed to update restriction');
+                const createRes = await fetch(`${API_BASE_URL}/api/auth/admin/roles`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        name,
+                        description: roleForm.description.trim() || null,
+                        capability_keys: roleForm.capability_keys,
+                    }),
+                });
+                if (!createRes.ok) {
+                    const error = await createRes.json().catch(() => ({}));
+                    toast.error(error.detail || 'Failed to create role');
+                    return;
+                }
+                toast.success(`Role '${name}' created`);
             }
+            setShowRoleModal(false);
+            fetchData();
         } catch {
-            toast.error('Failed to update restriction');
+            toast.error('Failed to save role');
+        } finally {
+            setSavingRole(false);
         }
     };
+
+    const handleDeleteRole = async (role: Role) => {
+        if (role.is_system) {
+            toast.error('Cannot delete a system role');
+            return;
+        }
+        if (!confirm(`Delete role "${role.name}"? Users assigned to this role will lose its capabilities.`)) return;
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/auth/admin/roles/${role.id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` },
+            });
+            if (res.ok) {
+                toast.success(`Role '${role.name}' deleted`);
+                fetchData();
+            } else {
+                const error = await res.json().catch(() => ({}));
+                toast.error(error.detail || 'Failed to delete role');
+            }
+        } catch {
+            toast.error('Failed to delete role');
+        }
+    };
+
+    // Returns true if `grant` is a wildcard that covers `key`.
+    // E.g. "project.*" covers "project.tracker.analytics"; "*" covers everything.
+    const wildcardCovers = (grant: string, key: string): boolean => {
+        if (grant === '*') return true;
+        if (!grant.endsWith('.*')) return false;
+        const prefix = grant.slice(0, -2);
+        return key === prefix || key.startsWith(prefix + '.');
+    };
+
+    // Returns true if `key` falls under the scope of `grant` (used to expand a wildcard
+    // into its explicit children).
+    const keyIsUnderGrant = (key: string, grant: string): boolean => {
+        if (grant === '*') return true;
+        if (grant.endsWith('.*')) {
+            const prefix = grant.slice(0, -2);
+            return key === prefix || key.startsWith(prefix + '.');
+        }
+        return key === grant;
+    };
+
+    // Capability grant helpers used by the role picker
+    const toggleGrant = (key: string) => {
+        setRoleForm(f => {
+            const grants = f.capability_keys;
+
+            // Case 1: directly granted → remove it
+            if (grants.includes(key)) {
+                return { ...f, capability_keys: grants.filter(g => g !== key) };
+            }
+
+            // Case 2: covered by one or more wildcards → expand those wildcards into
+            // explicit per-key grants for everything they cover *except* `key`. This
+            // gives the user the natural "uncheck a single item" behaviour even when
+            // a wildcard was the source of access.
+            const coveringWildcards = grants.filter(g => wildcardCovers(g, key));
+            if (coveringWildcards.length > 0) {
+                const nonCovering = grants.filter(g => !coveringWildcards.includes(g));
+                const expanded = new Set<string>(nonCovering);
+                for (const cap of capabilityRegistry) {
+                    if (cap.key === key) continue; // the one being unchecked
+                    if (coveringWildcards.some(w => keyIsUnderGrant(cap.key, w))) {
+                        expanded.add(cap.key);
+                    }
+                }
+                return { ...f, capability_keys: Array.from(expanded) };
+            }
+
+            // Case 3: not granted and not covered → add a direct grant
+            return { ...f, capability_keys: [...grants, key] };
+        });
+    };
+
+    const isCoveredByWildcard = (key: string, grants: string[]): boolean => {
+        if (grants.includes(key)) return false; // exact match isn't "covered"; it's selected
+        if (grants.includes('*')) return true;
+        for (const g of grants) {
+            if (g.endsWith('.*')) {
+                const prefix = g.slice(0, -2);
+                if (key === prefix || key.startsWith(prefix + '.')) return true;
+            }
+        }
+        return false;
+    };
+
+    // Group capabilities by top-level prefix ("project", "admin", ...) for the picker UI.
+    // Within each group, preserve the registry order — backend/capabilities.py is structured
+    // to match the order tabs/sections appear in the UI, so no further sorting needed.
+    const groupedCapabilities = useMemo(() => {
+        const groups = new Map<string, Capability[]>();
+        for (const cap of capabilityRegistry) {
+            const top = cap.key.split('.')[0];
+            const list = groups.get(top) || [];
+            list.push(cap);
+            groups.set(top, list);
+        }
+        return Array.from(groups.entries()).map(([prefix, caps]) => ({
+            prefix,
+            wildcard: `${prefix}.*`,
+            caps,
+        }));
+    }, [capabilityRegistry]);
 
     return (
         <div className="min-h-screen bg-[#080808] text-white">
@@ -888,7 +964,7 @@ const AdminDashboard = () => {
                             { id: 'employees', label: 'Employees', icon: Users },
                             { id: 'projects', label: 'Projects', icon: FolderKanban },
                             { id: 'users', label: 'Users', icon: Shield },
-                            { id: 'custom-restrictions', label: 'Restrictions', icon: Settings },
+                            { id: 'roles', label: 'Roles', icon: KeyRound },
                         ].map(tab => (
                             <button
                                 key={tab.id}
@@ -1667,7 +1743,6 @@ const AdminDashboard = () => {
                                                     { key: null, label: 'Roles', sortable: false },
                                                     { key: 'status' as const, label: 'Status', sortable: true },
                                                     { key: 'last_login' as const, label: 'Last Login', sortable: true },
-                                                    { key: null, label: 'Restrictions', sortable: false },
                                                 ] as const).map((col, i) => {
                                                     const isActive = col.sortable && col.key && usersSort.key === col.key;
                                                     const ArrowIcon = isActive
@@ -1763,17 +1838,6 @@ const AdminDashboard = () => {
                                                             : 'Never'
                                                         }
                                                     </td>
-                                                    <td className="py-3 px-4">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => handleOpenUserRestrictionsModal(user)}
-                                                            className="text-[#737373] hover:text-[#E0B954] hover:bg-[#E0B954]/10 h-8"
-                                                        >
-                                                            <Shield className="w-3.5 h-3.5 mr-1" />
-                                                            Restrictions
-                                                        </Button>
-                                                    </td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -1791,17 +1855,22 @@ const AdminDashboard = () => {
                                 </div>
                             </div>
                         )}
-                        {/* Custom Restrictions Tab */}
-                        {activeTab === 'custom-restrictions' && (
+                        {/* Roles Tab */}
+                        {activeTab === 'roles' && (
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
-                                    <h2 className="text-lg font-semibold text-white">Custom Restrictions Management</h2>
+                                    <div>
+                                        <h2 className="text-lg font-semibold text-white">Roles & Capabilities</h2>
+                                        <p className="text-xs text-[#737373] mt-1">
+                                            Define what each role can see. Users get the union of capabilities from every role assigned to them.
+                                        </p>
+                                    </div>
                                     <Button
-                                        onClick={handleCreateRestriction}
+                                        onClick={handleOpenCreateRole}
                                         className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] hover:from-[#C79E3B] hover:to-[#B8872A] text-white rounded-xl h-10 px-4"
                                     >
                                         <Plus className="w-4 h-4 mr-2" />
-                                        Add Restriction
+                                        Add Role
                                     </Button>
                                 </div>
                                 <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.05)] rounded-xl overflow-visible">
@@ -1809,33 +1878,64 @@ const AdminDashboard = () => {
                                         <thead className="bg-[rgba(255,255,255,0.02)]">
                                             <tr>
                                                 <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">Name</th>
-                                                <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">Tab</th>
-                                                <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">Subsection</th>
-                                                <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">Created</th>
+                                                <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">Description</th>
+                                                <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">Capabilities</th>
+                                                <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">Users</th>
                                                 <th className="text-right text-xs font-medium text-[#737373] py-3 px-4">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-[rgba(255,255,255,0.03)]">
-                                            {customRestrictions.map(restriction => (
-                                                <tr key={restriction.id} className="hover:bg-[rgba(255,255,255,0.02)]">
+                                            {roles.map(role => (
+                                                <tr key={role.id} className="hover:bg-[rgba(255,255,255,0.02)]">
                                                     <td className="py-3 px-4">
-                                                        <span className="inline-flex items-center gap-2 px-2 py-1 rounded text-xs bg-[#E0B954]/20 text-[#E0B954]">
-                                                            <Shield className="w-3 h-3" />
-                                                            {restriction.name}
-                                                        </span>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs bg-[#E0B954]/20 text-[#E0B954] font-medium">
+                                                                <KeyRound className="w-3 h-3" />
+                                                                {toPascalCase(role.name)}
+                                                            </span>
+                                                            {role.is_system && (
+                                                                <span className="text-[10px] uppercase tracking-wide text-[#737373] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)]">
+                                                                    System
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </td>
-                                                    <td className="py-3 px-4 text-sm text-[#a3a3a3]">{toPascalCase(restriction.tab_name)}</td>
-                                                    <td className="py-3 px-4 text-sm text-[#a3a3a3]">{restriction.subsection}</td>
-                                                    <td className="py-3 px-4 text-sm text-[#737373]">
-                                                        {new Date(restriction.created_at).toLocaleDateString()}
+                                                    <td className="py-3 px-4 text-sm text-[#a3a3a3]">
+                                                        {role.description || <span className="text-[#525252]">—</span>}
+                                                    </td>
+                                                    <td className="py-3 px-4 text-sm text-[#a3a3a3]">
+                                                        {role.capability_keys.length === 0 ? (
+                                                            <span className="text-[#525252]">None</span>
+                                                        ) : role.capability_keys.includes('*') ? (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-[#E0B954]/15 text-[#E0B954]">
+                                                                <Shield className="w-3 h-3" />
+                                                                Full access
+                                                            </span>
+                                                        ) : (
+                                                            <div className="flex flex-wrap gap-1 max-w-md">
+                                                                {role.capability_keys.slice(0, 3).map(k => (
+                                                                    <span key={k} className="text-[10px] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.04)] text-[#a3a3a3] border border-[rgba(255,255,255,0.06)]">
+                                                                        {k}
+                                                                    </span>
+                                                                ))}
+                                                                {role.capability_keys.length > 3 && (
+                                                                    <span className="text-[10px] text-[#737373] px-1.5 py-0.5">
+                                                                        +{role.capability_keys.length - 3} more
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-3 px-4 text-sm text-[#a3a3a3]">
+                                                        {role.user_count ?? 0}
                                                     </td>
                                                     <td className="py-3 px-4 text-right">
                                                         <div className="flex items-center justify-end gap-2">
                                                             <Button
                                                                 variant="ghost"
                                                                 size="sm"
-                                                                onClick={() => handleEditRestriction(restriction)}
-                                                                className="text-[#737373] hover:text-red-400 h-8"
+                                                                onClick={() => handleOpenEditRole(role)}
+                                                                className="text-[#737373] hover:text-white h-8"
                                                             >
                                                                 <Pencil className="w-3.5 h-3.5 mr-1" />
                                                                 Edit
@@ -1843,8 +1943,10 @@ const AdminDashboard = () => {
                                                             <Button
                                                                 variant="ghost"
                                                                 size="sm"
-                                                                onClick={() => handleDeleteRestriction(restriction.id)}
-                                                                className="text-[#737373] hover:text-red-400 h-8"
+                                                                onClick={() => handleDeleteRole(role)}
+                                                                disabled={role.is_system}
+                                                                className="text-[#737373] hover:text-red-400 h-8 disabled:opacity-30 disabled:cursor-not-allowed"
+                                                                title={role.is_system ? 'System roles cannot be deleted' : 'Delete role'}
                                                             >
                                                                 <Trash2 className="w-3.5 h-3.5 mr-1" />
                                                                 Delete
@@ -1855,9 +1957,9 @@ const AdminDashboard = () => {
                                             ))}
                                         </tbody>
                                     </table>
-                                    {customRestrictions.length === 0 && (
+                                    {roles.length === 0 && (
                                         <div className="text-center py-12 text-[#737373]">
-                                            No custom restrictions yet. Click "Add Restriction" to create one.
+                                            No roles yet. Click "Add Role" to create one.
                                         </div>
                                     )}
                                 </div>
@@ -1867,116 +1969,223 @@ const AdminDashboard = () => {
                 )}
             </div>
 
-            {/* Role Management Modal */}
-            {openRoleDropdown && users.find(u => u.id === openRoleDropdown) && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setOpenRoleDropdown(null)}>
-                    <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
+            {/* Role Management Modal (per-user role assignment) */}
+            {openRoleDropdown && users.find(u => u.id === openRoleDropdown) && (() => {
+                const targetUser = users.find(u => u.id === openRoleDropdown)!;
+                const userRoleNames = new Set(targetUser.role.split(',').map(r => r.trim()).filter(Boolean));
+                return (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setOpenRoleDropdown(null)}>
+                        <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-md shadow-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
+                                <div>
+                                    <h2 className="text-lg font-bold text-white">Edit Roles</h2>
+                                    <p className="text-xs text-[#737373] mt-0.5">{targetUser.name}</p>
+                                </div>
+                                <button
+                                    onClick={() => setOpenRoleDropdown(null)}
+                                    className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                            <div className="p-5 space-y-2 overflow-y-auto">
+                                {roles.length === 0 ? (
+                                    <p className="text-sm text-[#737373] text-center py-6">No roles defined yet.</p>
+                                ) : roles.map(role => {
+                                    const isChecked = userRoleNames.has(role.name);
+                                    return (
+                                        <label key={role.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-[rgba(255,255,255,0.02)] cursor-pointer transition border border-transparent hover:border-[rgba(255,255,255,0.04)]">
+                                            <input
+                                                type="checkbox"
+                                                checked={isChecked}
+                                                onChange={e => handleToggleUserRoleById(targetUser, role, e.target.checked)}
+                                                className="w-5 h-5 rounded cursor-pointer"
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm text-white font-medium">{toPascalCase(role.name)}</span>
+                                                    {role.is_system && (
+                                                        <span className="text-[9px] uppercase tracking-wide text-[#737373] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.04)]">
+                                                            System
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {role.description && (
+                                                    <p className="text-xs text-[#737373] mt-0.5 truncate">{role.description}</p>
+                                                )}
+                                            </div>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                            <div className="flex justify-end gap-2 p-5 border-t border-[rgba(255,255,255,0.05)]">
+                                <button
+                                    onClick={() => setOpenRoleDropdown(null)}
+                                    className="px-4 py-2 rounded-lg text-[#737373] hover:bg-[rgba(255,255,255,0.05)] transition"
+                                >
+                                    Done
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* Role Create/Edit Modal */}
+            {showRoleModal && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => !savingRole && setShowRoleModal(false)}>
+                    <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-2xl shadow-2xl max-h-[88vh] flex flex-col" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
-                            <h2 className="text-lg font-bold text-white">
-                                Edit Roles - {users.find(u => u.id === openRoleDropdown)?.name}
-                            </h2>
-                            <button 
-                                onClick={() => setOpenRoleDropdown(null)}
+                            <div>
+                                <h2 className="text-lg font-bold text-white">
+                                    {editingRole ? `Edit Role - ${toPascalCase(editingRole.name)}` : 'Add Role'}
+                                </h2>
+                                {editingRole?.is_system && (
+                                    <p className="text-xs text-[#737373] mt-0.5">
+                                        System role — name is locked, but description and capabilities can be edited.
+                                    </p>
+                                )}
+                            </div>
+                            <button
+                                onClick={() => !savingRole && setShowRoleModal(false)}
                                 className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white"
                             >
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
-                        <div className="p-5 space-y-3">
-                            {['admin', 'project_manager', 'developer'].map(role => {
-                                const user = users.find(u => u.id === openRoleDropdown);
-                                const isChecked = user?.role.includes(role) || false;
-                                return (
-                                    <label key={role} className="flex items-center gap-3 p-3 rounded-lg hover:bg-[rgba(255,255,255,0.02)] cursor-pointer transition">
+                        <div className="p-5 space-y-4 overflow-y-auto">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-medium text-[#737373] block mb-1.5">Role Name *</label>
+                                    <Input
+                                        value={roleForm.name}
+                                        onChange={e => setRoleForm(f => ({ ...f, name: e.target.value }))}
+                                        placeholder="e.g., qa_lead, finance_viewer"
+                                        disabled={editingRole?.is_system}
+                                        className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10 disabled:opacity-50"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-[#737373] block mb-1.5">Description</label>
+                                    <Input
+                                        value={roleForm.description}
+                                        onChange={e => setRoleForm(f => ({ ...f, description: e.target.value }))}
+                                        placeholder="Brief summary of who gets this role"
+                                        className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="border border-[rgba(255,255,255,0.06)] rounded-xl">
+                                <div className="px-4 py-3 border-b border-[rgba(255,255,255,0.05)] flex items-center justify-between">
+                                    <div>
+                                        <h3 className="text-sm font-medium text-white">Capabilities</h3>
+                                        <p className="text-[10px] text-[#737373] mt-0.5">
+                                            Wildcards (e.g. <code className="text-[#a3a3a3]">project.*</code>) cover all keys under that prefix, including ones added later.
+                                        </p>
+                                    </div>
+                                    <label className="flex items-center gap-2 cursor-pointer">
                                         <input
                                             type="checkbox"
-                                            checked={isChecked}
-                                            onChange={() => user && handleToggleUserRole(user, role)}
-                                            className="w-5 h-5 rounded cursor-pointer"
+                                            checked={roleForm.capability_keys.includes('*')}
+                                            onChange={() => toggleGrant('*')}
+                                            className="w-4 h-4 rounded cursor-pointer"
                                         />
-                                        <div className="flex-1">
-                                            <span className="text-sm text-white font-medium">{toPascalCase(role)}</span>
-                                            <p className="text-xs text-[#737373] mt-0.5">
-                                                {role === 'admin' && 'Full system access and user management'}
-                                                {role === 'project_manager' && 'Manage projects and team workload'}
-                                                {role === 'developer' && 'Access to assigned projects and tasks'}
-                                            </p>
-                                        </div>
+                                        <span className="text-xs text-white">Full access (<code className="text-[#E0B954]">*</code>)</span>
                                     </label>
-                                );
-                            })}
+                                </div>
+                                <div className="p-4 space-y-4 max-h-[40vh] overflow-y-auto">
+                                    {groupedCapabilities.map(group => {
+                                        const wildcardSelected = roleForm.capability_keys.includes(group.wildcard);
+                                        const fullAccessSelected = roleForm.capability_keys.includes('*');
+                                        return (
+                                            <div key={group.prefix} className="space-y-1.5">
+                                                <div className="flex items-center justify-between">
+                                                    <h4 className="text-xs font-semibold uppercase tracking-wide text-[#737373]">
+                                                        {group.prefix}
+                                                    </h4>
+                                                    <label className="flex items-center gap-2 cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={wildcardSelected}
+                                                            disabled={fullAccessSelected}
+                                                            onChange={() => toggleGrant(group.wildcard)}
+                                                            className="w-4 h-4 rounded cursor-pointer disabled:opacity-40"
+                                                        />
+                                                        <span className="text-[11px] text-[#a3a3a3]">
+                                                            Grant all <code className="text-[#E0B954]">{group.wildcard}</code>
+                                                        </span>
+                                                    </label>
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+                                                    {group.caps.map(cap => {
+                                                        const isSelected = roleForm.capability_keys.includes(cap.key);
+                                                        const covered = !isSelected && isCoveredByWildcard(cap.key, roleForm.capability_keys);
+                                                        return (
+                                                            <label
+                                                                key={cap.key}
+                                                                className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer transition ${
+                                                                    covered ? 'bg-[rgba(224,185,84,0.04)]' : 'hover:bg-[rgba(255,255,255,0.02)]'
+                                                                }`}
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isSelected || covered}
+                                                                    onChange={() => toggleGrant(cap.key)}
+                                                                    className="w-4 h-4 mt-0.5 rounded cursor-pointer"
+                                                                />
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <code className={`text-[11px] ${covered ? 'text-[#E0B954]/70' : 'text-[#E0B954]'}`}>
+                                                                            {cap.key}
+                                                                        </code>
+                                                                        {covered && (
+                                                                            <span
+                                                                                className="text-[9px] text-[#737373] inline-flex items-center gap-0.5"
+                                                                                title="Granted via a wildcard. Unchecking will expand the wildcard into explicit per-key grants minus this one."
+                                                                            >
+                                                                                <Check className="w-2.5 h-2.5" />
+                                                                                covered
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <p className="text-[10px] text-[#737373] truncate">{cap.description}</p>
+                                                                </div>
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    {groupedCapabilities.length === 0 && (
+                                        <p className="text-sm text-[#737373] text-center py-6">
+                                            Capability registry is empty.
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="px-4 py-2 border-t border-[rgba(255,255,255,0.05)] text-[10px] text-[#737373]">
+                                    {roleForm.capability_keys.length === 0
+                                        ? 'No grants selected — users with only this role will see nothing.'
+                                        : `${roleForm.capability_keys.length} grant${roleForm.capability_keys.length === 1 ? '' : 's'} selected.`}
+                                </div>
+                            </div>
                         </div>
                         <div className="flex justify-end gap-2 p-5 border-t border-[rgba(255,255,255,0.05)]">
                             <button
-                                onClick={() => setOpenRoleDropdown(null)}
-                                className="px-4 py-2 rounded-lg text-[#737373] hover:bg-[rgba(255,255,255,0.05)] transition"
-                            >
-                                Done
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Custom Restriction Modal */}
-            {showRestrictionModal && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowRestrictionModal(false)}>
-                    <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
-                            <h2 className="text-lg font-bold text-white">
-                                {editingRestriction ? 'Edit Restriction' : 'Add Custom Restriction'}
-                            </h2>
-                            <button onClick={() => setShowRestrictionModal(false)} className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="p-5 space-y-4">
-                            <div>
-                                <label className="text-xs font-medium text-[#737373] block mb-1.5">Restriction Name *</label>
-                                <Input
-                                    value={restrictionForm.name}
-                                    onChange={e => setRestrictionForm(f => ({ ...f, name: e.target.value }))}
-                                    placeholder="e.g., NoWorkload, NoAnalytics"
-                                    className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-xs font-medium text-[#737373] block mb-1.5">Tab Name *</label>
-                                <select
-                                    value={restrictionForm.tab_name}
-                                    onChange={e => setRestrictionForm(f => ({ ...f, tab_name: e.target.value }))}
-                                    className="w-full bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10 px-3 text-sm"
-                                >
-                                    <option value="">Select a tab...</option>
-                                    <option value="project_manager">Project Manager</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="text-xs font-medium text-[#737373] block mb-1.5">Subsection *</label>
-                                <Input
-                                    value={restrictionForm.subsection}
-                                    onChange={e => setRestrictionForm(f => ({ ...f, subsection: e.target.value }))}
-                                    placeholder="e.g., workload, analytics, timeline"
-                                    className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10"
-                                />
-                                <p className="text-[10px] text-[#737373] mt-1">
-                                    The subsection within the tab that will be hidden from users with this restriction.
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex justify-end gap-2 p-5 border-t border-[rgba(255,255,255,0.05)]">
-                            <button
-                                onClick={() => setShowRestrictionModal(false)}
-                                className="px-4 py-2 rounded-lg text-[#737373] hover:bg-[rgba(255,255,255,0.05)] transition"
+                                onClick={() => !savingRole && setShowRoleModal(false)}
+                                className="px-4 py-2 rounded-lg text-[#737373] hover:bg-[rgba(255,255,255,0.05)] transition disabled:opacity-50"
+                                disabled={savingRole}
                             >
                                 Cancel
                             </button>
                             <Button
-                                onClick={handleSaveRestriction}
-                                className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl px-6 font-medium shadow-lg shadow-[#B8872A]/20"
+                                onClick={handleSaveRole}
+                                disabled={savingRole || !roleForm.name.trim()}
+                                className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl px-6 font-medium shadow-lg shadow-[#B8872A]/20 disabled:opacity-50"
                             >
                                 <Save className="w-4 h-4 mr-2" />
-                                {editingRestriction ? 'Update' : 'Create'}
+                                {savingRole ? 'Saving…' : (editingRole ? 'Update Role' : 'Create Role')}
                             </Button>
                         </div>
                     </div>
@@ -2175,57 +2384,6 @@ const AdminDashboard = () => {
                                     Create User
                                 </Button>
                             )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* User Restrictions Modal */}
-            {showUserRestrictionsModal && selectedUserForRestrictions && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowUserRestrictionsModal(false)}>
-                    <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
-                            <div>
-                                <h2 className="text-lg font-bold text-white">Manage Restrictions</h2>
-                                <p className="text-xs text-[#737373] mt-0.5">{selectedUserForRestrictions.name}</p>
-                            </div>
-                            <button onClick={() => setShowUserRestrictionsModal(false)} className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="p-5 space-y-2 max-h-96 overflow-y-auto">
-                            {userRestrictionsLoading ? (
-                                <div className="flex items-center justify-center py-8">
-                                    <div className="animate-spin w-6 h-6 border-2 border-[#E0B954] border-t-transparent rounded-full" />
-                                </div>
-                            ) : customRestrictions.length === 0 ? (
-                                <p className="text-sm text-[#737373] text-center py-8">No custom restrictions available</p>
-                            ) : (
-                                customRestrictions.map(restriction => (
-                                    <label key={restriction.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-[rgba(255,255,255,0.02)] cursor-pointer transition">
-                                        <input
-                                            type="checkbox"
-                                            checked={userRestrictionsList.includes(restriction.id)}
-                                            onChange={e => handleToggleUserRestriction(restriction.id, e.target.checked)}
-                                            className="w-5 h-5 rounded cursor-pointer"
-                                        />
-                                        <div className="flex-1 min-w-0">
-                                            <span className="text-sm text-white font-medium block">{restriction.name}</span>
-                                            <p className="text-xs text-[#737373] mt-0.5">
-                                                {toPascalCase(restriction.tab_name)} → {toPascalCase(restriction.subsection)}
-                                            </p>
-                                        </div>
-                                    </label>
-                                ))
-                            )}
-                        </div>
-                        <div className="flex justify-end gap-2 p-5 border-t border-[rgba(255,255,255,0.05)]">
-                            <button
-                                onClick={() => setShowUserRestrictionsModal(false)}
-                                className="px-4 py-2 rounded-lg text-[#737373] hover:bg-[rgba(255,255,255,0.05)] transition"
-                            >
-                                Done
-                            </button>
                         </div>
                     </div>
                 </div>
