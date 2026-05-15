@@ -4,7 +4,6 @@ import {
     X,
     CheckSquare2,
     CheckCircle2,
-    AlertCircle,
     Edit2,
     Circle,
     Flag,
@@ -245,36 +244,41 @@ const MyTasksBox = ({
                     visibleTasks.map(task => (
                         <div
                             key={task.id}
-                            className="flex items-center gap-2 px-3 py-2.5 rounded-xl hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer group"
+                            className="flex items-center gap-4 px-3 py-2.5 rounded-xl hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer group"
                             onClick={() => onSelectTask(task)}
                         >
-                            <span className="text-xs px-2 py-0.5 rounded-md bg-[rgba(224,185,84,0.08)] text-[#C79E3B] truncate max-w-[90px] flex-shrink-0">
-                                {task.project_name}
-                            </span>
-                            <span className={`flex-1 text-sm truncate ${
+                            <div className="w-[112px] flex-shrink-0 flex items-center">
+                                <span className="text-xs px-2 py-0.5 rounded-md bg-[rgba(224,185,84,0.08)] text-[#C79E3B] truncate min-w-0">
+                                    {task.project_name}
+                                </span>
+                            </div>
+                            <span className={`flex-1 min-w-0 text-sm truncate ${
                                 task.status === 'done' ? 'line-through text-[#555]' : 'text-[#f5f5f5]'
                             }`}>
                                 {task.title}
                             </span>
-                            <StatusDotMenu
-                                status={task.status}
-                                onChange={(newStatus) => onChangeTaskStatus(task, newStatus)}
-                            />
-                            {(myTaskTab === 'upcoming' || myTaskTab === 'overdue') && task.priority && task.priority !== 'critical' && (() => {
-                                const color = priorityColor(task.priority);
-                                return (
-                                    <span
-                                        className="text-xs px-2 py-0.5 rounded-md flex-shrink-0"
-                                        style={{ backgroundColor: `${color}20`, color }}
-                                    >
-                                        {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
-                                    </span>
-                                );
-                            })()}
-                            {task.is_overdue && (
-                                <AlertCircle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
-                            )}
-                            <Popover
+                            <div className="flex items-center flex-shrink-0 gap-3">
+                                <div className="w-[118px]">
+                                    <StatusDotMenu
+                                        status={task.status}
+                                        onChange={(newStatus) => onChangeTaskStatus(task, newStatus)}
+                                    />
+                                </div>
+                                <div className="w-[76px]">
+                                    {(myTaskTab === 'upcoming' || myTaskTab === 'overdue') && task.priority && (() => {
+                                        const color = priorityColor(task.priority);
+                                        return (
+                                            <span
+                                                className="text-xs px-2 py-0.5 rounded-md"
+                                                style={{ backgroundColor: `${color}15`, color }}
+                                            >
+                                                {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                                            </span>
+                                        );
+                                    })()}
+                                </div>
+                                <div className="w-[96px]">
+                                <Popover
                                 open={openDateRowId === task.id}
                                 onOpenChange={(o) => setOpenDateRowId(o ? task.id : null)}
                             >
@@ -283,12 +287,12 @@ const MyTasksBox = ({
                                         type="button"
                                         onClick={(e) => e.stopPropagation()}
                                         title={task.due_date ? `Due ${parseLocalDate(task.due_date)?.toLocaleDateString()} — click to change` : 'Set due date'}
-                                        className={`flex items-center gap-1.5 text-xs flex-shrink-0 px-2 py-1 rounded-md border transition-all ${
+                                        className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-md transition-all ${
                                             task.is_overdue
-                                                ? 'border-red-400/30 bg-red-400/5 text-red-400 hover:border-red-400/50 hover:bg-red-400/10'
+                                                ? 'bg-red-400/5 text-red-400 hover:bg-red-400/10'
                                                 : task.due_date
-                                                ? 'border-[rgba(255,255,255,0.07)] bg-[rgba(255,255,255,0.02)] text-[#a3a3a3] hover:border-[#E0B954]/40 hover:text-[#E0B954]'
-                                                : 'border-transparent text-[#555] hover:border-[#E0B954]/30 hover:bg-[#E0B954]/5 hover:text-[#E0B954]'
+                                                ? 'bg-[rgba(255,255,255,0.02)] text-[#a3a3a3] hover:text-[#E0B954]'
+                                                : 'text-[#555] hover:bg-[#E0B954]/5 hover:text-[#E0B954]'
                                         }`}
                                     >
                                         <Calendar className="w-3.5 h-3.5" />
@@ -381,6 +385,8 @@ const MyTasksBox = ({
                                     </div>
                                 </PopoverContent>
                             </Popover>
+                                </div>
+                            </div>
                         </div>
                     ))
                 )}

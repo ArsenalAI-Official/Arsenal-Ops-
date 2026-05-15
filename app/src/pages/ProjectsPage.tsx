@@ -215,6 +215,8 @@ const ProjectsPage = () => {
                 setShowAddTaskDialog(false);
                 setNewPersonalTask({ title: '', description: '', priority: 'medium', due_date: '', project_id: '', assignee_developer_id: '', estimated_hours: '' });
                 setProjectMembers([]);
+                setPersonalTasks(prev => [...prev, createdTask]);
+                if (!newPersonalTask.project_id) setMyTaskTab('personal');
                 fetchPersonalTasks();
             } else {
                 toast.error('Failed to create task');
@@ -492,37 +494,40 @@ const ProjectsPage = () => {
                     />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 flex-1 min-h-0">
-                    <ProjectsBox
-                        projects={projects}
-                        isLoading={isLoading}
-                        searchQuery={searchQuery}
-                        setSearchQuery={setSearchQuery}
-                        isAdmin={!!user?.role.includes('admin')}
-                        onCreateProjectClick={() => setShowCreateModal(true)}
-                        onProjectClick={(projectId) => navigate(`/project/${projectId}`)}
-                        onDeleteProject={handleDeleteProject}
-                    />
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-5 flex-1 min-h-0">
+                    <div className="md:col-span-2 min-h-0 h-full">
+                        <ProjectsBox
+                            projects={projects}
+                            isLoading={isLoading}
+                            searchQuery={searchQuery}
+                            setSearchQuery={setSearchQuery}
+                            isAdmin={!!user?.role.includes('admin')}
+                            onCreateProjectClick={() => setShowCreateModal(true)}
+                            onProjectClick={(projectId) => navigate(`/project/${projectId}`)}
+                            onDeleteProject={handleDeleteProject}
+                        />
+                    </div>
 
-                    <MyTasksBox
-                        myTasks={myTasks}
-                        personalTasks={personalTasks}
-                        myTasksLoading={myTasksLoading}
-                        myTaskTab={myTaskTab}
-                        setMyTaskTab={setMyTaskTab}
-                        showAllTasks={showAllTasks}
-                        setShowAllTasks={setShowAllTasks}
-                        onSelectTask={setSelectedTask}
-                        onAddPersonalTaskClick={() => setShowAddTaskDialog(true)}
-                        onEditPersonalTask={startEditPersonalTask}
-                        onConvertPersonalTask={(task) => { setConvertingTask(task); setShowConvertDialog(true); }}
-                        onDeletePersonalTask={deletePersonalTask}
-                        onTogglePersonalTaskComplete={togglePersonalTaskComplete}
-                        onNavigateToPersonalTasks={() => navigate('/personal-tasks')}
-                        onChangeTaskStatus={handleChangeMyTaskStatus}
-                        onQuickDueDateChange={handleQuickDueDateChange}
-                    />
-
+                    <div className="md:col-span-3 min-h-0 h-full">
+                        <MyTasksBox
+                            myTasks={myTasks}
+                            personalTasks={personalTasks}
+                            myTasksLoading={myTasksLoading}
+                            myTaskTab={myTaskTab}
+                            setMyTaskTab={setMyTaskTab}
+                            showAllTasks={showAllTasks}
+                            setShowAllTasks={setShowAllTasks}
+                            onSelectTask={setSelectedTask}
+                            onAddPersonalTaskClick={() => setShowAddTaskDialog(true)}
+                            onEditPersonalTask={startEditPersonalTask}
+                            onConvertPersonalTask={(task) => { setConvertingTask(task); setShowConvertDialog(true); }}
+                            onDeletePersonalTask={deletePersonalTask}
+                            onTogglePersonalTaskComplete={togglePersonalTaskComplete}
+                            onNavigateToPersonalTasks={() => navigate('/personal-tasks')}
+                            onChangeTaskStatus={handleChangeMyTaskStatus}
+                            onQuickDueDateChange={handleQuickDueDateChange}
+                        />
+                    </div>
                 </div>
             </div>
 

@@ -27,8 +27,8 @@ const DashboardStats = ({ userName, myTasks, myTasksLoading, onTabChange }: Dash
     }).length;
 
     return (
-        <div className="flex items-stretch gap-5 mb-8">
-            <div className="flex-1 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)] rounded-2xl px-6 py-5 flex flex-col justify-center relative overflow-hidden">
+        <div className="grid grid-cols-5 items-stretch gap-5 mb-8">
+            <div className="col-span-2 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)] rounded-2xl px-6 py-5 flex flex-col justify-center relative overflow-hidden">
                 <svg
                     className="absolute inset-0 w-full h-full pointer-events-none"
                     viewBox="0 0 600 100"
@@ -45,7 +45,7 @@ const DashboardStats = ({ userName, myTasks, myTasksLoading, onTabChange }: Dash
                 <h2 className="text-2xl font-bold text-white tracking-tight">Welcome back, {userName?.split(' ')[0]}</h2>
             </div>
 
-            <div className="flex-1 flex gap-4">
+            <div className="col-span-3 flex gap-4">
                 <div
                     className="flex-1 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)] rounded-2xl px-6 py-5 flex flex-col justify-between cursor-pointer hover:border-[rgba(255,255,255,0.12)] hover:bg-[rgba(255,255,255,0.04)] transition-colors"
                     onClick={() => onTabChange?.('upcoming')}

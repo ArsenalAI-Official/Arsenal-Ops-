@@ -45,12 +45,11 @@ const StatusDotMenu = ({ status, onChange }: StatusDotMenuProps) => {
                     onMouseLeave={() => setHovered(false)}
                     onFocus={() => setHovered(true)}
                     onBlur={() => setHovered(false)}
-                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs flex-shrink-0 cursor-pointer outline-none border"
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs flex-shrink-0 cursor-pointer outline-none"
                     style={{
                         color,
                         backgroundColor: hovered || open ? `${color}25` : `${color}15`,
-                        borderColor: hovered || open ? `${color}60` : `${color}35`,
-                        transition: 'background-color 150ms ease, border-color 150ms ease',
+                        transition: 'background-color 150ms ease',
                     }}
                 >
                     <span
