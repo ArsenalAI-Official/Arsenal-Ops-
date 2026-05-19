@@ -2,11 +2,11 @@ import { ReactNode } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface GateProps {
-    /** Capability key required to render children (e.g. "project.tracker.analytics"). */
-    cap: string;
-    /** What to render when the user lacks the capability. Defaults to null (hidden). */
-    fallback?: ReactNode;
-    children: ReactNode;
+  /** Capability key required to render children (e.g. "project.tracker.analytics"). */
+  cap: string;
+  /** What to render when the user lacks the capability. Defaults to null (hidden). */
+  fallback?: ReactNode;
+  children: ReactNode;
 }
 
 /**
@@ -20,6 +20,6 @@ interface GateProps {
  * `const { can } = useAuth()` directly.
  */
 export function Gate({ cap, fallback = null, children }: GateProps) {
-    const { can } = useAuth();
-    return <>{can(cap) ? children : fallback}</>;
+  const { can } = useAuth();
+  return <>{can(cap) ? children : fallback}</>;
 }

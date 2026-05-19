@@ -628,19 +628,24 @@ def run_migrations():
         except Exception as e:
             print(f"[MIGRATION ERROR] hashed_password nullable: {e}")
 
+
 SYSTEM_ROLES: list[tuple[str, str, list[str]]] = [
     ("admin", "Full system access", ["*"]),
     ("project_manager", "Project manager access to all project tabs", ["project.*"]),
     # Developer grants match the pre-RBAC blocklist behaviour: everything in a
     # project except the PM tab + its subsections and the pulse admin settings.
-    ("developer", "Default developer access", [
-        "project.overview.*",
-        "project.tracker.*",
-        "project.calendar",
-        "project.pulse",
-        "project.business",
-        "project.activity",
-    ]),
+    (
+        "developer",
+        "Default developer access",
+        [
+            "project.overview.*",
+            "project.tracker.*",
+            "project.calendar",
+            "project.pulse",
+            "project.business",
+            "project.activity",
+        ],
+    ),
 ]
 
 
@@ -651,9 +656,11 @@ def seed_rbac():
     with engine.connect() as conn:
         # Skip silently if the RBAC tables aren't there yet (e.g. SQLite without create_all)
         try:
-            probe = conn.execute(text("""
+            probe = conn.execute(
+                text("""
                 SELECT table_name FROM information_schema.tables WHERE table_name = 'roles'
-            """))
+            """)
+            )
             if not probe.fetchone():
                 return
         except Exception:
@@ -705,9 +712,7 @@ def seed_rbac():
                 "project.calendar",
                 "project.activity",
             }
-            NEW_DEV_GRANTS = [
-                g for n, _, gs in SYSTEM_ROLES if n == "developer" for g in gs
-            ]
+            NEW_DEV_GRANTS = [g for n, _, gs in SYSTEM_ROLES if n == "developer" for g in gs]
             dev_row = conn.execute(
                 text("SELECT id FROM roles WHERE name = 'developer' AND is_system = TRUE")
             ).fetchone()
@@ -768,7 +773,9 @@ def seed_rbac():
                     inserted += 1
             conn.commit()
             if inserted:
-                print(f"[SEED] Backfilled {inserted} user_role assignment(s) from legacy users.role")
+                print(
+                    f"[SEED] Backfilled {inserted} user_role assignment(s) from legacy users.role"
+                )
         except Exception as e:
             print(f"[SEED ERROR] user_roles backfill: {e}")
             conn.rollback()
@@ -776,14 +783,6 @@ def seed_rbac():
 
 def init_db():
     """Initialize database tables"""
-    from models import (
-        project, task, persona, user_story,
-        market_insight, developer, work_item, sprint,
-        architecture, user, time_entry, task_dependency,
-        project_goal, project_milestone, activity_log, project_file,
-        personal_task, work_item_assignment_history,
-        role
-    )
     Base.metadata.create_all(bind=engine)
 
     # Run migrations for existing databases

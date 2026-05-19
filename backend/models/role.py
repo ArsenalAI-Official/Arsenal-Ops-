@@ -5,21 +5,22 @@ A user can have many roles (user_roles join). Each role has many capability
 grants (role_capabilities). A user's effective capability set is the union
 of all grants from all assigned roles.
 """
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Table
-from sqlalchemy.orm import relationship
-from datetime import datetime
 
 import sys
-sys.path.append('..')
+from datetime import datetime
+
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table
+from sqlalchemy.orm import relationship
+
+sys.path.append("..")
 from database import Base
 
-
 user_roles = Table(
-    'user_roles',
+    "user_roles",
     Base.metadata,
-    Column('user_id', Integer, ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
-    Column('role_id', Integer, ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True),
-    Column('assigned_at', DateTime, default=datetime.utcnow, nullable=False),
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("role_id", Integer, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True),
+    Column("assigned_at", DateTime, default=datetime.utcnow, nullable=False),
 )
 
 
@@ -58,7 +59,7 @@ class RoleCapability(Base):
 
     role_id = Column(
         Integer,
-        ForeignKey('roles.id', ondelete='CASCADE'),
+        ForeignKey("roles.id", ondelete="CASCADE"),
         primary_key=True,
     )
     capability_key = Column(String(128), primary_key=True)

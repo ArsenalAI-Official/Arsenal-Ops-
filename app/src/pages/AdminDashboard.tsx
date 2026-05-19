@@ -147,13 +147,7 @@ interface Capability {
   description: string;
 }
 
-type AdminTab =
-  | 'dashboard'
-  | 'employees'
-  | 'projects'
-  | 'users'
-  | 'developers-capacity'
-  | 'roles';
+type AdminTab = 'dashboard' | 'employees' | 'projects' | 'users' | 'developers-capacity' | 'roles';
 const VALID_ADMIN_TABS: AdminTab[] = [
   'dashboard',
   'employees',
@@ -269,10 +263,7 @@ const AdminDashboard = () => {
     queryKey: ['admin', 'capabilities'],
     queryFn: () => apiFetch<Capability[]>('/api/auth/capabilities'),
   });
-  const capabilityRegistry = useMemo(
-    () => capabilitiesQuery.data ?? [],
-    [capabilitiesQuery.data],
-  );
+  const capabilityRegistry = useMemo(() => capabilitiesQuery.data ?? [], [capabilitiesQuery.data]);
 
   const loading =
     statsQuery.isLoading ||
@@ -820,8 +811,7 @@ const AdminDashboard = () => {
   });
 
   const deleteRoleMutation = useMutation({
-    mutationFn: (id: number) =>
-      apiFetch<void>(`/api/auth/admin/roles/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: number) => apiFetch<void>(`/api/auth/admin/roles/${id}`, { method: 'DELETE' }),
     onSuccess: (_data, _id) => {
       toast.success('Role deleted');
       invalidateRoles();
@@ -2274,8 +2264,8 @@ const AdminDashboard = () => {
                   <div>
                     <h2 className="text-lg font-semibold text-white">Roles &amp; Capabilities</h2>
                     <p className="text-xs text-[#737373] mt-1">
-                      Define what each role can see. Users get the union of capabilities from
-                      every role assigned to them.
+                      Define what each role can see. Users get the union of capabilities from every
+                      role assigned to them.
                     </p>
                   </div>
                   <Button
@@ -2500,8 +2490,7 @@ const AdminDashboard = () => {
                           {group.caps.map((cap) => {
                             const isSelected = roleForm.capability_keys.includes(cap.key);
                             const covered =
-                              !isSelected &&
-                              isCoveredByWildcard(cap.key, roleForm.capability_keys);
+                              !isSelected && isCoveredByWildcard(cap.key, roleForm.capability_keys);
                             return (
                               <label
                                 key={cap.key}
@@ -2617,9 +2606,7 @@ const AdminDashboard = () => {
                 </div>
                 <div className="p-5 space-y-2 overflow-y-auto">
                   {roles.length === 0 ? (
-                    <p className="text-sm text-[#737373] text-center py-6">
-                      No roles defined yet.
-                    </p>
+                    <p className="text-sm text-[#737373] text-center py-6">No roles defined yet.</p>
                   ) : (
                     roles.map((role) => {
                       const isChecked = userRoleNames.has(role.name);

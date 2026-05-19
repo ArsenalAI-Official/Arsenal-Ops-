@@ -362,7 +362,6 @@ def get_my_tasks(db: Session = Depends(get_db), current_user: User = Depends(get
             }
         )
 
-
     return result
 
 
@@ -1221,11 +1220,11 @@ def complete_sprint(
 
 
 class SprintUpdate(BaseModel):
-    name: Optional[str] = None
-    goal: Optional[str] = None
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
-    capacity_hours: Optional[int] = None
+    name: str | None = None
+    goal: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    capacity_hours: int | None = None
 
 
 @router.put("/sprints/{sprint_id}")
@@ -1233,7 +1232,7 @@ async def update_sprint(
     sprint_id: int,
     data: SprintUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Update sprint fields (requires auth)"""
     sprint = db.query(Sprint).filter(Sprint.id == sprint_id).first()
@@ -1259,9 +1258,7 @@ async def update_sprint(
 
 @router.delete("/sprints/{sprint_id}")
 async def delete_sprint(
-    sprint_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    sprint_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Delete a sprint; work items are unassigned (sprint_id → NULL) (requires auth)"""
     sprint = db.query(Sprint).filter(Sprint.id == sprint_id).first()
@@ -1572,10 +1569,8 @@ def get_hours_analytics(
     if not current_user.has_capability("project.pm"):
         project = db.query(Project).filter(Project.id == project_id).first()
         is_project_admin = bool(
-            project and any(
-                d.email == current_user.email and d.is_admin
-                for d in project.developers
-            )
+            project
+            and any(d.email == current_user.email and d.is_admin for d in project.developers)
         )
         if not is_project_admin:
             raise HTTPException(

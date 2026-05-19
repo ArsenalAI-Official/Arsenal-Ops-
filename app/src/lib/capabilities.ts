@@ -6,12 +6,12 @@
  * and the bare "project" key itself).
  */
 export function matchesCapability(needed: string, grants: readonly string[]): boolean {
-    for (const grant of grants) {
-        if (grant === '*' || grant === needed) return true;
-        if (grant.endsWith('.*')) {
-            const prefix = grant.slice(0, -2);
-            if (needed === prefix || needed.startsWith(prefix + '.')) return true;
-        }
+  for (const grant of grants) {
+    if (grant === '*' || grant === needed) return true;
+    if (grant.endsWith('.*')) {
+      const prefix = grant.slice(0, -2);
+      if (needed === prefix || needed.startsWith(prefix + '.')) return true;
     }
-    return false;
+  }
+  return false;
 }

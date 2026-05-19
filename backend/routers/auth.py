@@ -13,10 +13,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 sys.path.append("..")
+from capabilities import CAPABILITIES, is_valid_grant
 from database import get_db
+from models.role import Role
 from models.user import User, UserRole
 from services.google_oauth_service import google_oauth_service
 
@@ -138,6 +141,7 @@ def require_capability(cap: str):
         async def write(current_user: User = Depends(require_capability("project.pulse.settings"))):
             ...
     """
+
     def _check(current_user: User = Depends(get_current_user)) -> User:
         if not current_user.has_capability(cap):
             raise HTTPException(
@@ -145,6 +149,7 @@ def require_capability(cap: str):
                 detail=f"Missing required capability: {cap}",
             )
         return current_user
+
     return _check
 
 
@@ -558,26 +563,23 @@ def dev_login(db: Session = Depends(get_db)):
 
 # ============= RBAC: Roles & Capabilities =============
 
-from models.role import Role
-from capabilities import CAPABILITIES, is_valid_grant
-
 
 class RoleCreateRequest(BaseModel):
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     capability_keys: list[str] = []
 
 
 class RoleUpdateRequest(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
 
 
 class RoleCapabilitiesRequest(BaseModel):
     capability_keys: list[str]
 
 
-def _role_to_dict(role: Role, user_count: Optional[int] = None) -> dict:
+def _role_to_dict(role: Role, user_count: int | None = None) -> dict:
     out = {
         "id": role.id,
         "name": role.name,
@@ -631,7 +633,9 @@ async def get_my_capabilities(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/admin/roles")
-async def list_roles(db: Session = Depends(get_db), current_user: User = Depends(require_capability("admin.roles"))):
+async def list_roles(
+    db: Session = Depends(get_db), current_user: User = Depends(require_capability("admin.roles"))
+):
     from models.role import user_roles as ur_table
 
     roles = db.query(Role).order_by(Role.is_system.desc(), Role.name.asc()).all()
@@ -669,7 +673,11 @@ async def create_role(
 
 
 @router.get("/admin/roles/{role_id}")
-async def get_role(role_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_capability("admin.roles"))):
+async def get_role(
+    role_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_capability("admin.roles")),
+):
     role = db.query(Role).filter(Role.id == role_id).first()
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
@@ -713,7 +721,11 @@ async def update_role(
 
 
 @router.delete("/admin/roles/{role_id}")
-async def delete_role(role_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_capability("admin.roles"))):
+async def delete_role(
+    role_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_capability("admin.roles")),
+):
     role = db.query(Role).filter(Role.id == role_id).first()
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")

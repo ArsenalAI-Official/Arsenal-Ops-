@@ -313,8 +313,7 @@ const ProjectsPage = () => {
     }
     updatePersonalTaskMutation.mutate(editingPersonalTask.id);
   };
-  const addingTask =
-    createPersonalTaskMutation.isPending || updatePersonalTaskMutation.isPending;
+  const addingTask = createPersonalTaskMutation.isPending || updatePersonalTaskMutation.isPending;
   const convertingTicket = convertToTicketMutation.isPending;
 
   const startEditPersonalTask = (task: PersonalTask) => {
@@ -363,9 +362,7 @@ const ProjectsPage = () => {
     },
     onSuccess: (_data, { taskId, newStatus }) => {
       if (newStatus === 'done') {
-        const task = queryClient
-          .getQueryData<MyTask[]>(['myTasks'])
-          ?.find((t) => t.id === taskId);
+        const task = queryClient.getQueryData<MyTask[]>(['myTasks'])?.find((t) => t.id === taskId);
         toast.success(`${task?.key || 'Task'} completed 🎉`);
       }
     },
@@ -447,10 +444,7 @@ const ProjectsPage = () => {
     },
   });
 
-  const handleQuickDueDateChange = (
-    task: MyTask & { is_personal?: boolean },
-    isoDate: string,
-  ) => {
+  const handleQuickDueDateChange = (task: MyTask & { is_personal?: boolean }, isoDate: string) => {
     const dueValue = isoDate ? isoDate : null;
     if (task.is_personal) {
       const realId = String(task.id).replace(/^personal-/, '');

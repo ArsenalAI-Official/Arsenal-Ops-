@@ -2,7 +2,6 @@
 
 import sys
 from datetime import datetime
-from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -127,7 +126,7 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
 
 @router.get(
     "/employees",
-    response_model=List[EmployeeResponse],
+    response_model=list[EmployeeResponse],
     dependencies=[Depends(require_capability("admin.employees"))],
 )
 def list_employees(db: Session = Depends(get_db)):
@@ -229,7 +228,7 @@ class EmployeeTicketResponse(BaseModel):
 
 @router.get(
     "/employees/{employee_id}/in-progress-tickets",
-    response_model=List[EmployeeTicketResponse],
+    response_model=list[EmployeeTicketResponse],
     dependencies=[Depends(require_capability("admin.employees"))],
 )
 def get_employee_in_progress_tickets(employee_id: int, db: Session = Depends(get_db)):
@@ -355,11 +354,7 @@ def create_employee(employee: EmployeeCreate, db: Session = Depends(get_db)):
     response_model=EmployeeResponse,
     dependencies=[Depends(require_capability("admin.employees"))],
 )
-def update_employee(
-    employee_id: int,
-    update: EmployeeUpdate,
-    db: Session = Depends(get_db)
-):
+def update_employee(employee_id: int, update: EmployeeUpdate, db: Session = Depends(get_db)):
     """Update an employee/developer"""
     employee = db.query(Developer).filter(Developer.id == employee_id).first()
     if not employee:
@@ -470,7 +465,7 @@ class ProjectResponse(BaseModel):
 
 @router.get(
     "/projects",
-    response_model=List[ProjectResponse],
+    response_model=list[ProjectResponse],
     dependencies=[Depends(require_capability("admin.projects"))],
 )
 def list_all_projects(db: Session = Depends(get_db)):
@@ -507,9 +502,7 @@ def list_all_projects(db: Session = Depends(get_db)):
     dependencies=[Depends(require_capability("admin.projects"))],
 )
 def update_project_github(
-    project_id: int,
-    update: ProjectGitHubUpdate,
-    db: Session = Depends(get_db)
+    project_id: int, update: ProjectGitHubUpdate, db: Session = Depends(get_db)
 ):
     """Update project GitHub settings"""
     project = db.query(Project).filter(Project.id == project_id).first()

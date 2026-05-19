@@ -121,10 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (currentToken) await fetchCapabilitiesWith(currentToken);
   }, [token, fetchCapabilitiesWith]);
 
-  const can = useCallback(
-    (cap: string) => matchesCapability(cap, capabilities),
-    [capabilities],
-  );
+  const can = useCallback((cap: string) => matchesCapability(cap, capabilities), [capabilities]);
 
   const logout = useCallback(() => {
     setUser(null);
