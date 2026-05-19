@@ -68,7 +68,7 @@ import { Calendar as CalendarIcon } from '@/components/ui/calendar';
 import { toast, Toaster } from 'sonner';
 const MermaidRenderer = lazy(() => import('@/components/MermaidRenderer'));
 const ArchitectureEditor = lazy(() => import('@/components/ArchitectureEditor'));
-import { useAuth, isProjectManager, isAdmin } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Helper function to parse YYYY-MM-DD string to local Date object (avoids UTC timezone issues)
 const parseLocalDate = (dateString: string | undefined): Date | undefined => {
@@ -289,7 +289,7 @@ const ProjectDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const queryClient = useQueryClient();
 
   // Initial tab respects ?tab= URL param so external links (e.g. admin "Pulse Settings"
@@ -831,12 +831,17 @@ const ProjectDetail = () => {
     );
   }
 
-  // Check if user can see PM tab: system admin, project manager, or project admin
+  // PM tab access: capability-gated for system roles (admin / PM grant
+  // `project.pm`), with a project-membership fallback so a developer marked
+  // `is_admin` on this specific project also sees the tab. The
+  // project-admin case isn't expressible as a global capability, so it
+  // stays as an inline check on top of the role-based grant.
   const canAccessPMTab = () => {
-    if (isProjectManager(user)) return true;
+    if (can('project.pm')) return true;
     if (!user || !project) return false;
     return project.developers.some((dev) => dev.email === user.email && dev.is_admin);
   };
+  const canAccessPulseSettings = can('project.pulse.settings');
 
   const tabs = [
     { id: 'overview' as TabType, label: 'Overview', icon: Info },
@@ -844,12 +849,10 @@ const ProjectDetail = () => {
     { id: 'calendar' as TabType, label: 'Timeline', icon: Calendar },
     { id: 'pulse' as TabType, label: 'Pulse', icon: TrendingUp },
     { id: 'activity' as TabType, label: 'Activity', icon: Activity },
-    // PM tab for system admins, project managers, and project admins
     ...(canAccessPMTab()
       ? [{ id: 'project_manager' as TabType, label: 'Project Manager', icon: Clock }]
       : []),
-    // Pulse Settings — system admins only (drives values shown on the Pulse tab)
-    ...(isAdmin(user)
+    ...(canAccessPulseSettings
       ? [{ id: 'pulse_settings' as TabType, label: 'Pulse Settings', icon: DollarSign }]
       : []),
   ];
@@ -2511,13 +2514,13 @@ const ProjectDetail = () => {
             </div>
           ))}
 
-        {/* Pulse Settings Tab — system admins only */}
+        {/* Pulse Settings Tab — gated on `project.pulse.settings` capability */}
         {activeTab === 'pulse_settings' &&
-          (isAdmin(user) && id && pulseData ? (
+          (canAccessPulseSettings && id && pulseData ? (
             <PulseSettingsView projectId={id} initial={pulseData} onChange={setPulseData} />
           ) : (
             <div className="text-center py-12 text-[#737373]">
-              This section is restricted to system admins.
+              This section is restricted.
             </div>
           ))}
 
