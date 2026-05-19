@@ -164,13 +164,13 @@ const TimelineView: React.FC<TimelineViewProps> = ({
         return d;
     });
     const [showAddModal, setShowAddModal] = useState(false);
-    const [newTask, setNewTask] = useState({
+    const [newTask, setNewTask] = useState(() => ({
         title: '',
         start_date: new Date().toISOString().split('T')[0],
         due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         estimated_hours: 8,
-        assignee_id: undefined as number | undefined
-    });
+        assignee_id: undefined as number | undefined,
+    }));
 
     const scrollRef = useRef<HTMLDivElement>(null);
 

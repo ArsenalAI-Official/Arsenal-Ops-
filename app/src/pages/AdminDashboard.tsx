@@ -38,6 +38,8 @@ import {
   TrendingUp,
   Search,
   ArrowUpDown,
+  KeyRound,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -129,18 +131,36 @@ interface DashboardStats {
   tickets_by_priority: Record<string, number>;
 }
 
+interface Role {
+  id: number;
+  name: string;
+  description: string | null;
+  is_system: boolean;
+  capability_keys: string[];
+  user_count?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface Capability {
+  key: string;
+  description: string;
+}
+
 type AdminTab =
   | 'dashboard'
   | 'employees'
   | 'projects'
   | 'users'
-  | 'developers-capacity';
+  | 'developers-capacity'
+  | 'roles';
 const VALID_ADMIN_TABS: AdminTab[] = [
   'dashboard',
   'employees',
   'projects',
   'users',
   'developers-capacity',
+  'roles',
 ];
 
 const PROJECT_COLOR_PALETTE = [
@@ -239,12 +259,28 @@ const AdminDashboard = () => {
   });
   const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data]);
 
+  const rolesQuery = useQuery<Role[]>({
+    queryKey: ['admin', 'roles'],
+    queryFn: () => apiFetch<Role[]>('/api/auth/admin/roles'),
+  });
+  const roles = useMemo(() => rolesQuery.data ?? [], [rolesQuery.data]);
+
+  const capabilitiesQuery = useQuery<Capability[]>({
+    queryKey: ['admin', 'capabilities'],
+    queryFn: () => apiFetch<Capability[]>('/api/auth/capabilities'),
+  });
+  const capabilityRegistry = useMemo(
+    () => capabilitiesQuery.data ?? [],
+    [capabilitiesQuery.data],
+  );
+
   const loading =
     statsQuery.isLoading ||
     employeesQuery.isLoading ||
     capacityQuery.isLoading ||
     projectsQuery.isLoading ||
-    usersQuery.isLoading;
+    usersQuery.isLoading ||
+    rolesQuery.isLoading;
 
   const [expandedCapacityDevId, setExpandedCapacityDevId] = useState<number | null>(null);
 
@@ -463,6 +499,15 @@ const AdminDashboard = () => {
 
   // Role dropdown state
   const [openRoleDropdown, setOpenRoleDropdown] = useState<number | null>(null);
+
+  // RBAC role create/edit modal state
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [roleForm, setRoleForm] = useState<{
+    name: string;
+    description: string;
+    capability_keys: string[];
+  }>({ name: '', description: '', capability_keys: [] });
 
   // Helper function to convert role to Pascal Case
   const toPascalCase = (str: string): string => {
@@ -735,31 +780,241 @@ const AdminDashboard = () => {
     createUserMutation.mutate();
   };
 
-  const toggleUserRoleMutation = useMutation({
-    mutationFn: ({ userId, newRole }: { userId: number; newRole: string }) =>
-      apiFetch<void>(`/api/auth/admin/users/${userId}/role`, {
-        method: 'PUT',
-        body: JSON.stringify({ role: newRole }),
+  // RBAC: role create/update/delete mutations
+  const invalidateRoles = () => {
+    queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
+    queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+  };
+
+  const createRoleMutation = useMutation({
+    mutationFn: (vars: { name: string; description: string | null; capability_keys: string[] }) =>
+      apiFetch<Role>('/api/auth/admin/roles', {
+        method: 'POST',
+        body: JSON.stringify(vars),
       }),
-    onSuccess: () => {
-      toast.success('User roles updated');
-      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
-      queryClient.invalidateQueries({ queryKey: ['admin', 'employees'] });
+    onSuccess: (_data, vars) => {
+      toast.success(`Role '${vars.name}' created`);
+      setShowRoleModal(false);
+      invalidateRoles();
     },
-    onError: () => toast.error('Failed to update role'),
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Failed to create role';
+      toast.error(msg);
+    },
   });
 
-  const handleToggleUserRole = (user: User, roleToToggle: string) => {
-    const currentRoles = user.role.split(',').map((r) => r.trim());
-    let newRoles: string[];
-    if (currentRoles.includes(roleToToggle)) {
-      newRoles = currentRoles.filter((r) => r !== roleToToggle);
-      if (newRoles.length === 0) newRoles = ['developer'];
-    } else {
-      newRoles = [...currentRoles, roleToToggle];
-    }
-    toggleUserRoleMutation.mutate({ userId: user.id, newRole: newRoles.join(',') });
+  const updateRoleMetaMutation = useMutation({
+    mutationFn: (vars: { id: number; name: string; description: string | null }) =>
+      apiFetch<Role>(`/api/auth/admin/roles/${vars.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name: vars.name, description: vars.description }),
+      }),
+  });
+
+  const replaceRoleCapsMutation = useMutation({
+    mutationFn: (vars: { id: number; capability_keys: string[] }) =>
+      apiFetch<Role>(`/api/auth/admin/roles/${vars.id}/capabilities`, {
+        method: 'PUT',
+        body: JSON.stringify({ capability_keys: vars.capability_keys }),
+      }),
+  });
+
+  const deleteRoleMutation = useMutation({
+    mutationFn: (id: number) =>
+      apiFetch<void>(`/api/auth/admin/roles/${id}`, { method: 'DELETE' }),
+    onSuccess: (_data, _id) => {
+      toast.success('Role deleted');
+      invalidateRoles();
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Failed to delete role';
+      toast.error(msg);
+    },
+  });
+
+  const assignUserRoleMutation = useMutation({
+    mutationFn: (vars: { userId: number; roleId: number }) =>
+      apiFetch<void>(`/api/auth/admin/users/${vars.userId}/roles/${vars.roleId}`, {
+        method: 'POST',
+      }),
+    onSuccess: () => invalidateRoles(),
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Failed to assign role';
+      toast.error(msg);
+    },
+  });
+
+  const removeUserRoleMutation = useMutation({
+    mutationFn: (vars: { userId: number; roleId: number }) =>
+      apiFetch<void>(`/api/auth/admin/users/${vars.userId}/roles/${vars.roleId}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => invalidateRoles(),
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Failed to remove role';
+      toast.error(msg);
+    },
+  });
+
+  const isSavingRole =
+    createRoleMutation.isPending ||
+    updateRoleMetaMutation.isPending ||
+    replaceRoleCapsMutation.isPending;
+
+  const handleOpenCreateRole = () => {
+    setEditingRole(null);
+    setRoleForm({ name: '', description: '', capability_keys: [] });
+    setShowRoleModal(true);
   };
+
+  const handleOpenEditRole = (role: Role) => {
+    setEditingRole(role);
+    setRoleForm({
+      name: role.name,
+      description: role.description || '',
+      capability_keys: [...role.capability_keys],
+    });
+    setShowRoleModal(true);
+  };
+
+  const handleSaveRole = async () => {
+    const name = roleForm.name.trim();
+    if (!name) {
+      toast.error('Role name is required');
+      return;
+    }
+    if (editingRole) {
+      try {
+        const needsMetaUpdate =
+          name !== editingRole.name ||
+          (roleForm.description || '') !== (editingRole.description || '');
+        if (needsMetaUpdate) {
+          await updateRoleMetaMutation.mutateAsync({
+            id: editingRole.id,
+            // System roles keep their original name; description is editable.
+            name: editingRole.is_system ? editingRole.name : name,
+            description: roleForm.description.trim() || null,
+          });
+        }
+        await replaceRoleCapsMutation.mutateAsync({
+          id: editingRole.id,
+          capability_keys: roleForm.capability_keys,
+        });
+        toast.success(`Role '${name}' updated`);
+        setShowRoleModal(false);
+        invalidateRoles();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to save role';
+        toast.error(msg);
+      }
+    } else {
+      createRoleMutation.mutate({
+        name,
+        description: roleForm.description.trim() || null,
+        capability_keys: roleForm.capability_keys,
+      });
+    }
+  };
+
+  const handleDeleteRole = (role: Role) => {
+    if (role.is_system) {
+      toast.error('Cannot delete a system role');
+      return;
+    }
+    if (
+      !confirm(
+        `Delete role "${role.name}"? Users assigned to this role will lose its capabilities.`,
+      )
+    )
+      return;
+    deleteRoleMutation.mutate(role.id);
+  };
+
+  const handleToggleUserRoleById = (user: User, role: Role, isChecked: boolean) => {
+    if (isChecked) {
+      assignUserRoleMutation.mutate(
+        { userId: user.id, roleId: role.id },
+        {
+          onSuccess: () => toast.success(`Assigned '${role.name}'`),
+        },
+      );
+    } else {
+      removeUserRoleMutation.mutate(
+        { userId: user.id, roleId: role.id },
+        {
+          onSuccess: () => toast.success(`Removed '${role.name}'`),
+        },
+      );
+    }
+  };
+
+  // Returns true if `grant` is a wildcard that covers `key`.
+  const wildcardCovers = (grant: string, key: string): boolean => {
+    if (grant === '*') return true;
+    if (!grant.endsWith('.*')) return false;
+    const prefix = grant.slice(0, -2);
+    return key === prefix || key.startsWith(prefix + '.');
+  };
+
+  // Returns true if `key` falls under the scope of `grant`.
+  const keyIsUnderGrant = (key: string, grant: string): boolean => {
+    if (grant === '*') return true;
+    if (grant.endsWith('.*')) {
+      const prefix = grant.slice(0, -2);
+      return key === prefix || key.startsWith(prefix + '.');
+    }
+    return key === grant;
+  };
+
+  const toggleGrant = (key: string) => {
+    setRoleForm((f) => {
+      const grants = f.capability_keys;
+      if (grants.includes(key)) {
+        return { ...f, capability_keys: grants.filter((g) => g !== key) };
+      }
+      const coveringWildcards = grants.filter((g) => wildcardCovers(g, key));
+      if (coveringWildcards.length > 0) {
+        const nonCovering = grants.filter((g) => !coveringWildcards.includes(g));
+        const expanded = new Set<string>(nonCovering);
+        for (const cap of capabilityRegistry) {
+          if (cap.key === key) continue;
+          if (coveringWildcards.some((w) => keyIsUnderGrant(cap.key, w))) {
+            expanded.add(cap.key);
+          }
+        }
+        return { ...f, capability_keys: Array.from(expanded) };
+      }
+      return { ...f, capability_keys: [...grants, key] };
+    });
+  };
+
+  const isCoveredByWildcard = (key: string, grants: string[]): boolean => {
+    if (grants.includes(key)) return false;
+    if (grants.includes('*')) return true;
+    for (const g of grants) {
+      if (g.endsWith('.*')) {
+        const prefix = g.slice(0, -2);
+        if (key === prefix || key.startsWith(prefix + '.')) return true;
+      }
+    }
+    return false;
+  };
+
+  // Group capabilities by top-level prefix for the picker UI.
+  const groupedCapabilities = useMemo(() => {
+    const groups = new Map<string, Capability[]>();
+    for (const cap of capabilityRegistry) {
+      const top = cap.key.split('.')[0];
+      const list = groups.get(top) || [];
+      list.push(cap);
+      groups.set(top, list);
+    }
+    return Array.from(groups.entries()).map(([prefix, caps]) => ({
+      prefix,
+      wildcard: `${prefix}.*`,
+      caps,
+    }));
+  }, [capabilityRegistry]);
 
   return (
     <div className="min-h-screen bg-[#080808] text-white">
@@ -794,6 +1049,7 @@ const AdminDashboard = () => {
               { id: 'employees', label: 'Employees', icon: Users },
               { id: 'projects', label: 'Projects', icon: FolderKanban },
               { id: 'users', label: 'Users', icon: Shield },
+              { id: 'roles', label: 'Roles', icon: KeyRound },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -2010,69 +2266,410 @@ const AdminDashboard = () => {
                 </div>
               </div>
             )}
+
+            {/* Roles Tab */}
+            {activeTab === 'roles' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-white">Roles &amp; Capabilities</h2>
+                    <p className="text-xs text-[#737373] mt-1">
+                      Define what each role can see. Users get the union of capabilities from
+                      every role assigned to them.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleOpenCreateRole}
+                    className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] hover:from-[#C79E3B] hover:to-[#B8872A] text-white rounded-xl h-10 px-4"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Role
+                  </Button>
+                </div>
+                <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.05)] rounded-xl overflow-visible">
+                  <table className="w-full">
+                    <thead className="bg-[rgba(255,255,255,0.02)]">
+                      <tr>
+                        <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">
+                          Name
+                        </th>
+                        <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">
+                          Description
+                        </th>
+                        <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">
+                          Capabilities
+                        </th>
+                        <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">
+                          Users
+                        </th>
+                        <th className="text-right text-xs font-medium text-[#737373] py-3 px-4">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[rgba(255,255,255,0.03)]">
+                      {roles.map((role) => (
+                        <tr key={role.id} className="hover:bg-[rgba(255,255,255,0.02)]">
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs bg-[#E0B954]/20 text-[#E0B954] font-medium">
+                                <KeyRound className="w-3 h-3" />
+                                {toPascalCase(role.name)}
+                              </span>
+                              {role.is_system && (
+                                <span className="text-[10px] uppercase tracking-wide text-[#737373] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)]">
+                                  System
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-[#a3a3a3]">
+                            {role.description || <span className="text-[#525252]">—</span>}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-[#a3a3a3]">
+                            {role.capability_keys.length === 0 ? (
+                              <span className="text-[#525252]">None</span>
+                            ) : role.capability_keys.includes('*') ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-[#E0B954]/15 text-[#E0B954]">
+                                <Shield className="w-3 h-3" />
+                                Full access
+                              </span>
+                            ) : (
+                              <div className="flex flex-wrap gap-1 max-w-md">
+                                {role.capability_keys.slice(0, 3).map((k) => (
+                                  <span
+                                    key={k}
+                                    className="text-[10px] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.04)] text-[#a3a3a3] border border-[rgba(255,255,255,0.06)]"
+                                  >
+                                    {k}
+                                  </span>
+                                ))}
+                                {role.capability_keys.length > 3 && (
+                                  <span className="text-[10px] text-[#737373] px-1.5 py-0.5">
+                                    +{role.capability_keys.length - 3} more
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-[#a3a3a3]">
+                            {role.user_count ?? 0}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOpenEditRole(role)}
+                                className="text-[#737373] hover:text-white h-8"
+                              >
+                                <Pencil className="w-3.5 h-3.5 mr-1" />
+                                Edit
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteRole(role)}
+                                disabled={role.is_system || deleteRoleMutation.isPending}
+                                className="text-[#737373] hover:text-red-400 h-8 disabled:opacity-30 disabled:cursor-not-allowed"
+                                title={
+                                  role.is_system ? 'System roles cannot be deleted' : 'Delete role'
+                                }
+                              >
+                                <Trash2 className="w-3.5 h-3.5 mr-1" />
+                                Delete
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {roles.length === 0 && (
+                    <div className="text-center py-12 text-[#737373]">
+                      No roles yet. Click "Add Role" to create one.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
 
-      {/* Role Management Modal */}
-      {openRoleDropdown && users.find((u) => u.id === openRoleDropdown) && (
+      {/* Role Create/Edit Modal */}
+      {showRoleModal && (
         <div
           className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setOpenRoleDropdown(null)}
+          onClick={() => !isSavingRole && setShowRoleModal(false)}
         >
           <div
-            className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-sm shadow-2xl"
+            className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-2xl shadow-2xl max-h-[88vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
-              <h2 className="text-lg font-bold text-white">
-                Edit Roles - {users.find((u) => u.id === openRoleDropdown)?.name}
-              </h2>
+              <div>
+                <h2 className="text-lg font-bold text-white">
+                  {editingRole ? `Edit Role - ${toPascalCase(editingRole.name)}` : 'Add Role'}
+                </h2>
+                {editingRole?.is_system && (
+                  <p className="text-xs text-[#737373] mt-0.5">
+                    System role — name is locked, but description and capabilities can be edited.
+                  </p>
+                )}
+              </div>
               <button
-                onClick={() => setOpenRoleDropdown(null)}
+                onClick={() => !isSavingRole && setShowRoleModal(false)}
                 className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-5 space-y-3">
-              {['admin', 'project_manager', 'developer'].map((role) => {
-                const user = users.find((u) => u.id === openRoleDropdown);
-                const isChecked = user?.role.includes(role) || false;
-                return (
-                  <label
-                    key={role}
-                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-[rgba(255,255,255,0.02)] cursor-pointer transition"
-                  >
+            <div className="p-5 space-y-4 overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-[#737373] block mb-1.5">
+                    Role Name *
+                  </label>
+                  <Input
+                    value={roleForm.name}
+                    onChange={(e) => setRoleForm((f) => ({ ...f, name: e.target.value }))}
+                    placeholder="e.g., qa_lead, finance_viewer"
+                    disabled={editingRole?.is_system}
+                    className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10 disabled:opacity-50"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-[#737373] block mb-1.5">
+                    Description
+                  </label>
+                  <Input
+                    value={roleForm.description}
+                    onChange={(e) => setRoleForm((f) => ({ ...f, description: e.target.value }))}
+                    placeholder="Brief summary of who gets this role"
+                    className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10"
+                  />
+                </div>
+              </div>
+
+              <div className="border border-[rgba(255,255,255,0.06)] rounded-xl">
+                <div className="px-4 py-3 border-b border-[rgba(255,255,255,0.05)] flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-medium text-white">Capabilities</h3>
+                    <p className="text-[10px] text-[#737373] mt-0.5">
+                      Wildcards (e.g. <code className="text-[#a3a3a3]">project.*</code>) cover all
+                      keys under that prefix, including ones added later.
+                    </p>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={isChecked}
-                      onChange={() => user && handleToggleUserRole(user, role)}
-                      className="w-5 h-5 rounded cursor-pointer"
+                      checked={roleForm.capability_keys.includes('*')}
+                      onChange={() => toggleGrant('*')}
+                      className="w-4 h-4 rounded cursor-pointer"
                     />
-                    <div className="flex-1">
-                      <span className="text-sm text-white font-medium">{toPascalCase(role)}</span>
-                      <p className="text-xs text-[#737373] mt-0.5">
-                        {role === 'admin' && 'Full system access and user management'}
-                        {role === 'project_manager' && 'Manage projects and team workload'}
-                        {role === 'developer' && 'Access to assigned projects and tasks'}
-                      </p>
-                    </div>
+                    <span className="text-xs text-white">
+                      Full access (<code className="text-[#E0B954]">*</code>)
+                    </span>
                   </label>
-                );
-              })}
+                </div>
+                <div className="p-4 space-y-4 max-h-[40vh] overflow-y-auto">
+                  {groupedCapabilities.map((group) => {
+                    const wildcardSelected = roleForm.capability_keys.includes(group.wildcard);
+                    const fullAccessSelected = roleForm.capability_keys.includes('*');
+                    return (
+                      <div key={group.prefix} className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-semibold uppercase tracking-wide text-[#737373]">
+                            {group.prefix}
+                          </h4>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={wildcardSelected}
+                              disabled={fullAccessSelected}
+                              onChange={() => toggleGrant(group.wildcard)}
+                              className="w-4 h-4 rounded cursor-pointer disabled:opacity-40"
+                            />
+                            <span className="text-[11px] text-[#a3a3a3]">
+                              Grant all <code className="text-[#E0B954]">{group.wildcard}</code>
+                            </span>
+                          </label>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+                          {group.caps.map((cap) => {
+                            const isSelected = roleForm.capability_keys.includes(cap.key);
+                            const covered =
+                              !isSelected &&
+                              isCoveredByWildcard(cap.key, roleForm.capability_keys);
+                            return (
+                              <label
+                                key={cap.key}
+                                className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer transition ${
+                                  covered
+                                    ? 'bg-[rgba(224,185,84,0.04)]'
+                                    : 'hover:bg-[rgba(255,255,255,0.02)]'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected || covered}
+                                  onChange={() => toggleGrant(cap.key)}
+                                  className="w-4 h-4 mt-0.5 rounded cursor-pointer"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <code
+                                      className={`text-[11px] ${
+                                        covered ? 'text-[#E0B954]/70' : 'text-[#E0B954]'
+                                      }`}
+                                    >
+                                      {cap.key}
+                                    </code>
+                                    {covered && (
+                                      <span
+                                        className="text-[9px] text-[#737373] inline-flex items-center gap-0.5"
+                                        title="Granted via a wildcard. Unchecking will expand the wildcard into explicit per-key grants minus this one."
+                                      >
+                                        <Check className="w-2.5 h-2.5" />
+                                        covered
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-[#737373] truncate">
+                                    {cap.description}
+                                  </p>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {groupedCapabilities.length === 0 && (
+                    <p className="text-sm text-[#737373] text-center py-6">
+                      Capability registry is empty.
+                    </p>
+                  )}
+                </div>
+                <div className="px-4 py-2 border-t border-[rgba(255,255,255,0.05)] text-[10px] text-[#737373]">
+                  {roleForm.capability_keys.length === 0
+                    ? 'No grants selected — users with only this role will see nothing.'
+                    : `${roleForm.capability_keys.length} grant${
+                        roleForm.capability_keys.length === 1 ? '' : 's'
+                      } selected.`}
+                </div>
+              </div>
             </div>
             <div className="flex justify-end gap-2 p-5 border-t border-[rgba(255,255,255,0.05)]">
               <button
-                onClick={() => setOpenRoleDropdown(null)}
-                className="px-4 py-2 rounded-lg text-[#737373] hover:bg-[rgba(255,255,255,0.05)] transition"
+                onClick={() => !isSavingRole && setShowRoleModal(false)}
+                className="px-4 py-2 rounded-lg text-[#737373] hover:bg-[rgba(255,255,255,0.05)] transition disabled:opacity-50"
+                disabled={isSavingRole}
               >
-                Done
+                Cancel
               </button>
+              <Button
+                onClick={handleSaveRole}
+                disabled={isSavingRole || !roleForm.name.trim()}
+                className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl px-6 font-medium shadow-lg shadow-[#B8872A]/20 disabled:opacity-50"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {isSavingRole ? 'Saving…' : editingRole ? 'Update Role' : 'Create Role'}
+              </Button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Role Management Modal (per-user role assignment) */}
+      {openRoleDropdown &&
+        users.find((u) => u.id === openRoleDropdown) &&
+        (() => {
+          const targetUser = users.find((u) => u.id === openRoleDropdown)!;
+          const userRoleNames = new Set(
+            targetUser.role
+              .split(',')
+              .map((r) => r.trim())
+              .filter(Boolean),
+          );
+          return (
+            <div
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+              onClick={() => setOpenRoleDropdown(null)}
+            >
+              <div
+                className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-md shadow-2xl max-h-[80vh] flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
+                  <div>
+                    <h2 className="text-lg font-bold text-white">Edit Roles</h2>
+                    <p className="text-xs text-[#737373] mt-0.5">{targetUser.name}</p>
+                  </div>
+                  <button
+                    onClick={() => setOpenRoleDropdown(null)}
+                    className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="p-5 space-y-2 overflow-y-auto">
+                  {roles.length === 0 ? (
+                    <p className="text-sm text-[#737373] text-center py-6">
+                      No roles defined yet.
+                    </p>
+                  ) : (
+                    roles.map((role) => {
+                      const isChecked = userRoleNames.has(role.name);
+                      return (
+                        <label
+                          key={role.id}
+                          className="flex items-center gap-3 p-3 rounded-lg hover:bg-[rgba(255,255,255,0.02)] cursor-pointer transition border border-transparent hover:border-[rgba(255,255,255,0.04)]"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) =>
+                              handleToggleUserRoleById(targetUser, role, e.target.checked)
+                            }
+                            className="w-5 h-5 rounded cursor-pointer"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-white font-medium">
+                                {toPascalCase(role.name)}
+                              </span>
+                              {role.is_system && (
+                                <span className="text-[9px] uppercase tracking-wide text-[#737373] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.04)]">
+                                  System
+                                </span>
+                              )}
+                            </div>
+                            {role.description && (
+                              <p className="text-xs text-[#737373] mt-0.5 truncate">
+                                {role.description}
+                              </p>
+                            )}
+                          </div>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+                <div className="flex justify-end gap-2 p-5 border-t border-[rgba(255,255,255,0.05)]">
+                  <button
+                    onClick={() => setOpenRoleDropdown(null)}
+                    className="px-4 py-2 rounded-lg text-[#737373] hover:bg-[rgba(255,255,255,0.05)] transition"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
       {/* Employee Modal */}
       {showEmployeeModal && (

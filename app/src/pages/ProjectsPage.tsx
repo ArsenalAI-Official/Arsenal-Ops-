@@ -473,6 +473,7 @@ const ProjectsPage = () => {
   useEffect(() => {
     if (user?.id) {
       const saved = localStorage.getItem(`notepad_${user.id}`);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrating from localStorage is a one-shot mount sync
       if (saved !== null) setNotepadContent(saved);
     }
   }, [user?.id]);
@@ -480,6 +481,7 @@ const ProjectsPage = () => {
   // Notepad: auto-save with debounce
   useEffect(() => {
     if (!user?.id) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mark dirty before the debounced save fires
     setNotepadSaved(false);
     const timer = setTimeout(() => {
       localStorage.setItem(`notepad_${user.id}`, notepadContent);
