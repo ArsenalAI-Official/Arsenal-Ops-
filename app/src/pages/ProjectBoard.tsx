@@ -236,6 +236,10 @@ const ProjectBoard = () => {
   const navigate = useNavigate();
   const { token, user } = useAuth(); // token kept for legacy child components (TimeEntriesTable, TicketContributors, ReviewerView)
   const queryClient = useQueryClient();
+  // Inline "Log Hours" input on the item-detail drawer — useRef instead of
+  // document.getElementById so it survives extraction/portal moves and
+  // doesn't collide with the matching input on ProjectsPage if both render.
+  const logHoursInputRef = useRef<HTMLInputElement>(null);
   const [showReviewer, setShowReviewer] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<WorkItem>>({});
@@ -3167,20 +3171,18 @@ const ProjectBoard = () => {
                     <div className="text-xs text-[#737373] mb-3 font-medium">Log Work Hours</div>
                     <div className="flex items-center gap-3">
                       <Input
+                        ref={logHoursInputRef}
                         type="number"
                         placeholder="Hours"
                         min="0"
                         className="w-24 h-9 bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
-                        id="log-hours-input"
                       />
                       <Button
                         size="sm"
                         onClick={() => {
-                          const input = document.getElementById(
-                            'log-hours-input',
-                          ) as HTMLInputElement;
+                          const input = logHoursInputRef.current;
                           const hours = parseInt(input?.value || '0');
-                          if (hours > 0) {
+                          if (hours > 0 && input) {
                             handleLogHours(selectedItem, hours);
                             input.value = '';
                           }
