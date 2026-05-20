@@ -79,23 +79,22 @@ const PRDAnalysisSection = ({ prdAnalysis }: PRDAnalysisSectionProps) => {
       )}
 
       {/* Technical Requirements */}
-      {prdAnalysis.technical_requirements &&
-        prdAnalysis.technical_requirements.length > 0 && (
-          <div className="mb-4">
-            <h4 className="text-sm font-medium text-[#a3a3a3] mb-3 flex items-center gap-2">
-              <Wrench className="w-4 h-4 text-[#E0B954]" />
-              Technical Requirements
-            </h4>
-            <ul className="space-y-2">
-              {prdAnalysis.technical_requirements.map((req, idx) => (
-                <li key={idx} className="flex items-start gap-2 text-sm text-[#f5f5f5]">
-                  <CheckCircle2 className="w-4 h-4 text-[#E0B954] mt-0.5 flex-shrink-0" />
-                  {req}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+      {prdAnalysis.technical_requirements && prdAnalysis.technical_requirements.length > 0 && (
+        <div className="mb-4">
+          <h4 className="text-sm font-medium text-[#a3a3a3] mb-3 flex items-center gap-2">
+            <Wrench className="w-4 h-4 text-[#E0B954]" />
+            Technical Requirements
+          </h4>
+          <ul className="space-y-2">
+            {prdAnalysis.technical_requirements.map((req, idx) => (
+              <li key={idx} className="flex items-start gap-2 text-sm text-[#f5f5f5]">
+                <CheckCircle2 className="w-4 h-4 text-[#E0B954] mt-0.5 flex-shrink-0" />
+                {req}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Recommended Tools */}
       <div className="mb-4">
@@ -103,21 +102,15 @@ const PRDAnalysisSection = ({ prdAnalysis }: PRDAnalysisSectionProps) => {
           <Zap className="w-4 h-4 text-[#F59E0B]" />
           Recommended Tools
         </h4>
-        {prdAnalysis.recommended_tools &&
-        Object.keys(prdAnalysis.recommended_tools).length > 0 ? (
+        {prdAnalysis.recommended_tools && Object.keys(prdAnalysis.recommended_tools).length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {Object.entries(prdAnalysis.recommended_tools).map(
               ([category, tools]) =>
                 tools &&
                 Array.isArray(tools) &&
                 tools.length > 0 && (
-                  <div
-                    key={category}
-                    className="bg-[rgba(255,255,255,0.025)] rounded-xl p-3"
-                  >
-                    <p className="text-xs font-medium text-[#737373] capitalize mb-2">
-                      {category}
-                    </p>
+                  <div key={category} className="bg-[rgba(255,255,255,0.025)] rounded-xl p-3">
+                    <p className="text-xs font-medium text-[#737373] capitalize mb-2">{category}</p>
                     <div className="flex flex-wrap gap-1">
                       {tools.slice(0, 3).map((tool, idx) => (
                         <span
@@ -166,23 +159,17 @@ const PRDAnalysisSection = ({ prdAnalysis }: PRDAnalysisSectionProps) => {
             {prdAnalysis.cost_analysis.infrastructure.breakdown &&
               prdAnalysis.cost_analysis.infrastructure.breakdown.length > 0 && (
                 <div className="border-t border-[rgba(224,185,84,0.2)] pt-3">
-                  <p className="text-xs font-medium text-[#737373] mb-2">
-                    Detailed Breakdown
-                  </p>
+                  <p className="text-xs font-medium text-[#737373] mb-2">Detailed Breakdown</p>
                   <div className="space-y-2">
-                    {prdAnalysis.cost_analysis.infrastructure.breakdown.map(
-                      (item, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between py-1.5 px-2 bg-[rgba(255,255,255,0.025)] rounded-lg"
-                        >
-                          <span className="text-sm text-[#f5f5f5]">{item.item}</span>
-                          <span className="text-sm font-medium text-[#E0B954]">
-                            {item.cost}
-                          </span>
-                        </div>
-                      ),
-                    )}
+                    {prdAnalysis.cost_analysis.infrastructure.breakdown.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between py-1.5 px-2 bg-[rgba(255,255,255,0.025)] rounded-lg"
+                      >
+                        <span className="text-sm text-[#f5f5f5]">{item.item}</span>
+                        <span className="text-sm font-medium text-[#E0B954]">{item.cost}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -253,9 +240,7 @@ const PRDAnalysisSection = ({ prdAnalysis }: PRDAnalysisSectionProps) => {
                         </span>
                       ))}
                     {phase.tasks && phase.tasks.length > 3 && (
-                      <span className="text-xs text-[#737373]">
-                        +{phase.tasks.length - 3} more
-                      </span>
+                      <span className="text-xs text-[#737373]">+{phase.tasks.length - 3} more</span>
                     )}
                   </div>
                 </div>
@@ -265,8 +250,7 @@ const PRDAnalysisSection = ({ prdAnalysis }: PRDAnalysisSectionProps) => {
         ) : (
           <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 text-center">
             <p className="text-sm text-[#737373]">
-              No timeline data available. Provide a PRD with timeline details to
-              generate phases.
+              No timeline data available. Provide a PRD with timeline details to generate phases.
             </p>
           </div>
         )}

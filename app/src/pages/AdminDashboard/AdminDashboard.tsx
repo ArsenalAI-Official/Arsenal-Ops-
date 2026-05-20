@@ -1,15 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  Users,
-  FolderKanban,
-  X,
-  ArrowLeft,
-  BarChart3,
-  Shield,
-  KeyRound,
-} from 'lucide-react';
+import { Users, FolderKanban, X, ArrowLeft, BarChart3, Shield, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast, Toaster } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,10 +11,7 @@ import EmployeeModal from './modals/EmployeeModal';
 import UserModal from './modals/UserModal';
 import GitHubModal from './modals/GitHubModal';
 import ProjectMembersModal from './modals/ProjectMembersModal';
-import EmployeesTab, {
-  type Employee,
-  type DeveloperCapacity,
-} from './tabs/EmployeesTab';
+import EmployeesTab, { type Employee, type DeveloperCapacity } from './tabs/EmployeesTab';
 import DashboardTab from './tabs/DashboardTab';
 import ProjectsTab from './tabs/ProjectsTab';
 import UsersTab from './tabs/UsersTab';

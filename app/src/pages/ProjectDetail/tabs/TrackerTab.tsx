@@ -139,8 +139,8 @@ const TrackerTab = ({
               <div>
                 <h3 className="font-semibold text-white">Active Sprints</h3>
                 <p className="text-xs text-[#737373]">
-                  {sprints.filter((s) => s.status === 'active').length} active ·{' '}
-                  {sprints.length} total
+                  {sprints.filter((s) => s.status === 'active').length} active · {sprints.length}{' '}
+                  total
                 </p>
               </div>
             </div>
@@ -184,9 +184,7 @@ const TrackerTab = ({
                             : 'bg-[#737373]'
                       }`}
                     />
-                    <p className="text-sm font-semibold text-white truncate">
-                      {sprint.name}
-                    </p>
+                    <p className="text-sm font-semibold text-white truncate">{sprint.name}</p>
                   </div>
                   <Badge
                     className={`text-[10px] border-0 flex-shrink-0 ${
@@ -263,15 +261,14 @@ const TrackerTab = ({
           ) : (
             <div className="space-y-4">
               <div className="bg-[rgba(255,255,255,0.025)] rounded-xl p-4">
-                <h4 className="text-sm font-medium text-[#a3a3a3] mb-4">
-                  Status Distribution
-                </h4>
+                <h4 className="text-sm font-medium text-[#a3a3a3] mb-4">Status Distribution</h4>
                 <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
                     <Pie
-                      data={Object.entries(analytics.status_distribution).map(
-                        ([name, value]) => ({ name, value }),
-                      )}
+                      data={Object.entries(analytics.status_distribution).map(([name, value]) => ({
+                        name,
+                        value,
+                      }))}
                       cx="50%"
                       cy="50%"
                       innerRadius={40}
@@ -299,38 +296,34 @@ const TrackerTab = ({
                       }}
                       labelLine={false}
                     >
-                      {Object.entries(analytics.status_distribution).map(
-                        ([name], index) => {
-                          const statusColors: Record<string, string> = {
-                            backlog: '#6B7280',
-                            todo: '#60A5FA',
-                            in_progress: '#E0B954',
-                            in_review: '#A78BFA',
-                            done: '#34D399',
-                            blocked: '#EF4444',
-                          };
-                          const fallback = [
-                            '#6B7280',
-                            '#60A5FA',
-                            '#E0B954',
-                            '#A78BFA',
-                            '#34D399',
-                            '#EF4444',
-                          ];
-                          return (
-                            <Cell
-                              key={`cell-${index}`}
-                              fill={statusColors[name] ?? fallback[index % fallback.length]}
-                            />
-                          );
-                        },
-                      )}
+                      {Object.entries(analytics.status_distribution).map(([name], index) => {
+                        const statusColors: Record<string, string> = {
+                          backlog: '#6B7280',
+                          todo: '#60A5FA',
+                          in_progress: '#E0B954',
+                          in_review: '#A78BFA',
+                          done: '#34D399',
+                          blocked: '#EF4444',
+                        };
+                        const fallback = [
+                          '#6B7280',
+                          '#60A5FA',
+                          '#E0B954',
+                          '#A78BFA',
+                          '#34D399',
+                          '#EF4444',
+                        ];
+                        return (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={statusColors[name] ?? fallback[index % fallback.length]}
+                          />
+                        );
+                      })}
                     </Pie>
                     <Legend
                       formatter={(value: string) =>
-                        value
-                          .replace(/_/g, ' ')
-                          .replace(/\b\w/g, (l: string) => l.toUpperCase())
+                        value.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
                       }
                       wrapperStyle={{ paddingTop: '12px' }}
                       iconType="circle"

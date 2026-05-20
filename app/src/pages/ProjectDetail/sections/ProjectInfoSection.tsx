@@ -1,14 +1,5 @@
 import { useState } from 'react';
-import {
-  Github,
-  Info,
-  Pencil,
-  Save,
-  X,
-  Users,
-  Calendar,
-  ExternalLink,
-} from 'lucide-react';
+import { Github, Info, Pencil, Save, X, Users, Calendar, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -119,14 +110,10 @@ const ProjectInfoSection = ({ project, onSave }: ProjectInfoSectionProps) => {
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                Description
-              </label>
+              <label className="text-xs font-medium text-[#737373] block mb-1.5">Description</label>
               <Textarea
                 value={editForm.description || ''}
-                onChange={(e) =>
-                  setEditForm((f) => ({ ...f, description: e.target.value }))
-                }
+                onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
                 className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl min-h-[120px]"
               />
             </div>
@@ -136,9 +123,7 @@ const ProjectInfoSection = ({ project, onSave }: ProjectInfoSectionProps) => {
               </label>
               <Input
                 value={editForm.github_repo_url || ''}
-                onChange={(e) =>
-                  setEditForm((f) => ({ ...f, github_repo_url: e.target.value }))
-                }
+                onChange={(e) => setEditForm((f) => ({ ...f, github_repo_url: e.target.value }))}
                 placeholder="https://github.com/username/repo"
                 className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
               />
@@ -148,10 +133,7 @@ const ProjectInfoSection = ({ project, onSave }: ProjectInfoSectionProps) => {
                 <label className="text-xs font-medium text-[#737373] block mb-1.5">
                   Start Date
                 </label>
-                <Popover
-                  open={showCalendarStartDate}
-                  onOpenChange={setShowCalendarStartDate}
-                >
+                <Popover open={showCalendarStartDate} onOpenChange={setShowCalendarStartDate}>
                   <PopoverTrigger asChild>
                     <Button className="w-full justify-start text-left font-normal bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.04)] hover:text-[#F4F6FF] rounded-xl h-10">
                       <Calendar className="w-4 h-4 mr-2" />
@@ -188,12 +170,10 @@ const ProjectInfoSection = ({ project, onSave }: ProjectInfoSectionProps) => {
                       classNames={{
                         months: 'flex flex-col',
                         month: 'space-y-4',
-                        caption:
-                          'flex justify-between items-center px-0 pb-4 relative h-7 mb-2',
+                        caption: 'flex justify-between items-center px-0 pb-4 relative h-7 mb-2',
                         caption_label: 'text-sm font-medium text-white',
                         nav: 'space-x-1 flex items-center',
-                        nav_button:
-                          'text-white hover:bg-[rgba(224,185,84,0.1)] rounded p-1',
+                        nav_button: 'text-white hover:bg-[rgba(224,185,84,0.1)] rounded p-1',
                         nav_button_previous: 'absolute left-0',
                         nav_button_next: 'absolute right-0',
                         table: 'w-full border-collapse space-y-1',
@@ -202,8 +182,7 @@ const ProjectInfoSection = ({ project, onSave }: ProjectInfoSectionProps) => {
                         row: 'flex gap-1 mb-1',
                         cell: 'relative p-0 text-center text-sm focus-within:relative focus-within:z-20',
                         day: 'p-0 h-8 w-8 rounded bg-transparent text-white text-sm cursor-pointer hover:bg-[rgba(224,185,84,0.1)]',
-                        day_selected:
-                          'bg-[#E0B954] text-[#0d0d0d] font-medium hover:bg-[#E0B954]',
+                        day_selected: 'bg-[#E0B954] text-[#0d0d0d] font-medium hover:bg-[#E0B954]',
                         day_today: 'bg-[rgba(224,185,84,0.2)] text-[#E0B954]',
                         day_outside: 'text-[#555]',
                         day_disabled: 'text-[#333] cursor-not-allowed',
@@ -213,9 +192,7 @@ const ProjectInfoSection = ({ project, onSave }: ProjectInfoSectionProps) => {
                 </Popover>
               </div>
               <div>
-                <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                  End Date
-                </label>
+                <label className="text-xs font-medium text-[#737373] block mb-1.5">End Date</label>
                 <Popover open={showCalendarEndDate} onOpenChange={setShowCalendarEndDate}>
                   <PopoverTrigger asChild>
                     <Button className="w-full justify-start text-left font-normal bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.04)] hover:text-[#F4F6FF] rounded-xl h-10">
@@ -253,12 +230,10 @@ const ProjectInfoSection = ({ project, onSave }: ProjectInfoSectionProps) => {
                       classNames={{
                         months: 'flex flex-col',
                         month: 'space-y-4',
-                        caption:
-                          'flex justify-between items-center px-0 pb-4 relative h-7 mb-2',
+                        caption: 'flex justify-between items-center px-0 pb-4 relative h-7 mb-2',
                         caption_label: 'text-sm font-medium text-white',
                         nav: 'space-x-1 flex items-center',
-                        nav_button:
-                          'text-white hover:bg-[rgba(224,185,84,0.1)] rounded p-1',
+                        nav_button: 'text-white hover:bg-[rgba(224,185,84,0.1)] rounded p-1',
                         nav_button_previous: 'absolute left-0',
                         nav_button_next: 'absolute right-0',
                         table: 'w-full border-collapse space-y-1',
@@ -267,8 +242,7 @@ const ProjectInfoSection = ({ project, onSave }: ProjectInfoSectionProps) => {
                         row: 'flex gap-1 mb-1',
                         cell: 'relative p-0 text-center text-sm focus-within:relative focus-within:z-20',
                         day: 'p-0 h-8 w-8 rounded bg-transparent text-white text-sm cursor-pointer hover:bg-[rgba(224,185,84,0.1)]',
-                        day_selected:
-                          'bg-[#E0B954] text-[#0d0d0d] font-medium hover:bg-[#E0B954]',
+                        day_selected: 'bg-[#E0B954] text-[#0d0d0d] font-medium hover:bg-[#E0B954]',
                         day_today: 'bg-[rgba(224,185,84,0.2)] text-[#E0B954]',
                         day_outside: 'text-[#555]',
                         day_disabled: 'text-[#333] cursor-not-allowed',
@@ -282,9 +256,7 @@ const ProjectInfoSection = ({ project, onSave }: ProjectInfoSectionProps) => {
         ) : (
           <div className="space-y-4">
             <div>
-              <label className="text-xs font-medium text-[#737373] block mb-1">
-                Description
-              </label>
+              <label className="text-xs font-medium text-[#737373] block mb-1">Description</label>
               <p className="text-sm text-[#f5f5f5] leading-relaxed">
                 {project.description || 'No description provided.'}
               </p>
@@ -318,9 +290,7 @@ const ProjectInfoSection = ({ project, onSave }: ProjectInfoSectionProps) => {
               <div>
                 <span className="text-xs text-[#737373]">End Date</span>
                 <p className="text-sm text-[#f5f5f5]">
-                  {project.end_date
-                    ? new Date(project.end_date).toLocaleDateString()
-                    : 'Not set'}
+                  {project.end_date ? new Date(project.end_date).toLocaleDateString() : 'Not set'}
                 </p>
               </div>
             </div>
@@ -348,8 +318,7 @@ const ProjectInfoSection = ({ project, onSave }: ProjectInfoSectionProps) => {
             </div>
             <div>
               <p className="text-2xl font-bold text-white">
-                {(Array.isArray(project.github_repo_urls) &&
-                  project.github_repo_urls.length > 0) ||
+                {(Array.isArray(project.github_repo_urls) && project.github_repo_urls.length > 0) ||
                 project.github_repo_url
                   ? 'Yes'
                   : 'No'}

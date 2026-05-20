@@ -72,9 +72,7 @@ const TeamSection = ({
             </div>
             <div>
               <h3 className="font-semibold text-white">Project Team</h3>
-              <p className="text-xs text-[#737373]">
-                {developers.length} developers assigned
-              </p>
+              <p className="text-xs text-[#737373]">{developers.length} developers assigned</p>
             </div>
           </div>
           <Button
@@ -114,16 +112,12 @@ const TeamSection = ({
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold text-white">{dev.name}</h3>
                       {dev.is_admin && (
-                        <Badge className="bg-blue-500/20 text-blue-400 border-0">
-                          Admin
-                        </Badge>
+                        <Badge className="bg-blue-500/20 text-blue-400 border-0">Admin</Badge>
                       )}
                     </div>
                     <p className="text-sm text-[#737373]">{dev.email}</p>
                     <div className="flex items-center gap-2 mt-1.5">
-                      <Badge className="bg-[#E0B954]/20 text-[#E0B954] border-0">
-                        {dev.role}
-                      </Badge>
+                      <Badge className="bg-[#E0B954]/20 text-[#E0B954] border-0">{dev.role}</Badge>
                       {dev.github_username && (
                         <Badge
                           variant="outline"
@@ -135,9 +129,7 @@ const TeamSection = ({
                       )}
                     </div>
                     {dev.responsibilities && (
-                      <p className="text-sm text-[#a3a3a3] mt-1.5">
-                        {dev.responsibilities}
-                      </p>
+                      <p className="text-sm text-[#a3a3a3] mt-1.5">{dev.responsibilities}</p>
                     )}
                   </div>
                 </div>
@@ -196,14 +188,10 @@ const TeamSection = ({
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                  Developer
-                </label>
+                <label className="text-xs font-medium text-[#737373] block mb-1.5">Developer</label>
                 <select
                   value={newDeveloper.developer_id}
-                  onChange={(e) =>
-                    setNewDeveloper((d) => ({ ...d, developer_id: e.target.value }))
-                  }
+                  onChange={(e) => setNewDeveloper((d) => ({ ...d, developer_id: e.target.value }))}
                   className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
                 >
                   <option value="">Select a developer</option>

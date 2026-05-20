@@ -67,9 +67,7 @@ const LinksSection = ({ links, isLoading, onAddLink, onDeleteLink }: LinksSectio
         >
           <div className="space-y-3">
             <div>
-              <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                Link Name
-              </label>
+              <label className="text-xs font-medium text-[#737373] block mb-1.5">Link Name</label>
               <Input
                 value={newLink.name}
                 onChange={(e) => setNewLink((l) => ({ ...l, name: e.target.value }))}
@@ -115,10 +113,7 @@ const LinksSection = ({ links, isLoading, onAddLink, onDeleteLink }: LinksSectio
       {isLoading ? (
         <div className="space-y-2">
           {[...Array(2)].map((_, i) => (
-            <div
-              key={i}
-              className="h-12 bg-[rgba(255,255,255,0.02)] rounded-lg animate-pulse"
-            />
+            <div key={i} className="h-12 bg-[rgba(255,255,255,0.02)] rounded-lg animate-pulse" />
           ))}
         </div>
       ) : links.length > 0 ? (
@@ -135,9 +130,7 @@ const LinksSection = ({ links, isLoading, onAddLink, onDeleteLink }: LinksSectio
                 className="flex items-center gap-2 flex-1 min-w-0"
               >
                 <ExternalLink className="w-4 h-4 text-[#E0B954] flex-shrink-0" />
-                <span className="text-sm text-[#E0B954] hover:underline truncate">
-                  {link.name}
-                </span>
+                <span className="text-sm text-[#E0B954] hover:underline truncate">{link.name}</span>
               </a>
               <Button
                 variant="ghost"

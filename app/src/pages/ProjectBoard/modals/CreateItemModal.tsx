@@ -125,9 +125,7 @@ const CreateItemModal = ({
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-[#737373] block mb-1.5">
-              Description
-            </label>
+            <label className="text-xs font-medium text-[#737373] block mb-1.5">Description</label>
             <Textarea
               value={createForm.description}
               onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
@@ -141,9 +139,7 @@ const CreateItemModal = ({
             }
           >
             <div>
-              <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                Priority
-              </label>
+              <label className="text-xs font-medium text-[#737373] block mb-1.5">Priority</label>
               <select
                 value={createForm.priority}
                 onChange={(e) => setCreateForm((f) => ({ ...f, priority: e.target.value }))}
@@ -157,9 +153,7 @@ const CreateItemModal = ({
             </div>
             {createForm.type !== 'task' && (
               <div>
-                <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                  Points
-                </label>
+                <label className="text-xs font-medium text-[#737373] block mb-1.5">Points</label>
                 <Input
                   type="number"
                   value={createForm.story_points}
@@ -174,9 +168,7 @@ const CreateItemModal = ({
               </div>
             )}
             <div>
-              <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                Assignee
-              </label>
+              <label className="text-xs font-medium text-[#737373] block mb-1.5">Assignee</label>
               <select
                 value={createForm.assignee_id || ''}
                 onChange={(e) =>
@@ -357,10 +349,11 @@ const CreateItemModal = ({
                   <Button className="w-full justify-start text-left font-normal bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.04)] hover:text-[#F4F6FF] rounded-xl h-10">
                     <Calendar className="w-4 h-4 mr-2" />
                     {createForm.due_date
-                      ? parseLocalDate(createForm.due_date as string)?.toLocaleDateString(
-                          'en-US',
-                          { month: 'short', day: 'numeric', year: 'numeric' },
-                        )
+                      ? parseLocalDate(createForm.due_date as string)?.toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })
                       : 'Pick a date'}
                   </Button>
                 </PopoverTrigger>
@@ -401,8 +394,7 @@ const CreateItemModal = ({
                       day: 'h-8 w-8 p-0 font-normal',
                       day_button:
                         'text-white hover:bg-[rgba(224,185,84,0.1)] rounded-lg h-8 w-8 transition-colors',
-                      day_selected:
-                        'bg-[#E0B954] text-[#0d0d0d] hover:bg-[#E0B954] font-semibold',
+                      day_selected: 'bg-[#E0B954] text-[#0d0d0d] hover:bg-[#E0B954] font-semibold',
                       day_today: 'bg-[rgba(224,185,84,0.2)] text-[#E0B954] font-semibold',
                       day_outside: 'text-[#444]',
                       day_disabled: 'text-[#333] opacity-50 cursor-not-allowed',
@@ -415,16 +407,12 @@ const CreateItemModal = ({
               </Popover>
             </div>
             <div>
-              <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                Est. Hours
-              </label>
+              <label className="text-xs font-medium text-[#737373] block mb-1.5">Est. Hours</label>
               <Input
                 type="number"
                 min="1"
                 value={createForm.estimated_hours}
-                onChange={(e) =>
-                  setCreateForm((f) => ({ ...f, estimated_hours: e.target.value }))
-                }
+                onChange={(e) => setCreateForm((f) => ({ ...f, estimated_hours: e.target.value }))}
                 placeholder="Hours"
                 className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10"
               />

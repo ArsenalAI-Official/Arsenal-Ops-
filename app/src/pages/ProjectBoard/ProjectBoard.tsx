@@ -533,9 +533,7 @@ const ProjectBoard = () => {
         epic_id: form.epic_id || null,
         parent_id: form.parent_id || null,
         due_date: form.due_date || null,
-        estimated_hours: form.estimated_hours
-          ? parseInt(form.estimated_hours as string)
-          : 0,
+        estimated_hours: form.estimated_hours ? parseInt(form.estimated_hours as string) : 0,
       };
       if (form.type !== 'task') {
         payload.assigned_hours = form.story_points * 4;
@@ -716,8 +714,7 @@ const ProjectBoard = () => {
     }
     const duplicateName = sprints.some(
       (s) =>
-        s.id !== editingSprint.id &&
-        s.name.trim().toLowerCase() === form.name.trim().toLowerCase(),
+        s.id !== editingSprint.id && s.name.trim().toLowerCase() === form.name.trim().toLowerCase(),
     );
     if (duplicateName) {
       toast.error('A sprint with this name already exists');

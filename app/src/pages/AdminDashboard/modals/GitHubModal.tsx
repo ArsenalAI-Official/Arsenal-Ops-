@@ -61,9 +61,7 @@ const GitHubModal: React.FC<GitHubModalProps> = ({
             </label>
             <Input
               value={gitHubForm.github_repo_url}
-              onChange={(e) =>
-                setGitHubForm((f) => ({ ...f, github_repo_url: e.target.value }))
-              }
+              onChange={(e) => setGitHubForm((f) => ({ ...f, github_repo_url: e.target.value }))}
               placeholder="https://github.com/org/repo"
               className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10"
             />
@@ -74,17 +72,13 @@ const GitHubModal: React.FC<GitHubModalProps> = ({
             </label>
             <Input
               value={gitHubForm.github_repo_name}
-              onChange={(e) =>
-                setGitHubForm((f) => ({ ...f, github_repo_name: e.target.value }))
-              }
+              onChange={(e) => setGitHubForm((f) => ({ ...f, github_repo_name: e.target.value }))}
               placeholder="myorg/myrepo"
               className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10"
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-[#737373] block mb-1.5">
-              GitHub Token
-            </label>
+            <label className="text-xs font-medium text-[#737373] block mb-1.5">GitHub Token</label>
             <Input
               type="password"
               value={gitHubForm.github_token}
@@ -102,11 +96,7 @@ const GitHubModal: React.FC<GitHubModalProps> = ({
           </div>
         </div>
         <div className="flex justify-end gap-3 p-5 border-t border-[rgba(255,255,255,0.05)]">
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            className="text-[#737373] rounded-xl px-5"
-          >
+          <Button variant="ghost" onClick={onClose} className="text-[#737373] rounded-xl px-5">
             Cancel
           </Button>
           <Button

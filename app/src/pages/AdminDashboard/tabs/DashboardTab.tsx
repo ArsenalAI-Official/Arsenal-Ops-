@@ -9,13 +9,7 @@ import {
   PieChart,
   Pie,
 } from 'recharts';
-import {
-  Users,
-  FolderKanban,
-  Ticket,
-  Calendar,
-  ChevronRight,
-} from 'lucide-react';
+import { Users, FolderKanban, Ticket, Calendar, ChevronRight } from 'lucide-react';
 
 interface DashboardStats {
   total_employees: number;
@@ -138,17 +132,12 @@ const DashboardTab = ({ stats, setActiveTab }: DashboardTabProps) => {
               }`}
             >
               <div className="flex items-center justify-between mb-3">
-                <div
-                  className="p-2 rounded-lg"
-                  style={{ backgroundColor: `${stat.color}20` }}
-                >
+                <div className="p-2 rounded-lg" style={{ backgroundColor: `${stat.color}20` }}>
                   <stat.icon className="w-5 h-5" style={{ color: stat.color }} />
                 </div>
                 {clickable && <ChevronRight className="w-4 h-4 text-[#737373]" />}
               </div>
-              <div className="text-2xl font-bold text-white tabular-nums">
-                {stat.value}
-              </div>
+              <div className="text-2xl font-bold text-white tabular-nums">{stat.value}</div>
               <div className="text-sm text-[#737373]">{stat.label}</div>
             </Wrapper>
           );
@@ -161,15 +150,10 @@ const DashboardTab = ({ stats, setActiveTab }: DashboardTabProps) => {
         <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.05)] rounded-xl p-5">
           <h3 className="text-lg font-semibold text-white mb-4">Tickets by Status</h3>
           {statusData.length === 0 || stats.total_tickets === 0 ? (
-            <div className="text-sm text-[#737373] py-10 text-center">
-              No ticket data yet.
-            </div>
+            <div className="text-sm text-[#737373] py-10 text-center">No ticket data yet.</div>
           ) : (
             <div className="flex items-center gap-5">
-              <div
-                className="relative flex-shrink-0"
-                style={{ width: 180, height: 180 }}
-              >
+              <div className="relative flex-shrink-0" style={{ width: 180, height: 180 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -206,9 +190,7 @@ const DashboardTab = ({ stats, setActiveTab }: DashboardTabProps) => {
                   <div className="text-2xl font-bold text-white tabular-nums">
                     {stats.total_tickets}
                   </div>
-                  <div className="text-[10px] text-[#737373] uppercase tracking-wider">
-                    Total
-                  </div>
+                  <div className="text-[10px] text-[#737373] uppercase tracking-wider">Total</div>
                 </div>
               </div>
               <ul className="flex-1 space-y-1.5 min-w-0">
@@ -220,15 +202,9 @@ const DashboardTab = ({ stats, setActiveTab }: DashboardTabProps) => {
                         className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
                         style={{ backgroundColor: d.color }}
                       />
-                      <span className="text-[#a3a3a3] capitalize truncate">
-                        {d.label}
-                      </span>
-                      <span className="ml-auto text-[#737373] tabular-nums">
-                        {d.value}
-                      </span>
-                      <span className="text-[#525252] tabular-nums w-9 text-right">
-                        {pct}%
-                      </span>
+                      <span className="text-[#a3a3a3] capitalize truncate">{d.label}</span>
+                      <span className="ml-auto text-[#737373] tabular-nums">{d.value}</span>
+                      <span className="text-[#525252] tabular-nums w-9 text-right">{pct}%</span>
                     </li>
                   );
                 })}
@@ -239,19 +215,12 @@ const DashboardTab = ({ stats, setActiveTab }: DashboardTabProps) => {
 
         {/* Tickets by Priority — bar chart */}
         <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.05)] rounded-xl p-5">
-          <h3 className="text-lg font-semibold text-white mb-4">
-            Tickets by Priority
-          </h3>
+          <h3 className="text-lg font-semibold text-white mb-4">Tickets by Priority</h3>
           {priorityData.length === 0 || stats.total_tickets === 0 ? (
-            <div className="text-sm text-[#737373] py-10 text-center">
-              No ticket data yet.
-            </div>
+            <div className="text-sm text-[#737373] py-10 text-center">No ticket data yet.</div>
           ) : (
             <ResponsiveContainer width="100%" height={180}>
-              <BarChart
-                data={priorityData}
-                margin={{ top: 8, right: 8, bottom: 0, left: -8 }}
-              >
+              <BarChart data={priorityData} margin={{ top: 8, right: 8, bottom: 0, left: -8 }}>
                 <XAxis
                   dataKey="label"
                   tick={{ fill: '#a3a3a3', fontSize: 11 }}

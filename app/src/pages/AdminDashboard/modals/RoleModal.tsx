@@ -86,9 +86,7 @@ const RoleModal: React.FC<RoleModalProps> = ({
         <div className="p-5 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                Role Name *
-              </label>
+              <label className="text-xs font-medium text-[#737373] block mb-1.5">Role Name *</label>
               <Input
                 value={roleForm.name}
                 onChange={(e) => setRoleForm((f) => ({ ...f, name: e.target.value }))}
@@ -98,9 +96,7 @@ const RoleModal: React.FC<RoleModalProps> = ({
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                Description
-              </label>
+              <label className="text-xs font-medium text-[#737373] block mb-1.5">Description</label>
               <Input
                 value={roleForm.description}
                 onChange={(e) => setRoleForm((f) => ({ ...f, description: e.target.value }))}
@@ -115,8 +111,8 @@ const RoleModal: React.FC<RoleModalProps> = ({
               <div>
                 <h3 className="text-sm font-medium text-white">Capabilities</h3>
                 <p className="text-[10px] text-[#737373] mt-0.5">
-                  Wildcards (e.g. <code className="text-[#a3a3a3]">project.*</code>) cover all
-                  keys under that prefix, including ones added later.
+                  Wildcards (e.g. <code className="text-[#a3a3a3]">project.*</code>) cover all keys
+                  under that prefix, including ones added later.
                 </p>
               </div>
               <label className="flex items-center gap-2 cursor-pointer">

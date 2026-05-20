@@ -1,10 +1,4 @@
-import {
-  BookOpen,
-  ClipboardList,
-  Bug,
-  Target,
-  Clock,
-} from 'lucide-react';
+import { BookOpen, ClipboardList, Bug, Target, Clock } from 'lucide-react';
 import TimeEntriesTable from '@/components/TimeEntriesTable';
 import { EpicChip } from '@/components/board/EpicChip';
 import { ParentChip } from '@/components/board/ParentChip';

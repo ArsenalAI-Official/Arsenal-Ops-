@@ -508,9 +508,7 @@ const AIPlanningModal = ({
                     </label>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="text-xs text-[#737373] block mb-1.5">
-                          Start Date
-                        </label>
+                        <label className="text-xs text-[#737373] block mb-1.5">Start Date</label>
                         <Input
                           type="date"
                           value={startDate}
@@ -588,8 +586,7 @@ const AIPlanningModal = ({
                         input.accept = '.xlsx,.xls';
                         input.onchange = (e) => {
                           const file = (e.target as HTMLInputElement).files?.[0];
-                          if (file)
-                            handleRoadmapFileUpload({ target: { files: [file] } } as any);
+                          if (file) handleRoadmapFileUpload({ target: { files: [file] } } as any);
                         };
                         input.click();
                       }}
@@ -623,9 +620,7 @@ const AIPlanningModal = ({
                       ) : (
                         <>
                           <Upload className="w-10 h-10 text-[#737373] mx-auto mb-3" />
-                          <p className="text-[#a3a3a3] mb-1">
-                            Click to upload or drag and drop
-                          </p>
+                          <p className="text-[#a3a3a3] mb-1">Click to upload or drag and drop</p>
                           <p className="text-xs text-[#737373]">Excel files (.xlsx, .xls)</p>
                         </>
                       )}
@@ -636,9 +631,8 @@ const AIPlanningModal = ({
                     <p className="text-xs text-[#66b8ff] flex gap-2 items-start">
                       <span className="mt-0.5">ℹ️</span>
                       <span>
-                        Roadmap file should contain tables with columns: Type, Name,
-                        Description, Milestone, Epic, Priority, Effort, Assignee, and Weekly
-                        hours.
+                        Roadmap file should contain tables with columns: Type, Name, Description,
+                        Milestone, Epic, Priority, Effort, Assignee, and Weekly hours.
                       </span>
                     </p>
                   </div>
@@ -658,8 +652,7 @@ const AIPlanningModal = ({
                 AI is analyzing your project
               </h3>
               <p className="text-[#737373] text-center max-w-md">
-                Performing cost analysis, recommending tools, and generating architecture
-                options...
+                Performing cost analysis, recommending tools, and generating architecture options...
               </p>
             </div>
           )}
@@ -694,9 +687,7 @@ const AIPlanningModal = ({
 
                   {analysis.recommended_tools && (
                     <div>
-                      <p className="text-xs text-[#737373] font-medium mb-2">
-                        Recommended Tools
-                      </p>
+                      <p className="text-xs text-[#737373] font-medium mb-2">Recommended Tools</p>
                       <div className="flex flex-wrap gap-2">
                         {Object.entries(analysis.recommended_tools)
                           .slice(0, 6)
@@ -813,8 +804,7 @@ const AIPlanningModal = ({
                               {conflict.assignee} - Week {conflict.week}
                             </p>
                             <p>
-                              {conflict.total_hrs}h scheduled (tasks:{' '}
-                              {conflict.tasks.join(', ')})
+                              {conflict.total_hrs}h scheduled (tasks: {conflict.tasks.join(', ')})
                             </p>
                           </div>
                         ))}
@@ -851,9 +841,7 @@ const AIPlanningModal = ({
               {uploadMode === 'prd' && ticketsSummary && (
                 <div className="grid grid-cols-3 gap-4">
                   <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] rounded-xl p-4 text-center">
-                    <p className="text-2xl font-bold text-[#E0B954]">
-                      {generatedTickets.length}
-                    </p>
+                    <p className="text-2xl font-bold text-[#E0B954]">{generatedTickets.length}</p>
                     <p className="text-xs text-[#737373]">Tickets</p>
                   </div>
                   <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] rounded-xl p-4 text-center">
@@ -910,9 +898,7 @@ const AIPlanningModal = ({
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-white">Sprint Plan</p>
-                          <p className="text-xs text-[#737373]">
-                            {sprintWeeks} weeks per sprint
-                          </p>
+                          <p className="text-xs text-[#737373]">{sprintWeeks} weeks per sprint</p>
                         </div>
                       </div>
                       <p className="text-2xl font-bold text-[#E0B954] mb-1">
@@ -951,8 +937,7 @@ const AIPlanningModal = ({
                     ) : (
                       generatedTickets.map((ticket, index) => {
                         const typeInfo =
-                          TYPE_CONFIG[ticket.type as keyof typeof TYPE_CONFIG] ||
-                          TYPE_CONFIG.task;
+                          TYPE_CONFIG[ticket.type as keyof typeof TYPE_CONFIG] || TYPE_CONFIG.task;
                         const TypeIcon = typeInfo.icon;
                         return (
                           <div
@@ -1068,9 +1053,7 @@ const AIPlanningModal = ({
                                   {ticket.priority || 'medium'}
                                 </Badge>
                               </div>
-                              <h4 className="text-sm font-medium text-white mb-1">
-                                {ticket.name}
-                              </h4>
+                              <h4 className="text-sm font-medium text-white mb-1">{ticket.name}</h4>
                               <p className="text-xs text-[#737373] line-clamp-2">
                                 {ticket.description || 'No description'}
                               </p>
@@ -1082,9 +1065,7 @@ const AIPlanningModal = ({
                               {ticket.assignee && (
                                 <div className="flex items-center gap-2 bg-[rgba(244,246,255,0.05)] rounded-lg px-2 py-1">
                                   <Users className="w-3 h-3 text-[#E0B954]" />
-                                  <span className="text-xs text-[#a3a3a3]">
-                                    {ticket.assignee}
-                                  </span>
+                                  <span className="text-xs text-[#a3a3a3]">{ticket.assignee}</span>
                                 </div>
                               )}
                             </div>
@@ -1210,9 +1191,7 @@ const AIPlanningModal = ({
                 className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] text-white rounded-xl px-6 font-medium shadow-lg shadow-[#E0B954]/20"
               >
                 <GitCommit className="w-4 h-4 mr-2" />
-                {uploadMode === 'prd'
-                  ? 'Commit & Create Tickets'
-                  : 'Create Tickets from Roadmap'}
+                {uploadMode === 'prd' ? 'Commit & Create Tickets' : 'Create Tickets from Roadmap'}
               </Button>
             )}
           </div>

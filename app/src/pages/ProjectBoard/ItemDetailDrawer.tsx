@@ -27,7 +27,11 @@ import { Calendar as CalendarIcon } from '@/components/ui/calendar';
 import { toast } from 'sonner';
 import TicketContributors from '@/components/TicketContributors';
 import { WorkItemCombobox } from '@/components/WorkItemCombobox';
-import { validateReparent, getAllowedTargetTypes, fieldSupportsType } from '@/lib/hierarchy/validateReparent';
+import {
+  validateReparent,
+  getAllowedTargetTypes,
+  fieldSupportsType,
+} from '@/lib/hierarchy/validateReparent';
 import { apiFetch } from '@/lib/api';
 
 interface WorkItem {
@@ -93,17 +97,47 @@ const TYPE_CONFIG = {
 };
 
 const PRIORITY_COLORS = {
-  critical: { border: 'border-[#EF4444]/60', text: 'text-[#EF4444]', bg: 'bg-[#EF4444]/10', hex: '#EF4444' },
-  high: { border: 'border-[#F97316]/60', text: 'text-[#F97316]', bg: 'bg-[#F97316]/10', hex: '#F97316' },
-  medium: { border: 'border-[#F59E0B]/50', text: 'text-[#F59E0B]', bg: 'bg-[#F59E0B]/10', hex: '#F59E0B' },
-  low: { border: 'border-[#737373]/50', text: 'text-[#737373]', bg: 'bg-[#737373]/10', hex: '#737373' },
+  critical: {
+    border: 'border-[#EF4444]/60',
+    text: 'text-[#EF4444]',
+    bg: 'bg-[#EF4444]/10',
+    hex: '#EF4444',
+  },
+  high: {
+    border: 'border-[#F97316]/60',
+    text: 'text-[#F97316]',
+    bg: 'bg-[#F97316]/10',
+    hex: '#F97316',
+  },
+  medium: {
+    border: 'border-[#F59E0B]/50',
+    text: 'text-[#F59E0B]',
+    bg: 'bg-[#F59E0B]/10',
+    hex: '#F59E0B',
+  },
+  low: {
+    border: 'border-[#737373]/50',
+    text: 'text-[#737373]',
+    bg: 'bg-[#737373]/10',
+    hex: '#737373',
+  },
 };
 
 const STATUS_CONFIG = {
   backlog: { label: 'Backlog', color: '#555555', icon: Inbox, gradient: 'from-[#555555]/10' },
   todo: { label: 'To Do', color: '#60A5FA', icon: Plus, gradient: 'from-[#60A5FA]/10' },
-  in_progress: { label: 'In Progress', color: '#E0B954', icon: Clock, gradient: 'from-[#E0B954]/10' },
-  in_review: { label: 'In Review', color: '#A78BFA', icon: AlertCircle, gradient: 'from-[#A78BFA]/10' },
+  in_progress: {
+    label: 'In Progress',
+    color: '#E0B954',
+    icon: Clock,
+    gradient: 'from-[#E0B954]/10',
+  },
+  in_review: {
+    label: 'In Review',
+    color: '#A78BFA',
+    icon: AlertCircle,
+    gradient: 'from-[#A78BFA]/10',
+  },
   done: { label: 'Done', color: '#34D399', icon: CheckCircle2, gradient: 'from-[#34D399]/10' },
 } as const;
 
@@ -411,9 +445,7 @@ const ItemDetailDrawer = ({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                    Type
-                  </label>
+                  <label className="text-xs font-medium text-[#737373] block mb-1.5">Type</label>
                   <select
                     defaultValue={selectedItem.type}
                     onChange={(e) => {
@@ -529,9 +561,7 @@ const ItemDetailDrawer = ({
                 </div>
               </div>
               <div>
-                <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                  Assignee
-                </label>
+                <label className="text-xs font-medium text-[#737373] block mb-1.5">Assignee</label>
                 <select
                   value={editForm.assignee_id ?? selectedItem.assignee_id ?? ''}
                   onChange={(e) =>
@@ -555,9 +585,7 @@ const ItemDetailDrawer = ({
                 'epic_id',
               ) && (
                 <div>
-                  <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                    Epic
-                  </label>
+                  <label className="text-xs font-medium text-[#737373] block mb-1.5">Epic</label>
                   <WorkItemCombobox
                     value={editForm.epic_id ?? selectedItem.epic_id ?? null}
                     valueKey={editForm.epic_key ?? selectedItem.epic_key ?? null}
@@ -598,9 +626,7 @@ const ItemDetailDrawer = ({
                 'parent_id',
               ) && (
                 <div>
-                  <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                    Parent
-                  </label>
+                  <label className="text-xs font-medium text-[#737373] block mb-1.5">Parent</label>
                   <WorkItemCombobox
                     value={editForm.parent_id ?? selectedItem.parent_id ?? null}
                     valueKey={editForm.parent_key ?? selectedItem.parent_key ?? null}
@@ -637,9 +663,7 @@ const ItemDetailDrawer = ({
                 </div>
               )}
               <div>
-                <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                  Sprint
-                </label>
+                <label className="text-xs font-medium text-[#737373] block mb-1.5">Sprint</label>
                 <Input
                   defaultValue={selectedItem.sprint}
                   onChange={(e) => setEditForm((f) => ({ ...f, sprint: e.target.value }))}
@@ -687,8 +711,7 @@ const ItemDetailDrawer = ({
                         classNames={{
                           months: 'flex flex-col',
                           month: 'space-y-4',
-                          caption:
-                            'flex justify-between items-center px-0 pb-4 relative h-7 mb-2',
+                          caption: 'flex justify-between items-center px-0 pb-4 relative h-7 mb-2',
                           caption_label: 'text-sm font-medium text-white',
                           nav: 'space-x-1 flex items-center',
                           nav_button: 'text-white hover:bg-[rgba(224,185,84,0.1)] rounded p-1',
@@ -739,8 +762,7 @@ const ItemDetailDrawer = ({
               <div>
                 <h2 className="text-xl font-bold text-white mb-3">{selectedItem.title}</h2>
                 <p className="text-sm text-[#a3a3a3] leading-relaxed whitespace-pre-wrap">
-                  {renderTextWithNewlines(selectedItem.description) ||
-                    'No description provided.'}
+                  {renderTextWithNewlines(selectedItem.description) || 'No description provided.'}
                 </p>
               </div>
 
@@ -766,8 +788,7 @@ const ItemDetailDrawer = ({
                   {
                     label: 'Due Date',
                     value: selectedItem.due_date
-                      ? (parseLocalDate(selectedItem.due_date)?.toLocaleDateString() ??
-                        'Not set')
+                      ? (parseLocalDate(selectedItem.due_date)?.toLocaleDateString() ?? 'Not set')
                       : 'Not set',
                     color: selectedItem.due_date ? '#E0B954' : '#737373',
                   },
@@ -927,9 +948,7 @@ const ItemDetailDrawer = ({
                   <Button
                     size="sm"
                     onClick={() => {
-                      const input = document.getElementById(
-                        'log-hours-input',
-                      ) as HTMLInputElement;
+                      const input = document.getElementById('log-hours-input') as HTMLInputElement;
                       const hours = parseInt(input?.value || '0');
                       if (hours > 0) {
                         onLogHours(selectedItem, hours);
@@ -943,8 +962,8 @@ const ItemDetailDrawer = ({
                   </Button>
                 </div>
                 <p className="text-[10px] text-[#737373] mt-2">
-                  Current: {selectedItem.logged_hours || 0}h logged ·{' '}
-                  {selectedItem.remaining_hours}h remaining
+                  Current: {selectedItem.logged_hours || 0}h logged · {selectedItem.remaining_hours}
+                  h remaining
                 </p>
               </div>
 
@@ -994,10 +1013,7 @@ const ItemDetailDrawer = ({
                         <Button
                           size="sm"
                           onClick={() =>
-                            onMoveToSprint(
-                              selectedItem.id,
-                              getNextSprint(selectedItem.sprint_id),
-                            )
+                            onMoveToSprint(selectedItem.id, getNextSprint(selectedItem.sprint_id))
                           }
                           className="rounded-lg text-xs h-9 bg-[rgba(245,158,11,0.1)] border border-[rgba(245,158,11,0.3)] text-[#F59E0B] hover:bg-[rgba(245,158,11,0.2)]"
                         >
@@ -1087,8 +1103,7 @@ const ItemDetailDrawer = ({
                                     color: childPriorityStyle.hex,
                                   }}
                                 >
-                                  {child.priority.charAt(0).toUpperCase() +
-                                    child.priority.slice(1)}
+                                  {child.priority.charAt(0).toUpperCase() + child.priority.slice(1)}
                                 </span>
                               </div>
                               <p className="text-xs text-[#a3a3a3] line-clamp-1 mb-1.5">
@@ -1117,9 +1132,7 @@ const ItemDetailDrawer = ({
 
               {/* Comments Section */}
               <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
-                <div className="text-xs text-[#737373] mb-3 font-medium">
-                  Activity & Comments
-                </div>
+                <div className="text-xs text-[#737373] mb-3 font-medium">Activity & Comments</div>
 
                 {/* Comment Input */}
                 <div className="relative mb-4">
@@ -1133,9 +1146,7 @@ const ItemDetailDrawer = ({
                   {showMentions && (
                     <div className="absolute left-0 right-0 top-full mt-1 bg-[#1A1D26] border border-[rgba(255,255,255,0.08)] rounded-xl shadow-xl z-10 max-h-48 overflow-y-auto">
                       {allDevelopers
-                        .filter((d) =>
-                          d.name.toLowerCase().includes(mentionFilter.toLowerCase()),
-                        )
+                        .filter((d) => d.name.toLowerCase().includes(mentionFilter.toLowerCase()))
                         .slice(0, 5)
                         .map((dev) => (
                           <button
@@ -1250,7 +1261,6 @@ const ItemDetailDrawer = ({
         </div>
       </div>
     </>
-
   );
 };
 

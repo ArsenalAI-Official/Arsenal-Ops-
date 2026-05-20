@@ -68,9 +68,7 @@ const EditSprintModal = ({
         </div>
         <div className="p-5 space-y-4">
           <div>
-            <label className="text-xs font-medium text-[#737373] block mb-1.5">
-              Sprint Name *
-            </label>
+            <label className="text-xs font-medium text-[#737373] block mb-1.5">Sprint Name *</label>
             <Input
               value={editSprintForm.name}
               onChange={(e) => setEditSprintForm((f) => ({ ...f, name: e.target.value }))}
@@ -79,9 +77,7 @@ const EditSprintModal = ({
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-[#737373] block mb-1.5">
-              Sprint Goal
-            </label>
+            <label className="text-xs font-medium text-[#737373] block mb-1.5">Sprint Goal</label>
             <Textarea
               value={editSprintForm.goal}
               onChange={(e) => setEditSprintForm((f) => ({ ...f, goal: e.target.value }))}
@@ -142,8 +138,7 @@ const EditSprintModal = ({
                       day: 'h-8 w-8 p-0 font-normal',
                       day_button:
                         'text-white hover:bg-[rgba(224,185,84,0.1)] rounded-lg h-8 w-8 transition-colors',
-                      day_selected:
-                        'bg-[#E0B954] text-[#0d0d0d] hover:bg-[#E0B954] font-semibold',
+                      day_selected: 'bg-[#E0B954] text-[#0d0d0d] hover:bg-[#E0B954] font-semibold',
                       day_today: 'bg-[rgba(224,185,84,0.2)] text-[#E0B954] font-semibold',
                       day_outside: 'text-[#444]',
                       day_disabled: 'text-[#333] opacity-50 cursor-not-allowed',
@@ -156,9 +151,7 @@ const EditSprintModal = ({
               </Popover>
             </div>
             <div>
-              <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                End Date *
-              </label>
+              <label className="text-xs font-medium text-[#737373] block mb-1.5">End Date *</label>
               <Popover
                 open={showCalendarEditSprintEnd && !!editSprintForm.start_date}
                 onOpenChange={(open) =>
@@ -216,8 +209,7 @@ const EditSprintModal = ({
                       day: 'h-8 w-8 p-0 font-normal',
                       day_button:
                         'text-white hover:bg-[rgba(224,185,84,0.1)] rounded-lg h-8 w-8 transition-colors',
-                      day_selected:
-                        'bg-[#E0B954] text-[#0d0d0d] hover:bg-[#E0B954] font-semibold',
+                      day_selected: 'bg-[#E0B954] text-[#0d0d0d] hover:bg-[#E0B954] font-semibold',
                       day_today: 'bg-[rgba(224,185,84,0.2)] text-[#E0B954] font-semibold',
                       day_outside: 'text-[#444]',
                       day_disabled: 'text-[#333] opacity-50 cursor-not-allowed',
@@ -232,19 +224,13 @@ const EditSprintModal = ({
           </div>
         </div>
         <div className="flex justify-end gap-3 p-5 border-t border-[rgba(255,255,255,0.05)]">
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            className="text-[#737373] rounded-xl px-5"
-          >
+          <Button variant="ghost" onClick={onClose} className="text-[#737373] rounded-xl px-5">
             Cancel
           </Button>
           <Button
             onClick={() => onSubmit(editSprintForm)}
             disabled={
-              !editSprintForm.name.trim() ||
-              !editSprintForm.start_date ||
-              !editSprintForm.end_date
+              !editSprintForm.name.trim() || !editSprintForm.start_date || !editSprintForm.end_date
             }
             className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl px-6 font-medium shadow-lg shadow-[#B8872A]/20 disabled:opacity-50"
           >
@@ -312,11 +298,7 @@ export const CompleteSprintConfirm = ({
           </p>
         )}
         <div className="flex justify-end gap-3">
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            className="text-[#737373] rounded-xl px-5"
-          >
+          <Button variant="ghost" onClick={onClose} className="text-[#737373] rounded-xl px-5">
             Cancel
           </Button>
           <Button
@@ -380,11 +362,7 @@ export const DeleteSprintConfirm = ({
           This permanently deletes the sprint and cannot be undone.
         </p>
         <div className="flex justify-end gap-3">
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            className="text-[#737373] rounded-xl px-5"
-          >
+          <Button variant="ghost" onClick={onClose} className="text-[#737373] rounded-xl px-5">
             Cancel
           </Button>
           <Button

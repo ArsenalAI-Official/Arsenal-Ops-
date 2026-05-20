@@ -69,9 +69,7 @@ const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
         <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
           <div>
             <h2 className="text-lg font-bold text-white">Project Members</h2>
-            <div className="text-xs text-[#737373] mt-0.5">
-              {selectedProjectForMembers.name}
-            </div>
+            <div className="text-xs text-[#737373] mt-0.5">{selectedProjectForMembers.name}</div>
           </div>
           <button
             onClick={onClose}
@@ -225,11 +223,7 @@ const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
         </div>
 
         <div className="flex justify-end gap-3 p-5 border-t border-[rgba(255,255,255,0.05)]">
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            className="text-[#737373] rounded-xl px-5"
-          >
+          <Button variant="ghost" onClick={onClose} className="text-[#737373] rounded-xl px-5">
             Close
           </Button>
         </div>

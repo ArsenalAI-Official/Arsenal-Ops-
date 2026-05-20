@@ -228,9 +228,7 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-[#E0B954]" />
-                <h3 className="text-sm font-semibold text-white">
-                  Team Capacity Overview
-                </h3>
+                <h3 className="text-sm font-semibold text-white">Team Capacity Overview</h3>
               </div>
               <div className="text-xs text-[#737373] mt-1">
                 Week:{' '}
@@ -282,9 +280,7 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
                     onClick={() => setEmployeeStatusFilter(active ? 'all' : pill.key)}
                     className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${active ? 'ring-1 ring-offset-0' : 'hover:opacity-90'}`}
                     style={{
-                      backgroundColor: active
-                        ? `${pill.base},0.25)`
-                        : `${pill.base},0.12)`,
+                      backgroundColor: active ? `${pill.base},0.25)` : `${pill.base},0.12)`,
                       color: pill.text,
                       borderColor: `${pill.base},${active ? '0.45' : '0.2'})`,
                     }}
@@ -300,17 +296,13 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
           {/* KPI tiles */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="rounded-lg p-3 bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)]">
-              <div className="text-[10px] uppercase tracking-wider text-[#737373]">
-                Headcount
-              </div>
+              <div className="text-[10px] uppercase tracking-wider text-[#737373]">Headcount</div>
               <div className="text-xl font-bold text-white tabular-nums mt-1">
                 {teamCapacity.perDev.length}
               </div>
             </div>
             <div className="rounded-lg p-3 bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)]">
-              <div className="text-[10px] uppercase tracking-wider text-[#737373]">
-                Hours Used
-              </div>
+              <div className="text-[10px] uppercase tracking-wider text-[#737373]">Hours Used</div>
               <div className="text-xl font-bold text-white tabular-nums mt-1">
                 {teamCapacity.totalUsed}
                 <span className="text-sm text-[#737373] font-normal">
@@ -320,9 +312,7 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
               </div>
             </div>
             <div className="rounded-lg p-3 bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)]">
-              <div className="text-[10px] uppercase tracking-wider text-[#737373]">
-                Utilization
-              </div>
+              <div className="text-[10px] uppercase tracking-wider text-[#737373]">Utilization</div>
               <div
                 className={`text-xl font-bold tabular-nums mt-1 ${
                   teamCapacity.utilization >= 90
@@ -426,9 +416,7 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
         )}
         <select
           value={employeeStatusFilter}
-          onChange={(e) =>
-            setEmployeeStatusFilter(e.target.value as typeof employeeStatusFilter)
-          }
+          onChange={(e) => setEmployeeStatusFilter(e.target.value as typeof employeeStatusFilter)}
           className="h-9 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
           title="Filter by capacity status"
         >
@@ -437,9 +425,7 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
           <option value="Moderate">Moderate</option>
           <option value="Busy">Busy</option>
         </select>
-        {(employeeSearch ||
-          employeeStatusFilter !== 'all' ||
-          employeeSpecFilter !== 'all') && (
+        {(employeeSearch || employeeStatusFilter !== 'all' || employeeSpecFilter !== 'all') && (
           <Button
             variant="ghost"
             size="sm"
@@ -510,9 +496,7 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
                       title={`Sort by ${col.label}`}
                     >
                       {col.label}
-                      <ArrowIcon
-                        className={`w-3 h-3 ${isActive ? 'opacity-100' : 'opacity-40'}`}
-                      />
+                      <ArrowIcon className={`w-3 h-3 ${isActive ? 'opacity-100' : 'opacity-40'}`} />
                     </button>
                   </th>
                 );
@@ -521,9 +505,7 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
           </thead>
           <tbody>
             {filteredEmployeeRows.map(({ emp }) => {
-              const devCapacity = developerCapacities.find(
-                (d) => d.developer_id === emp.id,
-              );
+              const devCapacity = developerCapacities.find((d) => d.developer_id === emp.id);
               const capacityUsed = devCapacity?.this_week_capacity_used ?? 0;
               const capacityPercentage = Math.round((capacityUsed / 40) * 100);
               const remaining = devCapacity?.this_week_remaining_capacity ?? 40;
@@ -584,12 +566,8 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
                     <td className="px-5 py-4 text-sm text-[#737373]">
                       {emp.github_username || '-'}
                     </td>
-                    <td className="px-5 py-4 text-sm text-[#a3a3a3]">
-                      {emp.project_count}
-                    </td>
-                    <td className="px-5 py-4 text-sm text-[#a3a3a3]">
-                      {emp.assigned_items_count}
-                    </td>
+                    <td className="px-5 py-4 text-sm text-[#a3a3a3]">{emp.project_count}</td>
+                    <td className="px-5 py-4 text-sm text-[#a3a3a3]">{emp.assigned_items_count}</td>
                     <td
                       className="px-5 py-4 cursor-pointer hover:bg-[rgba(255,255,255,0.02)] transition-colors"
                       onClick={() => setExpandedCapacityDevId(isExpanded ? null : emp.id)}
@@ -623,9 +601,7 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
                                 {projectsByHours.slice(0, 3).map((p, i) => (
                                   <React.Fragment key={p.projectId}>
                                     {i > 0 && (
-                                      <span className="text-[rgba(255,255,255,0.15)]">
-                                        ·
-                                      </span>
+                                      <span className="text-[rgba(255,255,255,0.15)]">·</span>
                                     )}
                                     <span className="flex items-center gap-1">
                                       <span
@@ -646,9 +622,7 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
                                 ))}
                                 {projectsByHours.length > 3 && (
                                   <>
-                                    <span className="text-[rgba(255,255,255,0.15)]">
-                                      ·
-                                    </span>
+                                    <span className="text-[rgba(255,255,255,0.15)]">·</span>
                                     <span>+{projectsByHours.length - 3} more</span>
                                   </>
                                 )}
@@ -699,22 +673,20 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
                               Week:{' '}
                               <span className="text-[#a3a3a3] font-mono">
                                 {devCapacity?.week_start
-                                  ? new Date(devCapacity.week_start).toLocaleDateString(
-                                      undefined,
-                                      { month: 'short', day: 'numeric' },
-                                    )
+                                  ? new Date(devCapacity.week_start).toLocaleDateString(undefined, {
+                                      month: 'short',
+                                      day: 'numeric',
+                                    })
                                   : '—'}
                                 {' → '}
                                 {devCapacity?.week_end
-                                  ? new Date(devCapacity.week_end).toLocaleDateString(
-                                      undefined,
-                                      { month: 'short', day: 'numeric' },
-                                    )
+                                  ? new Date(devCapacity.week_end).toLocaleDateString(undefined, {
+                                      month: 'short',
+                                      day: 'numeric',
+                                    })
                                   : '—'}
                               </span>
-                              <span className="ml-2 text-[#737373]">
-                                (Sat → Fri, UTC)
-                              </span>
+                              <span className="ml-2 text-[#737373]">(Sat → Fri, UTC)</span>
                             </div>
                             {tickets.length === 0 && (
                               <span className="text-xs text-[#737373]">
@@ -762,17 +734,12 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
                                       {sortedTickets.map((t) => {
                                         const sColor = statusBadgeColor(t.status);
                                         return (
-                                          <li
-                                            key={t.id}
-                                            className="flex items-start gap-2 text-xs"
-                                          >
+                                          <li key={t.id} className="flex items-start gap-2 text-xs">
                                             <span className="font-mono text-[#E0B954] mt-0.5 flex-shrink-0">
                                               {t.key}
                                             </span>
                                             <div className="flex-1 min-w-0">
-                                              <div className="text-white truncate">
-                                                {t.title}
-                                              </div>
+                                              <div className="text-white truncate">{t.title}</div>
                                               <div className="text-[10px] text-[#737373] mt-0.5 flex items-center gap-1.5 flex-wrap">
                                                 <span
                                                   className="px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider"
@@ -792,11 +759,8 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
                                                 <span className="text-[rgba(255,255,255,0.15)]">
                                                   ·
                                                 </span>
-                                                <span>
-                                                  remaining {t.remaining_hours}h
-                                                </span>
-                                                {t.counted_basis ===
-                                                  'remaining (transferred)' && (
+                                                <span>remaining {t.remaining_hours}h</span>
+                                                {t.counted_basis === 'remaining (transferred)' && (
                                                   <span className="px-1 py-0.5 rounded bg-[#FBBF24]/15 text-[#FBBF24] text-[9px] font-semibold uppercase tracking-wider">
                                                     transferred
                                                   </span>

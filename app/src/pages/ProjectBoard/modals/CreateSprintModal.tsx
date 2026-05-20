@@ -55,9 +55,7 @@ const CreateSprintModal = ({
         </div>
         <div className="p-5 space-y-4 flex-1 overflow-y-auto">
           <div>
-            <label className="text-xs font-medium text-[#737373] block mb-1.5">
-              Sprint Name *
-            </label>
+            <label className="text-xs font-medium text-[#737373] block mb-1.5">Sprint Name *</label>
             <Input
               value={newSprint.name}
               onChange={(e) => setNewSprint((f) => ({ ...f, name: e.target.value }))}
@@ -66,9 +64,7 @@ const CreateSprintModal = ({
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-[#737373] block mb-1.5">
-              Sprint Goal
-            </label>
+            <label className="text-xs font-medium text-[#737373] block mb-1.5">Sprint Goal</label>
             <Textarea
               value={newSprint.goal}
               onChange={(e) => setNewSprint((f) => ({ ...f, goal: e.target.value }))}
@@ -131,8 +127,7 @@ const CreateSprintModal = ({
                       day: 'h-8 w-8 p-0 font-normal',
                       day_button:
                         'text-white hover:bg-[rgba(224,185,84,0.1)] rounded-lg h-8 w-8 transition-colors',
-                      day_selected:
-                        'bg-[#E0B954] text-[#0d0d0d] hover:bg-[#E0B954] font-semibold',
+                      day_selected: 'bg-[#E0B954] text-[#0d0d0d] hover:bg-[#E0B954] font-semibold',
                       day_today: 'bg-[rgba(224,185,84,0.2)] text-[#E0B954] font-semibold',
                       day_outside: 'text-[#444]',
                       day_disabled: 'text-[#333] opacity-50 cursor-not-allowed',
@@ -145,9 +140,7 @@ const CreateSprintModal = ({
               </Popover>
             </div>
             <div>
-              <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                End Date *
-              </label>
+              <label className="text-xs font-medium text-[#737373] block mb-1.5">End Date *</label>
               <Popover
                 open={showCalendarSprintEnd && !!newSprint.start_date}
                 onOpenChange={(open) => newSprint.start_date && setShowCalendarSprintEnd(open)}
@@ -207,9 +200,7 @@ const CreateSprintModal = ({
                       }
                     }}
                     disabled={(date) =>
-                      newSprint.start_date
-                        ? date < parseLocalDate(newSprint.start_date)!
-                        : false
+                      newSprint.start_date ? date < parseLocalDate(newSprint.start_date)! : false
                     }
                     classNames={{
                       months: 'flex flex-col',
@@ -229,8 +220,7 @@ const CreateSprintModal = ({
                       day: 'h-8 w-8 p-0 font-normal',
                       day_button:
                         'text-white hover:bg-[rgba(224,185,84,0.1)] rounded-lg h-8 w-8 transition-colors',
-                      day_selected:
-                        'bg-[#E0B954] text-[#0d0d0d] hover:bg-[#E0B954] font-semibold',
+                      day_selected: 'bg-[#E0B954] text-[#0d0d0d] hover:bg-[#E0B954] font-semibold',
                       day_today: 'bg-[rgba(224,185,84,0.2)] text-[#E0B954] font-semibold',
                       day_outside: 'text-[#444]',
                       day_disabled: 'text-[#333] opacity-50 cursor-not-allowed',
@@ -245,26 +235,17 @@ const CreateSprintModal = ({
           </div>
         </div>
         <div className="flex justify-end gap-3 p-5 border-t border-[rgba(255,255,255,0.05)]">
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            className="text-[#737373] rounded-xl px-5"
-          >
+          <Button variant="ghost" onClick={onClose} className="text-[#737373] rounded-xl px-5">
             Cancel
           </Button>
           <Button
             onClick={() => onSubmit(newSprint)}
             disabled={
-              disabled ||
-              !newSprint.name.trim() ||
-              !newSprint.start_date ||
-              !newSprint.end_date
+              disabled || !newSprint.name.trim() || !newSprint.start_date || !newSprint.end_date
             }
             className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl px-6 font-medium shadow-lg shadow-[#B8872A]/20 disabled:opacity-50"
             title={
-              !newSprint.start_date || !newSprint.end_date
-                ? 'Start and End dates are required'
-                : ''
+              !newSprint.start_date || !newSprint.end_date ? 'Start and End dates are required' : ''
             }
           >
             <Plus className="w-4 h-4 mr-2" />

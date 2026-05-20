@@ -1,11 +1,5 @@
 import { useMemo, useState } from 'react';
-import {
-  Shield,
-  UserCog,
-  ChevronDown,
-  ChevronUp,
-  ArrowUpDown,
-} from 'lucide-react';
+import { Shield, UserCog, ChevronDown, ChevronUp, ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface User {
@@ -170,9 +164,7 @@ const UsersTab = ({ users, onEditUserRoles }: UsersTabProps) => {
                       title={`Sort by ${col.label}`}
                     >
                       {col.label}
-                      <ArrowIcon
-                        className={`w-3 h-3 ${isActive ? 'opacity-100' : 'opacity-40'}`}
-                      />
+                      <ArrowIcon className={`w-3 h-3 ${isActive ? 'opacity-100' : 'opacity-40'}`} />
                     </button>
                   </th>
                 );
@@ -210,9 +202,7 @@ const UsersTab = ({ users, onEditUserRoles }: UsersTabProps) => {
                             }`}
                           >
                             {role === 'admin' && <Shield className="w-3 h-3" />}
-                            {role === 'project_manager' && (
-                              <UserCog className="w-3 h-3" />
-                            )}
+                            {role === 'project_manager' && <UserCog className="w-3 h-3" />}
                             {toPascalCase(role)}
                           </span>
                         );
@@ -250,9 +240,7 @@ const UsersTab = ({ users, onEditUserRoles }: UsersTabProps) => {
                   )}
                 </td>
                 <td className="py-3 px-4 text-sm text-[#737373]">
-                  {user.last_login_at
-                    ? new Date(user.last_login_at).toLocaleDateString()
-                    : 'Never'}
+                  {user.last_login_at ? new Date(user.last_login_at).toLocaleDateString() : 'Never'}
                 </td>
               </tr>
             ))}

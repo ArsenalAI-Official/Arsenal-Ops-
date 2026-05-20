@@ -97,10 +97,7 @@ const ArchitectureSection = ({
             </div>
           }
         >
-          <MermaidRenderer
-            code={arch.mermaid_code}
-            className="w-full h-full min-h-[350px]"
-          />
+          <MermaidRenderer code={arch.mermaid_code} className="w-full h-full min-h-[350px]" />
         </Suspense>
       </div>
 
@@ -114,9 +111,7 @@ const ArchitectureSection = ({
               <span className="text-xs text-[#737373]">Complexity</span>
             </div>
             <div className="flex items-center gap-2">
-              <p className="text-lg font-bold text-[#F59E0B] capitalize">
-                {arch.complexity}
-              </p>
+              <p className="text-lg font-bold text-[#F59E0B] capitalize">{arch.complexity}</p>
               <div className="flex gap-0.5">
                 {[1, 2, 3].map((level) => (
                   <div
@@ -140,18 +135,14 @@ const ArchitectureSection = ({
               <Clock className="w-4 h-4 text-[#E0B954]" />
               <span className="text-xs text-[#737373]">Timeline</span>
             </div>
-            <p className="text-lg font-bold text-[#E0B954]">
-              {arch.time_to_implement}
-            </p>
+            <p className="text-lg font-bold text-[#E0B954]">{arch.time_to_implement}</p>
           </div>
           <div className="bg-[rgba(255,255,255,0.02)] rounded-xl p-3">
             <div className="flex items-center gap-2 mb-1">
               <DollarSign className="w-4 h-4 text-[#E0B954]" />
               <span className="text-xs text-[#737373]">Est. Cost</span>
             </div>
-            <p className="text-lg font-bold text-[#E0B954]">
-              {arch.estimated_cost}
-            </p>
+            <p className="text-lg font-bold text-[#E0B954]">{arch.estimated_cost}</p>
           </div>
         </div>
 
@@ -164,9 +155,7 @@ const ArchitectureSection = ({
             </h4>
             {arch.cost_analysis.infrastructure?.breakdown && (
               <div className="mb-3">
-                <p className="text-xs text-[#737373] mb-2">
-                  Infrastructure Components
-                </p>
+                <p className="text-xs text-[#737373] mb-2">Infrastructure Components</p>
                 <div className="space-y-1.5">
                   {arch.cost_analysis.infrastructure.breakdown.map(
                     (item: { item: string; cost: string }, idx: number) => (
@@ -175,9 +164,7 @@ const ArchitectureSection = ({
                         className="flex items-center justify-between py-1 px-2 bg-[rgba(255,255,255,0.025)] rounded"
                       >
                         <span className="text-xs text-[#f5f5f5]">{item.item}</span>
-                        <span className="text-xs font-medium text-[#E0B954]">
-                          {item.cost}
-                        </span>
+                        <span className="text-xs font-medium text-[#E0B954]">{item.cost}</span>
                       </div>
                     ),
                   )}
@@ -186,9 +173,7 @@ const ArchitectureSection = ({
             )}
             {arch.tools_recommended && (
               <div>
-                <p className="text-xs text-[#737373] mb-2">
-                  Tools & Services Required
-                </p>
+                <p className="text-xs text-[#737373] mb-2">Tools & Services Required</p>
                 <div className="space-y-1.5">
                   {Object.entries(arch.tools_recommended).map(
                     ([category, tools]) =>
@@ -199,9 +184,7 @@ const ArchitectureSection = ({
                           key={category}
                           className="flex items-center justify-between py-1 px-2 bg-[rgba(255,255,255,0.025)] rounded"
                         >
-                          <span className="text-xs text-[#f5f5f5] capitalize">
-                            {category}
-                          </span>
+                          <span className="text-xs text-[#f5f5f5] capitalize">{category}</span>
                           <span className="text-xs text-[#a3a3a3]">
                             {tools.slice(0, 3).join(', ')}
                             {tools.length > 3 ? '...' : ''}
@@ -225,10 +208,7 @@ const ArchitectureSection = ({
               </h4>
               <ul className="space-y-1">
                 {arch.pros.map((pro, idx) => (
-                  <li
-                    key={idx}
-                    className="text-xs text-[#a3a3a3] flex items-start gap-2"
-                  >
+                  <li key={idx} className="text-xs text-[#a3a3a3] flex items-start gap-2">
                     <span className="text-[#E0B954] mt-1">•</span>
                     {pro}
                   </li>
@@ -244,10 +224,7 @@ const ArchitectureSection = ({
               </h4>
               <ul className="space-y-1">
                 {arch.cons.map((con, idx) => (
-                  <li
-                    key={idx}
-                    className="text-xs text-[#a3a3a3] flex items-start gap-2"
-                  >
+                  <li key={idx} className="text-xs text-[#a3a3a3] flex items-start gap-2">
                     <span className="text-[#EF4444] mt-1">•</span>
                     {con}
                   </li>
@@ -258,30 +235,29 @@ const ArchitectureSection = ({
         </div>
 
         {/* Tools Recommended */}
-        {arch.tools_recommended &&
-          Object.keys(arch.tools_recommended).length > 0 && (
-            <div>
-              <h4 className="text-xs font-medium text-[#a3a3a3] mb-2 flex items-center gap-1">
-                <Wrench className="w-3.5 h-3.5 text-[#F59E0B]" />
-                Recommended Tools
-              </h4>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(arch.tools_recommended).map(
-                  ([category, tools]) =>
-                    tools &&
-                    Array.isArray(tools) &&
-                    tools.map((tool, idx) => (
-                      <span
-                        key={`${category}-${idx}`}
-                        className="text-xs bg-[rgba(224,185,84,0.1)] text-[#E0B954] px-2 py-1 rounded-lg"
-                      >
-                        {tool}
-                      </span>
-                    )),
-                )}
-              </div>
+        {arch.tools_recommended && Object.keys(arch.tools_recommended).length > 0 && (
+          <div>
+            <h4 className="text-xs font-medium text-[#a3a3a3] mb-2 flex items-center gap-1">
+              <Wrench className="w-3.5 h-3.5 text-[#F59E0B]" />
+              Recommended Tools
+            </h4>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(arch.tools_recommended).map(
+                ([category, tools]) =>
+                  tools &&
+                  Array.isArray(tools) &&
+                  tools.map((tool, idx) => (
+                    <span
+                      key={`${category}-${idx}`}
+                      className="text-xs bg-[rgba(224,185,84,0.1)] text-[#E0B954] px-2 py-1 rounded-lg"
+                    >
+                      {tool}
+                    </span>
+                  )),
+              )}
             </div>
-          )}
+          </div>
+        )}
       </div>
     </div>
   );

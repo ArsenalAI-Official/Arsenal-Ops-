@@ -41,8 +41,8 @@ const RolesTab = ({
         <div>
           <h2 className="text-lg font-semibold text-white">Roles &amp; Capabilities</h2>
           <p className="text-xs text-[#737373] mt-1">
-            Define what each role can see. Users get the union of capabilities from every
-            role assigned to them.
+            Define what each role can see. Users get the union of capabilities from every role
+            assigned to them.
           </p>
         </div>
         <Button
@@ -57,21 +57,15 @@ const RolesTab = ({
         <table className="w-full">
           <thead className="bg-[rgba(255,255,255,0.02)]">
             <tr>
-              <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">
-                Name
-              </th>
+              <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">Name</th>
               <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">
                 Description
               </th>
               <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">
                 Capabilities
               </th>
-              <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">
-                Users
-              </th>
-              <th className="text-right text-xs font-medium text-[#737373] py-3 px-4">
-                Actions
-              </th>
+              <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">Users</th>
+              <th className="text-right text-xs font-medium text-[#737373] py-3 px-4">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[rgba(255,255,255,0.03)]">
@@ -119,9 +113,7 @@ const RolesTab = ({
                     </div>
                   )}
                 </td>
-                <td className="py-3 px-4 text-sm text-[#a3a3a3]">
-                  {role.user_count ?? 0}
-                </td>
+                <td className="py-3 px-4 text-sm text-[#a3a3a3]">{role.user_count ?? 0}</td>
                 <td className="py-3 px-4 text-right">
                   <div className="flex items-center justify-end gap-2">
                     <Button
@@ -139,9 +131,7 @@ const RolesTab = ({
                       onClick={() => onDeleteRole(role)}
                       disabled={role.is_system || isDeletingRole}
                       className="text-[#737373] hover:text-red-400 h-8 disabled:opacity-30 disabled:cursor-not-allowed"
-                      title={
-                        role.is_system ? 'System roles cannot be deleted' : 'Delete role'
-                      }
+                      title={role.is_system ? 'System roles cannot be deleted' : 'Delete role'}
                     >
                       <Trash2 className="w-3.5 h-3.5 mr-1" />
                       Delete

@@ -84,9 +84,7 @@ const UserModal: React.FC<UserModalProps> = ({
           ) : (
             <>
               <div>
-                <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                  Name *
-                </label>
+                <label className="text-xs font-medium text-[#737373] block mb-1.5">Name *</label>
                 <Input
                   value={userForm.name}
                   onChange={(e) => setUserForm((f) => ({ ...f, name: e.target.value }))}
@@ -95,9 +93,7 @@ const UserModal: React.FC<UserModalProps> = ({
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                  Email *
-                </label>
+                <label className="text-xs font-medium text-[#737373] block mb-1.5">Email *</label>
                 <Input
                   type="email"
                   value={userForm.email}

@@ -117,9 +117,7 @@ const ProjectsTab = ({
             {!project.github_repo_url && (
               <div className="mb-3 p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.03)] flex items-center gap-2">
                 <AlertCircle className="w-3.5 h-3.5 text-[#737373]" />
-                <span className="text-[10px] text-[#737373]">
-                  No GitHub repo configured
-                </span>
+                <span className="text-[10px] text-[#737373]">No GitHub repo configured</span>
               </div>
             )}
             <div className="flex items-center gap-4 mt-4 text-xs text-[#737373]">

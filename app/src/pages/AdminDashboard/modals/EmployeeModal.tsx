@@ -82,9 +82,7 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({
             </label>
             <Input
               value={employeeForm.github_username}
-              onChange={(e) =>
-                setEmployeeForm((f) => ({ ...f, github_username: e.target.value }))
-              }
+              onChange={(e) => setEmployeeForm((f) => ({ ...f, github_username: e.target.value }))}
               placeholder="johndoe"
               className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10"
             />
@@ -95,9 +93,7 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({
             </label>
             <select
               value={employeeForm.specialization}
-              onChange={(e) =>
-                setEmployeeForm((f) => ({ ...f, specialization: e.target.value }))
-              }
+              onChange={(e) => setEmployeeForm((f) => ({ ...f, specialization: e.target.value }))}
               className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
             >
               <option value="">Select specialization</option>
@@ -115,11 +111,7 @@ const EmployeeModal: React.FC<EmployeeModalProps> = ({
           </div>
         </div>
         <div className="flex justify-end gap-3 p-5 border-t border-[rgba(255,255,255,0.05)]">
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            className="text-[#737373] rounded-xl px-5"
-          >
+          <Button variant="ghost" onClick={onClose} className="text-[#737373] rounded-xl px-5">
             Cancel
           </Button>
           <Button
