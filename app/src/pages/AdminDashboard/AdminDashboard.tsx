@@ -2,40 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-  PieChart,
-  Pie,
-} from 'recharts';
-import {
   Users,
   FolderKanban,
-  Ticket,
-  Calendar,
-  Plus,
-  Pencil,
-  Trash2,
   X,
   ArrowLeft,
   BarChart3,
-  Github,
-  Settings,
-  ExternalLink,
   Shield,
-  UserCog,
-  Mail,
-  CheckCircle2,
-  AlertCircle,
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
-  ArrowUpDown,
-  TrendingUp,
   KeyRound,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -51,6 +23,10 @@ import EmployeesTab, {
   type Employee,
   type DeveloperCapacity,
 } from './tabs/EmployeesTab';
+import DashboardTab from './tabs/DashboardTab';
+import ProjectsTab from './tabs/ProjectsTab';
+import UsersTab from './tabs/UsersTab';
+import RolesTab from './tabs/RolesTab';
 
 interface User {
   id: number;
@@ -207,22 +183,6 @@ const AdminDashboard = () => {
     usersQuery.isLoading ||
     rolesQuery.isLoading;
 
-  // Users tab filters + sort
-  type UsersSortKey = 'created' | 'name' | 'status' | 'last_login';
-  const [usersRoleFilter, setUsersRoleFilter] = useState<string>('all');
-  const [usersSort, setUsersSort] = useState<{ key: UsersSortKey; dir: 'asc' | 'desc' }>({
-    key: 'created',
-    dir: 'desc',
-  });
-
-  const handleUsersSort = (key: UsersSortKey) => {
-    setUsersSort((prev) =>
-      prev.key === key
-        ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
-        : { key, dir: key === 'name' ? 'asc' : 'desc' },
-    );
-  };
-
   // Team capacity summary derived from employees + capacity data
   const WEEKLY_CAPACITY_HRS = 40;
   const teamCapacity = useMemo(() => {
@@ -292,58 +252,17 @@ const AdminDashboard = () => {
 
   useAuth(); // keeps auth guard active; token read from localStorage by apiFetch
 
-  const availableUserRoles = useMemo(() => {
-    const set = new Set<string>();
-    users.forEach((u) =>
-      u.role.split(',').forEach((r) => {
-        const trimmed = r.trim();
-        if (trimmed) set.add(trimmed);
-      }),
-    );
-    return Array.from(set).sort();
-  }, [users]);
-
-  const visibleUsers = useMemo(() => {
-    const filtered =
-      usersRoleFilter === 'all'
-        ? users
-        : users.filter((u) =>
-            u.role
-              .split(',')
-              .map((r) => r.trim())
-              .includes(usersRoleFilter),
-          );
-
-    return [...filtered].sort((a, b) => {
-      let av: number | string;
-      let bv: number | string;
-      switch (usersSort.key) {
-        case 'name':
-          av = a.name.toLowerCase();
-          bv = b.name.toLowerCase();
-          break;
-        case 'status':
-          av = a.is_active ? 1 : 0;
-          bv = b.is_active ? 1 : 0;
-          break;
-        case 'last_login':
-          av = a.last_login_at ? new Date(a.last_login_at).getTime() : 0;
-          bv = b.last_login_at ? new Date(b.last_login_at).getTime() : 0;
-          break;
-        case 'created':
-        default:
-          av = new Date(a.created_at).getTime();
-          bv = new Date(b.created_at).getTime();
-          break;
-      }
-      if (av < bv) return usersSort.dir === 'asc' ? -1 : 1;
-      if (av > bv) return usersSort.dir === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }, [users, usersRoleFilter, usersSort]);
-
-  // Role dropdown state
+  // Role dropdown state (per-user role-edit modal trigger; modal lives at parent)
   const [openRoleDropdown, setOpenRoleDropdown] = useState<number | null>(null);
+
+  // Helper function to convert role to Pascal Case (still used by the parent's
+  // role-dropdown modal below)
+  const toPascalCase = (str: string): string => {
+    return str
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join('');
+  };
 
   // RBAC role create/edit modal state
   const [showRoleModal, setShowRoleModal] = useState(false);
@@ -353,14 +272,6 @@ const AdminDashboard = () => {
     description: string;
     capability_keys: string[];
   }>({ name: '', description: '', capability_keys: [] });
-
-  // Helper function to convert role to Pascal Case
-  const toPascalCase = (str: string): string => {
-    return str
-      .split('_')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join('');
-  };
 
   // Employee form state
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
@@ -921,266 +832,9 @@ const AdminDashboard = () => {
         ) : (
           <>
             {/* Dashboard Tab */}
-            {activeTab === 'dashboard' &&
-              stats &&
-              (() => {
-                const statusColor = (s: string) => {
-                  const key = s.toLowerCase();
-                  if (key === 'done' || key === 'completed' || key === 'closed') return '#34D399';
-                  if (key === 'in_progress' || key === 'in progress') return '#E0B954';
-                  if (key === 'in_review' || key === 'in review' || key === 'review')
-                    return '#A78BFA';
-                  if (key === 'blocked') return '#EF4444';
-                  if (key === 'cancelled' || key === 'canceled' || key === 'wontfix')
-                    return '#525252';
-                  if (key === 'backlog') return '#64748B';
-                  if (key === 'todo' || key === 'to_do' || key === 'to do') return '#94A3B8';
-                  if (key === 'open' || key === 'new') return '#60A5FA';
-                  return '#737373';
-                };
-                const priorityColor = (p: string) => {
-                  const key = p.toLowerCase();
-                  if (key === 'critical') return '#EF4444';
-                  if (key === 'high') return '#F97316';
-                  if (key === 'medium') return '#F59E0B';
-                  if (key === 'low') return '#E0B954';
-                  return '#737373';
-                };
-                const priorityOrder = ['critical', 'high', 'medium', 'low'];
-                const statusData = Object.entries(stats.tickets_by_status)
-                  .map(([name, value]) => ({
-                    name,
-                    label: name.replace(/_/g, ' '),
-                    value,
-                    color: statusColor(name),
-                  }))
-                  .sort((a, b) => b.value - a.value);
-                const priorityData = Object.entries(stats.tickets_by_priority)
-                  .map(([name, value]) => ({
-                    name,
-                    label: name.charAt(0).toUpperCase() + name.slice(1),
-                    value,
-                    color: priorityColor(name),
-                  }))
-                  .sort((a, b) => {
-                    const ai = priorityOrder.indexOf(a.name.toLowerCase());
-                    const bi = priorityOrder.indexOf(b.name.toLowerCase());
-                    if (ai === -1 && bi === -1) return 0;
-                    if (ai === -1) return 1;
-                    if (bi === -1) return -1;
-                    return ai - bi;
-                  });
-
-                const kpis: Array<{
-                  label: string;
-                  value: number;
-                  icon: typeof Users;
-                  color: string;
-                  tab?: AdminTab;
-                }> = [
-                  {
-                    label: 'Total Employees',
-                    value: stats.total_employees,
-                    icon: Users,
-                    color: '#E0B954',
-                    tab: 'employees',
-                  },
-                  {
-                    label: 'Total Projects',
-                    value: stats.total_projects,
-                    icon: FolderKanban,
-                    color: '#E0B954',
-                    tab: 'projects',
-                  },
-                  {
-                    label: 'Total Tickets',
-                    value: stats.total_tickets,
-                    icon: Ticket,
-                    color: '#F59E0B',
-                  },
-                  {
-                    label: 'Active Sprints',
-                    value: stats.active_sprints,
-                    icon: Calendar,
-                    color: '#EC4899',
-                  },
-                ];
-
-                return (
-                  <div className="space-y-6">
-                    {/* Stats Cards */}
-                    <div className="grid grid-cols-4 gap-4">
-                      {kpis.map((stat, i) => {
-                        const clickable = !!stat.tab;
-                        const Wrapper: any = clickable ? 'button' : 'div';
-                        return (
-                          <Wrapper
-                            key={i}
-                            {...(clickable
-                              ? {
-                                  onClick: () => setActiveTab(stat.tab as AdminTab),
-                                  type: 'button',
-                                  title: `Go to ${stat.label.replace('Total ', '')} tab`,
-                                }
-                              : {})}
-                            className={`text-left bg-[#0d0d0d] border border-[rgba(255,255,255,0.05)] rounded-xl p-5 transition-colors ${
-                              clickable
-                                ? 'cursor-pointer hover:border-[rgba(224,185,84,0.3)] hover:bg-[rgba(255,255,255,0.015)] focus:outline-none focus:ring-1 focus:ring-[#E0B954]'
-                                : ''
-                            }`}
-                          >
-                            <div className="flex items-center justify-between mb-3">
-                              <div
-                                className="p-2 rounded-lg"
-                                style={{ backgroundColor: `${stat.color}20` }}
-                              >
-                                <stat.icon className="w-5 h-5" style={{ color: stat.color }} />
-                              </div>
-                              {clickable && <ChevronRight className="w-4 h-4 text-[#737373]" />}
-                            </div>
-                            <div className="text-2xl font-bold text-white tabular-nums">
-                              {stat.value}
-                            </div>
-                            <div className="text-sm text-[#737373]">{stat.label}</div>
-                          </Wrapper>
-                        );
-                      })}
-                    </div>
-
-                    {/* Charts */}
-                    <div className="grid grid-cols-2 gap-6">
-                      {/* Tickets by Status — donut */}
-                      <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.05)] rounded-xl p-5">
-                        <h3 className="text-lg font-semibold text-white mb-4">Tickets by Status</h3>
-                        {statusData.length === 0 || stats.total_tickets === 0 ? (
-                          <div className="text-sm text-[#737373] py-10 text-center">
-                            No ticket data yet.
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-5">
-                            <div
-                              className="relative flex-shrink-0"
-                              style={{ width: 180, height: 180 }}
-                            >
-                              <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                  <Pie
-                                    data={statusData}
-                                    dataKey="value"
-                                    nameKey="label"
-                                    innerRadius={55}
-                                    outerRadius={80}
-                                    paddingAngle={2}
-                                    stroke="none"
-                                  >
-                                    {statusData.map((d) => (
-                                      <Cell key={d.name} fill={d.color} />
-                                    ))}
-                                  </Pie>
-                                  <Tooltip
-                                    contentStyle={{
-                                      backgroundColor: '#121212',
-                                      border: '1px solid rgba(255,255,255,0.08)',
-                                      borderRadius: 8,
-                                      fontSize: 12,
-                                      textTransform: 'capitalize',
-                                    }}
-                                    itemStyle={{ color: '#a3a3a3' }}
-                                    wrapperStyle={{ outline: 'none', zIndex: 50 }}
-                                    formatter={(value: number, name: string) => [
-                                      `${value} (${Math.round((value / stats.total_tickets) * 100)}%)`,
-                                      name,
-                                    ]}
-                                  />
-                                </PieChart>
-                              </ResponsiveContainer>
-                              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                                <div className="text-2xl font-bold text-white tabular-nums">
-                                  {stats.total_tickets}
-                                </div>
-                                <div className="text-[10px] text-[#737373] uppercase tracking-wider">
-                                  Total
-                                </div>
-                              </div>
-                            </div>
-                            <ul className="flex-1 space-y-1.5 min-w-0">
-                              {statusData.map((d) => {
-                                const pct = Math.round((d.value / stats.total_tickets) * 100);
-                                return (
-                                  <li key={d.name} className="flex items-center gap-2 text-xs">
-                                    <span
-                                      className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
-                                      style={{ backgroundColor: d.color }}
-                                    />
-                                    <span className="text-[#a3a3a3] capitalize truncate">
-                                      {d.label}
-                                    </span>
-                                    <span className="ml-auto text-[#737373] tabular-nums">
-                                      {d.value}
-                                    </span>
-                                    <span className="text-[#525252] tabular-nums w-9 text-right">
-                                      {pct}%
-                                    </span>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Tickets by Priority — bar chart */}
-                      <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.05)] rounded-xl p-5">
-                        <h3 className="text-lg font-semibold text-white mb-4">
-                          Tickets by Priority
-                        </h3>
-                        {priorityData.length === 0 || stats.total_tickets === 0 ? (
-                          <div className="text-sm text-[#737373] py-10 text-center">
-                            No ticket data yet.
-                          </div>
-                        ) : (
-                          <ResponsiveContainer width="100%" height={180}>
-                            <BarChart
-                              data={priorityData}
-                              margin={{ top: 8, right: 8, bottom: 0, left: -8 }}
-                            >
-                              <XAxis
-                                dataKey="label"
-                                tick={{ fill: '#a3a3a3', fontSize: 11 }}
-                                axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
-                                tickLine={false}
-                              />
-                              <YAxis
-                                tick={{ fill: '#737373', fontSize: 10 }}
-                                axisLine={false}
-                                tickLine={false}
-                                allowDecimals={false}
-                              />
-                              <Tooltip
-                                cursor={{ fill: 'rgba(255,255,255,0.03)' }}
-                                contentStyle={{
-                                  backgroundColor: '#121212',
-                                  border: '1px solid rgba(255,255,255,0.08)',
-                                  borderRadius: 8,
-                                  fontSize: 12,
-                                }}
-                                labelStyle={{ color: '#fff', fontWeight: 600 }}
-                                itemStyle={{ color: '#a3a3a3' }}
-                                formatter={(value: number) => [`${value} tickets`, '']}
-                              />
-                              <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                                {priorityData.map((d) => (
-                                  <Cell key={d.name} fill={d.color} />
-                                ))}
-                              </Bar>
-                            </BarChart>
-                          </ResponsiveContainer>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
+            {activeTab === 'dashboard' && stats && (
+              <DashboardTab stats={stats} setActiveTab={setActiveTab} />
+            )}
 
             {/* Employees Tab */}
             {activeTab === 'employees' && (
@@ -1197,424 +851,29 @@ const AdminDashboard = () => {
 
             {/* Projects Tab */}
             {activeTab === 'projects' && (
-              <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-white">All Projects</h2>
-                <div className="grid grid-cols-3 gap-4">
-                  {projects.map((project) => (
-                    <div
-                      key={project.id}
-                      className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.05)] rounded-xl p-5 hover:border-[rgba(224,185,84,0.3)] transition-colors"
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <div
-                          className="cursor-pointer flex-1"
-                          onClick={() => navigate(`/project/${project.id}`)}
-                        >
-                          <h3 className="text-sm font-semibold text-white">{project.name}</h3>
-                          <div className="text-xs text-[#737373] mt-0.5">{project.status}</div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => handleEditGitHubSettings(project, e)}
-                          className="text-[#737373] hover:text-white h-7 w-7 p-0"
-                        >
-                          <Settings className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                      {/* GitHub Info + Invite */}
-                      {project.github_repo_url && (
-                        <div className="mb-3 p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.03)]">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Github className="w-3.5 h-3.5 text-[#737373]" />
-                            <a
-                              href={project.github_repo_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-[#E0B954] hover:underline flex items-center gap-1"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {project.github_repo_name || project.github_repo_url}
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                            {project.has_github_token && (
-                              <span className="ml-auto text-[10px] text-[#E0B954] flex items-center gap-1">
-                                <CheckCircle2 className="w-3 h-3" />
-                                Token
-                              </span>
-                            )}
-                          </div>
-                          <Button
-                            size="sm"
-                            onClick={(e) => handleSendGitHubInvites(project, e)}
-                            disabled={invitingProjectId === project.id}
-                            className="w-full h-7 text-[10px] bg-gradient-to-r from-[#E0B954] to-[#B8872A] hover:from-[#C79E3B] hover:to-[#B8872A] text-white rounded-lg font-medium shadow-sm disabled:opacity-50"
-                          >
-                            {invitingProjectId === project.id ? (
-                              <>
-                                <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin mr-1" />
-                                Sending...
-                              </>
-                            ) : (
-                              <>
-                                <Mail className="w-3 h-3 mr-1" />
-                                Send GitHub Invites
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      )}
-                      {!project.github_repo_url && (
-                        <div className="mb-3 p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.03)] flex items-center gap-2">
-                          <AlertCircle className="w-3.5 h-3.5 text-[#737373]" />
-                          <span className="text-[10px] text-[#737373]">
-                            No GitHub repo configured
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-4 mt-4 text-xs text-[#737373]">
-                        <button
-                          onClick={(e) => handleOpenProjectMembers(project, e)}
-                          className="flex items-center gap-1 hover:text-[#E0B954] transition-colors cursor-pointer rounded px-1 -mx-1 hover:bg-[rgba(224,185,84,0.08)]"
-                          title="View and manage project members"
-                        >
-                          <Users className="w-3.5 h-3.5" />
-                          <span className="underline-offset-2 hover:underline">
-                            {project.developer_count}
-                          </span>
-                        </button>
-                        <div className="flex items-center gap-1">
-                          <Ticket className="w-3.5 h-3.5" />
-                          {project.total_items}
-                        </div>
-                      </div>
-                      <div className="mt-4">
-                        <div className="flex justify-between text-xs mb-1">
-                          <span className="text-[#737373]">Progress</span>
-                          <span className="text-[#a3a3a3]">{project.completion_pct}%</span>
-                        </div>
-                        <div className="h-1.5 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-[#E0B954] to-[#B8872A] rounded-full"
-                            style={{ width: `${project.completion_pct}%` }}
-                          />
-                        </div>
-                      </div>
-                      {/* Pulse Settings — opens this project's Pulse Settings tab in ProjectDetail */}
-                      <Button
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/project/${project.id}?tab=pulse_settings`);
-                        }}
-                        className="w-full mt-3 h-8 text-[11px] bg-[rgba(224,185,84,0.1)] hover:bg-[rgba(224,185,84,0.18)] border border-[rgba(224,185,84,0.3)] text-[#E0B954] rounded-lg font-semibold"
-                      >
-                        <TrendingUp className="w-3.5 h-3.5 mr-1.5" />
-                        Edit Pulse values
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <ProjectsTab
+                projects={projects}
+                invitingProjectId={invitingProjectId}
+                onEditGitHubSettings={handleEditGitHubSettings}
+                onSendGitHubInvites={handleSendGitHubInvites}
+                onOpenProjectMembers={handleOpenProjectMembers}
+              />
             )}
+
             {/* Users Tab */}
             {activeTab === 'users' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-white">User Management</h2>
-                </div>
-
-                {/* Filter bar */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    value={usersRoleFilter}
-                    onChange={(e) => setUsersRoleFilter(e.target.value)}
-                    className="h-9 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
-                    title="Filter by role"
-                  >
-                    <option value="all">All roles</option>
-                    {availableUserRoles.map((r) => (
-                      <option key={r} value={r}>
-                        {toPascalCase(r)}
-                      </option>
-                    ))}
-                  </select>
-                  {usersRoleFilter !== 'all' && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setUsersRoleFilter('all')}
-                      className="h-9 text-xs text-[#737373] hover:text-white rounded-xl px-3"
-                    >
-                      Clear filter
-                    </Button>
-                  )}
-                  <div className="ml-auto text-xs text-[#737373]">
-                    {visibleUsers.length} of {users.length}
-                  </div>
-                </div>
-
-                <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.05)] rounded-xl overflow-visible">
-                  <table className="w-full">
-                    <thead className="bg-[rgba(255,255,255,0.02)]">
-                      <tr>
-                        {(
-                          [
-                            { key: 'name' as const, label: 'User', sortable: true },
-                            { key: null, label: 'Roles', sortable: false },
-                            { key: 'status' as const, label: 'Status', sortable: true },
-                            { key: 'last_login' as const, label: 'Last Login', sortable: true },
-                          ] as const
-                        ).map((col, i) => {
-                          const isActive = col.sortable && col.key && usersSort.key === col.key;
-                          const ArrowIcon = isActive
-                            ? usersSort.dir === 'asc'
-                              ? ChevronUp
-                              : ChevronDown
-                            : ArrowUpDown;
-                          const baseCls = 'text-left text-xs font-medium text-[#737373] py-3 px-4';
-                          if (!col.sortable || !col.key) {
-                            return (
-                              <th key={i} className={baseCls}>
-                                {col.label}
-                              </th>
-                            );
-                          }
-                          return (
-                            <th key={i} className={baseCls}>
-                              <button
-                                onClick={() => handleUsersSort(col.key as UsersSortKey)}
-                                className={`inline-flex items-center gap-1 hover:text-white transition-colors ${isActive ? 'text-white' : ''}`}
-                                title={`Sort by ${col.label}`}
-                              >
-                                {col.label}
-                                <ArrowIcon
-                                  className={`w-3 h-3 ${isActive ? 'opacity-100' : 'opacity-40'}`}
-                                />
-                              </button>
-                            </th>
-                          );
-                        })}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[rgba(255,255,255,0.03)]">
-                      {visibleUsers.map((user) => (
-                        <tr key={user.id} className="hover:bg-[rgba(255,255,255,0.02)]">
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center text-white text-sm font-medium">
-                                {user.name.charAt(0).toUpperCase()}
-                              </div>
-                              <div>
-                                <div className="text-sm text-white">{user.name}</div>
-                                <div className="text-xs text-[#737373]">{user.email}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex flex-wrap gap-1 mb-2 items-center">
-                              {user.role
-                                .split(',')
-                                .slice(0, 2)
-                                .map((r, i) => {
-                                  const role = r.trim();
-                                  return (
-                                    <span
-                                      key={i}
-                                      className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${
-                                        role === 'admin'
-                                          ? 'bg-[#E0B954]/20 text-[#E0B954]'
-                                          : 'bg-[#E0B954]/20 text-[#E0B954]'
-                                      }`}
-                                    >
-                                      {role === 'admin' && <Shield className="w-3 h-3" />}
-                                      {role === 'project_manager' && (
-                                        <UserCog className="w-3 h-3" />
-                                      )}
-                                      {toPascalCase(role)}
-                                    </span>
-                                  );
-                                })}
-                              {user.role.split(',').length > 2 && (
-                                <button
-                                  onClick={() => setOpenRoleDropdown(user.id)}
-                                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs bg-[#E0B954]/20 text-[#E0B954] hover:bg-[#E0B954]/30 transition cursor-pointer"
-                                >
-                                  +{user.role.split(',').length - 2}
-                                </button>
-                              )}
-                            </div>
-                            <button
-                              onClick={() => setOpenRoleDropdown(user.id)}
-                              className="text-xs px-2 py-1 rounded bg-[rgba(224,185,84,0.1)] text-[#E0B954] hover:bg-[rgba(224,185,84,0.2)] transition"
-                            >
-                              Edit Roles
-                            </button>
-                          </td>
-                          <td className="py-3 px-4">
-                            {user.is_active ? (
-                              <span className="inline-flex items-center gap-1 text-xs text-[#E0B954]">
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#E0B954]" />
-                                Active
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-xs text-[#737373]">
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#737373]" />
-                                Inactive
-                              </span>
-                            )}
-                            {user.is_first_login && (
-                              <span className="ml-2 text-[10px] text-[#F59E0B]">(First Login)</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-sm text-[#737373]">
-                            {user.last_login_at
-                              ? new Date(user.last_login_at).toLocaleDateString()
-                              : 'Never'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {users.length === 0 && (
-                    <div className="text-center py-12 text-[#737373]">
-                      No users yet. Click "Add User" to create one.
-                    </div>
-                  )}
-                  {users.length > 0 && visibleUsers.length === 0 && (
-                    <div className="text-center py-12 text-sm text-[#737373]">
-                      No users match the current filter.
-                    </div>
-                  )}
-                </div>
-              </div>
+              <UsersTab users={users} onEditUserRoles={setOpenRoleDropdown} />
             )}
 
             {/* Roles Tab */}
             {activeTab === 'roles' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold text-white">Roles &amp; Capabilities</h2>
-                    <p className="text-xs text-[#737373] mt-1">
-                      Define what each role can see. Users get the union of capabilities from every
-                      role assigned to them.
-                    </p>
-                  </div>
-                  <Button
-                    onClick={handleOpenCreateRole}
-                    className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] hover:from-[#C79E3B] hover:to-[#B8872A] text-white rounded-xl h-10 px-4"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Role
-                  </Button>
-                </div>
-                <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.05)] rounded-xl overflow-visible">
-                  <table className="w-full">
-                    <thead className="bg-[rgba(255,255,255,0.02)]">
-                      <tr>
-                        <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">
-                          Name
-                        </th>
-                        <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">
-                          Description
-                        </th>
-                        <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">
-                          Capabilities
-                        </th>
-                        <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">
-                          Users
-                        </th>
-                        <th className="text-right text-xs font-medium text-[#737373] py-3 px-4">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[rgba(255,255,255,0.03)]">
-                      {roles.map((role) => (
-                        <tr key={role.id} className="hover:bg-[rgba(255,255,255,0.02)]">
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-2">
-                              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs bg-[#E0B954]/20 text-[#E0B954] font-medium">
-                                <KeyRound className="w-3 h-3" />
-                                {toPascalCase(role.name)}
-                              </span>
-                              {role.is_system && (
-                                <span className="text-[10px] uppercase tracking-wide text-[#737373] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)]">
-                                  System
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 text-sm text-[#a3a3a3]">
-                            {role.description || <span className="text-[#525252]">—</span>}
-                          </td>
-                          <td className="py-3 px-4 text-sm text-[#a3a3a3]">
-                            {role.capability_keys.length === 0 ? (
-                              <span className="text-[#525252]">None</span>
-                            ) : role.capability_keys.includes('*') ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-[#E0B954]/15 text-[#E0B954]">
-                                <Shield className="w-3 h-3" />
-                                Full access
-                              </span>
-                            ) : (
-                              <div className="flex flex-wrap gap-1 max-w-md">
-                                {role.capability_keys.slice(0, 3).map((k) => (
-                                  <span
-                                    key={k}
-                                    className="text-[10px] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.04)] text-[#a3a3a3] border border-[rgba(255,255,255,0.06)]"
-                                  >
-                                    {k}
-                                  </span>
-                                ))}
-                                {role.capability_keys.length > 3 && (
-                                  <span className="text-[10px] text-[#737373] px-1.5 py-0.5">
-                                    +{role.capability_keys.length - 3} more
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-sm text-[#a3a3a3]">
-                            {role.user_count ?? 0}
-                          </td>
-                          <td className="py-3 px-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleOpenEditRole(role)}
-                                className="text-[#737373] hover:text-white h-8"
-                              >
-                                <Pencil className="w-3.5 h-3.5 mr-1" />
-                                Edit
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteRole(role)}
-                                disabled={role.is_system || deleteRoleMutation.isPending}
-                                className="text-[#737373] hover:text-red-400 h-8 disabled:opacity-30 disabled:cursor-not-allowed"
-                                title={
-                                  role.is_system ? 'System roles cannot be deleted' : 'Delete role'
-                                }
-                              >
-                                <Trash2 className="w-3.5 h-3.5 mr-1" />
-                                Delete
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {roles.length === 0 && (
-                    <div className="text-center py-12 text-[#737373]">
-                      No roles yet. Click "Add Role" to create one.
-                    </div>
-                  )}
-                </div>
-              </div>
+              <RolesTab
+                roles={roles}
+                isDeletingRole={deleteRoleMutation.isPending}
+                onCreateRole={handleOpenCreateRole}
+                onEditRole={handleOpenEditRole}
+                onDeleteRole={handleDeleteRole}
+              />
             )}
           </>
         )}
