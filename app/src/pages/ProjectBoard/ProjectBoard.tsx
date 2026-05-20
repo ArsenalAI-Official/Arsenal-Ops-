@@ -31,8 +31,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast, Toaster } from 'sonner';
-import ArchitectureEditor from '@/components/ArchitectureEditor';
-import { ReviewerView } from '@/components/ProjectHub';
 import StatusDotMenu from '@/components/ProjectsPage/StatusDotMenu';
 import { useAuth, isProjectManager } from '@/contexts/AuthContext';
 import { buildEpicGroups } from '@/lib/hierarchy/buildEpicGroups';
@@ -46,6 +44,8 @@ import EditSprintModal, {
 } from './modals/EditSprintModal';
 import BoardColumn from './components/BoardColumn';
 import ItemDetailDrawer from './ItemDetailDrawer';
+import ReviewerPanel from './ReviewerPanel';
+import ArchitectureEditorWrapper from './ArchitectureEditorWrapper';
 
 // Helper function to parse YYYY-MM-DD string to local Date object (avoids UTC timezone issues)
 const parseLocalDate = (dateString: string | undefined): Date | undefined => {
@@ -1988,51 +1988,23 @@ const ProjectBoard = () => {
 
       {/* Reviewer Panel - slide in from right */}
       {showReviewer && (
-        <div className="fixed inset-y-0 right-0 w-[480px] max-w-full bg-[#080808] border-l border-[rgba(255,255,255,0.07)] shadow-2xl z-50 flex flex-col">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[rgba(255,255,255,0.05)] flex-shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-[#E0B954]/10 flex items-center justify-center">
-                <Eye className="w-4 h-4 text-[#E0B954]" />
-              </div>
-              <div>
-                <h2 className="text-sm font-semibold text-white">Review Queue</h2>
-                <p className="text-xs text-[#737373]">Items pending review</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowReviewer(false)}
-              className="p-1.5 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            <ReviewerView
-              workItems={workItems.map((item) => ({
-                ...item,
-                assignee_id: item.assignee_id ?? undefined,
-                sprint_id: item.sprint_id ?? undefined,
-                parent_id: item.parent_id ?? undefined,
-                epic_id: item.epic_id ?? undefined,
-                due_date: item.due_date ?? undefined,
-                estimated_hours: item.estimated_hours ?? undefined,
-              }))}
-              projectId={id!}
-              token={token!}
-              onTaskUpdate={(itemId, updates) => {
-                queryClient.setQueryData<WorkItem[]>(['workItems', workItemFilters], (old) =>
-                  (old ?? []).map((item) => (item.id === itemId ? { ...item, ...updates } : item)),
-                );
-                invalidateWorkItems();
-              }}
-            />
-          </div>
-        </div>
+        <ReviewerPanel
+          workItems={workItems}
+          projectId={id!}
+          token={token!}
+          onClose={() => setShowReviewer(false)}
+          onTaskUpdate={(itemId, updates) => {
+            queryClient.setQueryData<WorkItem[]>(['workItems', workItemFilters], (old) =>
+              (old ?? []).map((item) => (item.id === itemId ? { ...item, ...updates } : item)),
+            );
+            invalidateWorkItems();
+          }}
+        />
       )}
 
       {/* Architecture Editor Modal */}
       {editingArchitecture && (
-        <ArchitectureEditor
+        <ArchitectureEditorWrapper
           architecture={editingArchitecture}
           onSave={handleSaveArchitecture}
           onClose={() => setEditingArchitecture(null)}
