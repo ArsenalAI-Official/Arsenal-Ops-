@@ -50,6 +50,9 @@ backend/*.db
 backend/*.db.bak*
 backend/*.db-journal
 
+# Python lockfiles (pip/uv) — backend uses requirements.txt as source of truth
+backend/uv.lock
+
 # Verification / smoke-test scratch
 smoke-*.png
 verification-*.png
