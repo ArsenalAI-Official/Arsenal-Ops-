@@ -3108,78 +3108,85 @@ const ProjectBoard = () => {
                     ))}
                   </div>
 
-                  {/* Hierarchy breadcrumb */}
-                  {(selectedItem.epic_key || selectedItem.parent_key) &&
-                    (() => {
-                      const parentItem = selectedItem.parent_id
-                        ? workItems.find((wi) => wi.id === selectedItem.parent_id?.toString())
-                        : null;
-                      const epicItem = selectedItem.epic_id
-                        ? workItems.find((wi) => wi.id === selectedItem.epic_id?.toString())
-                        : null;
-                      return (
-                        <div>
-                          <div className="text-xs text-[#737373] mb-2 font-medium">Hierarchy</div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {selectedItem.epic_key && epicItem && (
-                              <a
-                                href={`/project/${id}/board/${epicItem.id}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 px-2 py-1 rounded-md bg-[rgba(167,139,250,0.12)] text-[#A78BFA] text-xs hover:bg-[rgba(167,139,250,0.2)] transition-colors cursor-pointer"
-                              >
-                                Epic: {selectedItem.epic_key} ({epicItem.title})
-                              </a>
-                            )}
-                            {selectedItem.epic_key && selectedItem.parent_key && (
-                              <span className="text-[#555] text-xs">›</span>
-                            )}
-                            {selectedItem.parent_key && parentItem && (
-                              <a
-                                href={`/project/${id}/board/${parentItem.id}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 px-2 py-1 rounded-md bg-[rgba(224,185,84,0.10)] text-[#E0B954] text-xs hover:bg-[rgba(224,185,84,0.2)] transition-colors cursor-pointer"
-                              >
-                                Parent: {selectedItem.parent_key} ({parentItem.title})
-                              </a>
+                  {/* Hierarchy: Epic, Belongs to, Child Items — all in the row
+                      format used by Child Items, with empty states. */}
+                  {(() => {
+                    const subjectType = selectedItem.type as WorkItem['type'];
+                    const subjectId = parseInt(selectedItem.id);
+                    const showEpicSlot = fieldSupportsType(subjectType, 'epic_id');
+                    const showParentSlot = fieldSupportsType(subjectType, 'parent_id');
+                    // Bug is leaf-only, so don't show a child slot for bugs.
+                    const showChildSlot = subjectType !== 'bug';
+                    if (!showEpicSlot && !showParentSlot && !showChildSlot) return null;
+
+                    const epicItem = selectedItem.epic_id
+                      ? workItems.find((wi) => wi.id === selectedItem.epic_id?.toString())
+                      : null;
+                    const parentItem = selectedItem.parent_id
+                      ? workItems.find((wi) => wi.id === selectedItem.parent_id?.toString())
+                      : null;
+                    // Epics roll up children via epic_id; everything else via parent_id.
+                    const childItems = !showChildSlot
+                      ? []
+                      : subjectType === 'epic'
+                        ? workItems.filter((wi) => wi.epic_id === subjectId)
+                        : workItems.filter((wi) => wi.parent_id === subjectId);
+
+                    const renderRow = (target: WorkItem) => (
+                      <div
+                        key={target.id}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] cursor-pointer hover:border-[rgba(255,255,255,0.08)] transition-colors"
+                        onClick={() => navigate(`/project/${id}/board/${target.id}`)}
+                      >
+                        <span className="text-xs font-mono text-[#737373] flex-shrink-0">
+                          {target.key}
+                        </span>
+                        <span className="text-sm text-[#a3a3a3] truncate flex-1">
+                          {target.title}
+                        </span>
+                        <span className="text-xs text-[#555] capitalize flex-shrink-0">
+                          {target.status.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                    );
+
+                    const renderEmpty = (label: string) => (
+                      <div className="flex items-center px-3 py-2 rounded-lg border border-dashed border-[rgba(255,255,255,0.06)] text-xs text-[#555] italic">
+                        {label}
+                      </div>
+                    );
+
+                    return (
+                      <div className="space-y-4">
+                        {showEpicSlot && (
+                          <div>
+                            <div className="text-xs text-[#737373] mb-2 font-medium">Epic</div>
+                            {epicItem ? renderRow(epicItem) : renderEmpty('No epic')}
+                          </div>
+                        )}
+                        {showParentSlot && (
+                          <div>
+                            <div className="text-xs text-[#737373] mb-2 font-medium">
+                              Belongs to
+                            </div>
+                            {parentItem ? renderRow(parentItem) : renderEmpty('No parent')}
+                          </div>
+                        )}
+                        {showChildSlot && (
+                          <div>
+                            <div className="text-xs text-[#737373] mb-2 font-medium">
+                              Child Items
+                              {childItems.length > 0 ? ` (${childItems.length})` : ''}
+                            </div>
+                            {childItems.length > 0 ? (
+                              <div className="space-y-1.5">{childItems.map(renderRow)}</div>
+                            ) : (
+                              renderEmpty('No child items')
                             )}
                           </div>
-                        </div>
-                      );
-                    })()}
-
-                  {/* Child items */}
-                  {(() => {
-                    const children = workItems.filter(
-                      (wi) => wi.parent_id === parseInt(selectedItem.id),
-                    );
-                    return children.length > 0 ? (
-                      <div>
-                        <div className="text-xs text-[#737373] mb-2 font-medium">
-                          Child Items ({children.length})
-                        </div>
-                        <div className="space-y-1.5">
-                          {children.map((child) => (
-                            <div
-                              key={child.id}
-                              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] cursor-pointer hover:border-[rgba(255,255,255,0.08)] transition-colors"
-                              onClick={() => navigate(`/project/${id}/board/${child.id}`)}
-                            >
-                              <span className="text-xs font-mono text-[#737373] flex-shrink-0">
-                                {child.key}
-                              </span>
-                              <span className="text-sm text-[#a3a3a3] truncate flex-1">
-                                {child.title}
-                              </span>
-                              <span className="text-xs text-[#555] capitalize flex-shrink-0">
-                                {child.status.replace(/_/g, ' ')}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
+                        )}
                       </div>
-                    ) : null;
+                    );
                   })()}
 
                   {/* Tags */}
@@ -3325,81 +3332,6 @@ const ProjectBoard = () => {
                       </div>
                     </div>
                   )}
-
-                  {/* Child Items (if this is an Epic) */}
-                  {selectedItem.type === 'epic' &&
-                    (() => {
-                      const childItems = workItems.filter(
-                        (wi) => wi.epic_id === parseInt(selectedItem.id),
-                      );
-                      return childItems.length > 0 ? (
-                        <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
-                          <div className="text-xs text-[#737373] mb-3 font-medium">
-                            Child Items ({childItems.length})
-                          </div>
-                          <div className="space-y-2 max-h-96 overflow-y-auto">
-                            {childItems.map((child) => {
-                              const childTypeInfo = TYPE_CONFIG[child.type] || TYPE_CONFIG.task;
-                              const childPriorityStyle =
-                                PRIORITY_COLORS[child.priority] || PRIORITY_COLORS.medium;
-                              return (
-                                <a
-                                  key={child.id}
-                                  href={`/project/${id}/board/${child.id}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="block p-3 rounded-lg border border-[rgba(255,255,255,0.05)] bg-[rgba(255,255,255,0.01)] hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(244,246,255,0.15)] cursor-pointer transition-all"
-                                >
-                                  <div className="flex items-start justify-between gap-2 mb-1.5">
-                                    <div className="flex items-center gap-2 flex-1">
-                                      <div
-                                        className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium flex-shrink-0"
-                                        style={{
-                                          backgroundColor: childTypeInfo.bg,
-                                          color: childTypeInfo.color,
-                                        }}
-                                      >
-                                        <childTypeInfo.icon className="w-2.5 h-2.5" />
-                                        {childTypeInfo.label}
-                                      </div>
-                                      <span className="text-[9px] text-[#E0B954] font-mono">
-                                        {child.key}
-                                      </span>
-                                    </div>
-                                    <span
-                                      className="text-[9px] px-1.5 py-0.5 rounded font-medium flex-shrink-0"
-                                      style={{
-                                        backgroundColor: childPriorityStyle.hex + '33',
-                                        color: childPriorityStyle.hex,
-                                      }}
-                                    >
-                                      {child.priority.charAt(0).toUpperCase() +
-                                        child.priority.slice(1)}
-                                    </span>
-                                  </div>
-                                  <p className="text-xs text-[#a3a3a3] line-clamp-1 mb-1.5">
-                                    {child.title}
-                                  </p>
-                                  <div className="flex items-center justify-between text-[9px] text-[#737373]">
-                                    <span>{child.remaining_hours}h left</span>
-                                    <span
-                                      className="px-1.5 py-0.5 rounded text-[9px]"
-                                      style={{
-                                        backgroundColor: `${(STATUS_CONFIG[child.status] || STATUS_CONFIG.todo).color}22`,
-                                        color: (STATUS_CONFIG[child.status] || STATUS_CONFIG.todo)
-                                          .color,
-                                      }}
-                                    >
-                                      {(STATUS_CONFIG[child.status] || STATUS_CONFIG.todo).label}
-                                    </span>
-                                  </div>
-                                </a>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ) : null;
-                    })()}
 
                   {/* Comments Section */}
                   <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
