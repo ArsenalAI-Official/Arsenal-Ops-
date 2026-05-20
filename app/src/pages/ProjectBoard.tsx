@@ -237,6 +237,29 @@ const PRIORITY_COLORS = {
   },
 };
 
+// Canonical orderings for the sortable list-view columns.
+const LIST_SORT_TYPE_ORDER: Record<string, number> = {
+  epic: 0,
+  user_story: 1,
+  task: 2,
+  bug: 3,
+};
+const LIST_SORT_STATUS_ORDER: Record<string, number> = {
+  backlog: 0,
+  todo: 1,
+  in_progress: 2,
+  in_review: 3,
+  done: 4,
+};
+const LIST_SORT_PRIORITY_ORDER: Record<string, number> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+};
+
+type ListSortKey = 'type' | 'status' | 'priority' | 'assignee';
+
 const ProjectBoard = () => {
   const { id, ticketId } = useParams<{ id: string; ticketId?: string }>();
   const navigate = useNavigate();
@@ -277,6 +300,66 @@ const ProjectBoard = () => {
   const sprintMenuRef = useRef<HTMLDivElement>(null);
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+
+  // Shared sort state for the By Sprint / By Epic list views. Applies within
+  // each group; doesn't reorder groups themselves. Null = group's natural
+  // order (preserves the parent→child clustering in the By Epic view).
+  const [listSortKey, setListSortKey] = useState<ListSortKey | null>(null);
+  const [listSortDir, setListSortDir] = useState<'asc' | 'desc'>('asc');
+  const handleListSort = (key: ListSortKey) => {
+    if (listSortKey === key) {
+      // Same column: asc → desc → off
+      if (listSortDir === 'asc') setListSortDir('desc');
+      else setListSortKey(null);
+    } else {
+      setListSortKey(key);
+      setListSortDir('asc');
+    }
+  };
+  const listItemComparator = useMemo(() => {
+    if (!listSortKey) return null;
+    const dir = listSortDir === 'asc' ? 1 : -1;
+    return (a: WorkItem, b: WorkItem) => {
+      let cmp = 0;
+      switch (listSortKey) {
+        case 'type':
+          cmp = (LIST_SORT_TYPE_ORDER[a.type] ?? 99) - (LIST_SORT_TYPE_ORDER[b.type] ?? 99);
+          break;
+        case 'status':
+          cmp = (LIST_SORT_STATUS_ORDER[a.status] ?? 99) - (LIST_SORT_STATUS_ORDER[b.status] ?? 99);
+          break;
+        case 'priority':
+          cmp =
+            (LIST_SORT_PRIORITY_ORDER[a.priority] ?? 99) -
+            (LIST_SORT_PRIORITY_ORDER[b.priority] ?? 99);
+          break;
+        case 'assignee': {
+          // Unassigned sorts last in asc, first in desc.
+          const aa = a.assignee_id ? (a.assignee || '').toLowerCase() : '￿';
+          const bb = b.assignee_id ? (b.assignee || '').toLowerCase() : '￿';
+          cmp = aa.localeCompare(bb);
+          break;
+        }
+      }
+      return cmp * dir;
+    };
+  }, [listSortKey, listSortDir]);
+  const renderListSortHeader = (label: string, key: ListSortKey) => {
+    const active = listSortKey === key;
+    return (
+      <button
+        type="button"
+        onClick={() => handleListSort(key)}
+        className={`flex items-center gap-1 text-left uppercase tracking-wider hover:text-white transition-colors ${
+          active ? 'text-[#E0B954]' : ''
+        }`}
+        aria-sort={active ? (listSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      >
+        {label}
+        {active && <span aria-hidden>{listSortDir === 'asc' ? '↑' : '↓'}</span>}
+      </button>
+    );
+  };
 
   // AI Planning flow states
   const [showAIModal, setShowAIModal] = useState(false);
@@ -2357,15 +2440,22 @@ const ProjectBoard = () => {
                         <>
                           {/* Table header */}
                           <div className="grid grid-cols-[120px_1fr_100px_100px_100px_120px] gap-4 px-5 py-3 border-t border-[rgba(255,255,255,0.05)] text-xs text-[#737373] font-semibold uppercase tracking-wider">
-                            <span>Type</span>
+                            {renderListSortHeader('Type', 'type')}
                             <span>Title</span>
-                            <span>Status</span>
-                            <span>Priority</span>
+                            {renderListSortHeader('Status', 'status')}
+                            {renderListSortHeader('Priority', 'priority')}
                             <span>Points</span>
-                            <span>Assignee</span>
+                            {renderListSortHeader('Assignee', 'assignee')}
                           </div>
-                          {/* Table rows with subtask indent */}
-                          {group.rows.map(({ item, depth }) => {
+                          {/* Table rows. Default: hierarchy-aware (parent → child with
+                              indent). When sorted, render flat at depth=0 since
+                              cross-hierarchy ordering breaks the parent/child grouping. */}
+                          {(listItemComparator
+                            ? [...group.rows]
+                                .sort((a, b) => listItemComparator(a.item, b.item))
+                                .map((r) => ({ item: r.item, depth: 0 }))
+                            : group.rows
+                          ).map(({ item, depth }) => {
                             const typeInfo = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
                             const TypeIcon = typeInfo.icon;
                             const priorityStyle =
@@ -2524,15 +2614,18 @@ const ProjectBoard = () => {
                       <>
                         {/* Table header */}
                         <div className="grid grid-cols-[120px_1fr_100px_100px_100px_120px] gap-4 px-5 py-3 border-t border-[rgba(255,255,255,0.05)] text-xs text-[#737373] font-semibold uppercase tracking-wider">
-                          <span>Type</span>
+                          {renderListSortHeader('Type', 'type')}
                           <span>Title</span>
-                          <span>Status</span>
-                          <span>Priority</span>
+                          {renderListSortHeader('Status', 'status')}
+                          {renderListSortHeader('Priority', 'priority')}
                           <span>Points</span>
-                          <span>Assignee</span>
+                          {renderListSortHeader('Assignee', 'assignee')}
                         </div>
                         {/* Table rows */}
-                        {group.items.map((item) => {
+                        {(listItemComparator
+                          ? [...group.items].sort(listItemComparator)
+                          : group.items
+                        ).map((item) => {
                           const typeInfo = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
                           const TypeIcon = typeInfo.icon;
                           const priorityStyle =
