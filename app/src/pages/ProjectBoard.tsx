@@ -35,6 +35,8 @@ import {
   EyeOff,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
+  ChevronsUpDown,
   ListFilter,
   Check,
   Loader2,
@@ -346,17 +348,23 @@ const ProjectBoard = () => {
   }, [listSortKey, listSortDir]);
   const renderListSortHeader = (label: string, key: ListSortKey) => {
     const active = listSortKey === key;
+    const Icon = active ? (listSortDir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown;
     return (
       <button
         type="button"
         onClick={() => handleListSort(key)}
-        className={`flex items-center gap-1 text-left uppercase tracking-wider hover:text-white transition-colors ${
+        className={`group/sort flex items-center gap-1 text-left uppercase tracking-wider hover:text-white transition-colors ${
           active ? 'text-[#E0B954]' : ''
         }`}
         aria-sort={active ? (listSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
       >
         {label}
-        {active && <span aria-hidden>{listSortDir === 'asc' ? '↑' : '↓'}</span>}
+        <Icon
+          className={`w-3 h-3 shrink-0 transition-opacity ${
+            active ? 'opacity-100' : 'opacity-30 group-hover/sort:opacity-70'
+          }`}
+          aria-hidden
+        />
       </button>
     );
   };
