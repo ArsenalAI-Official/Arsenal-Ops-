@@ -36,3 +36,20 @@ npm-debug.log*
 .idea/
 *.swp
 *.swo
+
+# Tooling scratch / caches
+.ruff_cache/
+.claude/worktrees/
+.branch-review/
+.claude-flow/
+.hive-mind/
+.playwright-mcp/
+
+# Local DB + backups (dev SQLite is auto-created from models)
+backend/*.db
+backend/*.db.bak*
+backend/*.db-journal
+
+# Verification / smoke-test scratch
+smoke-*.png
+verification-*.png
