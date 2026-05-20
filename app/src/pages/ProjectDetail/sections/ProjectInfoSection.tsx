@@ -1,0 +1,377 @@
+import { useState } from 'react';
+import {
+  Github,
+  Info,
+  Pencil,
+  Save,
+  X,
+  Users,
+  Calendar,
+  ExternalLink,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarIcon } from '@/components/ui/calendar';
+
+// Helper function to parse YYYY-MM-DD string to local Date object (avoids UTC timezone issues)
+const parseLocalDate = (dateString: string | undefined): Date | undefined => {
+  if (!dateString) return undefined;
+  const [year, month, day] = dateString.split('-');
+  return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+};
+
+interface ProjectDeveloper {
+  id: number;
+  name: string;
+  email: string;
+  github_username: string;
+  role: string;
+  responsibilities: string;
+  is_admin: boolean;
+}
+
+interface Project {
+  id: number;
+  name: string;
+  description: string;
+  key_prefix: string;
+  status: string;
+  github_repo_url: string;
+  github_repo_urls?: string[];
+  github_repo_name?: string;
+  created_at: string;
+  end_date?: string;
+  developers: ProjectDeveloper[];
+}
+
+interface ProjectInfoSectionProps {
+  project: Project;
+  onSave: (updates: Partial<Project>) => void;
+}
+
+const ProjectInfoSection = ({ project, onSave }: ProjectInfoSectionProps) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState<Partial<Project>>({});
+  const [showCalendarStartDate, setShowCalendarStartDate] = useState(false);
+  const [showCalendarEndDate, setShowCalendarEndDate] = useState(false);
+
+  const handleSaveEdit = () => {
+    onSave(editForm);
+    setIsEditing(false);
+  };
+
+  return (
+    <>
+      <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold text-white">Project Information</h2>
+          {!isEditing ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setEditForm(project);
+                setIsEditing(true);
+              }}
+              className="text-[#737373] hover:text-white"
+            >
+              <Pencil className="w-4 h-4 mr-2" />
+              Edit
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setIsEditing(false);
+                  setEditForm(project);
+                }}
+                className="text-[#737373] hover:text-white"
+              >
+                <X className="w-4 h-4 mr-2" />
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSaveEdit}
+                className="bg-[#E0B954] hover:bg-[#C79E3B] text-white"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                Save
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {isEditing ? (
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-medium text-[#737373] block mb-1.5">
+                Project Name
+              </label>
+              <Input
+                value={editForm.name || ''}
+                onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-[#737373] block mb-1.5">
+                Description
+              </label>
+              <Textarea
+                value={editForm.description || ''}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, description: e.target.value }))
+                }
+                className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl min-h-[120px]"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-[#737373] block mb-1.5">
+                GitHub Repository URL
+              </label>
+              <Input
+                value={editForm.github_repo_url || ''}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, github_repo_url: e.target.value }))
+                }
+                placeholder="https://github.com/username/repo"
+                className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-medium text-[#737373] block mb-1.5">
+                  Start Date
+                </label>
+                <Popover
+                  open={showCalendarStartDate}
+                  onOpenChange={setShowCalendarStartDate}
+                >
+                  <PopoverTrigger asChild>
+                    <Button className="w-full justify-start text-left font-normal bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.04)] hover:text-[#F4F6FF] rounded-xl h-10">
+                      <Calendar className="w-4 h-4 mr-2" />
+                      {editForm.created_at
+                        ? parseLocalDate(editForm.created_at)?.toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })
+                        : 'Pick a date'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-auto p-0 bg-[#0d0d0d] border-[rgba(255,255,255,0.07)]"
+                    align="start"
+                  >
+                    <CalendarIcon
+                      mode="single"
+                      selected={parseLocalDate(
+                        editForm.created_at === null ? undefined : editForm.created_at,
+                      )}
+                      onSelect={(date) => {
+                        if (date) {
+                          const year = date.getFullYear();
+                          const month = String(date.getMonth() + 1).padStart(2, '0');
+                          const day = String(date.getDate()).padStart(2, '0');
+                          setEditForm((f) => ({
+                            ...f,
+                            created_at: `${year}-${month}-${day}`,
+                          }));
+                          setShowCalendarStartDate(false);
+                        }
+                      }}
+                      classNames={{
+                        months: 'flex flex-col',
+                        month: 'space-y-4',
+                        caption:
+                          'flex justify-between items-center px-0 pb-4 relative h-7 mb-2',
+                        caption_label: 'text-sm font-medium text-white',
+                        nav: 'space-x-1 flex items-center',
+                        nav_button:
+                          'text-white hover:bg-[rgba(224,185,84,0.1)] rounded p-1',
+                        nav_button_previous: 'absolute left-0',
+                        nav_button_next: 'absolute right-0',
+                        table: 'w-full border-collapse space-y-1',
+                        head_row: 'flex gap-1 mb-1',
+                        head_cell: 'w-8 h-8 rounded text-[#737373] font-normal text-sm',
+                        row: 'flex gap-1 mb-1',
+                        cell: 'relative p-0 text-center text-sm focus-within:relative focus-within:z-20',
+                        day: 'p-0 h-8 w-8 rounded bg-transparent text-white text-sm cursor-pointer hover:bg-[rgba(224,185,84,0.1)]',
+                        day_selected:
+                          'bg-[#E0B954] text-[#0d0d0d] font-medium hover:bg-[#E0B954]',
+                        day_today: 'bg-[rgba(224,185,84,0.2)] text-[#E0B954]',
+                        day_outside: 'text-[#555]',
+                        day_disabled: 'text-[#333] cursor-not-allowed',
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-[#737373] block mb-1.5">
+                  End Date
+                </label>
+                <Popover open={showCalendarEndDate} onOpenChange={setShowCalendarEndDate}>
+                  <PopoverTrigger asChild>
+                    <Button className="w-full justify-start text-left font-normal bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.04)] hover:text-[#F4F6FF] rounded-xl h-10">
+                      <Calendar className="w-4 h-4 mr-2" />
+                      {editForm.end_date
+                        ? parseLocalDate(editForm.end_date)?.toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })
+                        : 'Pick a date'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-auto p-0 bg-[#0d0d0d] border-[rgba(255,255,255,0.07)]"
+                    align="start"
+                  >
+                    <CalendarIcon
+                      mode="single"
+                      selected={parseLocalDate(
+                        editForm.end_date === null ? undefined : editForm.end_date,
+                      )}
+                      onSelect={(date) => {
+                        if (date) {
+                          const year = date.getFullYear();
+                          const month = String(date.getMonth() + 1).padStart(2, '0');
+                          const day = String(date.getDate()).padStart(2, '0');
+                          setEditForm((f) => ({
+                            ...f,
+                            end_date: `${year}-${month}-${day}`,
+                          }));
+                          setShowCalendarEndDate(false);
+                        }
+                      }}
+                      classNames={{
+                        months: 'flex flex-col',
+                        month: 'space-y-4',
+                        caption:
+                          'flex justify-between items-center px-0 pb-4 relative h-7 mb-2',
+                        caption_label: 'text-sm font-medium text-white',
+                        nav: 'space-x-1 flex items-center',
+                        nav_button:
+                          'text-white hover:bg-[rgba(224,185,84,0.1)] rounded p-1',
+                        nav_button_previous: 'absolute left-0',
+                        nav_button_next: 'absolute right-0',
+                        table: 'w-full border-collapse space-y-1',
+                        head_row: 'flex gap-1 mb-1',
+                        head_cell: 'w-8 h-8 rounded text-[#737373] font-normal text-sm',
+                        row: 'flex gap-1 mb-1',
+                        cell: 'relative p-0 text-center text-sm focus-within:relative focus-within:z-20',
+                        day: 'p-0 h-8 w-8 rounded bg-transparent text-white text-sm cursor-pointer hover:bg-[rgba(224,185,84,0.1)]',
+                        day_selected:
+                          'bg-[#E0B954] text-[#0d0d0d] font-medium hover:bg-[#E0B954]',
+                        day_today: 'bg-[rgba(224,185,84,0.2)] text-[#E0B954]',
+                        day_outside: 'text-[#555]',
+                        day_disabled: 'text-[#333] cursor-not-allowed',
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-medium text-[#737373] block mb-1">
+                Description
+              </label>
+              <p className="text-sm text-[#f5f5f5] leading-relaxed">
+                {project.description || 'No description provided.'}
+              </p>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-[#737373] block mb-1">
+                GitHub Repository
+              </label>
+              {project.github_repo_url ? (
+                <a
+                  href={project.github_repo_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm text-[#E0B954] hover:underline"
+                >
+                  <Github className="w-4 h-4" />
+                  {project.github_repo_url}
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              ) : (
+                <p className="text-sm text-[#737373]">No repository configured</p>
+              )}
+            </div>
+            <div className="flex items-center gap-4 pt-3 border-t border-[rgba(255,255,255,0.05)] flex-wrap">
+              <div>
+                <span className="text-xs text-[#737373]">Start Date</span>
+                <p className="text-sm text-[#f5f5f5]">
+                  {new Date(project.created_at).toLocaleDateString()}
+                </p>
+              </div>
+              <div>
+                <span className="text-xs text-[#737373]">End Date</span>
+                <p className="text-sm text-[#f5f5f5]">
+                  {project.end_date
+                    ? new Date(project.end_date).toLocaleDateString()
+                    : 'Not set'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-4 gap-3">
+        <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-[#E0B954]/10 flex items-center justify-center">
+              <Users className="w-5 h-5 text-[#E0B954]" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-white">{project.developers.length}</p>
+              <p className="text-xs text-[#737373]">Developers</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-[#E0B954]/10 flex items-center justify-center">
+              <Github className="w-5 h-5 text-[#E0B954]" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-white">
+                {(Array.isArray(project.github_repo_urls) &&
+                  project.github_repo_urls.length > 0) ||
+                project.github_repo_url
+                  ? 'Yes'
+                  : 'No'}
+              </p>
+              <p className="text-xs text-[#737373]">GitHub Repos</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-[#F59E0B]/10 flex items-center justify-center">
+              <Info className="w-5 h-5 text-[#F59E0B]" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-white">{project.key_prefix}</p>
+              <p className="text-xs text-[#737373]">Key Prefix</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};
+
+export default ProjectInfoSection;

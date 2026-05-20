@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@/lib/api';
@@ -19,36 +19,17 @@ import {
 } from 'recharts';
 import {
   ArrowLeft,
-  Users,
-  Github,
   Info,
-  Pencil,
-  Save,
-  X,
-  Plus,
-  Trash2,
-  ExternalLink,
-  CheckCircle2,
-  AlertCircle,
   LayoutGrid,
-  Layers,
-  Sparkles,
   ShieldAlert,
-  Zap,
   Clock,
   DollarSign,
-  Target,
   TrendingUp,
-  AlertTriangle,
-  Wrench,
   Calendar,
-  FileText,
   BarChart3,
   Activity,
   ChevronDown,
   ChevronUp,
-  Link2,
-  Crown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import PMView from '@/components/PMView';
@@ -60,22 +41,17 @@ import {
   PulseSettingsView,
 } from '@/components/ProjectHub';
 import { PulseData, loadPulseData } from '@/components/ProjectHub/pulseData';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarIcon } from '@/components/ui/calendar';
 import { toast, Toaster } from 'sonner';
-const MermaidRenderer = lazy(() => import('@/components/MermaidRenderer'));
+// ArchitectureEditor (modal) is lazy here at the parent since edit state lives at the parent.
+// MermaidRenderer is lazy-loaded inside ArchitectureSection.
 const ArchitectureEditor = lazy(() => import('@/components/ArchitectureEditor'));
 import { useAuth } from '@/contexts/AuthContext';
-
-// Helper function to parse YYYY-MM-DD string to local Date object (avoids UTC timezone issues)
-const parseLocalDate = (dateString: string | undefined): Date | undefined => {
-  if (!dateString) return undefined;
-  const [year, month, day] = dateString.split('-');
-  return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-};
+import ProjectInfoSection from './sections/ProjectInfoSection';
+import PRDAnalysisSection from './sections/PRDAnalysisSection';
+import ArchitectureSection from './sections/ArchitectureSection';
+import TeamSection from './sections/TeamSection';
+import LinksSection from './sections/LinksSection';
 
 interface Developer {
   id: number;
@@ -307,16 +283,7 @@ const ProjectDetail = () => {
     }
   }, [activeTab]);
 
-  const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<Partial<Project>>({});
-  const [showAddDeveloper, setShowAddDeveloper] = useState(false);
-  const [newDeveloper, setNewDeveloper] = useState({
-    developer_id: '',
-    role: '',
-    responsibilities: '',
-  });
-
-  // Architecture editing state
+  // Architecture editing state — modal lives at parent so it overlays any tab.
   const [editingArchitecture, setEditingArchitecture] = useState<Architecture | null>(null);
 
   const [sprintsExpanded, setSprintsExpanded] = useState(false);
@@ -329,22 +296,6 @@ const ProjectDetail = () => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (id) setPulseData(loadPulseData(id));
   }, [id]);
-
-  // Calendar pickers for start & end dates
-  const [showCalendarStartDate, setShowCalendarStartDate] = useState(false);
-  const [showCalendarEndDate, setShowCalendarEndDate] = useState(false);
-
-  // Files/Links state
-  const [showAddLink, setShowAddLink] = useState(false);
-  const [newLink, setNewLink] = useState({ name: '', url: '' });
-  const addLinkFormRef = useRef<HTMLDivElement>(null);
-
-  // Scroll to add link form when it opens
-  useEffect(() => {
-    if (showAddLink && addLinkFormRef.current) {
-      addLinkFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [showAddLink]);
 
   // ── react-query: project ────────────────────────────────────────────────
   const projectQuery = useQuery<Project>({
@@ -476,15 +427,13 @@ const ProjectDetail = () => {
 
   // ── mutations: links ────────────────────────────────────────────────────
   const addLinkMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (link: { name: string; url: string }) =>
       apiFetch<ProjectLink>(`/api/projects/${id}/links`, {
         method: 'POST',
-        body: JSON.stringify(newLink),
+        body: JSON.stringify(link),
       }),
     onSuccess: () => {
       toast.success('Link added!');
-      setNewLink({ name: '', url: '' });
-      setShowAddLink(false);
       queryClient.invalidateQueries({ queryKey: ['project', id, 'links'] });
     },
     onError: () => toast.error('Failed to add link'),
@@ -500,9 +449,9 @@ const ProjectDetail = () => {
     onError: () => toast.error('Error deleting link'),
   });
 
-  const handleAddLink = () => {
-    if (!id || !newLink.name || !newLink.url) return;
-    addLinkMutation.mutate();
+  const handleAddLink = (link: { name: string; url: string }) => {
+    if (!id) return;
+    addLinkMutation.mutate(link);
   };
 
   const handleDeleteLink = (linkId: number) => {
@@ -548,7 +497,7 @@ const ProjectDetail = () => {
 
   // ── mutation: save project edits ────────────────────────────────────────
   const saveEditMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (editForm: Partial<Project>) => {
       if (!project) throw new Error('No project');
       const updateData: any = {
         name: editForm.name || undefined,
@@ -570,7 +519,6 @@ const ProjectDetail = () => {
     onSuccess: (responseData) => {
       console.log('Update response:', responseData);
       toast.success('Project updated!');
-      setIsEditing(false);
       queryClient.invalidateQueries({ queryKey: ['project', id] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
@@ -581,36 +529,38 @@ const ProjectDetail = () => {
   });
 
   // Save project edits
-  const handleSaveEdit = () => {
-    saveEditMutation.mutate();
+  const handleSaveEdit = (editForm: Partial<Project>) => {
+    saveEditMutation.mutate(editForm);
   };
 
   // ── mutation: add developer ─────────────────────────────────────────────
   const addDeveloperMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (form: { developer_id: string; role: string; responsibilities: string }) => {
       if (!project) throw new Error('No project');
       return apiFetch<void>(`/api/projects/${project.id}/developers`, {
         method: 'POST',
         body: JSON.stringify({
-          developer_id: parseInt(newDeveloper.developer_id),
-          role: newDeveloper.role,
-          responsibilities: newDeveloper.responsibilities,
+          developer_id: parseInt(form.developer_id),
+          role: form.role,
+          responsibilities: form.responsibilities,
         }),
       });
     },
     onSuccess: () => {
       toast.success('Developer added!');
-      setShowAddDeveloper(false);
-      setNewDeveloper({ developer_id: '', role: '', responsibilities: '' });
       queryClient.invalidateQueries({ queryKey: ['project', id] });
     },
     onError: () => toast.error('Failed to add developer'),
   });
 
   // Add developer to project
-  const handleAddDeveloper = () => {
-    if (!project || !newDeveloper.developer_id) return;
-    addDeveloperMutation.mutate();
+  const handleAddDeveloper = (form: {
+    developer_id: string;
+    role: string;
+    responsibilities: string;
+  }) => {
+    if (!project || !form.developer_id) return;
+    addDeveloperMutation.mutate(form);
   };
 
   // ── mutation: remove developer ──────────────────────────────────────────
@@ -1003,1104 +953,49 @@ const ProjectDetail = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-lg font-semibold text-white">Project Information</h2>
-                  {!isEditing ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setEditForm(project);
-                        setIsEditing(true);
-                      }}
-                      className="text-[#737373] hover:text-white"
-                    >
-                      <Pencil className="w-4 h-4 mr-2" />
-                      Edit
-                    </Button>
-                  ) : (
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setIsEditing(false);
-                          setEditForm(project);
-                        }}
-                        className="text-[#737373] hover:text-white"
-                      >
-                        <X className="w-4 h-4 mr-2" />
-                        Cancel
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={handleSaveEdit}
-                        className="bg-[#E0B954] hover:bg-[#C79E3B] text-white"
-                      >
-                        <Save className="w-4 h-4 mr-2" />
-                        Save
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {isEditing ? (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                        Project Name
-                      </label>
-                      <Input
-                        value={editForm.name || ''}
-                        onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
-                        className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                        Description
-                      </label>
-                      <Textarea
-                        value={editForm.description || ''}
-                        onChange={(e) =>
-                          setEditForm((f) => ({ ...f, description: e.target.value }))
-                        }
-                        className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl min-h-[120px]"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                        GitHub Repository URL
-                      </label>
-                      <Input
-                        value={editForm.github_repo_url || ''}
-                        onChange={(e) =>
-                          setEditForm((f) => ({ ...f, github_repo_url: e.target.value }))
-                        }
-                        placeholder="https://github.com/username/repo"
-                        className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                          Start Date
-                        </label>
-                        <Popover
-                          open={showCalendarStartDate}
-                          onOpenChange={setShowCalendarStartDate}
-                        >
-                          <PopoverTrigger asChild>
-                            <Button className="w-full justify-start text-left font-normal bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.04)] hover:text-[#F4F6FF] rounded-xl h-10">
-                              <Calendar className="w-4 h-4 mr-2" />
-                              {editForm.created_at
-                                ? parseLocalDate(editForm.created_at)?.toLocaleDateString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    year: 'numeric',
-                                  })
-                                : 'Pick a date'}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent
-                            className="w-auto p-0 bg-[#0d0d0d] border-[rgba(255,255,255,0.07)]"
-                            align="start"
-                          >
-                            <CalendarIcon
-                              mode="single"
-                              selected={parseLocalDate(
-                                editForm.created_at === null ? undefined : editForm.created_at,
-                              )}
-                              onSelect={(date) => {
-                                if (date) {
-                                  const year = date.getFullYear();
-                                  const month = String(date.getMonth() + 1).padStart(2, '0');
-                                  const day = String(date.getDate()).padStart(2, '0');
-                                  setEditForm((f) => ({
-                                    ...f,
-                                    created_at: `${year}-${month}-${day}`,
-                                  }));
-                                  setShowCalendarStartDate(false);
-                                }
-                              }}
-                              classNames={{
-                                months: 'flex flex-col',
-                                month: 'space-y-4',
-                                caption:
-                                  'flex justify-between items-center px-0 pb-4 relative h-7 mb-2',
-                                caption_label: 'text-sm font-medium text-white',
-                                nav: 'space-x-1 flex items-center',
-                                nav_button:
-                                  'text-white hover:bg-[rgba(224,185,84,0.1)] rounded p-1',
-                                nav_button_previous: 'absolute left-0',
-                                nav_button_next: 'absolute right-0',
-                                table: 'w-full border-collapse space-y-1',
-                                head_row: 'flex gap-1 mb-1',
-                                head_cell: 'w-8 h-8 rounded text-[#737373] font-normal text-sm',
-                                row: 'flex gap-1 mb-1',
-                                cell: 'relative p-0 text-center text-sm focus-within:relative focus-within:z-20',
-                                day: 'p-0 h-8 w-8 rounded bg-transparent text-white text-sm cursor-pointer hover:bg-[rgba(224,185,84,0.1)]',
-                                day_selected:
-                                  'bg-[#E0B954] text-[#0d0d0d] font-medium hover:bg-[#E0B954]',
-                                day_today: 'bg-[rgba(224,185,84,0.2)] text-[#E0B954]',
-                                day_outside: 'text-[#555]',
-                                day_disabled: 'text-[#333] cursor-not-allowed',
-                              }}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                          End Date
-                        </label>
-                        <Popover open={showCalendarEndDate} onOpenChange={setShowCalendarEndDate}>
-                          <PopoverTrigger asChild>
-                            <Button className="w-full justify-start text-left font-normal bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.04)] hover:text-[#F4F6FF] rounded-xl h-10">
-                              <Calendar className="w-4 h-4 mr-2" />
-                              {editForm.end_date
-                                ? parseLocalDate(editForm.end_date)?.toLocaleDateString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    year: 'numeric',
-                                  })
-                                : 'Pick a date'}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent
-                            className="w-auto p-0 bg-[#0d0d0d] border-[rgba(255,255,255,0.07)]"
-                            align="start"
-                          >
-                            <CalendarIcon
-                              mode="single"
-                              selected={parseLocalDate(
-                                editForm.end_date === null ? undefined : editForm.end_date,
-                              )}
-                              onSelect={(date) => {
-                                if (date) {
-                                  const year = date.getFullYear();
-                                  const month = String(date.getMonth() + 1).padStart(2, '0');
-                                  const day = String(date.getDate()).padStart(2, '0');
-                                  setEditForm((f) => ({
-                                    ...f,
-                                    end_date: `${year}-${month}-${day}`,
-                                  }));
-                                  setShowCalendarEndDate(false);
-                                }
-                              }}
-                              classNames={{
-                                months: 'flex flex-col',
-                                month: 'space-y-4',
-                                caption:
-                                  'flex justify-between items-center px-0 pb-4 relative h-7 mb-2',
-                                caption_label: 'text-sm font-medium text-white',
-                                nav: 'space-x-1 flex items-center',
-                                nav_button:
-                                  'text-white hover:bg-[rgba(224,185,84,0.1)] rounded p-1',
-                                nav_button_previous: 'absolute left-0',
-                                nav_button_next: 'absolute right-0',
-                                table: 'w-full border-collapse space-y-1',
-                                head_row: 'flex gap-1 mb-1',
-                                head_cell: 'w-8 h-8 rounded text-[#737373] font-normal text-sm',
-                                row: 'flex gap-1 mb-1',
-                                cell: 'relative p-0 text-center text-sm focus-within:relative focus-within:z-20',
-                                day: 'p-0 h-8 w-8 rounded bg-transparent text-white text-sm cursor-pointer hover:bg-[rgba(224,185,84,0.1)]',
-                                day_selected:
-                                  'bg-[#E0B954] text-[#0d0d0d] font-medium hover:bg-[#E0B954]',
-                                day_today: 'bg-[rgba(224,185,84,0.2)] text-[#E0B954]',
-                                day_outside: 'text-[#555]',
-                                day_disabled: 'text-[#333] cursor-not-allowed',
-                              }}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-xs font-medium text-[#737373] block mb-1">
-                        Description
-                      </label>
-                      <p className="text-sm text-[#f5f5f5] leading-relaxed">
-                        {project.description || 'No description provided.'}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-[#737373] block mb-1">
-                        GitHub Repository
-                      </label>
-                      {project.github_repo_url ? (
-                        <a
-                          href={project.github_repo_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-sm text-[#E0B954] hover:underline"
-                        >
-                          <Github className="w-4 h-4" />
-                          {project.github_repo_url}
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      ) : (
-                        <p className="text-sm text-[#737373]">No repository configured</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-4 pt-3 border-t border-[rgba(255,255,255,0.05)] flex-wrap">
-                      <div>
-                        <span className="text-xs text-[#737373]">Start Date</span>
-                        <p className="text-sm text-[#f5f5f5]">
-                          {new Date(project.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-xs text-[#737373]">End Date</span>
-                        <p className="text-sm text-[#f5f5f5]">
-                          {project.end_date
-                            ? new Date(project.end_date).toLocaleDateString()
-                            : 'Not set'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Quick Stats */}
-              <div className="grid grid-cols-4 gap-3">
-                <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-[#E0B954]/10 flex items-center justify-center">
-                      <Users className="w-5 h-5 text-[#E0B954]" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-white">{project.developers.length}</p>
-                      <p className="text-xs text-[#737373]">Developers</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-[#E0B954]/10 flex items-center justify-center">
-                      <Github className="w-5 h-5 text-[#E0B954]" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-white">
-                        {(Array.isArray(project.github_repo_urls) &&
-                          project.github_repo_urls.length > 0) ||
-                        project.github_repo_url
-                          ? 'Yes'
-                          : 'No'}
-                      </p>
-                      <p className="text-xs text-[#737373]">GitHub Repos</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-[#F59E0B]/10 flex items-center justify-center">
-                      <Info className="w-5 h-5 text-[#F59E0B]" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-white">{project.key_prefix}</p>
-                      <p className="text-xs text-[#737373]">Key Prefix</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <ProjectInfoSection project={project} onSave={handleSaveEdit} />
 
               {/* PRD Analysis Section */}
               {prdAnalysis && !isSubsectionRestricted('overview', 'prd analysis') && (
-                <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center">
-                      <FileText className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-white">Project Overview</h3>
-                      <p className="text-xs text-[#737373]">Generated from PRD</p>
-                    </div>
-                  </div>
-
-                  {/* Summary */}
-                  <div className="mb-3">
-                    <h4 className="text-sm font-medium text-[#a3a3a3] mb-1.5">Summary</h4>
-                    <p className="text-sm text-[#f5f5f5] leading-relaxed">{prdAnalysis.summary}</p>
-                  </div>
-
-                  {/* Key Features */}
-                  {prdAnalysis.key_features && prdAnalysis.key_features.length > 0 && (
-                    <div className="mb-4">
-                      <h4 className="text-sm font-medium text-[#a3a3a3] mb-3 flex items-center gap-2">
-                        <Target className="w-4 h-4 text-[#E0B954]" />
-                        Key Features
-                      </h4>
-                      <div className="flex flex-wrap gap-2">
-                        {prdAnalysis.key_features.map((feature, idx) => (
-                          <Badge
-                            key={idx}
-                            className="bg-[#E0B954]/10 text-[#E0B954] border border-[#E0B954]/20 hover:bg-[#E0B954]/20"
-                          >
-                            {feature}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Technical Requirements */}
-                  {prdAnalysis.technical_requirements &&
-                    prdAnalysis.technical_requirements.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="text-sm font-medium text-[#a3a3a3] mb-3 flex items-center gap-2">
-                          <Wrench className="w-4 h-4 text-[#E0B954]" />
-                          Technical Requirements
-                        </h4>
-                        <ul className="space-y-2">
-                          {prdAnalysis.technical_requirements.map((req, idx) => (
-                            <li key={idx} className="flex items-start gap-2 text-sm text-[#f5f5f5]">
-                              <CheckCircle2 className="w-4 h-4 text-[#E0B954] mt-0.5 flex-shrink-0" />
-                              {req}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                  {/* Recommended Tools */}
-                  <div className="mb-4">
-                    <h4 className="text-sm font-medium text-[#a3a3a3] mb-3 flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-[#F59E0B]" />
-                      Recommended Tools
-                    </h4>
-                    {prdAnalysis.recommended_tools &&
-                    Object.keys(prdAnalysis.recommended_tools).length > 0 ? (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {Object.entries(prdAnalysis.recommended_tools).map(
-                          ([category, tools]) =>
-                            tools &&
-                            Array.isArray(tools) &&
-                            tools.length > 0 && (
-                              <div
-                                key={category}
-                                className="bg-[rgba(255,255,255,0.025)] rounded-xl p-3"
-                              >
-                                <p className="text-xs font-medium text-[#737373] capitalize mb-2">
-                                  {category}
-                                </p>
-                                <div className="flex flex-wrap gap-1">
-                                  {tools.slice(0, 3).map((tool, idx) => (
-                                    <span
-                                      key={idx}
-                                      className="text-xs bg-[rgba(224,185,84,0.1)] text-[#E0B954] px-2 py-0.5 rounded"
-                                    >
-                                      {tool}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            ),
-                        )}
-                      </div>
-                    ) : (
-                      <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 text-center">
-                        <p className="text-sm text-[#737373]">
-                          No recommended tools data available. Re-analyze PRD to generate.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Cost Analysis - Infrastructure Only */}
-                  <div className="mb-4">
-                    <h4 className="text-sm font-medium text-[#a3a3a3] mb-3 flex items-center gap-2">
-                      <DollarSign className="w-4 h-4 text-[#E0B954]" />
-                      Infrastructure Cost Analysis
-                    </h4>
-                    {prdAnalysis.cost_analysis?.infrastructure ? (
-                      <div className="bg-[rgba(224,185,84,0.05)] border border-[rgba(224,185,84,0.2)] rounded-xl p-4">
-                        <div className="flex items-center justify-between mb-4">
-                          <div>
-                            <p className="text-xs text-[#737373]">Monthly Cost</p>
-                            <p className="text-2xl font-bold text-[#E0B954]">
-                              {prdAnalysis.cost_analysis.infrastructure.monthly || 'N/A'}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs text-[#737373]">Annual Cost</p>
-                            <p className="text-lg font-bold text-[#E0B954]">
-                              {prdAnalysis.cost_analysis.infrastructure.annual || 'N/A'}
-                            </p>
-                          </div>
-                        </div>
-                        {prdAnalysis.cost_analysis.infrastructure.breakdown &&
-                          prdAnalysis.cost_analysis.infrastructure.breakdown.length > 0 && (
-                            <div className="border-t border-[rgba(224,185,84,0.2)] pt-3">
-                              <p className="text-xs font-medium text-[#737373] mb-2">
-                                Detailed Breakdown
-                              </p>
-                              <div className="space-y-2">
-                                {prdAnalysis.cost_analysis.infrastructure.breakdown.map(
-                                  (item, idx) => (
-                                    <div
-                                      key={idx}
-                                      className="flex items-center justify-between py-1.5 px-2 bg-[rgba(255,255,255,0.025)] rounded-lg"
-                                    >
-                                      <span className="text-sm text-[#f5f5f5]">{item.item}</span>
-                                      <span className="text-sm font-medium text-[#E0B954]">
-                                        {item.cost}
-                                      </span>
-                                    </div>
-                                  ),
-                                )}
-                              </div>
-                            </div>
-                          )}
-                      </div>
-                    ) : (
-                      <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 text-center">
-                        <p className="text-sm text-[#737373]">
-                          No infrastructure cost data available. Re-analyze PRD to generate.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Risks */}
-                  {prdAnalysis.risks && prdAnalysis.risks.length > 0 && (
-                    <div className="mb-4">
-                      <h4 className="text-sm font-medium text-[#a3a3a3] mb-3 flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4 text-[#F59E0B]" />
-                        Initial Risk Assessment
-                      </h4>
-                      <div className="space-y-3">
-                        {prdAnalysis.risks.map((risk, idx) => (
-                          <div
-                            key={idx}
-                            className="bg-[rgba(245,158,11,0.05)] border border-[rgba(245,158,11,0.2)] rounded-xl p-4"
-                          >
-                            <div className="flex items-start justify-between mb-2">
-                              <p className="text-sm font-medium text-[#F59E0B]">{risk.risk}</p>
-                              <Badge className="bg-[#F59E0B]/10 text-[#F59E0B] border-0 text-xs">
-                                {risk.impact}
-                              </Badge>
-                            </div>
-                            <p className="text-xs text-[#a3a3a3]">
-                              <span className="text-[#737373]">Mitigation:</span> {risk.mitigation}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Timeline */}
-                  <div>
-                    <h4 className="text-sm font-medium text-[#a3a3a3] mb-3 flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-[#E0B954]" />
-                      Project Timeline
-                    </h4>
-                    {prdAnalysis.timeline && prdAnalysis.timeline.length > 0 ? (
-                      <div className="space-y-3">
-                        {prdAnalysis.timeline.map((phase, idx) => (
-                          <div key={idx} className="flex items-start gap-4">
-                            <div className="w-8 h-8 rounded-full bg-[#E0B954]/10 flex items-center justify-center flex-shrink-0">
-                              <span className="text-xs font-bold text-[#E0B954]">{idx + 1}</span>
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex items-center justify-between mb-1">
-                                <p className="text-sm font-medium text-white">{phase.phase}</p>
-                                <span className="text-xs text-[#E0B954]">{phase.duration}</span>
-                              </div>
-                              <div className="flex flex-wrap gap-1">
-                                {phase.tasks &&
-                                  phase.tasks.slice(0, 3).map((task, taskIdx) => (
-                                    <span
-                                      key={taskIdx}
-                                      className="text-xs bg-[rgba(255,255,255,0.025)] text-[#a3a3a3] px-2 py-0.5 rounded"
-                                    >
-                                      {task}
-                                    </span>
-                                  ))}
-                                {phase.tasks && phase.tasks.length > 3 && (
-                                  <span className="text-xs text-[#737373]">
-                                    +{phase.tasks.length - 3} more
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 text-center">
-                        <p className="text-sm text-[#737373]">
-                          No timeline data available. Provide a PRD with timeline details to
-                          generate phases.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <PRDAnalysisSection prdAnalysis={prdAnalysis} />
               )}
 
               {/* Architecture Section */}
               {project.selected_architecture &&
-                !isSubsectionRestricted('overview', 'architecture') &&
-                (() => {
-                  const arch = project.selected_architecture!;
-                  return (
-                    <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl overflow-hidden">
-                      <div className="p-4 border-b border-[rgba(255,255,255,0.05)] flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <Layers className="w-5 h-5 text-[#E0B954]" />
-                          <div>
-                            <h3 className="font-semibold text-white">Selected Architecture</h3>
-                            <p className="text-xs text-[#737373]">{arch.name}</p>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setEditingArchitecture(arch)}
-                            className="text-[#737373] hover:text-white"
-                          >
-                            <Pencil className="w-4 h-4 mr-2" />
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => navigate(`/project/${project.id}/board`)}
-                            className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] hover:from-[#C79E3B] hover:to-[#B8872A] text-white"
-                          >
-                            <Sparkles className="w-4 h-4 mr-2" />
-                            AI Generate
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="p-4 bg-[#080808] min-h-[400px]">
-                        <Suspense
-                          fallback={
-                            <div className="flex items-center justify-center p-8">
-                              <div className="w-8 h-8 border-2 border-[#E0B954]/30 border-t-[#E0B954] rounded-full animate-spin" />
-                            </div>
-                          }
-                        >
-                          <MermaidRenderer
-                            code={arch.mermaid_code}
-                            className="w-full h-full min-h-[350px]"
-                          />
-                        </Suspense>
-                      </div>
-
-                      {/* Architecture Details */}
-                      <div className="p-4 border-t border-[rgba(255,255,255,0.05)] space-y-4">
-                        {/* Quick Stats Row */}
-                        <div className="grid grid-cols-3 gap-4">
-                          <div className="bg-[rgba(255,255,255,0.02)] rounded-xl p-3">
-                            <div className="flex items-center gap-2 mb-1">
-                              <TrendingUp className="w-4 h-4 text-[#F59E0B]" />
-                              <span className="text-xs text-[#737373]">Complexity</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <p className="text-lg font-bold text-[#F59E0B] capitalize">
-                                {arch.complexity}
-                              </p>
-                              <div className="flex gap-0.5">
-                                {[1, 2, 3].map((level) => (
-                                  <div
-                                    key={level}
-                                    className={`w-2 h-2 rounded-full ${
-                                      arch.complexity === 'high'
-                                        ? 'bg-[#F59E0B]'
-                                        : arch.complexity === 'medium' && level <= 2
-                                          ? 'bg-[#F59E0B]'
-                                          : arch.complexity === 'low' && level === 1
-                                            ? 'bg-[#F59E0B]'
-                                            : 'bg-[#334155]'
-                                    }`}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="bg-[rgba(255,255,255,0.02)] rounded-xl p-3">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Clock className="w-4 h-4 text-[#E0B954]" />
-                              <span className="text-xs text-[#737373]">Timeline</span>
-                            </div>
-                            <p className="text-lg font-bold text-[#E0B954]">
-                              {arch.time_to_implement}
-                            </p>
-                          </div>
-                          <div className="bg-[rgba(255,255,255,0.02)] rounded-xl p-3">
-                            <div className="flex items-center gap-2 mb-1">
-                              <DollarSign className="w-4 h-4 text-[#E0B954]" />
-                              <span className="text-xs text-[#737373]">Est. Cost</span>
-                            </div>
-                            <p className="text-lg font-bold text-[#E0B954]">
-                              {arch.estimated_cost}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Architecture Cost Analysis */}
-                        {arch.cost_analysis && (
-                          <div className="bg-[rgba(224,185,84,0.05)] border border-[rgba(224,185,84,0.2)] rounded-xl p-4">
-                            <h4 className="text-sm font-medium text-[#E0B954] mb-3 flex items-center gap-2">
-                              <DollarSign className="w-4 h-4" />
-                              Architecture Cost Breakdown
-                            </h4>
-                            {arch.cost_analysis.infrastructure?.breakdown && (
-                              <div className="mb-3">
-                                <p className="text-xs text-[#737373] mb-2">
-                                  Infrastructure Components
-                                </p>
-                                <div className="space-y-1.5">
-                                  {arch.cost_analysis.infrastructure.breakdown.map(
-                                    (item: { item: string; cost: string }, idx: number) => (
-                                      <div
-                                        key={idx}
-                                        className="flex items-center justify-between py-1 px-2 bg-[rgba(255,255,255,0.025)] rounded"
-                                      >
-                                        <span className="text-xs text-[#f5f5f5]">{item.item}</span>
-                                        <span className="text-xs font-medium text-[#E0B954]">
-                                          {item.cost}
-                                        </span>
-                                      </div>
-                                    ),
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                            {arch.tools_recommended && (
-                              <div>
-                                <p className="text-xs text-[#737373] mb-2">
-                                  Tools & Services Required
-                                </p>
-                                <div className="space-y-1.5">
-                                  {Object.entries(arch.tools_recommended).map(
-                                    ([category, tools]) =>
-                                      tools &&
-                                      Array.isArray(tools) &&
-                                      tools.length > 0 && (
-                                        <div
-                                          key={category}
-                                          className="flex items-center justify-between py-1 px-2 bg-[rgba(255,255,255,0.025)] rounded"
-                                        >
-                                          <span className="text-xs text-[#f5f5f5] capitalize">
-                                            {category}
-                                          </span>
-                                          <span className="text-xs text-[#a3a3a3]">
-                                            {tools.slice(0, 3).join(', ')}
-                                            {tools.length > 3 ? '...' : ''}
-                                          </span>
-                                        </div>
-                                      ),
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Pros & Cons */}
-                        <div className="grid grid-cols-2 gap-4">
-                          {arch.pros && arch.pros.length > 0 && (
-                            <div>
-                              <h4 className="text-xs font-medium text-[#E0B954] mb-2 flex items-center gap-1">
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                Advantages
-                              </h4>
-                              <ul className="space-y-1">
-                                {arch.pros.map((pro, idx) => (
-                                  <li
-                                    key={idx}
-                                    className="text-xs text-[#a3a3a3] flex items-start gap-2"
-                                  >
-                                    <span className="text-[#E0B954] mt-1">•</span>
-                                    {pro}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          {arch.cons && arch.cons.length > 0 && (
-                            <div>
-                              <h4 className="text-xs font-medium text-[#EF4444] mb-2 flex items-center gap-1">
-                                <AlertCircle className="w-3.5 h-3.5" />
-                                Considerations
-                              </h4>
-                              <ul className="space-y-1">
-                                {arch.cons.map((con, idx) => (
-                                  <li
-                                    key={idx}
-                                    className="text-xs text-[#a3a3a3] flex items-start gap-2"
-                                  >
-                                    <span className="text-[#EF4444] mt-1">•</span>
-                                    {con}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Tools Recommended */}
-                        {arch.tools_recommended &&
-                          Object.keys(arch.tools_recommended).length > 0 && (
-                            <div>
-                              <h4 className="text-xs font-medium text-[#a3a3a3] mb-2 flex items-center gap-1">
-                                <Wrench className="w-3.5 h-3.5 text-[#F59E0B]" />
-                                Recommended Tools
-                              </h4>
-                              <div className="flex flex-wrap gap-2">
-                                {Object.entries(arch.tools_recommended).map(
-                                  ([category, tools]) =>
-                                    tools &&
-                                    Array.isArray(tools) &&
-                                    tools.map((tool, idx) => (
-                                      <span
-                                        key={`${category}-${idx}`}
-                                        className="text-xs bg-[rgba(224,185,84,0.1)] text-[#E0B954] px-2 py-1 rounded-lg"
-                                      >
-                                        {tool}
-                                      </span>
-                                    )),
-                                )}
-                              </div>
-                            </div>
-                          )}
-                      </div>
-                    </div>
-                  );
-                })()}
+                !isSubsectionRestricted('overview', 'architecture') && (
+                  <ArchitectureSection
+                    architecture={project.selected_architecture}
+                    onEdit={setEditingArchitecture}
+                    onOpenBoard={() => navigate(`/project/${project.id}/board`)}
+                  />
+                )}
 
               {/* Team Section */}
               {!isSubsectionRestricted('overview', 'team') && (
-                <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl p-5 mb-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-[#E0B954]/10 flex items-center justify-center">
-                        <Users className="w-5 h-5 text-[#E0B954]" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-white">Project Team</h3>
-                        <p className="text-xs text-[#737373]">
-                          {project.developers.length} developers assigned
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      onClick={() => setShowAddDeveloper(true)}
-                      disabled={availableDevelopers.length === 0}
-                      className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] hover:from-[#C79E3B] hover:to-[#B8872A] text-white font-medium shadow-lg shadow-[#B8872A]/20 disabled:opacity-50 rounded-xl"
-                      size="sm"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Developer
-                    </Button>
-                  </div>
-                  {project.developers.length === 0 ? (
-                    <div className="text-center py-10 bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl">
-                      <Users className="w-10 h-10 text-[#334155] mx-auto mb-3" />
-                      <p className="text-[#737373]">No developers assigned yet</p>
-                      <Button
-                        onClick={() => setShowAddDeveloper(true)}
-                        variant="ghost"
-                        className="text-[#E0B954] mt-2"
-                      >
-                        Add your first developer
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {project.developers.map((dev) => (
-                        <div
-                          key={dev.id}
-                          className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 flex items-start justify-between"
-                        >
-                          <div className="flex-1 flex items-start gap-4">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center text-white font-semibold">
-                              {dev.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <h3 className="font-semibold text-white">{dev.name}</h3>
-                                {dev.is_admin && (
-                                  <Badge className="bg-blue-500/20 text-blue-400 border-0">
-                                    Admin
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-sm text-[#737373]">{dev.email}</p>
-                              <div className="flex items-center gap-2 mt-1.5">
-                                <Badge className="bg-[#E0B954]/20 text-[#E0B954] border-0">
-                                  {dev.role}
-                                </Badge>
-                                {dev.github_username && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-[#737373] border-[rgba(255,255,255,0.08)]"
-                                  >
-                                    <Github className="w-3 h-3 mr-1" />
-                                    {dev.github_username}
-                                  </Badge>
-                                )}
-                              </div>
-                              {dev.responsibilities && (
-                                <p className="text-sm text-[#a3a3a3] mt-1.5">
-                                  {dev.responsibilities}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          {isCurrentUserAdmin() ? (
-                            <div className="flex items-center gap-2">
-                              {dev.is_admin ? (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDemoteFromAdmin(dev.id)}
-                                  className="text-yellow-400 hover:text-yellow-300 hover:bg-yellow-400/10"
-                                  title="Demote from admin"
-                                >
-                                  <Crown className="w-4 h-4" />
-                                </Button>
-                              ) : (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handlePromoteToAdmin(dev.id)}
-                                  className="text-gray-500 hover:text-gray-400 hover:bg-gray-500/10"
-                                  title="Promote to admin"
-                                >
-                                  <Crown className="w-4 h-4" />
-                                </Button>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveDeveloper(dev.id)}
-                                className="text-red-400 hover:text-red-300 hover:bg-red-400/10"
-                                title="Remove developer"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <TeamSection
+                  developers={project.developers}
+                  availableDevelopers={availableDevelopers}
+                  isCurrentUserAdmin={isCurrentUserAdmin()}
+                  onAddDeveloper={handleAddDeveloper}
+                  onRemoveDeveloper={handleRemoveDeveloper}
+                  onPromoteToAdmin={handlePromoteToAdmin}
+                  onDemoteFromAdmin={handleDemoteFromAdmin}
+                />
               )}
             </div>
           ))}
-
         {/* Files/Links Section */}
         {activeTab === 'overview' &&
           !hubLoading &&
           !isSubsectionRestricted('overview', 'resources') && (
-            <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl p-5 mb-4 mt-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#E0B954]/10 flex items-center justify-center">
-                    <Link2 className="w-5 h-5 text-[#E0B954]" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-white">Resources</h3>
-                    <p className="text-xs text-[#737373]">Useful links and resources</p>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowAddLink(!showAddLink)}
-                  className="text-[#E0B954] hover:bg-[#E0B954]/10"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Link
-                </Button>
-              </div>
-
-              {/* Add Link Form */}
-              {showAddLink && (
-                <div
-                  ref={addLinkFormRef}
-                  className="bg-[rgba(255,255,255,0.01)] border border-[rgba(224,185,84,0.2)] rounded-xl p-4 mb-4"
-                >
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                        Link Name
-                      </label>
-                      <Input
-                        value={newLink.name}
-                        onChange={(e) => setNewLink((l) => ({ ...l, name: e.target.value }))}
-                        placeholder="e.g., API Documentation"
-                        className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-[#737373] block mb-1.5">URL</label>
-                      <Input
-                        value={newLink.url}
-                        onChange={(e) => setNewLink((l) => ({ ...l, url: e.target.value }))}
-                        placeholder="https://example.com"
-                        className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
-                      />
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setShowAddLink(false);
-                          setNewLink({ name: '', url: '' });
-                        }}
-                        className="text-[#737373] hover:text-white"
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={handleAddLink}
-                        disabled={!newLink.name || !newLink.url}
-                        className="bg-[#E0B954] hover:bg-[#C79E3B] text-white rounded-xl disabled:opacity-50"
-                      >
-                        Add Link
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Links List */}
-              {linksLoading ? (
-                <div className="space-y-2">
-                  {[...Array(2)].map((_, i) => (
-                    <div
-                      key={i}
-                      className="h-12 bg-[rgba(255,255,255,0.02)] rounded-lg animate-pulse"
-                    />
-                  ))}
-                </div>
-              ) : links.length > 0 ? (
-                <div className="space-y-2">
-                  {links.map((link) => (
-                    <div
-                      key={link.id}
-                      className="flex items-center justify-between p-3 bg-[rgba(255,255,255,0.01)] border border-[rgba(255,255,255,0.04)] rounded-lg hover:bg-[rgba(255,255,255,0.02)] transition"
-                    >
-                      <a
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 flex-1 min-w-0"
-                      >
-                        <ExternalLink className="w-4 h-4 text-[#E0B954] flex-shrink-0" />
-                        <span className="text-sm text-[#E0B954] hover:underline truncate">
-                          {link.name}
-                        </span>
-                      </a>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteLink(link.id)}
-                        className="text-red-400 hover:text-red-300 hover:bg-red-400/10 ml-2"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-6">
-                  <p className="text-sm text-[#737373]">No links added yet</p>
-                </div>
-              )}
-            </div>
+            <LinksSection
+              links={links}
+              isLoading={linksLoading}
+              onAddLink={handleAddLink}
+              onDeleteLink={handleDeleteLink}
+            />
           )}
 
-        {/* Add Developer Modal (shared across overview & hub) */}
-        {showAddDeveloper && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-md shadow-2xl">
-              <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
-                <h2 className="text-lg font-bold text-white">Add Developer</h2>
-                <button
-                  onClick={() => setShowAddDeveloper(false)}
-                  className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="p-5 space-y-4">
-                <div>
-                  <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                    Developer
-                  </label>
-                  <select
-                    value={newDeveloper.developer_id}
-                    onChange={(e) =>
-                      setNewDeveloper((d) => ({ ...d, developer_id: e.target.value }))
-                    }
-                    className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
-                  >
-                    <option value="">Select a developer</option>
-                    {availableDevelopers.map((dev) => (
-                      <option key={dev.id} value={dev.id}>
-                        {dev.name} ({dev.email})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-[#737373] block mb-1.5">Role</label>
-                  <Input
-                    value={newDeveloper.role}
-                    onChange={(e) => setNewDeveloper((d) => ({ ...d, role: e.target.value }))}
-                    placeholder="e.g., Backend Developer"
-                    className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                    Responsibilities
-                  </label>
-                  <Textarea
-                    value={newDeveloper.responsibilities}
-                    onChange={(e) =>
-                      setNewDeveloper((d) => ({ ...d, responsibilities: e.target.value }))
-                    }
-                    placeholder="What will this developer work on?"
-                    className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl min-h-[80px]"
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end gap-3 p-5 border-t border-[rgba(255,255,255,0.05)]">
-                <Button
-                  variant="ghost"
-                  onClick={() => setShowAddDeveloper(false)}
-                  className="text-[#737373] rounded-xl"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleAddDeveloper}
-                  disabled={!newDeveloper.developer_id || !newDeveloper.role}
-                  className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] hover:from-[#C79E3B] hover:to-[#B8872A] text-white rounded-xl font-medium shadow-lg shadow-[#B8872A]/20 disabled:opacity-50"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Developer
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
         {/* Project Tracker Tab - Combined Hub + Tracker */}
         {activeTab === 'tracker' &&
           (hubLoading ? (
