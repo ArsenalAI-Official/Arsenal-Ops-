@@ -37,7 +37,15 @@ def backfill() -> int:
     Returns:
         Number of Developer rows created.
     """
+    # Import every model module so every SQLAlchemy mapper is registered
+    # before the first query runs. Without this, lazy relationships (e.g.
+    # Project.architectures -> Architecture) fail with InvalidRequestError
+    # because the target class is unknown to the registry.
+    import models  # noqa: F401
     from database import SessionLocal
+    from models import architecture as _architecture  # noqa: F401
+    from models import project as _project  # noqa: F401
+    from models import user as _user  # noqa: F401
     from models.developer import Developer
     from models.user import User
 
