@@ -28,7 +28,7 @@ this week — same outcome).
 from collections.abc import Iterable
 from datetime import datetime, timedelta
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from models.time_entry import TimeEntry
@@ -72,9 +72,9 @@ def _ticket_to_dict_for_dev(
     counted: int,
     basis: str,
     logged_this_week: int,
+    total_logged: int,
 ) -> dict:
     estimated = item.estimated_hours or 0
-    total_logged = item.logged_hours or 0
     return {
         "id": item.id,
         "key": item.key,
@@ -159,6 +159,23 @@ def compute_capacity_breakdown(
         for ex in extras_q.all():
             item_by_id[ex.id] = ex
 
+    # Live sum of TimeEntry hours per work item — used as the source of truth for
+    # "total_logged" instead of item.logged_hours, which can drift when the work
+    # item is edited directly (see workitems update endpoint). Drift here caused
+    # capacity to over-count remaining hours by the missing rollup delta.
+    total_logged_by_item: dict[int, int] = {}
+    if item_by_id:
+        rows = (
+            db.query(
+                TimeEntry.work_item_id,
+                func.coalesce(func.sum(TimeEntry.hours), 0).label("total"),
+            )
+            .filter(TimeEntry.work_item_id.in_(item_by_id.keys()))
+            .group_by(TimeEntry.work_item_id)
+            .all()
+        )
+        total_logged_by_item = {wid: int(total or 0) for wid, total in rows}
+
     in_progress_hours = 0
     in_review_hours = 0
     done_hours = 0
@@ -186,13 +203,17 @@ def compute_capacity_breakdown(
 
         is_current_holder = item.assignee_id == developer_id
 
+        # Use live TimeEntry sum (source of truth) rather than item.logged_hours,
+        # which can drift when the work item is edited directly.
+        total_logged = total_logged_by_item.get(item.id, 0)
+
         if bucket == "done":
             # Carry-over rule: only THIS week's logged hours count, regardless of
             # how many earlier-week hours the ticket already had.
             counted = logged_sum
             basis = "logged this week"
         else:
-            remaining = max(0, (item.estimated_hours or 0) - (item.logged_hours or 0))
+            remaining = max(0, (item.estimated_hours or 0) - total_logged)
             remaining_added = remaining if is_current_holder else 0
             counted = logged_sum + remaining_added
             if logged_sum > 0 and remaining_added > 0:
@@ -215,7 +236,9 @@ def compute_capacity_breakdown(
         elif bucket == "done":
             done_hours += counted
 
-        tickets_out.append(_ticket_to_dict_for_dev(item, counted, basis, logged_sum))
+        tickets_out.append(
+            _ticket_to_dict_for_dev(item, counted, basis, logged_sum, total_logged)
+        )
 
     capacity_used = in_progress_hours + in_review_hours + done_hours
     return {
