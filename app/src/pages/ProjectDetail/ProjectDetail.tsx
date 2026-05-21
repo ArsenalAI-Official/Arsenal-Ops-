@@ -2,7 +2,11 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@/lib/api';
-import { invalidateProjectScope, invalidateWorkItemScope } from '@/lib/invalidations';
+import {
+  invalidateProjectScope,
+  invalidateWorkItemScope,
+  invalidateAdminMembershipImpact,
+} from '@/lib/invalidations';
 import {
   ArrowLeft,
   Info,
@@ -571,6 +575,8 @@ const ProjectDetail = () => {
     onError: () => toast.error('Failed to add developer'),
     onSettled: () => {
       invalidateProjectScope(queryClient, id);
+      // Cascade-affects work-item assignments on the backend — capacity needs invalidation.
+      invalidateAdminMembershipImpact(queryClient);
     },
   });
 
@@ -598,6 +604,8 @@ const ProjectDetail = () => {
     onError: () => toast.error('Failed to remove developer'),
     onSettled: () => {
       invalidateProjectScope(queryClient, id);
+      // Cascade-affects work-item assignments on the backend — capacity needs invalidation.
+      invalidateAdminMembershipImpact(queryClient);
     },
   });
 

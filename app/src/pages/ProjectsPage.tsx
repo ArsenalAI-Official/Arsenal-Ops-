@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import { toast, Toaster } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { invalidateAdminWorkItemImpact, invalidateProjectScope } from '@/lib/invalidations';
 import {
   AppHeader,
   DashboardStats,
@@ -196,6 +197,8 @@ const ProjectsPage = () => {
     },
     onSuccess: () => {
       toast.success('Task created!');
+      const createdWithProject = !!newPersonalTask.project_id;
+      const createdProjectId = newPersonalTask.project_id;
       setShowAddTaskDialog(false);
       setNewPersonalTask({
         title: '',
@@ -209,8 +212,12 @@ const ProjectsPage = () => {
       setMemberLookupProjectId('');
       invalidatePersonalTasks();
       // If a project was selected, a new work item was created — refresh both caches.
-      queryClient.invalidateQueries({ queryKey: ['myTasks'] });
-      queryClient.invalidateQueries({ queryKey: ['workItems'] });
+      if (createdWithProject) {
+        queryClient.invalidateQueries({ queryKey: ['myTasks'] });
+        queryClient.invalidateQueries({ queryKey: ['workItems'] });
+        invalidateAdminWorkItemImpact(queryClient);
+        invalidateProjectScope(queryClient, parseInt(createdProjectId));
+      }
     },
     onError: () => toast.error('Failed to create task'),
   });
@@ -247,6 +254,10 @@ const ProjectsPage = () => {
       invalidatePersonalTasks();
       queryClient.invalidateQueries({ queryKey: ['myTasks'] });
       queryClient.invalidateQueries({ queryKey: ['workItems'] });
+      invalidateAdminWorkItemImpact(queryClient);
+      if (convertProjectId) {
+        invalidateProjectScope(queryClient, parseInt(convertProjectId));
+      }
     },
     onError: () => toast.error('Failed to convert'),
   });
@@ -369,6 +380,7 @@ const ProjectsPage = () => {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['myTasks'] });
       queryClient.invalidateQueries({ queryKey: ['workItems'] });
+      invalidateAdminWorkItemImpact(queryClient);
     },
   });
 
@@ -461,6 +473,7 @@ const ProjectsPage = () => {
     setSelectedTask(updated);
     queryClient.invalidateQueries({ queryKey: ['myTasks'] });
     queryClient.invalidateQueries({ queryKey: ['workItems'] });
+    invalidateAdminWorkItemImpact(queryClient);
   };
 
   // Notepad: load from localStorage per user
@@ -546,6 +559,8 @@ const ProjectsPage = () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] });
+      // Assignments were freed by the cascading delete, so developer capacity moves.
+      invalidateAdminWorkItemImpact(queryClient);
       // Evict per-project caches so a recreated id can't see stale data.
       if (projectId !== undefined) {
         queryClient.removeQueries({ queryKey: ['project', projectId] });

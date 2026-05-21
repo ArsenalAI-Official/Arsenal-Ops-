@@ -6,7 +6,11 @@ import { Button } from '@/components/ui/button';
 import { toast, Toaster } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
-import { invalidateProjectScope } from '@/lib/invalidations';
+import {
+  invalidateProjectScope,
+  invalidateAdminMembershipImpact,
+  invalidateAdminUserRoleImpact,
+} from '@/lib/invalidations';
 import RoleModal from './modals/RoleModal';
 import EmployeeModal from './modals/EmployeeModal';
 import UserModal from './modals/UserModal';
@@ -468,6 +472,7 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       invalidateProjectScope(queryClient, selectedProjectForMembers?.id);
+      invalidateAdminMembershipImpact(queryClient);
     },
   });
 
@@ -496,6 +501,7 @@ const AdminDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       invalidateProjectScope(queryClient, selectedProjectForMembers?.id);
+      invalidateAdminMembershipImpact(queryClient);
     },
   });
 
@@ -632,6 +638,7 @@ const AdminDashboard = () => {
     },
     onSettled: (_data, _err, vars) => {
       invalidateRoles();
+      invalidateAdminUserRoleImpact(queryClient);
       if (vars && vars.userId === user?.id) {
         refreshCapsTwice();
       }
@@ -649,6 +656,7 @@ const AdminDashboard = () => {
     },
     onSettled: (_data, _err, vars) => {
       invalidateRoles();
+      invalidateAdminUserRoleImpact(queryClient);
       if (vars && vars.userId === user?.id) {
         refreshCapsTwice();
       }

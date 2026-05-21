@@ -20,6 +20,7 @@ export function invalidateProjectScope(
   queryClient.invalidateQueries({ queryKey: ['hubData', id, 'activities'] });
   queryClient.invalidateQueries({ queryKey: ['hubData', id, 'analytics'] });
   queryClient.invalidateQueries({ queryKey: ['hubData', id, 'prd'] });
+  invalidateAdminProjectImpact(queryClient);
 }
 
 /**
@@ -39,4 +40,38 @@ export function invalidateWorkItemScope(
     queryClient.invalidateQueries({ queryKey: ['hubData', projectId, 'activities'] });
     queryClient.invalidateQueries({ queryKey: ['projectOverview', projectId] });
   }
+  invalidateAdminWorkItemImpact(queryClient);
+}
+
+/**
+ * Admin dashboard cache invalidation helpers. Use these alongside the per-scope
+ * helpers to keep the admin views fresh after operational writes.
+ *
+ * Each is granular by intent so we don't refetch unrelated admin tabs on every
+ * Kanban drag (refetching roles/users/capabilities on a status change is wasteful).
+ */
+export function invalidateAdminWorkItemImpact(queryClient: QueryClient) {
+  // any workitem create/update/delete/move/log-hours/status-change
+  queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] });
+  queryClient.invalidateQueries({ queryKey: ['admin', 'developers-capacity'] });
+}
+
+export function invalidateAdminProjectImpact(queryClient: QueryClient) {
+  // any project create/update/delete or membership change
+  queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] });
+  queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] });
+}
+
+export function invalidateAdminMembershipImpact(queryClient: QueryClient) {
+  // project member add/remove (also unassigns workitems on backend, so capacity moves)
+  queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] });
+  queryClient.invalidateQueries({ queryKey: ['admin', 'developers-capacity'] });
+  queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] });
+}
+
+export function invalidateAdminUserRoleImpact(queryClient: QueryClient) {
+  // user create / role assign/remove — developer role toggles employee surfacing
+  queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+  queryClient.invalidateQueries({ queryKey: ['admin', 'employees'] });
+  queryClient.invalidateQueries({ queryKey: ['admin', 'developers-capacity'] });
 }
