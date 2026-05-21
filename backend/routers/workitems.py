@@ -62,30 +62,37 @@ def get_next_item_number(db: Session, key_prefix: str) -> int:
 
 def update_epic_hours(epic_id: int, db: Session):
     """
-    Calculate the total estimated_hours for an epic by summing all its work items.
-    Includes stories, tasks, and bugs. Updates the epic's estimated_hours field.
+    Roll up estimated_hours, logged_hours, and remaining_hours from all child work items
+    (stories, tasks, bugs) into the epic. Single GROUP-BY aggregate query.
 
-    Args:
-        epic_id: ID of the epic to update
-        db: Database session
+    Must be called whenever a child's hours change OR a child is added/removed/reparented:
+      - create_work_item (with epic_id)
+      - update_work_item (estimated_hours, logged_hours, remaining_hours, or epic_id changed)
+      - log_hours endpoint
+      - delete_work_item
     """
     epic = db.query(WorkItem).filter(WorkItem.id == epic_id).first()
     if not epic or epic.type != WorkItemType.EPIC.value:
         return
 
-    # Sum all work items' estimated_hours that belong to this epic (stories, tasks, bugs)
-    total_hours = (
-        db.query(func.coalesce(func.sum(WorkItem.estimated_hours), 0))
+    row = (
+        db.query(
+            func.coalesce(func.sum(WorkItem.estimated_hours), 0).label("est"),
+            func.coalesce(func.sum(WorkItem.logged_hours), 0).label("logged"),
+            func.coalesce(func.sum(WorkItem.remaining_hours), 0).label("remaining"),
+        )
         .filter(
             WorkItem.epic_id == epic_id,
             WorkItem.type.in_(
                 [WorkItemType.USER_STORY.value, WorkItemType.TASK.value, WorkItemType.BUG.value]
             ),
         )
-        .scalar()
+        .one()
     )
 
-    epic.estimated_hours = total_hours
+    epic.estimated_hours = row.est or 0
+    epic.logged_hours = row.logged or 0
+    epic.remaining_hours = row.remaining or 0
     epic.updated_at = datetime.utcnow()
 
 
@@ -629,6 +636,9 @@ def update_work_item(
     # Track old status before update for status change notification
     old_status = item.status
 
+    # Track old epic_id so we can recompute the FORMER epic when an item is reparented
+    old_epic_id = item.epic_id
+
     update_data = update.model_dump(exclude_unset=True)
 
     # Handle frontend compatibility: assigned_hours -> estimated_hours
@@ -817,20 +827,27 @@ def update_work_item(
     if "status" in update_data and item.epic_id:
         update_epic_status_from_stories(item.epic_id, db)
 
-    # Update epic hours if estimated_hours changed and item is linked to an epic
-    if "estimated_hours" in update_data and item.epic_id:
+    # Update epic hours when any of the child's hour fields changed
+    hour_fields_changed = any(
+        f in update_data for f in ("estimated_hours", "logged_hours", "remaining_hours")
+    )
+    if hour_fields_changed and item.epic_id:
         update_epic_hours(item.epic_id, db)
 
-    # Update epic if epic_id changed (moving item to a different epic)
-    # The item already has the new epic_id set from the setattr above
-    if "epic_id" in update_data and item.epic_id:
-        update_epic_hours(item.epic_id, db)
-        update_epic_status_from_stories(item.epic_id, db)
+    # Update epic if epic_id changed (moving item to a different epic).
+    # Recompute BOTH the new epic AND the previous epic — the old one lost a child.
+    if "epic_id" in update_data:
+        if item.epic_id:
+            update_epic_hours(item.epic_id, db)
+            update_epic_status_from_stories(item.epic_id, db)
+        if old_epic_id and old_epic_id != item.epic_id:
+            update_epic_hours(old_epic_id, db)
+            update_epic_status_from_stories(old_epic_id, db)
 
     # Final commit for any epic updates
-    if (
-        "status" in update_data or "estimated_hours" in update_data or "epic_id" in update_data
-    ) and item.epic_id:
+    if ("status" in update_data or hour_fields_changed or "epic_id" in update_data) and (
+        item.epic_id or old_epic_id
+    ):
         db.commit()
 
     # Return with assignee name
@@ -1007,6 +1024,11 @@ def log_hours(
 
     db.commit()
     db.refresh(item)
+
+    # Roll up to parent epic so its logged/remaining stay in sync with children
+    if item.epic_id:
+        update_epic_hours(item.epic_id, db)
+        db.commit()
 
     # Return updated item
     return {
