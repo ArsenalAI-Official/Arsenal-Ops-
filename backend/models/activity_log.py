@@ -3,7 +3,7 @@
 import sys
 from datetime import datetime
 
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Index, Integer, String
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 sys.path.append("..")
@@ -25,7 +25,11 @@ class ActivityLog(Base):
     entity_type = Column(String(50), nullable=False)  # work_item, sprint, goal, milestone, project
     entity_id = Column(Integer, index=True)
 
-    title = Column(String(255))  # Human-readable action title
+    # Stored as TEXT (unbounded) — activity titles include work item titles
+    # which can be long-form acceptance criteria. The original VARCHAR(255)
+    # broke status changes for tickets whose title alone exceeded that limit
+    # (PROJ-345 was the canonical example). See migrate_widen_activity_log_title.py.
+    title = Column(Text)  # Human-readable action title
     details = Column(JSON, default=dict)  # Additional context (old_value, new_value, etc.)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
