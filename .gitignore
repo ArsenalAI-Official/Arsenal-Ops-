@@ -62,3 +62,7 @@ app/test-results/
 app/playwright-report/
 e2e.db
 backend/e2e.db
+
+# Note: Playwright snapshot baselines (app/e2e/**/*-snapshots/) ARE committed to repo.
+# They serve as canonical reference images for visual regression tests.
+# app/e2e/**/*-snapshots/ is NOT ignored and should be tracked by git.
