@@ -1,8 +1,9 @@
 # Test workflow — runs typecheck and unit tests for backend (pytest) and frontend
 # (vitest) on every pull request and push to main.
 #
-# All jobs run in parallel. Coverage artifacts are uploaded for manual review.
-# Codecov integration will be added in a later phase (requires token setup).
+# All jobs run in parallel. Coverage artifacts are uploaded for manual review and
+# to Codecov via tokenless upload (supported for public repos; for private repos,
+# add CODECOV_TOKEN to GitHub secrets and uncomment the `token:` line in Codecov steps).
 #
 # To enforce these checks: add the job names (typecheck-backend, typecheck-frontend,
 # unit-backend, unit-frontend) to the required-status-checks list under
@@ -100,6 +101,47 @@ jobs:
           path: backend/coverage.xml
           if-no-files-found: ignore
 
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: backend/coverage.xml
+          flags: backend
+          fail_ci_if_error: false
+
+  contract-backend:
+    name: Contract Tests (Backend)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Copy test env
+        run: cp .env.test .env || true
+        working-directory: backend
+
+      - name: Run schemathesis contract tests
+        run: python -m pytest tests/test_contract.py -v -m contract --tb=short
+        working-directory: backend
+
+      - name: Upload contract test failures
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: contract-test-failures
+          path: backend/
+          if-no-files-found: ignore
+
   unit-frontend:
     name: Unit Tests (Frontend)
     runs-on: ubuntu-latest
@@ -129,6 +171,14 @@ jobs:
           name: frontend-coverage
           path: app/coverage/
           if-no-files-found: ignore
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: app/coverage/coverage-final.json
+          flags: frontend
+          fail_ci_if_error: false
 
   e2e:
     name: E2E Tests

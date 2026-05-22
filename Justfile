@@ -18,6 +18,10 @@ test:
 test-backend:
     cd backend && python -m pytest tests/ -v
 
+# Run backend contract tests (schemathesis fuzzing)
+test-contract:
+    cd backend && python -m pytest tests/test_contract.py -v -m contract
+
 # Run frontend unit tests only
 test-frontend:
     cd app && npm run test
@@ -50,3 +54,7 @@ e2e:
 
 e2e-ui:
     cd app && npm run e2e:ui
+
+# Install pre-commit hooks (run this once per clone)
+precommit-install:
+    pre-commit install

@@ -10,7 +10,7 @@ Living document. Bugs are added as they are surfaced (by the audit, by tests pin
 
 When a bug is fixed: change status to `fixed`, link the fix commit, and flip the pinning `xfail` to a regular assertion (drop the marker).
 
-**Last updated:** 2026-05-22 — Week 5 E2E foundation landed (Playwright + 2 passing journeys + 13 .fixme scaffolds). 325 unit tests + 2 E2E green.
+**Last updated:** 2026-05-22 — Weeks 5+6+8 landed. 348 tests across stack (222 backend + 126 frontend), 2 E2E passing + 13 .fixme, schemathesis contract suite running in CI (108 failures = real schema drift, see P1-18).
 
 ---
 
@@ -316,6 +316,14 @@ When a bug is fixed: change status to `fixed`, link the fix commit, and flip the
 - **Location:** [backend/services/email_service.py:62-65](../backend/services/email_service.py#L62-L65)
 - **Impact:** Safe behind `BackgroundTasks` today, but a future refactor lands it on the event loop.
 - **Fix plan:** Wrap in `ThreadPoolExecutor` or migrate to `aiosmtplib`.
+
+### P1-18 — OpenAPI schema systematically underspecifies input validation
+- **Status:** pinned (schemathesis contract suite, currently 108 failures)
+- **Source:** Week 6 schemathesis fuzzing
+- **Pinned by:** `backend/tests/test_contract.py` — every endpoint is fuzzed against its OpenAPI schema; ~88% of endpoints currently fail because the schema declares fields as `string` without `minLength`, `pattern`, or `format` constraints, but the endpoints enforce stricter validation (e.g., `POST /api/auth/login` rejects empty username with 422, but the schema permits it).
+- **Impact:** Frontend codegen (`openapi-typescript`) produces types that are looser than the backend actually accepts. Any client generated from the schema cannot rely on the declared shape. This is also the proximate cause of the 85 `any` types flagged in P2-4 — the codegen-from-schema path is unusable until the schema is tightened.
+- **Fix plan:** Add Pydantic `Field(...)` validators with constraints (`min_length`, `pattern`, `regex`) to every request model. Each tightening reduces schemathesis failures by ~5–10 endpoints. The contract job's failure count is a free regression metric — every PR that adds field constraints should reduce it.
+- **Notes:** Contract job is `continue-on-error: true` in CI; flip to required once failure count is in single digits.
 
 ### P1-17 — `dev_login` had TOCTOU race on Developer insert *(fixed in Week 5)*
 - **Status:** fixed

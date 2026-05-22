@@ -1,0 +1,54 @@
+name: Mutation Tests
+
+on:
+  schedule:
+    # Sunday 02:00 UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+
+jobs:
+  mutmut:
+    name: Backend mutation tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install -r backend/requirements.txt
+          pip install mutmut
+
+      - name: Copy test env
+        run: cp .env.test .env || true
+        working-directory: backend
+
+      - name: Run mutmut on auth + workitems
+        # Scope to highest-stakes files; full-tree mutmut would take 6+ hours.
+        # auth.py (authentication) and workitems.py (capacity hotfix area from May 21)
+        # have the highest impact bugs. Mutation testing detects inadequate test coverage
+        # that could hide regressions in these critical modules.
+        run: |
+          cd backend
+          mutmut run --paths-to-mutate routers/auth.py,routers/workitems.py --tests-dir tests/ --no-progress
+        continue-on-error: true
+
+      - name: Generate report
+        if: always()
+        run: |
+          cd backend && mutmut results > mutation-report.txt || true
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: backend/mutation-report.txt
+          if-no-files-found: ignore
