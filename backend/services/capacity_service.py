@@ -236,9 +236,7 @@ def compute_capacity_breakdown(
         elif bucket == "done":
             done_hours += counted
 
-        tickets_out.append(
-            _ticket_to_dict_for_dev(item, counted, basis, logged_sum, total_logged)
-        )
+        tickets_out.append(_ticket_to_dict_for_dev(item, counted, basis, logged_sum, total_logged))
 
     capacity_used = in_progress_hours + in_review_hours + done_hours
     return {

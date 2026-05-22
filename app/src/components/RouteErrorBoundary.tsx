@@ -1,18 +1,15 @@
-import { Component, ReactNode } from 'react'
-import { Button } from '@/components/ui/button'
+import { Component, ReactNode } from 'react';
+import { Button } from '@/components/ui/button';
 
-export class RouteErrorBoundary extends Component<
-  { children: ReactNode },
-  { error?: Error }
-> {
-  state = { error: undefined as Error | undefined }
+export class RouteErrorBoundary extends Component<{ children: ReactNode }, { error?: Error }> {
+  state = { error: undefined as Error | undefined };
 
   static getDerivedStateFromError(error: Error) {
-    return { error }
+    return { error };
   }
 
   componentDidCatch(error: Error) {
-    console.error('RouteErrorBoundary caught', error)
+    console.error('RouteErrorBoundary caught', error);
   }
 
   render() {
@@ -32,9 +29,9 @@ export class RouteErrorBoundary extends Component<
             </Button>
           </div>
         </div>
-      )
+      );
     }
 
-    return this.props.children
+    return this.props.children;
   }
 }

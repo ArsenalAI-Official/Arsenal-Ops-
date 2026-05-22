@@ -7,20 +7,17 @@ regression tests for N+1 query issues.
 Fixtures from conftest.py: db, test_client, make_token, admin_user, pm_user, dev_user
 """
 
-import sys
 import os
+import sys
+
 import pytest
-from sqlalchemy import event
-from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Session
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "."))
 
-from models.developer import Developer
-from models.role import Role, RoleCapability
-from models.user import User
 from conftest import seed_project
 
+from models.developer import Developer
+from models.role import Role, RoleCapability
 
 # ============= RBAC Gating Tests =============
 
@@ -292,7 +289,9 @@ class TestEmployeeCRUD:
         assert response.status_code == 404
         assert "Employee not found" in response.json()["detail"]
 
-    @pytest.mark.xfail(reason="specialization field accepted in request but not stored on Developer model; list returns None instead of provided value")
+    @pytest.mark.xfail(
+        reason="specialization field accepted in request but not stored on Developer model; list returns None instead of provided value"
+    )
     def test_create_employee_specialization_persists(self, db, test_client, admin_user):
         """Verify specialization field is persisted and returned on list.
 
@@ -378,8 +377,8 @@ class TestCapacityEndpoints:
         self._setup_admin_with_capabilities(db, admin_user)
         user, token = admin_user
 
-        # Seed a project with developers
-        project = seed_project(db, "Capacity Test", num_developers=2)
+        # Seed a project with developers (side-effect: populates DB before the GET below)
+        _project = seed_project(db, "Capacity Test", num_developers=2)
 
         response = test_client.get(
             "/api/admin/developers/capacity",

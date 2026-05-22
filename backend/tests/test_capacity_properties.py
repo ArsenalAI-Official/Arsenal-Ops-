@@ -22,28 +22,6 @@ from sqlalchemy.orm import sessionmaker
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
 
 from database import Base
-from models import (
-    activity_log,
-    architecture,
-    developer,
-    market_insight,
-    persona,
-    personal_task,
-    project,
-    project_file,
-    project_goal,
-    project_link,
-    project_milestone,
-    sprint,
-    task,
-    task_dependency,
-    time_entry,
-    user,
-    user_story,
-    work_item,
-    work_item_assignment_history,
-)
-
 
 # ========================================================================
 # Hypothesis Strategies
@@ -52,9 +30,7 @@ from models import (
 # Note: work_item hours columns are Integer in the model, so we use integers for
 # DB-backed tests. Float-based tests verify math properties that don't touch the DB.
 positive_hours_int = st.integers(min_value=0, max_value=100)
-positive_hours_float = st.floats(
-    min_value=0, max_value=100, allow_nan=False, allow_infinity=False
-)
+positive_hours_float = st.floats(min_value=0, max_value=100, allow_nan=False, allow_infinity=False)
 positive_integers = st.integers(min_value=0, max_value=1000)
 developer_capacity = 40
 
@@ -254,7 +230,7 @@ def test_capacity_transfer_non_negative(from_hours, to_hours, transfer_amount):
 # ========================================================================
 # Property 4: Hour Rollup — Epic = Sum(Stories)
 # ========================================================================
-import pytest
+import pytest  # noqa: E402 (intentional: pytest only used for markers in this section)
 
 
 @pytest.mark.xfail(
@@ -584,7 +560,7 @@ def test_zero_estimates_aggregates_to_zero(num_zeros):
     proj = create_project(db)
     dev = create_developer(db)
 
-    for i in range(num_zeros):
+    for _i in range(num_zeros):
         create_work_item(
             db,
             proj.id,

@@ -36,6 +36,8 @@ export const test = base.extend<AuthFixtures>({
       { token: access_token, userData: user },
     )
 
+    // `use` here is Playwright's fixture API, not a React hook.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     await use(page)
   },
 })

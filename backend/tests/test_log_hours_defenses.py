@@ -16,7 +16,6 @@ These tests pin the three defenses that prevent both kinds of drift:
 
 import os
 import sys
-from datetime import datetime
 
 import pytest
 from fastapi import HTTPException

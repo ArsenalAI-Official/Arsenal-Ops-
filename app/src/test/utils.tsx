@@ -1,21 +1,17 @@
-import React, { ReactElement } from 'react'
-import { render, RenderOptions } from '@testing-library/react'
-import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
-import { MemoryRouter, MemoryRouterProps } from 'react-router-dom'
-import { AuthProvider } from '@/contexts/AuthContext'
+import React, { ReactElement } from 'react';
+import { render, RenderOptions } from '@testing-library/react';
+import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
+import { MemoryRouter, MemoryRouterProps } from 'react-router-dom';
+import { AuthProvider } from '@/contexts/AuthContext';
 
 interface RenderWithProvidersOptions extends Omit<RenderOptions, 'wrapper'> {
-  routerProps?: Omit<MemoryRouterProps, 'children'>
-  initialPath?: string
+  routerProps?: Omit<MemoryRouterProps, 'children'>;
+  initialPath?: string;
 }
 
 export function renderWithProviders(
   ui: ReactElement,
-  {
-    routerProps = {},
-    initialPath,
-    ...renderOptions
-  }: RenderWithProvidersOptions = {},
+  { routerProps = {}, initialPath, ...renderOptions }: RenderWithProvidersOptions = {},
 ) {
   // Create a queryClient with error handler disabled for test isolation
   // Tests can mock errors without triggering global toast handlers
@@ -24,12 +20,12 @@ export function renderWithProviders(
       queries: { retry: false },
       mutations: { retry: false },
     },
-  })
-  queryClient.clear()
+  });
+  queryClient.clear();
 
   const finalRouterProps: Omit<MemoryRouterProps, 'children'> = initialPath
     ? { initialEntries: [initialPath], ...routerProps }
-    : routerProps
+    : routerProps;
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
@@ -38,10 +34,11 @@ export function renderWithProviders(
           <AuthProvider>{children as ReactElement}</AuthProvider>
         </MemoryRouter>
       </QueryClientProvider>
-    )
+    );
   }
 
-  return render(ui, { wrapper: Wrapper, ...renderOptions })
+  return render(ui, { wrapper: Wrapper, ...renderOptions });
 }
 
-export * from '@testing-library/react'
+// eslint-disable-next-line react-refresh/only-export-components
+export * from '@testing-library/react';

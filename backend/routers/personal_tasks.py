@@ -204,9 +204,7 @@ def convert_to_ticket(
             raise HTTPException(status_code=404, detail="Assigned developer not found")
 
         # P1-3: IDOR fix - verify assignee is in the target project
-        assignee_in_project = any(
-            dev.id == assignee.id for dev in project.developers
-        )
+        assignee_in_project = any(dev.id == assignee.id for dev in project.developers)
         if not assignee_in_project:
             raise HTTPException(
                 status_code=422,

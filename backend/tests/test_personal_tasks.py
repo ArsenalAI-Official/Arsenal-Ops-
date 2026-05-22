@@ -10,12 +10,10 @@ IDOR Audit Findings:
 """
 
 import pytest
-from datetime import datetime, timedelta
+
 from models.personal_task import PersonalTask
 from models.work_item import WorkItem
-from models.developer import Developer
 from tests.conftest import seed_project
-
 
 # ============= Own-task scoping =============
 
@@ -84,7 +82,7 @@ class TestOwnTaskScoping:
                 "priority": "high",
             },
         )
-        pm_task_id = pm_response.json()["id"]
+        _pm_task_id = pm_response.json()["id"]
 
         # Get tasks as dev_user
         get_response = test_client.get(
@@ -324,9 +322,7 @@ class TestConvertToTicket:
     against project membership. Tests lock current behavior with xfail markers.
     """
 
-    def test_convert_to_ticket_with_valid_assignee_succeeds(
-        self, test_client, dev_user, db
-    ):
+    def test_convert_to_ticket_with_valid_assignee_succeeds(self, test_client, dev_user, db):
         """Verify convert_to_ticket with assignee in project succeeds.
 
         Creates personal task as dev_user, converts to ticket in seeded project
@@ -337,10 +333,9 @@ class TestConvertToTicket:
 
         # Get first developer from project using direct SQL
         from sqlalchemy import text
+
         dev_result = db.execute(
-            text(
-                "SELECT developer_id FROM project_developers WHERE project_id = :pid LIMIT 1"
-            ),
+            text("SELECT developer_id FROM project_developers WHERE project_id = :pid LIMIT 1"),
             {"pid": project.id},
         )
         dev_row = dev_result.first()
@@ -406,10 +401,9 @@ class TestConvertToTicket:
 
         # Get pm_user's developer record (already created by seed_project)
         from sqlalchemy import text
+
         pm_dev_result = db.execute(
-            text(
-                "SELECT developer_id FROM project_developers WHERE project_id = :pid LIMIT 1"
-            ),
+            text("SELECT developer_id FROM project_developers WHERE project_id = :pid LIMIT 1"),
             {"pid": project2.id},
         )
         pm_dev_row = pm_dev_result.first()
@@ -418,6 +412,7 @@ class TestConvertToTicket:
         if not pm_dev_id:
             # Create developer for pm if not in project
             from models.developer import Developer, project_developers
+
             pm_dev = Developer(email=pm.email, name=pm.name, github_username="pm-gh")
             db.add(pm_dev)
             db.flush()
@@ -470,10 +465,9 @@ class TestConvertToTicket:
 
         # Get assignee from project
         from sqlalchemy import text
+
         dev_result = db.execute(
-            text(
-                "SELECT developer_id FROM project_developers WHERE project_id = :pid LIMIT 1"
-            ),
+            text("SELECT developer_id FROM project_developers WHERE project_id = :pid LIMIT 1"),
             {"pid": project.id},
         )
         dev_row = dev_result.first()
@@ -662,10 +656,9 @@ class TestEdgeCases:
 
         # Get assignee
         from sqlalchemy import text
+
         dev_result = db.execute(
-            text(
-                "SELECT developer_id FROM project_developers WHERE project_id = :pid LIMIT 1"
-            ),
+            text("SELECT developer_id FROM project_developers WHERE project_id = :pid LIMIT 1"),
             {"pid": project.id},
         )
         dev_row = dev_result.first()

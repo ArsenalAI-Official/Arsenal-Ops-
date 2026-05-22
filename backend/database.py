@@ -24,12 +24,14 @@ engine_kwargs = {
 }
 if not is_sqlite:
     # PostgreSQL/Neon pooling configuration
-    engine_kwargs.update({
-        "pool_pre_ping": True,  # Verify connections before using
-        "pool_recycle": 300,  # Recycle every 5 minutes
-        "pool_size": 5,  # Max 5 connections
-        "max_overflow": 10,  # Allow 10 extra if needed
-    })
+    engine_kwargs.update(
+        {
+            "pool_pre_ping": True,  # Verify connections before using
+            "pool_recycle": 300,  # Recycle every 5 minutes
+            "pool_size": 5,  # Max 5 connections
+            "max_overflow": 10,  # Allow 10 extra if needed
+        }
+    )
 
 engine = create_engine(DATABASE_URL, **engine_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

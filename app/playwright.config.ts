@@ -32,8 +32,11 @@ export default defineConfig({
       // .env mutation — env passes directly to the subprocess. `rm -f e2e.db`
       // runs BEFORE uvicorn boots so SQLAlchemy creates a fresh schema each
       // run; wiping in globalSetup would race the backend's open file handle.
+      // PYTHON defaults to .venv/bin/python (local dev) but is overridden to
+      // `python` in CI where deps live in the system interpreter (see test.yml
+      // e2e job).
       command:
-        'cd ../backend && rm -f e2e.db && .venv/bin/python -m uvicorn main:app --port 8000',
+        'cd ../backend && rm -f e2e.db && ${PYTHON:-.venv/bin/python} -m uvicorn main:app --port 8000',
       port: 8000,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,

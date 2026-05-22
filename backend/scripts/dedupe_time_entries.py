@@ -80,7 +80,7 @@ def dedupe(window_seconds: int, dry_run: bool, work_item_id: int | None) -> dict
 
         window = timedelta(seconds=window_seconds)
 
-        for key, group in groups.items():
+        for _key, group in groups.items():
             if len(group) < 2:
                 continue
             # Walk in order. The first entry in each cluster is the keeper;
@@ -90,7 +90,11 @@ def dedupe(window_seconds: int, dry_run: bool, work_item_id: int | None) -> dict
             keeper = group[0]
             cluster_start_count = 1
             for te in group[1:]:
-                if te.logged_at and keeper.logged_at and (te.logged_at - keeper.logged_at) <= window:
+                if (
+                    te.logged_at
+                    and keeper.logged_at
+                    and (te.logged_at - keeper.logged_at) <= window
+                ):
                     deleted_ids.append(te.id)
                     affected_work_items.add(te.work_item_id)
                     cluster_start_count += 1
@@ -159,7 +163,9 @@ def dedupe(window_seconds: int, dry_run: bool, work_item_id: int | None) -> dict
                         wi.remaining_hours,
                     )
                 db.commit()
-                logger.info("Deleted %d duplicate TimeEntry rows and resynced rollups", len(deleted_ids))
+                logger.info(
+                    "Deleted %d duplicate TimeEntry rows and resynced rollups", len(deleted_ids)
+                )
         else:
             logger.info("No duplicate clusters found within window. Nothing to do.")
 
@@ -180,7 +186,9 @@ def dedupe(window_seconds: int, dry_run: bool, work_item_id: int | None) -> dict
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument(
         "--dry-run",
         action="store_true",

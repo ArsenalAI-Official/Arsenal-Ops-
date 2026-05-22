@@ -88,7 +88,7 @@ function reportError(err: unknown) {
     // 401 is handled by AuthContext separately (token expiry, logout flow).
     // Don't surface redundant toast for auth errors.
     if (err.status === 401) return;
-    toast.error(err.detail || `Request failed (${err.status})`);
+    toast.error(err.message || `Request failed (${err.status})`);
     return;
   }
   toast.error('Network error — please try again');

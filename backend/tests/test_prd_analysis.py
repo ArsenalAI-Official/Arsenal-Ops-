@@ -13,12 +13,12 @@ Fixtures from conftest.py: db, test_client, make_token, admin_user, pm_user, dev
 """
 
 import io
-import pytest
 from datetime import datetime
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
+
 from models.architecture import Architecture, PRDAnalysis
-from models.project import Project
 from models.developer import Developer, project_developers
+from models.project import Project
 
 
 def seed_project(db, name: str = "Test Project", num_developers: int = 2) -> Project:
@@ -36,9 +36,9 @@ def seed_project(db, name: str = "Test Project", num_developers: int = 2) -> Pro
     developers = []
     for i in range(num_developers):
         dev = Developer(
-            name=f"Developer {i+1}",
-            email=f"seed-dev-{i+1}@test.local",
-            github_username=f"seed-dev-{i+1}",
+            name=f"Developer {i + 1}",
+            email=f"seed-dev-{i + 1}@test.local",
+            github_username=f"seed-dev-{i + 1}",
         )
         db.add(dev)
         db.flush()
@@ -126,11 +126,15 @@ class TestAnalyzePRDFile:
             },
         }
 
-        with patch("services.prd_processor.prd_processor.process_prd") as mock_process, patch(
-            "services.architecture_generator.architecture_generator.analyze_prd"
-        ) as mock_analyze, patch(
-            "services.architecture_generator.architecture_generator.generate_architectures"
-        ) as mock_gen_arch:
+        with (
+            patch("services.prd_processor.prd_processor.process_prd") as mock_process,
+            patch(
+                "services.architecture_generator.architecture_generator.analyze_prd"
+            ) as mock_analyze,
+            patch(
+                "services.architecture_generator.architecture_generator.generate_architectures"
+            ) as mock_gen_arch,
+        ):
             mock_process.return_value = {"cleaned_text": "Test PRD content", "raw_text": ""}
             mock_analyze.return_value = mock_analysis
             mock_gen_arch.return_value = mock_architectures
@@ -274,11 +278,14 @@ class TestAnalyzePRDText:
             }
         }
 
-        with patch(
-            "services.architecture_generator.architecture_generator.analyze_prd"
-        ) as mock_analyze, patch(
-            "services.architecture_generator.architecture_generator.generate_architectures"
-        ) as mock_gen:
+        with (
+            patch(
+                "services.architecture_generator.architecture_generator.analyze_prd"
+            ) as mock_analyze,
+            patch(
+                "services.architecture_generator.architecture_generator.generate_architectures"
+            ) as mock_gen,
+        ):
             mock_analyze.return_value = mock_analysis
             mock_gen.return_value = mock_architectures
 

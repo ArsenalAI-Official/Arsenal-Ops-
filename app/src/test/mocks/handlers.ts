@@ -1,4 +1,4 @@
-import { http, HttpResponse } from 'msw'
+import { http, HttpResponse } from 'msw';
 
 export const authHandlers = [
   http.get('/api/auth/me', () => {
@@ -8,15 +8,15 @@ export const authHandlers = [
       name: 'Test User',
       role: 'developer',
       is_first_login: false,
-    })
+    });
   }),
 
   http.get('/api/auth/me/capabilities', () => {
     return HttpResponse.json({
       capabilities: [],
-    })
+    });
   }),
-]
+];
 
 export const projectHandlers = [
   http.get('/api/projects/', () => {
@@ -53,7 +53,7 @@ export const projectHandlers = [
         },
         developers: [],
       },
-    ])
+    ]);
   }),
 
   http.get('/api/personal-tasks/', () => {
@@ -68,7 +68,7 @@ export const projectHandlers = [
         estimated_hours: 4,
         is_converted: false,
       },
-    ])
+    ]);
   }),
 
   http.get('/api/workitems/my-tasks', () => {
@@ -82,9 +82,9 @@ export const projectHandlers = [
         is_overdue: false,
         due_date: '2026-06-01',
       },
-    ])
+    ]);
   }),
-]
+];
 
 export const projectBoardHandlers = [
   http.get('/api/projects/:projectId', () => {
@@ -106,7 +106,7 @@ export const projectBoardHandlers = [
         { id: 1, name: 'Alice', email: 'alice@example.com', role: 'developer' },
         { id: 2, name: 'Bob', email: 'bob@example.com', role: 'developer' },
       ],
-    })
+    });
   }),
 
   http.get('/api/workitems/board', () => {
@@ -171,7 +171,7 @@ export const projectBoardHandlers = [
         tags: [],
         epic: '',
       },
-    ])
+    ]);
   }),
 
   http.get('/api/workitems/projects/:projectId/sprints', () => {
@@ -210,16 +210,16 @@ export const projectBoardHandlers = [
         completed_points: 0,
         completion_pct: 100,
       },
-    ])
+    ]);
   }),
 
   http.get('/api/developers/', () => {
     return HttpResponse.json([
       { id: 1, name: 'Alice', email: 'alice@example.com' },
       { id: 2, name: 'Bob', email: 'bob@example.com' },
-    ])
+    ]);
   }),
-]
+];
 
 export const adminHandlers = [
   http.get('/api/admin/stats', () => {
@@ -230,33 +230,33 @@ export const adminHandlers = [
       active_sprints: 2,
       tickets_by_status: { todo: 20, in_progress: 15, done: 7 },
       tickets_by_priority: { high: 10, medium: 20, low: 12 },
-    })
+    });
   }),
 
   http.get('/api/admin/employees', () => {
-    return HttpResponse.json([])
+    return HttpResponse.json([]);
   }),
 
   http.get('/api/admin/developers/capacity', () => {
-    return HttpResponse.json([])
+    return HttpResponse.json([]);
   }),
 
   http.get('/api/admin/projects', () => {
-    return HttpResponse.json([])
+    return HttpResponse.json([]);
   }),
 
   http.get('/api/auth/admin/users', () => {
-    return HttpResponse.json([])
+    return HttpResponse.json([]);
   }),
 
   http.get('/api/auth/admin/roles', () => {
-    return HttpResponse.json([])
+    return HttpResponse.json([]);
   }),
 
   http.get('/api/auth/capabilities', () => {
-    return HttpResponse.json([])
+    return HttpResponse.json([]);
   }),
-]
+];
 
 export const itemDetailDrawerHandlers = [
   http.get('/api/workitems/:itemId', () => {
@@ -279,25 +279,25 @@ export const itemDetailDrawerHandlers = [
       product_id: '1',
       tags: ['backend'],
       epic: '',
-    })
+    });
   }),
 
   http.get('/api/workitems/:itemId/time-entries', () => {
-    return HttpResponse.json([])
+    return HttpResponse.json([]);
   }),
 
   http.get('/api/comments/workitem/:itemId', () => {
-    return HttpResponse.json([])
+    return HttpResponse.json([]);
   }),
 
   http.post('/api/comments', () => {
-    return HttpResponse.json({ id: 3, success: true })
+    return HttpResponse.json({ id: 3, success: true });
   }),
 
   http.patch('/api/workitems/:itemId', () => {
-    return HttpResponse.json({ success: true })
+    return HttpResponse.json({ success: true });
   }),
-]
+];
 
 export const personalTasksHandlers = [
   http.post('/api/personal-tasks/', () => {
@@ -312,7 +312,7 @@ export const personalTasksHandlers = [
       is_converted: false,
       created_at: '2026-05-22T00:00:00',
       tags: [],
-    })
+    });
   }),
 
   http.put('/api/personal-tasks/:id', () => {
@@ -327,11 +327,11 @@ export const personalTasksHandlers = [
       is_converted: false,
       created_at: '2026-05-22T00:00:00',
       tags: [],
-    })
+    });
   }),
 
   http.delete('/api/personal-tasks/:id', () => {
-    return HttpResponse.json({ status: 'deleted' })
+    return HttpResponse.json({ status: 'deleted' });
   }),
 
   http.post('/api/personal-tasks/:id/convert-to-ticket', () => {
@@ -340,9 +340,9 @@ export const personalTasksHandlers = [
         key: 'PA-1',
         assignee_name: 'Alice',
       },
-    })
+    });
   }),
-]
+];
 
 export const projectDetailHandlers = [
   http.get('/api/projects/:id/overview', () => {
@@ -356,8 +356,24 @@ export const projectDetailHandlers = [
         created_at: '2026-01-01T00:00:00',
         github_repo_url: 'https://github.com/example/test',
         developers: [
-          { id: 1, name: 'Alice', email: 'alice@example.com', role: 'lead', responsibilities: 'Backend', is_admin: true, github_username: 'alice' },
-          { id: 2, name: 'Bob', email: 'bob@example.com', role: 'developer', responsibilities: 'Frontend', is_admin: false, github_username: 'bob' },
+          {
+            id: 1,
+            name: 'Alice',
+            email: 'alice@example.com',
+            role: 'lead',
+            responsibilities: 'Backend',
+            is_admin: true,
+            github_username: 'alice',
+          },
+          {
+            id: 2,
+            name: 'Bob',
+            email: 'bob@example.com',
+            role: 'developer',
+            responsibilities: 'Frontend',
+            is_admin: false,
+            github_username: 'bob',
+          },
         ],
         architectures: [],
         selected_architecture: null,
@@ -397,7 +413,7 @@ export const projectDetailHandlers = [
       },
       prdAnalysis: null,
       links: [],
-    })
+    });
   }),
 
   http.get('/api/projects/:id', () => {
@@ -410,12 +426,28 @@ export const projectDetailHandlers = [
       created_at: '2026-01-01T00:00:00',
       github_repo_url: 'https://github.com/example/test',
       developers: [
-        { id: 1, name: 'Alice', email: 'alice@example.com', role: 'lead', responsibilities: 'Backend', is_admin: true, github_username: 'alice' },
-        { id: 2, name: 'Bob', email: 'bob@example.com', role: 'developer', responsibilities: 'Frontend', is_admin: false, github_username: 'bob' },
+        {
+          id: 1,
+          name: 'Alice',
+          email: 'alice@example.com',
+          role: 'lead',
+          responsibilities: 'Backend',
+          is_admin: true,
+          github_username: 'alice',
+        },
+        {
+          id: 2,
+          name: 'Bob',
+          email: 'bob@example.com',
+          role: 'developer',
+          responsibilities: 'Frontend',
+          is_admin: false,
+          github_username: 'bob',
+        },
       ],
       architectures: [],
       selected_architecture: null,
-    })
+    });
   }),
 
   http.get('/api/developers/', () => {
@@ -423,23 +455,23 @@ export const projectDetailHandlers = [
       { id: 1, name: 'Alice', email: 'alice@example.com', github_username: 'alice' },
       { id: 2, name: 'Bob', email: 'bob@example.com', github_username: 'bob' },
       { id: 3, name: 'Charlie', email: 'charlie@example.com', github_username: 'charlie' },
-    ])
+    ]);
   }),
 
   http.get('/api/workitems/', () => {
-    return HttpResponse.json([])
+    return HttpResponse.json([]);
   }),
 
   http.get('/api/projects/:id/goals', () => {
-    return HttpResponse.json([])
+    return HttpResponse.json([]);
   }),
 
   http.get('/api/projects/:id/milestones', () => {
-    return HttpResponse.json([])
+    return HttpResponse.json([]);
   }),
 
   http.get('/api/projects/:id/activity', () => {
-    return HttpResponse.json([])
+    return HttpResponse.json([]);
   }),
 
   http.get('/api/workitems/projects/:projectId/analytics', () => {
@@ -453,17 +485,17 @@ export const projectDetailHandlers = [
       velocity_data: [],
       burndown_data: [],
       team_performance: [],
-    })
+    });
   }),
 
   http.get('/api/prd/projects/:projectId/analysis', () => {
-    return HttpResponse.json(null)
+    return HttpResponse.json(null);
   }),
 
   http.get('/api/projects/:id/links', () => {
-    return HttpResponse.json([])
+    return HttpResponse.json([]);
   }),
-]
+];
 
 export const pulseTabHandlers = [
   http.get('/api/projects/:projectId/pulse', () => {
@@ -577,9 +609,9 @@ export const pulseTabHandlers = [
           { feature: 'API', employee: 'Bob', fc: 60, act: 64 },
         ],
       },
-    })
+    });
   }),
-]
+];
 
 export const createItemModalHandlers = [
   http.post('/api/workitems/', () => {
@@ -602,13 +634,13 @@ export const createItemModalHandlers = [
       product_id: '1',
       tags: [],
       epic: '',
-    })
+    });
   }),
-]
+];
 
 export const handlers = [
   http.get('/api/health', () => {
-    return HttpResponse.json({ status: 'ok' })
+    return HttpResponse.json({ status: 'ok' });
   }),
   ...authHandlers,
   ...projectHandlers,
@@ -619,4 +651,4 @@ export const handlers = [
   ...createItemModalHandlers,
   ...personalTasksHandlers,
   ...pulseTabHandlers,
-]
+];

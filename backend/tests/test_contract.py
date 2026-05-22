@@ -22,15 +22,15 @@ Strategy:
 """
 
 import os
+from datetime import timedelta
+
 import pytest
 import schemathesis
-from datetime import timedelta
-from hypothesis import settings, HealthCheck
+from hypothesis import HealthCheck, settings
 
 from main import app
 from models.user import User
 from routers.auth import create_access_token
-
 
 # Load OpenAPI schema directly from the FastAPI app via ASGI
 schema = schemathesis.openapi.from_asgi("/openapi.json", app=app)

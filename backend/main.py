@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 
 # Import routers (after load_dotenv so router-level env reads see the right values)
 from routers.admin import router as admin_router  # noqa: E402
-from routers.auth import router as auth_router, dev_router as auth_dev_router  # noqa: E402
+from routers.auth import dev_router as auth_dev_router  # noqa: E402
+from routers.auth import router as auth_router  # noqa: E402
 from routers.comments import router as comments_router  # noqa: E402
 from routers.developers import router as developers_router  # noqa: E402
 from routers.overview import router as overview_router  # noqa: E402

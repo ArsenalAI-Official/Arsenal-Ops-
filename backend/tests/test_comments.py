@@ -19,24 +19,20 @@ Fixtures from conftest.py:
 - seed_project: factory function for Project + developers
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
+# ============= Helpers: Factories for test setup =============
+from datetime import datetime
+from unittest.mock import patch
+
 from models.comment import Comment
 from models.developer import Developer
-from models.work_item import WorkItem
 from models.project import Project
-
-
-# ============= Helpers: Factories for test setup =============
-
-from datetime import datetime
+from models.work_item import WorkItem
 
 
 def seed_project(db, name: str = "Test Project", num_developers: int = 2) -> Project:
     """Factory function: create a Project + N developers + admin assignment."""
+
     from models.developer import project_developers
-    import random
-    import string
 
     project = Project(
         name=name,
@@ -53,7 +49,7 @@ def seed_project(db, name: str = "Test Project", num_developers: int = 2) -> Pro
     total_devs = max(1, num_developers)
     # Use project ID in seed to ensure unique developers across projects
     for i in range(total_devs):
-        unique_id = f"{project.id}_{i+1}"
+        unique_id = f"{project.id}_{i + 1}"
         dev = Developer(
             name=f"Developer {unique_id}",
             email=f"seed-dev-{unique_id}@test.local",
@@ -91,7 +87,9 @@ def seed_project(db, name: str = "Test Project", num_developers: int = 2) -> Pro
     return project
 
 
-def create_work_item(db, project_id: int, key: str = "TEST-1", title: str = "Test Item") -> WorkItem:
+def create_work_item(
+    db, project_id: int, key: str = "TEST-1", title: str = "Test Item"
+) -> WorkItem:
     """Factory: create a WorkItem in the given project."""
     item = WorkItem(
         project_id=project_id,
@@ -161,7 +159,11 @@ class TestCreateComment:
         response = test_client.post(
             "/api/comments/",
             headers={"Authorization": f"Bearer {token}"},
-            json={"work_item_id": item.id, "content": "This is a test comment", "comment_type": "comment"},
+            json={
+                "work_item_id": item.id,
+                "content": "This is a test comment",
+                "comment_type": "comment",
+            },
         )
 
         assert response.status_code == 200
@@ -224,9 +226,13 @@ class TestCreateComment:
 
         assert response.status_code == 200
         data = response.json()
-        assert mentioned_dev.id in data["mentions"], f"Expected {mentioned_dev.id} in {data['mentions']}"
+        assert mentioned_dev.id in data["mentions"], (
+            f"Expected {mentioned_dev.id} in {data['mentions']}"
+        )
 
-    def test_create_comment_mention_nonexistent_user_silently_skipped(self, test_client, db, dev_user):
+    def test_create_comment_mention_nonexistent_user_silently_skipped(
+        self, test_client, db, dev_user
+    ):
         """Verify @mention of nonexistent user is silently skipped.
 
         Creates comment with @nobody@test.local (nonexistent), asserts:
@@ -645,7 +651,11 @@ class TestUpdateComment:
         mentioned_dev = next((d for d in devs if d.id != current_dev.id), None)
 
         # PUT update
-        new_content = f"Updated content mentioning @{mentioned_dev.name}" if mentioned_dev else "Updated content"
+        new_content = (
+            f"Updated content mentioning @{mentioned_dev.name}"
+            if mentioned_dev
+            else "Updated content"
+        )
         response = test_client.put(
             f"/api/comments/{comment.id}",
             headers={"Authorization": f"Bearer {token}"},
@@ -767,7 +777,7 @@ class TestDeleteComment:
     def test_delete_comment_without_token_returns_401(self, test_client, db):
         """Verify DELETE without token returns 401."""
         project = seed_project(db, name="Test Project")
-        item = create_work_item(db, project.id)
+        _item = create_work_item(db, project.id)
 
         response = test_client.delete("/api/comments/1")
 
@@ -860,7 +870,9 @@ class TestGetBusinessReviewComments:
         db.commit()
 
         # Create mixed comment types
-        for i, comment_type in enumerate(["comment", "business_review", "business_review", "blocker"]):
+        for i, comment_type in enumerate(
+            ["comment", "business_review", "business_review", "blocker"]
+        ):
             comment = Comment(
                 work_item_id=item1.id if i < 2 else item2.id,
                 author_id=current_dev.id,

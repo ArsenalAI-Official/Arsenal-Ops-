@@ -8,8 +8,8 @@ Fixtures from conftest.py: db, test_client, make_token, admin_user, pm_user, dev
 """
 
 import io
-import sys
 import os
+import sys
 from datetime import datetime, timedelta
 from unittest import mock
 
@@ -18,11 +18,9 @@ from openpyxl import Workbook
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "."))
 
-from models.developer import Developer
-from models.project import Project
-from models.user import User
 from conftest import seed_project
 
+from models.developer import Developer
 
 # ============= Test Helpers =============
 
@@ -37,7 +35,16 @@ def create_minimal_xlsx() -> bytes:
     ws.title = "roadmap"
 
     # Header row
-    headers = ["Type", "Name", "Description", "Milestone", "Epic", "Priority", "Effort (hrs)", "Assignee"]
+    headers = [
+        "Type",
+        "Name",
+        "Description",
+        "Milestone",
+        "Epic",
+        "Priority",
+        "Effort (hrs)",
+        "Assignee",
+    ]
     ws.append(headers)
 
     # Add a milestone
@@ -51,12 +58,71 @@ def create_minimal_xlsx() -> bytes:
         ws.cell(row=2, column=9 + i, value=week_date)
 
     # Add an epic
-    ws.append(["EPIC", "Feature A", "Description of Feature A", "Phase 1", "Feature A", "High", None, None])
+    ws.append(
+        [
+            "EPIC",
+            "Feature A",
+            "Description of Feature A",
+            "Phase 1",
+            "Feature A",
+            "High",
+            None,
+            None,
+        ]
+    )
 
     # Add tasks with hours
-    ws.append(["TASK", "Task 1", "First task", "Phase 1", "Feature A", "High", 16.0, "Developer 1", 8, 8, 0, 0, 0])
-    ws.append(["TASK", "Task 2", "Second task", "Phase 1", "Feature A", "Medium", 20.0, "Developer 2", 0, 0, 10, 10, 0])
-    ws.append(["TASK", "Task 3", "Third task", "Phase 1", "Feature A", "Low", 12.0, "Developer 1", 0, 0, 6, 6, 0])
+    ws.append(
+        [
+            "TASK",
+            "Task 1",
+            "First task",
+            "Phase 1",
+            "Feature A",
+            "High",
+            16.0,
+            "Developer 1",
+            8,
+            8,
+            0,
+            0,
+            0,
+        ]
+    )
+    ws.append(
+        [
+            "TASK",
+            "Task 2",
+            "Second task",
+            "Phase 1",
+            "Feature A",
+            "Medium",
+            20.0,
+            "Developer 2",
+            0,
+            0,
+            10,
+            10,
+            0,
+        ]
+    )
+    ws.append(
+        [
+            "TASK",
+            "Task 3",
+            "Third task",
+            "Phase 1",
+            "Feature A",
+            "Low",
+            12.0,
+            "Developer 1",
+            0,
+            0,
+            6,
+            6,
+            0,
+        ]
+    )
 
     # Save to BytesIO
     output = io.BytesIO()
@@ -75,7 +141,20 @@ def create_minimal_xlsx_two_sprints() -> bytes:
     ws.title = "roadmap"
 
     # Header (9 columns for type, name, desc, milestone, epic, priority, effort, assignee, + 4 week columns)
-    headers = ["Type", "Name", "Description", "Milestone", "Epic", "Priority", "Effort (hrs)", "Assignee", "W1", "W2", "W3", "W4"]
+    headers = [
+        "Type",
+        "Name",
+        "Description",
+        "Milestone",
+        "Epic",
+        "Priority",
+        "Effort (hrs)",
+        "Assignee",
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+    ]
     ws.append(headers)
 
     # Milestone row with all 4 weeks
@@ -86,18 +165,100 @@ def create_minimal_xlsx_two_sprints() -> bytes:
         ws.cell(row=2, column=9 + i, value=week_date)
 
     # Epic for sprint 1
-    ws.append(["EPIC", "Feature Sprint1", "Epic for sprint 1", "Phase 1", "Feature Sprint1", "High", None, None])
+    ws.append(
+        [
+            "EPIC",
+            "Feature Sprint1",
+            "Epic for sprint 1",
+            "Phase 1",
+            "Feature Sprint1",
+            "High",
+            None,
+            None,
+        ]
+    )
 
     # Tasks for sprint 1 (active in weeks 1-2)
-    ws.append(["TASK", "Task Sprint1-A", "Task A", "Phase 1", "Feature Sprint1", "High", 16.0, "Alice", 8, 8, 0, 0])
-    ws.append(["TASK", "Task Sprint1-B", "Task B", "Phase 1", "Feature Sprint1", "Medium", 8.0, "Bob", 4, 4, 0, 0])
+    ws.append(
+        [
+            "TASK",
+            "Task Sprint1-A",
+            "Task A",
+            "Phase 1",
+            "Feature Sprint1",
+            "High",
+            16.0,
+            "Alice",
+            8,
+            8,
+            0,
+            0,
+        ]
+    )
+    ws.append(
+        [
+            "TASK",
+            "Task Sprint1-B",
+            "Task B",
+            "Phase 1",
+            "Feature Sprint1",
+            "Medium",
+            8.0,
+            "Bob",
+            4,
+            4,
+            0,
+            0,
+        ]
+    )
 
     # Epic for sprint 2
-    ws.append(["EPIC", "Feature Sprint2", "Epic for sprint 2", "Phase 1", "Feature Sprint2", "Low", None, None])
+    ws.append(
+        [
+            "EPIC",
+            "Feature Sprint2",
+            "Epic for sprint 2",
+            "Phase 1",
+            "Feature Sprint2",
+            "Low",
+            None,
+            None,
+        ]
+    )
 
     # Tasks for sprint 2 (active in weeks 3-4)
-    ws.append(["TASK", "Task Sprint2-A", "Task A Sprint 2", "Phase 1", "Feature Sprint2", "Medium", 12.0, "Charlie", 0, 0, 6, 6])
-    ws.append(["TASK", "Task Sprint2-B", "Task B Sprint 2", "Phase 1", "Feature Sprint2", "Low", 10.0, "Alice", 0, 0, 5, 5])
+    ws.append(
+        [
+            "TASK",
+            "Task Sprint2-A",
+            "Task A Sprint 2",
+            "Phase 1",
+            "Feature Sprint2",
+            "Medium",
+            12.0,
+            "Charlie",
+            0,
+            0,
+            6,
+            6,
+        ]
+    )
+    ws.append(
+        [
+            "TASK",
+            "Task Sprint2-B",
+            "Task B Sprint 2",
+            "Phase 1",
+            "Feature Sprint2",
+            "Low",
+            10.0,
+            "Alice",
+            0,
+            0,
+            5,
+            5,
+        ]
+    )
 
     output = io.BytesIO()
     wb.save(output)
@@ -123,7 +284,13 @@ class TestRoadmapAuth:
         response = test_client.post(
             "/api/roadmap/parse-file",
             data={"project_id": str(project.id), "sprint_weeks": "2"},
-            files={"file": ("test.xlsx", xlsx_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            files={
+                "file": (
+                    "test.xlsx",
+                    xlsx_bytes,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
         )
 
         assert response.status_code == 401
@@ -169,7 +336,13 @@ class TestRoadmapFileValidation:
         response = test_client.post(
             "/api/roadmap/parse-file",
             data={"project_id": str(project.id), "sprint_weeks": "2"},
-            files={"file": ("empty.xlsx", b"", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            files={
+                "file": (
+                    "empty.xlsx",
+                    b"",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
             headers={"Authorization": f"Bearer {token}"},
         )
 
@@ -187,7 +360,13 @@ class TestRoadmapFileValidation:
         response = test_client.post(
             "/api/roadmap/parse-file",
             data={"project_id": str(project.id), "sprint_weeks": "0"},
-            files={"file": ("test.xlsx", xlsx_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            files={
+                "file": (
+                    "test.xlsx",
+                    xlsx_bytes,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 400
@@ -197,7 +376,13 @@ class TestRoadmapFileValidation:
         response = test_client.post(
             "/api/roadmap/parse-file",
             data={"project_id": str(project.id), "sprint_weeks": "7"},
-            files={"file": ("test.xlsx", xlsx_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            files={
+                "file": (
+                    "test.xlsx",
+                    xlsx_bytes,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 400
@@ -214,7 +399,13 @@ class TestRoadmapFileValidation:
         response = test_client.post(
             "/api/roadmap/parse-file",
             data={"project_id": "999999", "sprint_weeks": "2"},
-            files={"file": ("test.xlsx", xlsx_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            files={
+                "file": (
+                    "test.xlsx",
+                    xlsx_bytes,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
             headers={"Authorization": f"Bearer {token}"},
         )
 
@@ -250,7 +441,13 @@ class TestRoadmapParsing:
         response = test_client.post(
             "/api/roadmap/parse-file",
             data={"project_id": str(project.id), "sprint_weeks": "2"},
-            files={"file": ("test.xlsx", xlsx_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            files={
+                "file": (
+                    "test.xlsx",
+                    xlsx_bytes,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
             headers={"Authorization": f"Bearer {token}"},
         )
 
@@ -283,7 +480,13 @@ class TestRoadmapParsing:
         response = test_client.post(
             "/api/roadmap/parse-file",
             data={"project_id": str(project.id), "sprint_weeks": "2"},
-            files={"file": ("test.xlsx", xlsx_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            files={
+                "file": (
+                    "test.xlsx",
+                    xlsx_bytes,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
             headers={"Authorization": f"Bearer {token}"},
         )
 
@@ -310,7 +513,9 @@ class TestSprintExtraction:
         return project, token
 
     @mock.patch("routers.roadmap.get_roadmap_ai_parser")
-    def test_extracted_sprints_have_valid_boundaries(self, mock_ai_parser, db, test_client, admin_user):
+    def test_extracted_sprints_have_valid_boundaries(
+        self, mock_ai_parser, db, test_client, admin_user
+    ):
         """Verify sprints have start < end, non-overlapping, ordered by start.
 
         Creates XLSX with 2 sprints (4 weeks, 2 weeks per sprint).
@@ -325,7 +530,13 @@ class TestSprintExtraction:
         response = test_client.post(
             "/api/roadmap/parse-file",
             data={"project_id": str(project.id), "sprint_weeks": "2"},
-            files={"file": ("test.xlsx", xlsx_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            files={
+                "file": (
+                    "test.xlsx",
+                    xlsx_bytes,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
             headers={"Authorization": f"Bearer {token}"},
         )
 
@@ -350,7 +561,9 @@ class TestSprintExtraction:
             # Verify ordering
             if prev_end:
                 prev_end_dt = datetime.fromisoformat(prev_end)
-                assert start_dt >= prev_end_dt, f"Sprint {i}: not ordered by start; prev_end={prev_end}, start={start}"
+                assert start_dt >= prev_end_dt, (
+                    f"Sprint {i}: not ordered by start; prev_end={prev_end}, start={start}"
+                )
 
             prev_end = end
 
@@ -363,7 +576,13 @@ class TestSprintExtraction:
         response = test_client.post(
             "/api/roadmap/parse-file",
             data={"project_id": str(project.id), "sprint_weeks": "2"},
-            files={"file": ("test.xlsx", xlsx_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            files={
+                "file": (
+                    "test.xlsx",
+                    xlsx_bytes,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
             headers={"Authorization": f"Bearer {token}"},
         )
 
@@ -424,7 +643,9 @@ class TestRoadmapCommit:
         assert "Project not found" in response.json()["detail"]
 
     @mock.patch("routers.roadmap.get_roadmap_ai_parser")
-    def test_commit_creates_work_items_from_parsed_data(self, mock_ai_parser, db, test_client, admin_user):
+    def test_commit_creates_work_items_from_parsed_data(
+        self, mock_ai_parser, db, test_client, admin_user
+    ):
         """Verify POST /commit creates epics and tasks from parsed_data.
 
         First parse a roadmap, then commit it; verify work items are created in db.
@@ -436,7 +657,13 @@ class TestRoadmapCommit:
         parse_response = test_client.post(
             "/api/roadmap/parse-file",
             data={"project_id": str(project.id), "sprint_weeks": "2"},
-            files={"file": ("test.xlsx", xlsx_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            files={
+                "file": (
+                    "test.xlsx",
+                    xlsx_bytes,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
             headers={"Authorization": f"Bearer {token}"},
         )
 
@@ -518,7 +745,13 @@ class TestAIParserFallback:
             response = test_client.post(
                 "/api/roadmap/parse-file",
                 data={"project_id": str(project.id), "sprint_weeks": "2"},
-                files={"file": ("test.xlsx", invalid_xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+                files={
+                    "file": (
+                        "test.xlsx",
+                        invalid_xlsx,
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    )
+                },
                 headers={"Authorization": f"Bearer {token}"},
             )
 
@@ -552,7 +785,16 @@ class TestConflictDetection:
         ws = wb.active
         ws.title = "roadmap"
 
-        headers = ["Type", "Name", "Description", "Milestone", "Epic", "Priority", "Effort (hrs)", "Assignee"]
+        headers = [
+            "Type",
+            "Name",
+            "Description",
+            "Milestone",
+            "Epic",
+            "Priority",
+            "Effort (hrs)",
+            "Assignee",
+        ]
         ws.append(headers)
         ws.append(["MILESTONE", "Phase 1", None, None, None, None, None, None])
 
@@ -563,7 +805,20 @@ class TestConflictDetection:
 
         ws.append(["EPIC", "Feature A", "Desc", "Phase 1", "Feature A", "High", None, None])
         # Task with no assignee (empty or None)
-        ws.append(["TASK", "Unassigned Task", "No assignee", "Phase 1", "Feature A", "High", 8.0, None, 8, 0])
+        ws.append(
+            [
+                "TASK",
+                "Unassigned Task",
+                "No assignee",
+                "Phase 1",
+                "Feature A",
+                "High",
+                8.0,
+                None,
+                8,
+                0,
+            ]
+        )
 
         output = io.BytesIO()
         wb.save(output)
@@ -573,7 +828,13 @@ class TestConflictDetection:
         response = test_client.post(
             "/api/roadmap/parse-file",
             data={"project_id": str(project.id), "sprint_weeks": "2"},
-            files={"file": ("test.xlsx", xlsx_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            files={
+                "file": (
+                    "test.xlsx",
+                    xlsx_bytes,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
             headers={"Authorization": f"Bearer {token}"},
         )
 
@@ -591,7 +852,9 @@ class TestConflictDetection:
 class TestKnownIssues:
     """Tests for known issues marked as xfail or skipped."""
 
-    @pytest.mark.skip(reason="openpyxl formula evaluation not fully supported in test environment; safe to skip")
+    @pytest.mark.skip(
+        reason="openpyxl formula evaluation not fully supported in test environment; safe to skip"
+    )
     def test_upload_with_formula_cells(self, db, test_client, admin_user):
         """Verify upload handles Excel formulas gracefully.
 

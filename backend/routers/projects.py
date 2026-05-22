@@ -7,10 +7,10 @@ import re
 import sys
 import uuid
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
-from pathlib import Path
 from pydantic import BaseModel
 from sqlalchemy import insert, select
 from sqlalchemy.orm import Session
@@ -1394,7 +1394,7 @@ async def upload_project_file(
                         os.remove(file_path)
                     raise HTTPException(
                         status_code=413,
-                        detail=f"File too large. Maximum size is {MAX_FILE_SIZE_BYTES // (1024*1024)} MB",
+                        detail=f"File too large. Maximum size is {MAX_FILE_SIZE_BYTES // (1024 * 1024)} MB",
                     )
                 f.write(chunk)
     except HTTPException:

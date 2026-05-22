@@ -5,11 +5,9 @@ Tests cover CRUD operations, authentication enforcement, and basic N+1 regressio
 Uses fixtures from conftest.py and follows style from test_auth.py.
 """
 
-import pytest
 from sqlalchemy import event
 
 from models.developer import Developer
-
 
 # ============= List Developers (GET /api/developers/) =============
 
@@ -398,8 +396,8 @@ class TestDevelopersQueryOptimization:
         # Create 5 developers
         for i in range(5):
             dev = Developer(
-                name=f"Developer {i+1}",
-                email=f"dev{i+1}@test.local",
+                name=f"Developer {i + 1}",
+                email=f"dev{i + 1}@test.local",
             )
             db.add(dev)
         db.commit()

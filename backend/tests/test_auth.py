@@ -11,11 +11,10 @@ are also excluded by design (see test_dev_login_returns_404_when_bypass_disabled
 since the endpoint is marked for P0 removal.
 """
 
-import os
 from datetime import timedelta
 
-import pytest
 from freezegun import freeze_time
+from jose import jwt
 
 from routers.auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
@@ -23,11 +22,7 @@ from routers.auth import (
     SECRET_KEY,
     get_password_hash,
     verify_password,
-    password_needs_update,
-    pwd_context,
 )
-from jose import jwt
-
 
 # ============= Login (POST /api/auth/login) =============
 
@@ -267,9 +262,7 @@ class TestCurrentUser:
 class TestChangePassword:
     """Tests for POST /api/auth/change-password endpoint."""
 
-    def test_change_password_with_wrong_current_returns_401(
-        self, test_client, db, admin_user
-    ):
+    def test_change_password_with_wrong_current_returns_401(self, test_client, db, admin_user):
         """Verify change-password with wrong current password returns 401.
 
         Uses admin_user fixture, POSTs wrong current_password, asserts 401.
@@ -412,8 +405,9 @@ class TestPasswordUtilities:
         - Login succeeds (verify_password works with legacy hash)
         - Post-login, the stored hash is upgraded to bcrypt (starts with $2b$)
         """
-        from models.user import User
         from passlib.context import CryptContext
+
+        from models.user import User
 
         password = "test-password-123"
 
@@ -448,6 +442,6 @@ class TestPasswordUtilities:
 
         # Verify the hash was upgraded to bcrypt post-login
         db.refresh(user)
-        assert user.hashed_password.startswith(
-            "$2b$"
-        ), f"Expected bcrypt hash after login, got {user.hashed_password}"
+        assert user.hashed_password.startswith("$2b$"), (
+            f"Expected bcrypt hash after login, got {user.hashed_password}"
+        )

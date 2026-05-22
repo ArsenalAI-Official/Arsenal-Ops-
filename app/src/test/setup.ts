@@ -1,9 +1,9 @@
-import '@testing-library/jest-dom/vitest'
-import { server } from './mocks/server'
+import '@testing-library/jest-dom/vitest';
+import { server } from './mocks/server';
 
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => {
-  server.resetHandlers()
-  localStorage.clear()
-})
-afterAll(() => server.close())
+  server.resetHandlers();
+  localStorage.clear();
+});
+afterAll(() => server.close());

@@ -15,13 +15,14 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
+
+# Load .env.test so SECRET_KEY is set before importing main
+from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-# Load .env.test so SECRET_KEY is set before importing main
-from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env.test")
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -49,11 +50,17 @@ from models import (  # noqa: E402, F401
     work_item,
     work_item_assignment_history,
 )
-from models.developer import Developer  # noqa: E402
-from models.developer import project_developers  # noqa: E402
+from models.developer import (  # noqa: E402
+    Developer,
+    project_developers,
+)
 from models.project import Project  # noqa: E402
 from models.user import User  # noqa: E402
-from routers.auth import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, SECRET_KEY, create_access_token, get_password_hash  # noqa: E402
+from routers.auth import (  # noqa: E402
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    create_access_token,
+    get_password_hash,
+)
 
 
 @pytest.fixture
@@ -94,7 +101,7 @@ def test_client(db):
     app.dependency_overrides.clear()
 
 
-def make_token(user: User, expires_delta: timedelta | None = None) -> str:
+def make_token(user: User, expires_delta: timedelta | None = None) -> str:  # noqa: F811
     """Create a valid JWT token for a User.
 
     Uses the same create_access_token() function as auth.py so tokens
@@ -133,7 +140,7 @@ def admin_user(db) -> tuple[User, str]:
     The User is committed to the db fixture and has role='admin'.
     Uses a bcrypt-hashed password for compatibility with new verify_password.
     """
-    user = User(
+    user = User(  # noqa: F811 (shadows side-effect-only `user` module import)
         email="admin@test.local",
         name="Admin Test User",
         role="admin",
@@ -155,7 +162,7 @@ def pm_user(db) -> tuple[User, str]:
     The User is committed to the db fixture and has role='project_manager'.
     Uses a bcrypt-hashed password for compatibility with new verify_password.
     """
-    user = User(
+    user = User(  # noqa: F811
         email="pm@test.local",
         name="PM Test User",
         role="project_manager",
@@ -177,7 +184,7 @@ def dev_user(db) -> tuple[User, str]:
     The User is committed to the db fixture and has role='developer'.
     Uses a bcrypt-hashed password for compatibility with new verify_password.
     """
-    user = User(
+    user = User(  # noqa: F811
         email="dev@test.local",
         name="Developer Test User",
         role="developer",
@@ -206,7 +213,7 @@ def seed_project(db, name: str = "Test Project", num_developers: int = 2) -> Pro
     Returns:
         The created Project instance (committed to db).
     """
-    project = Project(
+    project = Project(  # noqa: F811 (shadows side-effect-only `project` module import)
         name=name,
         description=f"Description for {name}",
         status="active",
@@ -221,7 +228,7 @@ def seed_project(db, name: str = "Test Project", num_developers: int = 2) -> Pro
     total_devs = max(1, num_developers)
     for i in range(total_devs):
         # Use project ID in seed to ensure unique developers across projects
-        unique_id = f"{project.id}_{i+1}"
+        unique_id = f"{project.id}_{i + 1}"
         dev = Developer(
             name=f"Developer {unique_id}",
             email=f"seed-dev-{unique_id}@test.local",

@@ -39,6 +39,12 @@ jobs:
       - name: Install dependencies
         run: pip install -r backend/requirements.txt
 
+      - name: Copy test env
+        # Provides SECRET_KEY (now required after P0-1) and DEV_AUTH_BYPASS=0
+        # so `import main` doesn't raise KeyError on the env-var lookup.
+        run: cp .env.test .env || true
+        working-directory: backend
+
       - name: Check Python imports
         # TODO: Replace with mypy once added to requirements.txt in week 2.
         # For now, a basic import check catches obvious syntax and module errors.
@@ -90,7 +96,9 @@ jobs:
         working-directory: backend
 
       - name: Run pytest
-        run: python -m pytest tests/ -v --cov=. --cov-report=xml --cov-report=term
+        # -m "not contract" excludes test_contract.py, which has its own dedicated
+        # job (contract-backend) and is expected to fail until P1-18 is closed.
+        run: python -m pytest tests/ -v -m "not contract" --cov=. --cov-report=xml --cov-report=term
         working-directory: backend
 
       - name: Upload coverage
@@ -221,8 +229,14 @@ jobs:
         working-directory: app
 
       - name: Run E2E tests
+        # PYTHON=python: in CI the backend deps are installed to the system
+        # interpreter, so playwright.config.ts's webServer uses `python` rather
+        # than the locally-expected `.venv/bin/python`. See the ${PYTHON:-...}
+        # default in playwright.config.ts.
         run: npm run e2e
         working-directory: app
+        env:
+          PYTHON: python
 
       - name: Upload test results
         uses: actions/upload-artifact@v4

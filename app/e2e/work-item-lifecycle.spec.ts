@@ -351,8 +351,8 @@ test.describe('Work item lifecycle', () => {
 
     // Verify they appear in columns — look for column headers like "To Do", "Done"
     // Items should be under their respective status columns
-    const toDoHeader = authenticatedPage.getByText(/To\s*Do|todo/i, { exact: false })
-    const doneHeader = authenticatedPage.getByText(/Done|done/i, { exact: false })
+    const _toDoHeader = authenticatedPage.getByText(/To\s*Do|todo/i, { exact: false })
+    const _doneHeader = authenticatedPage.getByText(/Done|done/i, { exact: false })
 
     // Column structure may vary, but items should be on the board somewhere
     // This assertion just verifies both items are rendered on the page

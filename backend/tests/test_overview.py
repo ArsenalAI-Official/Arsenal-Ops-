@@ -7,18 +7,14 @@ query optimization, and user data isolation.
 Fixtures from conftest.py: db, test_client, make_token, admin_user, pm_user, dev_user
 """
 
-import sys
 import os
-import pytest
+import sys
+
 from sqlalchemy import event
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "."))
 
-from models.developer import Developer
-from models.project import Project
-from models.work_item import WorkItem
 from conftest import seed_project
-
 
 # ============= Overview Aggregation Tests =============
 
@@ -299,7 +295,9 @@ class TestOverviewQueryOptimization:
                 event.remove(engine, "before_cursor_execute", count_query)
 
         # Query counts should be similar (variation <= 3 due to caching/session state)
-        assert abs(query_counts[0] - query_counts[1]) <= 3, f"Query counts differ significantly: {query_counts[0]} vs {query_counts[1]}"
+        assert abs(query_counts[0] - query_counts[1]) <= 3, (
+            f"Query counts differ significantly: {query_counts[0]} vs {query_counts[1]}"
+        )
 
 
 # ============= Error Resilience Tests =============
