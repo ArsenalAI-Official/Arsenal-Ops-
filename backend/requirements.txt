@@ -34,3 +34,4 @@ polyfactory>=2.18
 hypothesis>=6.115
 respx>=0.21
 freezegun>=1.5
+schemathesis>=3.36

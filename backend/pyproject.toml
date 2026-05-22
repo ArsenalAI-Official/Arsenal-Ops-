@@ -58,5 +58,6 @@ asyncio_mode = "auto"
 markers = [
     "integration: requires real Postgres (testcontainers)",
     "slow: long-running test",
+    "contract: schemathesis-driven contract fuzzing (slower; runs in CI on PR)",
 ]
 addopts = "-ra --strict-markers"
