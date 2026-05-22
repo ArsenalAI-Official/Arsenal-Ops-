@@ -44,6 +44,9 @@ typecheck:
 gen-api-types:
     cd app && npm run generate:api-types
 
-# E2E tests (not yet implemented)
+# Run E2E tests (boots backend + frontend automatically via Playwright)
 e2e:
-    @echo "E2E not yet set up. See .plans/testing-infrastructure-20260521.md"
+    cd app && npm run e2e
+
+e2e-ui:
+    cd app && npm run e2e:ui

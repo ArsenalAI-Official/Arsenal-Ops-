@@ -10,7 +10,7 @@ Living document. Bugs are added as they are surfaced (by the audit, by tests pin
 
 When a bug is fixed: change status to `fixed`, link the fix commit, and flip the pinning `xfail` to a regular assertion (drop the marker).
 
-**Last updated:** 2026-05-22 — Weeks 1–4 + Tier-2 frontend tests + small-router tests complete (323 tests across stack)
+**Last updated:** 2026-05-22 — Week 5 E2E foundation landed (Playwright + 2 passing journeys + 13 .fixme scaffolds). 325 unit tests + 2 E2E green.
 
 ---
 
@@ -316,6 +316,14 @@ When a bug is fixed: change status to `fixed`, link the fix commit, and flip the
 - **Location:** [backend/services/email_service.py:62-65](../backend/services/email_service.py#L62-L65)
 - **Impact:** Safe behind `BackgroundTasks` today, but a future refactor lands it on the event loop.
 - **Fix plan:** Wrap in `ThreadPoolExecutor` or migrate to `aiosmtplib`.
+
+### P1-17 — `dev_login` had TOCTOU race on Developer insert *(fixed in Week 5)*
+- **Status:** fixed
+- **Source:** Surfaced during concurrent E2E agent runs (Week 5)
+- **Location:** [backend/routers/auth.py:566-578](../backend/routers/auth.py#L566-L578)
+- **Impact:** When `DEV_AUTH_BYPASS=1` and multiple concurrent requests hit `/api/auth/dev-login` simultaneously, the check-then-insert sequence for the `dev@local` Developer row raced on the email-unique constraint. One request would 500 with an `IntegrityError` while another committed.
+- **Fix:** Wrap the `Developer` insert in try/except, rollback on conflict, re-check existence. Production is unaffected (`DEV_AUTH_BYPASS` never set in prod), but the defensive pattern is correct.
+- **Commit:** Week 5 E2E commit on `testing-infrastructure` branch (capacity-transfer agent surfaced and fixed it).
 
 ### P2-15 — Kanban + modals not keyboard-accessible
 - **Status:** open

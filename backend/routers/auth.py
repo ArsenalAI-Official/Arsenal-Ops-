@@ -566,8 +566,16 @@ def dev_login(db: Session = Depends(get_db)):
         db.refresh(user)
 
     if not db.query(Developer).filter(Developer.email == user.email).first():
-        db.add(Developer(name=user.name, email=user.email))
-        db.commit()
+        try:
+            db.add(Developer(name=user.name, email=user.email))
+            db.commit()
+        except Exception:
+            # Handle race condition where another request created the Developer
+            # between our check and insert
+            db.rollback()
+            # Verify it exists now
+            if not db.query(Developer).filter(Developer.email == user.email).first():
+                raise
 
     user.last_login_at = datetime.utcnow()
     db.commit()

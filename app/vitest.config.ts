@@ -13,6 +13,10 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    // Vitest scopes to src/. The e2e/ directory contains Playwright specs that
+    // import from @playwright/test and would fail under vitest.
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    exclude: ['node_modules', 'e2e', 'dist'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'json'],
