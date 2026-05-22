@@ -26,6 +26,32 @@ export class ApiError extends Error {
   }
 }
 
+// Latch so a simultaneous burst of 401s from TanStack Query's on-focus
+// refetch (which happens after a long idle when the JWT has expired) only
+// triggers one redirect, not one per query. Reset by the full-page navigation.
+let unauthorizedRedirectInFlight = false;
+
+function handleUnauthorized(path: string): void {
+  // Don't bounce while we're already on the login flow — the auth endpoints
+  // legitimately return 401 (e.g. wrong password), and the login page itself
+  // would loop. AuthContext.checkAuth handles /me 401 explicitly via logout(),
+  // so leave that path alone too.
+  if (path.startsWith('/api/auth/')) return;
+  if (typeof window === 'undefined') return;
+  if (window.location.pathname === '/login') return;
+  if (unauthorizedRedirectInFlight) return;
+  unauthorizedRedirectInFlight = true;
+
+  // Clear stored creds so AuthContext sees a logged-out state on next mount.
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  localStorage.removeItem('capabilities');
+
+  // Full-page nav cancels every in-flight fetch and resets TanStack Query —
+  // exactly what a hard refresh used to do manually, just automatic now.
+  window.location.href = '/login';
+}
+
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('token');
 
@@ -46,6 +72,9 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   const res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      handleUnauthorized(path);
+    }
     let detail: string;
     try {
       const body = await res.json();
