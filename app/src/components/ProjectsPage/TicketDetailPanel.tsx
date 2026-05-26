@@ -884,9 +884,7 @@ const TicketDetailPanel = ({
             onClick={() => startEdit()}
             disabled={task.status === 'done'}
             title={
-              task.status === 'done'
-                ? 'This ticket is done. Re-open it before editing.'
-                : undefined
+              task.status === 'done' ? 'This ticket is done. Re-open it before editing.' : undefined
             }
             className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] text-white font-semibold text-sm hover:bg-[rgba(255,255,255,0.08)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[rgba(255,255,255,0.05)]"
           >

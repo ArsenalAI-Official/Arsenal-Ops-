@@ -982,40 +982,42 @@ const ItemDetailDrawer = ({
 
               {/* Log Hours Section — assignee-only (matches backend enforcement) */}
               {isAssignee && (
-              <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
-                <div className="text-xs text-[#737373] mb-3 font-medium">Log Work Hours</div>
-                <div className="flex items-center gap-3">
-                  <Input
-                    type="number"
-                    placeholder="Hours"
-                    min="0"
-                    max="24"
-                    className="w-24 h-9 bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
-                    id="log-hours-input"
-                  />
-                  <Button
-                    size="sm"
-                    disabled={isLoggingHours}
-                    onClick={() => {
-                      if (isLoggingHours) return;
-                      const input = document.getElementById('log-hours-input') as HTMLInputElement;
-                      const hours = parseInt(input?.value || '0');
-                      if (hours > 0) {
-                        onLogHours(selectedItem, hours);
-                        input.value = '';
-                      }
-                    }}
-                    className="bg-[#E0B954] hover:bg-[#C79E3B] text-white rounded-xl h-9 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Clock className="w-3.5 h-3.5 mr-1.5" />
-                    {isLoggingHours ? 'Logging…' : 'Log Hours'}
-                  </Button>
+                <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
+                  <div className="text-xs text-[#737373] mb-3 font-medium">Log Work Hours</div>
+                  <div className="flex items-center gap-3">
+                    <Input
+                      type="number"
+                      placeholder="Hours"
+                      min="0"
+                      max="24"
+                      className="w-24 h-9 bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
+                      id="log-hours-input"
+                    />
+                    <Button
+                      size="sm"
+                      disabled={isLoggingHours}
+                      onClick={() => {
+                        if (isLoggingHours) return;
+                        const input = document.getElementById(
+                          'log-hours-input',
+                        ) as HTMLInputElement;
+                        const hours = parseInt(input?.value || '0');
+                        if (hours > 0) {
+                          onLogHours(selectedItem, hours);
+                          input.value = '';
+                        }
+                      }}
+                      className="bg-[#E0B954] hover:bg-[#C79E3B] text-white rounded-xl h-9 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Clock className="w-3.5 h-3.5 mr-1.5" />
+                      {isLoggingHours ? 'Logging…' : 'Log Hours'}
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-[#737373] mt-2">
+                    Current: {selectedItem.logged_hours || 0}h logged ·{' '}
+                    {selectedItem.remaining_hours}h remaining
+                  </p>
                 </div>
-                <p className="text-[10px] text-[#737373] mt-2">
-                  Current: {selectedItem.logged_hours || 0}h logged · {selectedItem.remaining_hours}
-                  h remaining
-                </p>
-              </div>
               )}
 
               {/* Contributors (only renders when 2+ people have logged hours) */}
