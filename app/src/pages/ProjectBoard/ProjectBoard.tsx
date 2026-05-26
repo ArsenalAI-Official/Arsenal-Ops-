@@ -46,7 +46,7 @@ import { toast, Toaster } from 'sonner';
 import StatusDotMenu from '@/components/ProjectsPage/StatusDotMenu';
 import { useAuth, isProjectManager } from '@/contexts/AuthContext';
 import { buildEpicGroups } from '@/lib/hierarchy/buildEpicGroups';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, ApiError } from '@/lib/api';
 import { invalidateProjectScope, invalidateWorkItemScope } from '@/lib/invalidations';
 import type { CreateItemFormValues } from './modals/CreateItemModal';
 // EditSprintModal's file also exports the CompleteSprintConfirm /
@@ -744,10 +744,14 @@ const ProjectBoard = () => {
       );
       return { previous };
     },
-    onError: (_err, _vars, ctx) => {
+    onError: (err, _vars, ctx) => {
       if (ctx?.previous)
         queryClient.setQueryData(['workItems', workItemFilters, 'board'], ctx.previous);
-      toast.error('Failed to move ticket');
+      // Surface backend validation errors (e.g. "subtask still open" when
+      // marking a parent done) so the user knows why the move was rejected
+      // instead of seeing a generic toast.
+      const detail = err instanceof ApiError ? err.message : 'Failed to move ticket';
+      toast.error(detail);
     },
     onSettled: () => {
       invalidateWorkItems();
@@ -822,7 +826,10 @@ const ProjectBoard = () => {
     onSuccess: (_data, { targetSprintId }) => {
       toast.success(targetSprintId ? 'Moved to sprint' : 'Moved to backlog');
     },
-    onError: () => toast.error('Failed to move ticket'),
+    onError: (err) => {
+      const detail = err instanceof ApiError ? err.message : 'Failed to move ticket';
+      toast.error(detail);
+    },
     onSettled: () => {
       invalidateWorkItems();
       invalidateProjectScope(queryClient, id);

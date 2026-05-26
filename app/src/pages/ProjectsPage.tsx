@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, ApiError } from '@/lib/api';
 import { toast, Toaster } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { invalidateAdminWorkItemImpact, invalidateProjectScope } from '@/lib/invalidations';
@@ -367,9 +367,12 @@ const ProjectsPage = () => {
       );
       return { snapshot };
     },
-    onError: (_err, _vars, ctx) => {
+    onError: (err, _vars, ctx) => {
       if (ctx?.snapshot) queryClient.setQueryData(['myTasks'], ctx.snapshot);
-      toast.error('Failed to update status');
+      // Surface backend validation messages (e.g. "subtask still open" when
+      // marking a parent done) instead of the generic toast.
+      const detail = err instanceof ApiError ? err.message : 'Failed to update status';
+      toast.error(detail);
     },
     onSuccess: (_data, { taskId, newStatus }) => {
       if (newStatus === 'done') {

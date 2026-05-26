@@ -167,15 +167,30 @@ const TicketDetailPanel = ({
   };
 
   const handleStatusChange = async (newStatus: string) => {
-    const updated = { ...task, status: newStatus } as MyTask;
-    onTaskChanged(updated);
+    const previousStatus = task.status;
+    // Optimistic flip
+    onTaskChanged({ ...task, status: newStatus } as MyTask);
     try {
-      await fetch(`${API_BASE_URL}/api/workitems/${task.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/workitems/${task.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status: newStatus }),
       });
+      if (!res.ok) {
+        // Revert optimistic flip and surface the backend's detail (e.g.
+        // "subtask still open" when marking a parent done).
+        onTaskChanged({ ...task, status: previousStatus } as MyTask);
+        let detail = 'Failed to update status';
+        try {
+          const body = await res.json();
+          if (body?.detail) detail = body.detail;
+        } catch {
+          // body wasn't JSON — keep the generic message
+        }
+        toast.error(detail);
+      }
     } catch {
+      onTaskChanged({ ...task, status: previousStatus } as MyTask);
       toast.error('Failed to update status');
     }
   };
