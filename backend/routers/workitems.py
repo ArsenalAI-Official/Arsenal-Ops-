@@ -1012,13 +1012,35 @@ def log_hours(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Log hours to a work item - creates time entry and updates totals (requires auth)"""
+    """
+    Log hours to a work item - creates time entry and updates totals.
+
+    Authorization: only the developer the ticket is assigned to may log hours
+    on it. The caller is matched to a Developer row by email; if that developer
+    isn't the assignee, the request is rejected. Tickets with no assignee
+    cannot be logged against by anyone.
+    """
     from models.developer import Developer
     from models.time_entry import TimeEntry
 
     item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Work item not found")
+
+    # Assignee-only enforcement
+    if not item.assignee_id:
+        raise HTTPException(
+            status_code=403,
+            detail="This ticket has no assignee — hours can only be logged on assigned tickets.",
+        )
+    caller_dev = (
+        db.query(Developer).filter(Developer.email == current_user.email).first()
+    )
+    if not caller_dev or caller_dev.id != item.assignee_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Only the ticket's assignee can log hours on it.",
+        )
 
     if request.hours <= 0:
         raise HTTPException(status_code=400, detail="Hours must be greater than 0")

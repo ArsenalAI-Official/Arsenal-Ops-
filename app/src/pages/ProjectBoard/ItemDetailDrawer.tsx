@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useAuth } from '@/contexts/AuthContext';
 import { Calendar as CalendarIcon } from '@/components/ui/calendar';
 import { toast } from 'sonner';
 import TicketContributors from '@/components/TicketContributors';
@@ -166,6 +167,15 @@ const ItemDetailDrawer = ({
   getNextSprint,
 }: ItemDetailDrawerProps) => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  // Only the ticket's assignee may log hours (matches backend enforcement in
+  // routers/workitems.py::log_hours). Resolve the current user's developer id
+  // via project developers and compare against selectedItem.assignee_id.
+  const isAssignee = useMemo(() => {
+    if (!user?.email || !selectedItem.assignee_id) return false;
+    const myDev = allDevelopers.find((d) => d.email === user.email);
+    return !!myDev && myDev.id === selectedItem.assignee_id;
+  }, [user?.email, selectedItem.assignee_id, allDevelopers]);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<WorkItem>>({});
   const [newComment, setNewComment] = useState('');
@@ -964,7 +974,8 @@ const ItemDetailDrawer = ({
                 </div>
               )}
 
-              {/* Log Hours Section */}
+              {/* Log Hours Section — assignee-only (matches backend enforcement) */}
+              {isAssignee && (
               <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
                 <div className="text-xs text-[#737373] mb-3 font-medium">Log Work Hours</div>
                 <div className="flex items-center gap-3">
@@ -999,6 +1010,7 @@ const ItemDetailDrawer = ({
                   h remaining
                 </p>
               </div>
+              )}
 
               {/* Contributors (only renders when 2+ people have logged hours) */}
               <TicketContributors workItemId={selectedItem.id} token={token || ''} />
