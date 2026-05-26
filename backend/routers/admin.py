@@ -126,8 +126,10 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     dependencies=[Depends(require_capability("admin.employees"))],
 )
 def list_employees(db: Session = Depends(get_db)):
-    """Get all employees/developers"""
-    developers = db.query(Developer).all()
+    """Get all internal employees/developers. External users (created via
+    Admin → Users → Add User) are intentionally excluded — they live in the
+    Users tab, not the Employees tab."""
+    developers = db.query(Developer).filter(Developer.is_external.is_(False)).all()
 
     result = []
     for dev in developers:

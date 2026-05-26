@@ -628,6 +628,29 @@ def run_migrations():
         except Exception as e:
             print(f"[MIGRATION ERROR] hashed_password nullable: {e}")
 
+        # Migration: Add is_external flag to developers (separates external users
+        # created via Admin → Users → Add User from internal team members).
+        try:
+            result = conn.execute(
+                text("""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = 'developers' AND column_name = 'is_external'
+            """)
+            )
+            if not result.fetchone():
+                print("[MIGRATION] Adding is_external column to developers...")
+                conn.execute(
+                    text("""
+                    ALTER TABLE developers
+                    ADD COLUMN is_external BOOLEAN NOT NULL DEFAULT FALSE
+                """)
+                )
+                conn.commit()
+                print("[MIGRATION] is_external column added (defaulting all existing rows to FALSE)")
+        except Exception as e:
+            print(f"[MIGRATION ERROR] developers.is_external: {e}")
+
 
 SYSTEM_ROLES: list[tuple[str, str, list[str]]] = [
     ("admin", "Full system access", ["*"]),

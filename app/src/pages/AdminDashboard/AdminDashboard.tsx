@@ -14,6 +14,7 @@ import {
 import RoleModal from './modals/RoleModal';
 import EmployeeModal from './modals/EmployeeModal';
 import UserModal from './modals/UserModal';
+import EditUserModal from './modals/EditUserModal';
 import GitHubModal from './modals/GitHubModal';
 import ProjectMembersModal from './modals/ProjectMembersModal';
 import EmployeesTab, { type Employee, type DeveloperCapacity } from './tabs/EmployeesTab';
@@ -31,6 +32,7 @@ interface User {
   is_first_login: boolean;
   created_at: string;
   last_login_at: string | null;
+  github_username?: string | null;
 }
 
 interface Project {
@@ -318,12 +320,6 @@ const AdminDashboard = () => {
     role: 'developer',
   });
 
-  const handleCreateEmployee = () => {
-    setEditingEmployee(null);
-    setEmployeeForm({ name: '', email: '', github_username: '', specialization: '' });
-    setShowEmployeeModal(true);
-  };
-
   const handleEditEmployee = (employee: Employee) => {
     setEditingEmployee(employee);
     setEmployeeForm({
@@ -536,7 +532,6 @@ const AdminDashboard = () => {
     name: '',
     roles: ['developer'],
   });
-  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
 
   const handleRoleToggle = (role: string) => {
     setUserForm((f) => {
@@ -547,13 +542,14 @@ const AdminDashboard = () => {
 
   const createUserMutation = useMutation({
     mutationFn: () =>
-      apiFetch<{ temporary_password: string }>('/api/auth/admin/create-user', {
+      apiFetch<{ status: string }>('/api/auth/admin/create-user', {
         method: 'POST',
         body: JSON.stringify({ ...userForm, role: userForm.roles.join(',') }),
       }),
-    onSuccess: (data) => {
-      toast.success('User created successfully!');
-      setGeneratedPassword(data.temporary_password);
+    onSuccess: () => {
+      toast.success('User authorized. They can now sign in with Google SSO.');
+      setShowUserModal(false);
+      setUserForm({ email: '', name: '', roles: ['developer'] });
     },
     onError: (err: any) => toast.error(err?.message || 'Failed to create user'),
     onSettled: () => {
@@ -574,6 +570,87 @@ const AdminDashboard = () => {
       return;
     }
     createUserMutation.mutate();
+  };
+
+  const deleteUserMutation = useMutation({
+    mutationFn: (id: number) => apiFetch<void>(`/api/auth/admin/users/${id}`, { method: 'DELETE' }),
+    onSuccess: () => toast.success('User deleted'),
+    onError: (err: any) => toast.error(err?.message || 'Failed to delete user'),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      // Deleting a user cascades to their developer record (if any), so refresh
+      // the dependent lists too.
+      queryClient.invalidateQueries({ queryKey: ['admin', 'employees'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['developers'] });
+    },
+  });
+
+  const handleDeleteUser = (user: User) => {
+    if (
+      !confirm(
+        `Delete user "${user.name}" (${user.email})? They'll lose access immediately. This cannot be undone.`,
+      )
+    )
+      return;
+    deleteUserMutation.mutate(user.id);
+  };
+
+  // Edit-user profile (name + email + github_username) — distinct from role
+  // editing which lives behind the inline "Edit Roles" pill.
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editUserForm, setEditUserForm] = useState<{
+    name: string;
+    email: string;
+    github_username: string;
+  }>({ name: '', email: '', github_username: '' });
+
+  const updateUserMutation = useMutation({
+    mutationFn: (vars: { id: number; name: string; email: string; github_username: string }) =>
+      apiFetch<User>(`/api/auth/admin/users/${vars.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: vars.name,
+          email: vars.email,
+          github_username: vars.github_username,
+        }),
+      }),
+    onSuccess: () => {
+      toast.success('User updated');
+      setEditingUser(null);
+    },
+    onError: (err: any) => toast.error(err?.message || 'Failed to update user'),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      // Name/email/github changes flow through to Developer rows too.
+      queryClient.invalidateQueries({ queryKey: ['admin', 'employees'] });
+      queryClient.invalidateQueries({ queryKey: ['developers'] });
+    },
+  });
+
+  const handleOpenEditUser = (user: User) => {
+    setEditingUser(user);
+    setEditUserForm({
+      name: user.name,
+      email: user.email,
+      github_username: user.github_username || '',
+    });
+  };
+
+  const handleSaveEditUser = () => {
+    if (!editingUser) return;
+    const name = editUserForm.name.trim();
+    const email = editUserForm.email.trim();
+    if (!name || !email) {
+      toast.error('Name and email are required');
+      return;
+    }
+    updateUserMutation.mutate({
+      id: editingUser.id,
+      name,
+      email,
+      github_username: editUserForm.github_username.trim(),
+    });
   };
 
   // RBAC: role create/update/delete mutations
@@ -910,7 +987,6 @@ const AdminDashboard = () => {
                 developerCapacities={developerCapacities}
                 teamCapacity={teamCapacity}
                 availableSpecs={availableSpecs}
-                onCreateEmployee={handleCreateEmployee}
                 onEditEmployee={handleEditEmployee}
                 onDeleteEmployee={handleDeleteEmployee}
               />
@@ -929,7 +1005,13 @@ const AdminDashboard = () => {
 
             {/* Users Tab */}
             {activeTab === 'users' && (
-              <UsersTab users={users} onEditUserRoles={setOpenRoleDropdown} />
+              <UsersTab
+                users={users}
+                onEditUserRoles={setOpenRoleDropdown}
+                onAddUser={() => setShowUserModal(true)}
+                onDeleteUser={handleDeleteUser}
+                onEditUser={handleOpenEditUser}
+              />
             )}
 
             {/* Roles Tab */}
@@ -1061,10 +1143,18 @@ const AdminDashboard = () => {
         onClose={() => setShowUserModal(false)}
         userForm={userForm}
         setUserForm={setUserForm}
-        generatedPassword={generatedPassword}
-        setGeneratedPassword={setGeneratedPassword}
         handleRoleToggle={handleRoleToggle}
         handleSaveUser={handleSaveUser}
+      />
+
+      <EditUserModal
+        open={!!editingUser}
+        onClose={() => setEditingUser(null)}
+        userLabel={editingUser ? `${editingUser.name} (${editingUser.email})` : ''}
+        form={editUserForm}
+        setForm={setEditUserForm}
+        onSave={handleSaveEditUser}
+        isSaving={updateUserMutation.isPending}
       />
 
       <GitHubModal

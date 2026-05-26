@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Plus,
   Pencil,
   Trash2,
   ChevronDown,
@@ -90,7 +89,6 @@ interface EmployeesTabProps {
   developerCapacities: DeveloperCapacity[];
   teamCapacity: TeamCapacity;
   availableSpecs: string[];
-  onCreateEmployee: () => void;
   onEditEmployee: (employee: Employee) => void;
   onDeleteEmployee: (id: number) => void;
 }
@@ -127,7 +125,6 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
   developerCapacities,
   teamCapacity,
   availableSpecs,
-  onCreateEmployee,
   onEditEmployee,
   onDeleteEmployee,
 }) => {
@@ -213,13 +210,6 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold text-white">Team Members</h2>
-        <Button
-          onClick={onCreateEmployee}
-          className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Employee
-        </Button>
       </div>
 
       {employees.length > 0 && (
@@ -793,9 +783,7 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
           </tbody>
         </table>
         {employees.length === 0 && (
-          <div className="text-center py-12 text-[#737373]">
-            No employees yet. Click "Add Employee" to get started.
-          </div>
+          <div className="text-center py-12 text-[#737373]">No employees yet.</div>
         )}
         {employees.length > 0 && filteredEmployeeRows.length === 0 && (
           <div className="text-center py-12 text-sm text-[#737373]">

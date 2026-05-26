@@ -31,6 +31,10 @@ class Developer(Base):
     github_username = Column(String(100), unique=True)  # GitHub username for invitations
     avatar_url = Column(String(500))
 
+    # External users (created via Admin → Users → Add User) are kept out of the
+    # Employees tab, which surfaces only internal team members.
+    is_external = Column(Boolean, default=False, nullable=False)
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

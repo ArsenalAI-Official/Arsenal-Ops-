@@ -1,5 +1,14 @@
 import { useMemo, useState } from 'react';
-import { Shield, UserCog, ChevronDown, ChevronUp, ArrowUpDown } from 'lucide-react';
+import {
+  Shield,
+  UserCog,
+  ChevronDown,
+  ChevronUp,
+  ArrowUpDown,
+  Plus,
+  Pencil,
+  Trash2,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface User {
@@ -18,6 +27,9 @@ type UsersSortKey = 'created' | 'name' | 'status' | 'last_login';
 interface UsersTabProps {
   users: User[];
   onEditUserRoles: (userId: number) => void;
+  onAddUser: () => void;
+  onDeleteUser: (user: User) => void;
+  onEditUser: (user: User) => void;
 }
 
 // Helper function to convert role to Pascal Case
@@ -28,7 +40,13 @@ const toPascalCase = (str: string): string => {
     .join('');
 };
 
-const UsersTab = ({ users, onEditUserRoles }: UsersTabProps) => {
+const UsersTab = ({
+  users,
+  onEditUserRoles,
+  onAddUser,
+  onDeleteUser,
+  onEditUser,
+}: UsersTabProps) => {
   // Users tab filters + sort (tab-local state per CONVENTIONS.md)
   const [usersRoleFilter, setUsersRoleFilter] = useState<string>('all');
   const [usersSort, setUsersSort] = useState<{ key: UsersSortKey; dir: 'asc' | 'desc' }>({
@@ -98,6 +116,13 @@ const UsersTab = ({ users, onEditUserRoles }: UsersTabProps) => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-white">User Management</h2>
+        <Button
+          onClick={onAddUser}
+          className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Add User
+        </Button>
       </div>
 
       {/* Filter bar */}
@@ -136,10 +161,21 @@ const UsersTab = ({ users, onEditUserRoles }: UsersTabProps) => {
             <tr>
               {(
                 [
-                  { key: 'name' as const, label: 'User', sortable: true },
-                  { key: null, label: 'Roles', sortable: false },
-                  { key: 'status' as const, label: 'Status', sortable: true },
-                  { key: 'last_login' as const, label: 'Last Login', sortable: true },
+                  { key: 'name' as const, label: 'User', sortable: true, align: 'left' as const },
+                  { key: null, label: 'Roles', sortable: false, align: 'left' as const },
+                  {
+                    key: 'status' as const,
+                    label: 'Status',
+                    sortable: true,
+                    align: 'left' as const,
+                  },
+                  {
+                    key: 'last_login' as const,
+                    label: 'Last Login',
+                    sortable: true,
+                    align: 'left' as const,
+                  },
+                  { key: null, label: 'Actions', sortable: false, align: 'right' as const },
                 ] as const
               ).map((col, i) => {
                 const isActive = col.sortable && col.key && usersSort.key === col.key;
@@ -148,7 +184,7 @@ const UsersTab = ({ users, onEditUserRoles }: UsersTabProps) => {
                     ? ChevronUp
                     : ChevronDown
                   : ArrowUpDown;
-                const baseCls = 'text-left text-xs font-medium text-[#737373] py-3 px-4';
+                const baseCls = `text-xs font-medium text-[#737373] py-3 px-4 ${col.align === 'right' ? 'text-right' : 'text-left'}`;
                 if (!col.sortable || !col.key) {
                   return (
                     <th key={i} className={baseCls}>
@@ -241,6 +277,28 @@ const UsersTab = ({ users, onEditUserRoles }: UsersTabProps) => {
                 </td>
                 <td className="py-3 px-4 text-sm text-[#737373]">
                   {user.last_login_at ? new Date(user.last_login_at).toLocaleDateString() : 'Never'}
+                </td>
+                <td className="py-3 px-4">
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onEditUser(user)}
+                      className="text-[#737373] hover:text-white h-8 w-8 p-0"
+                      title="Edit user profile"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onDeleteUser(user)}
+                      className="text-red-400 hover:text-red-300 h-8 w-8 p-0"
+                      title="Delete user"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
