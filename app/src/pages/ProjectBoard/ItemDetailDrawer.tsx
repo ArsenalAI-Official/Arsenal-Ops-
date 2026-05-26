@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Pencil,
   Trash2,
@@ -38,7 +38,7 @@ import { apiFetch } from '@/lib/api';
 interface WorkItem {
   id: string;
   key: string;
-  type: 'user_story' | 'task' | 'bug' | 'epic';
+  type: 'user_story' | 'task' | 'bug' | 'epic' | 'subtask';
   title: string;
   description: string;
   status: 'todo' | 'in_progress' | 'in_review' | 'done';
@@ -95,6 +95,12 @@ const TYPE_CONFIG = {
   task: { icon: ClipboardList, color: '#F59E0B', label: 'Task', bg: 'rgba(245,158,11,0.15)' },
   bug: { icon: Bug, color: '#EF4444', label: 'Bug', bg: 'rgba(239,68,68,0.15)' },
   epic: { icon: Target, color: '#A78BFA', label: 'Epic', bg: 'rgba(167,139,250,0.15)' },
+  subtask: {
+    icon: ClipboardList,
+    color: '#FBBF24',
+    label: 'Subtask',
+    bg: 'rgba(251,191,36,0.15)',
+  },
 };
 
 const STATUS_CONFIG = {
@@ -209,6 +215,71 @@ const ItemDetailDrawer = ({
     () => ({ ...selectedItem, ...(itemDetailQuery.data ?? {}) }),
     [selectedItem, itemDetailQuery.data],
   );
+
+  // Subtasks of the current item — computed from the board's workItems list
+  // (no extra fetch). Subtasks sit one level below story/task/bug.
+  const subtasksOfCurrent = useMemo(() => {
+    const subjectId = Number(selectedItem.id);
+    if (Number.isNaN(subjectId)) return [];
+    return workItems.filter((wi) => wi.type === 'subtask' && wi.parent_id === subjectId);
+  }, [workItems, selectedItem.id]);
+
+  const canHaveSubtasks =
+    selectedItem.type === 'task' ||
+    selectedItem.type === 'user_story' ||
+    selectedItem.type === 'bug';
+
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+
+  // Look up the current item's parent (only meaningful when current item is a
+  // subtask itself — used to render the "Parent: <key>" backlink).
+  const parentOfCurrent = useMemo(() => {
+    if (selectedItem.type !== 'subtask' || selectedItem.parent_id == null) return null;
+    return workItems.find((wi) => Number(wi.id) === selectedItem.parent_id) ?? null;
+  }, [workItems, selectedItem.type, selectedItem.parent_id]);
+
+  const invalidateWorkItems = () => {
+    queryClient.invalidateQueries({ queryKey: ['workItems'] });
+    queryClient.invalidateQueries({ queryKey: ['myTasks'] });
+  };
+
+  const createSubtaskMutation = useMutation({
+    mutationFn: (title: string) => {
+      const projectId =
+        (selectedItem as unknown as { project_id?: number }).project_id ??
+        (id ? Number(id) : undefined);
+      if (!projectId) {
+        throw new Error('Missing project id for subtask creation');
+      }
+      return apiFetch('/api/workitems/', {
+        method: 'POST',
+        body: JSON.stringify({
+          project_id: projectId,
+          type: 'subtask',
+          title,
+          parent_id: Number(selectedItem.id),
+        }),
+      });
+    },
+    onSuccess: () => {
+      setNewSubtaskTitle('');
+      toast.success('Subtask added');
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error && err.message ? err.message : 'Failed to create subtask';
+      toast.error(msg);
+    },
+    onSettled: () => {
+      invalidateWorkItems();
+      queryClient.invalidateQueries({ queryKey: ['workItem', selectedItem.id, 'detail'] });
+    },
+  });
+
+  const submitNewSubtask = () => {
+    const t = newSubtaskTitle.trim();
+    if (!t) return;
+    createSubtaskMutation.mutate(t);
+  };
 
   // Depth-1 cap (matches backend services/hierarchy.py): an item that already
   // has a parent cannot itself be picked as a parent — that would create a
@@ -1105,6 +1176,86 @@ const ItemDetailDrawer = ({
                         ))}
                       </select>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* Subtasks panel — only shown for story/task/bug. Subtasks themselves
+                  show a "Parent" backlink instead (see below). */}
+              {canHaveSubtasks && (
+                <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-xs text-[#737373] font-medium">
+                      Subtasks
+                      {subtasksOfCurrent.length > 0 && (
+                        <span className="ml-1.5 text-[#525252]">({subtasksOfCurrent.length})</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {subtasksOfCurrent.length > 0 && (
+                    <ul className="space-y-1.5 mb-3">
+                      {subtasksOfCurrent.map((st) => {
+                        const stConf = STATUS_CONFIG[st.status as keyof typeof STATUS_CONFIG];
+                        return (
+                          <li
+                            key={st.id}
+                            className="flex items-center gap-2 text-sm px-2.5 py-1.5 rounded-lg bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)]"
+                          >
+                            <span
+                              className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded"
+                              style={{
+                                color: stConf?.color ?? '#737373',
+                                background: `${stConf?.color ?? '#737373'}1a`,
+                              }}
+                            >
+                              {stConf?.label ?? st.status}
+                            </span>
+                            <span className="text-[11px] text-[#737373] font-mono">{st.key}</span>
+                            <span className="text-sm text-white truncate flex-1">{st.title}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={newSubtaskTitle}
+                      onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          submitNewSubtask();
+                        }
+                      }}
+                      placeholder="Add a subtask…"
+                      disabled={createSubtaskMutation.isPending}
+                      className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-9 text-sm flex-1"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={submitNewSubtask}
+                      disabled={createSubtaskMutation.isPending || !newSubtaskTitle.trim()}
+                      className="bg-[#E0B954] hover:bg-[#C79E3B] text-[#080808] rounded-xl h-9 px-3 disabled:opacity-50"
+                    >
+                      <Plus className="w-3.5 h-3.5 mr-1" />
+                      {createSubtaskMutation.isPending ? 'Adding…' : 'Add'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* If this IS a subtask, show a backlink to its parent so users
+                  can navigate up the chain. */}
+              {selectedItem.type === 'subtask' && parentOfCurrent && (
+                <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
+                  <div className="text-xs text-[#737373] mb-2 font-medium">Parent</div>
+                  <div className="flex items-center gap-2 text-sm px-2.5 py-1.5 rounded-lg bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)]">
+                    <span className="text-[11px] text-[#737373] font-mono">
+                      {parentOfCurrent.key}
+                    </span>
+                    <span className="text-sm text-white truncate">{parentOfCurrent.title}</span>
                   </div>
                 </div>
               )}

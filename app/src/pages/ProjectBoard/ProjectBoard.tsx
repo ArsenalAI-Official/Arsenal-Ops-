@@ -100,7 +100,7 @@ const formatWeekRange = (weekStart: string): string => {
 interface WorkItem {
   id: string;
   key: string; // Ticket key like PROJ-123
-  type: 'user_story' | 'task' | 'bug' | 'epic';
+  type: 'user_story' | 'task' | 'bug' | 'epic' | 'subtask';
   title: string;
   description: string;
   status: 'todo' | 'in_progress' | 'in_review' | 'done';
@@ -209,6 +209,12 @@ const TYPE_CONFIG = {
   task: { icon: ClipboardList, color: '#F59E0B', label: 'Task', bg: 'rgba(245,158,11,0.15)' },
   bug: { icon: Bug, color: '#EF4444', label: 'Bug', bg: 'rgba(239,68,68,0.15)' },
   epic: { icon: Target, color: '#A78BFA', label: 'Epic', bg: 'rgba(167,139,250,0.15)' },
+  subtask: {
+    icon: ClipboardList,
+    color: '#FBBF24',
+    label: 'Subtask',
+    bg: 'rgba(251,191,36,0.15)',
+  },
 };
 
 const PRIORITY_COLORS = {

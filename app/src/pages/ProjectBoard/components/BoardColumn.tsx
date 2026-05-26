@@ -5,7 +5,7 @@ import KanbanCard from './KanbanCard';
 interface WorkItem {
   id: string;
   key: string;
-  type: 'user_story' | 'task' | 'bug' | 'epic';
+  type: 'user_story' | 'task' | 'bug' | 'epic' | 'subtask';
   title: string;
   status: 'todo' | 'in_progress' | 'in_review' | 'done';
   assigned_hours: number;

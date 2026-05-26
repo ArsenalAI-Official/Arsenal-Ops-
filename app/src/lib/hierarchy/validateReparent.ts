@@ -1,4 +1,4 @@
-export type WorkItemType = 'user_story' | 'task' | 'bug' | 'epic';
+export type WorkItemType = 'user_story' | 'task' | 'bug' | 'epic' | 'subtask';
 
 export type RelationshipField = 'epic_id' | 'parent_id';
 
@@ -9,22 +9,23 @@ export interface HierarchyItem {
   epic_id?: number | null;
 }
 
-// Canonical model (Story / Task / Bug are siblings under Epic; parent_id is
-// disabled for every type). The depth-1 / has-children plumbing stays in
-// place so the rule can be relaxed later (e.g. sub-tasks under Story) by
-// re-populating the parent_id row.
+// Canonical model: Epic → (Story | Task | Bug) → Subtask. Mirrors
+// backend/services/hierarchy.py::ALLOWED_PARENT_TYPES. Keep the two in sync.
 const TYPE_PAIR_RULES: Record<RelationshipField, Partial<Record<WorkItemType, WorkItemType[]>>> = {
   epic_id: {
     user_story: ['epic'],
     task: ['epic'],
     bug: ['epic'],
     epic: [],
+    // Subtasks reach the epic transitively through their parent — no direct link.
+    subtask: [],
   },
   parent_id: {
     task: [],
     user_story: [],
     bug: [],
     epic: [],
+    subtask: ['user_story', 'task', 'bug'],
   },
 };
 
@@ -125,5 +126,6 @@ export function wouldCreateCycle(
 }
 
 function humanType(t: WorkItemType): string {
-  return t === 'user_story' ? 'story' : t;
+  if (t === 'user_story') return 'story';
+  return t;
 }

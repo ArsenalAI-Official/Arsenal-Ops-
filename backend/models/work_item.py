@@ -16,6 +16,7 @@ class WorkItemType(str, enum.Enum):  # noqa: UP042
     USER_STORY = "user_story"
     TASK = "task"
     BUG = "bug"
+    SUBTASK = "subtask"
 
 
 class WorkItemStatus(str, enum.Enum):  # noqa: UP042

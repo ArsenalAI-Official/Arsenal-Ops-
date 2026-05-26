@@ -5,22 +5,26 @@ Mirrors the rules encoded on the frontend in
 module is the enforcement layer that protects the API against direct callers
 that bypass the form.
 
-Canonical model (Story / Task / Bug are siblings directly under Epic):
+Canonical model (Story / Task / Bug are siblings directly under Epic; Subtask
+sits one level below them):
 
     Epic            no epic_id, no parent_id
     User Story      epic_id -> Epic (optional), no parent_id
     Task            epic_id -> Epic (optional), no parent_id
     Bug             epic_id -> Epic (optional), no parent_id
+    Subtask         no epic_id, parent_id -> Story/Task/Bug (required)
 
-The ``parent_id`` column is retained on the model so this rule can be relaxed
-later (e.g. sub-tasks under Story) by re-populating ALLOWED_PARENT_TYPES.
-While disabled, any non-null parent_id assignment is rejected with a 422.
+Subtasks reach their epic transitively via their parent (story/task/bug).
+They do not carry their own epic_id link — that keeps the relationship as a
+clean tree.
 
-Cross-cutting rules (still applied to epic_id and any future parent_id use):
+Cross-cutting rules:
     - Parent must exist and live in the same project
     - No self-parent
-    - Depth-1 cap: parent_id target must itself have no parent_id, and an
-      item that already has children cannot itself be given a parent_id
+    - Depth-1 cap on parent_id: parent_id target must itself have no
+      parent_id, and an item that already has children cannot itself be
+      given a parent_id. With Subtask as the only parent_id user this caps
+      the tree at depth 2 (Epic -> Story/Task/Bug -> Subtask).
 """
 
 from fastapi import HTTPException
@@ -36,12 +40,20 @@ ALLOWED_PARENT_TYPES: dict[str, dict[str, tuple[str, ...]]] = {
         WorkItemType.TASK.value: (WorkItemType.EPIC.value,),
         WorkItemType.BUG.value: (WorkItemType.EPIC.value,),
         WorkItemType.EPIC.value: (),
+        # Subtasks reach their epic indirectly through their parent
+        # (story/task/bug). They do not carry their own epic_id link.
+        WorkItemType.SUBTASK.value: (),
     },
     "parent_id": {
         WorkItemType.TASK.value: (),
         WorkItemType.USER_STORY.value: (),
         WorkItemType.BUG.value: (),
         WorkItemType.EPIC.value: (),
+        WorkItemType.SUBTASK.value: (
+            WorkItemType.USER_STORY.value,
+            WorkItemType.TASK.value,
+            WorkItemType.BUG.value,
+        ),
     },
 }
 
