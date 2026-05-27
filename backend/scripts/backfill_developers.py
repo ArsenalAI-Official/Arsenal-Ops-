@@ -42,12 +42,20 @@ def backfill() -> int:
     # Project.architectures -> Architecture) fail with InvalidRequestError
     # because the target class is unknown to the registry.
     import models  # noqa: F401
-    from database import SessionLocal
+    from database import SessionLocal, run_migrations
     from models import architecture as _architecture  # noqa: F401
     from models import project as _project  # noqa: F401
     from models import user as _user  # noqa: F401
     from models.developer import Developer
     from models.user import User
+
+    # Apply pending schema migrations BEFORE any model query runs. On Render
+    # this script runs as a pre-deploy hook, ahead of app startup (which is
+    # where run_migrations would normally fire via init_db). Without this,
+    # newly-added columns (e.g. developers.is_external) cause every Developer
+    # query in this script to blow up with UndefinedColumn until the next
+    # deploy. Calling run_migrations here makes the pre-deploy self-healing.
+    run_migrations()
 
     created = 0
     session = SessionLocal()
