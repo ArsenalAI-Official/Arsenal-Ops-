@@ -34,6 +34,8 @@ import {
   fieldSupportsType,
 } from '@/lib/hierarchy/validateReparent';
 import { apiFetch } from '@/lib/api';
+import { CALENDAR_CLASS_NAMES } from '@/components/ProjectsPage/constants';
+import { formatLocalDate } from '@/components/ProjectsPage/utils';
 
 interface WorkItem {
   id: string;
@@ -229,7 +231,27 @@ const ItemDetailDrawer = ({
     selectedItem.type === 'user_story' ||
     selectedItem.type === 'bug';
 
-  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  // Inline subtask creation: title + optional assignee/hours/due date.
+  // Kept as a single state object so resetting on success / cancel is one call.
+  interface NewSubtaskForm {
+    title: string;
+    assignee_id: number | null;
+    estimated_hours: string; // string for the input; parsed on submit
+    due_date: string; // YYYY-MM-DD or ''
+  }
+  const emptySubtaskForm: NewSubtaskForm = {
+    title: '',
+    assignee_id: null,
+    estimated_hours: '',
+    due_date: '',
+  };
+  const [newSubtask, setNewSubtask] = useState<NewSubtaskForm>(emptySubtaskForm);
+  const [showSubtaskDatePicker, setShowSubtaskDatePicker] = useState(false);
+  // Backwards-compatibility alias for the existing JSX that references the old
+  // `newSubtaskTitle` variable. Lets the smaller submitNewSubtask check stay
+  // tight without scattering reads across the form.
+  const newSubtaskTitle = newSubtask.title;
+  const setNewSubtaskTitle = (t: string) => setNewSubtask((f) => ({ ...f, title: t }));
 
   // Look up the current item's parent (only meaningful when current item is a
   // subtask itself — used to render the "Parent: <key>" backlink).
@@ -244,25 +266,33 @@ const ItemDetailDrawer = ({
   };
 
   const createSubtaskMutation = useMutation({
-    mutationFn: (title: string) => {
+    mutationFn: (form: NewSubtaskForm) => {
       const projectId =
         (selectedItem as unknown as { project_id?: number }).project_id ??
         (id ? Number(id) : undefined);
       if (!projectId) {
         throw new Error('Missing project id for subtask creation');
       }
+      const hoursRaw = form.estimated_hours.trim() ? Number(form.estimated_hours) : 0;
+      const estimated = Number.isFinite(hoursRaw) && hoursRaw > 0 ? Math.trunc(hoursRaw) : 0;
       return apiFetch('/api/workitems/', {
         method: 'POST',
         body: JSON.stringify({
           project_id: projectId,
           type: 'subtask',
-          title,
+          title: form.title,
           parent_id: Number(selectedItem.id),
+          assignee_id: form.assignee_id,
+          estimated_hours: estimated,
+          // Match backend convention: remaining_hours seeded from estimated
+          // at create time so the parent rollup is correct on first render.
+          remaining_hours: estimated,
+          due_date: form.due_date ? form.due_date : null,
         }),
       });
     },
     onSuccess: () => {
-      setNewSubtaskTitle('');
+      setNewSubtask(emptySubtaskForm);
       toast.success('Subtask added');
     },
     onError: (err: unknown) => {
@@ -278,7 +308,7 @@ const ItemDetailDrawer = ({
   const submitNewSubtask = () => {
     const t = newSubtaskTitle.trim();
     if (!t) return;
-    createSubtaskMutation.mutate(t);
+    createSubtaskMutation.mutate({ ...newSubtask, title: t });
   };
 
   // Depth-1 cap (matches backend services/hierarchy.py): an item that already
@@ -1219,29 +1249,121 @@ const ItemDetailDrawer = ({
                     </ul>
                   )}
 
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={newSubtaskTitle}
-                      onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          submitNewSubtask();
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={newSubtaskTitle}
+                        onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            submitNewSubtask();
+                          }
+                        }}
+                        placeholder="Add a subtask…"
+                        disabled={createSubtaskMutation.isPending}
+                        className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-9 text-sm flex-1"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={submitNewSubtask}
+                        disabled={createSubtaskMutation.isPending || !newSubtaskTitle.trim()}
+                        className="bg-[#E0B954] hover:bg-[#C79E3B] text-[#080808] rounded-xl h-9 px-3 disabled:opacity-50"
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1" />
+                        {createSubtaskMutation.isPending ? 'Adding…' : 'Add'}
+                      </Button>
+                    </div>
+
+                    {/* Compact field row: assignee · hours · due date. Uses the
+                        same look as the main edit form so the controls feel
+                        familiar. Hours and date are optional. */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <select
+                        value={newSubtask.assignee_id ?? ''}
+                        onChange={(e) =>
+                          setNewSubtask((f) => ({
+                            ...f,
+                            assignee_id: e.target.value ? parseInt(e.target.value) : null,
+                          }))
                         }
-                      }}
-                      placeholder="Add a subtask…"
-                      disabled={createSubtaskMutation.isPending}
-                      className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-9 text-sm flex-1"
-                    />
-                    <Button
-                      size="sm"
-                      onClick={submitNewSubtask}
-                      disabled={createSubtaskMutation.isPending || !newSubtaskTitle.trim()}
-                      className="bg-[#E0B954] hover:bg-[#C79E3B] text-[#080808] rounded-xl h-9 px-3 disabled:opacity-50"
-                    >
-                      <Plus className="w-3.5 h-3.5 mr-1" />
-                      {createSubtaskMutation.isPending ? 'Adding…' : 'Add'}
-                    </Button>
+                        disabled={createSubtaskMutation.isPending}
+                        title="Assignee"
+                        className="h-9 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl px-2 text-xs"
+                      >
+                        <option value="">Unassigned</option>
+                        {(project?.developers ?? []).map((dev) => (
+                          <option key={dev.id} value={dev.id}>
+                            {dev.name}
+                          </option>
+                        ))}
+                      </select>
+
+                      <Input
+                        type="number"
+                        min={0}
+                        max={999}
+                        value={newSubtask.estimated_hours}
+                        onChange={(e) =>
+                          setNewSubtask((f) => ({ ...f, estimated_hours: e.target.value }))
+                        }
+                        disabled={createSubtaskMutation.isPending}
+                        placeholder="Hours"
+                        title="Estimated hours"
+                        className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-9 text-xs"
+                      />
+
+                      <Popover open={showSubtaskDatePicker} onOpenChange={setShowSubtaskDatePicker}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={createSubtaskMutation.isPending}
+                            className="h-9 w-full justify-start text-left font-normal bg-[#0A0A14] border-[rgba(255,255,255,0.08)] text-white hover:bg-[#0A0A14] hover:text-white rounded-xl px-2 text-xs"
+                          >
+                            <Calendar className="w-3.5 h-3.5 mr-1.5 flex-shrink-0" />
+                            <span className="truncate">
+                              {newSubtask.due_date
+                                ? parseLocalDate(newSubtask.due_date)?.toLocaleDateString()
+                                : 'Pick a date'}
+                            </span>
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          side="bottom"
+                          align="start"
+                          className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(224,185,84,0.2)]"
+                        >
+                          <CalendarIcon
+                            mode="single"
+                            selected={parseLocalDate(newSubtask.due_date || undefined)}
+                            onSelect={(date) => {
+                              if (date) {
+                                setNewSubtask((f) => ({ ...f, due_date: formatLocalDate(date) }));
+                                setShowSubtaskDatePicker(false);
+                              }
+                            }}
+                            disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                            classNames={CALENDAR_CLASS_NAMES}
+                          />
+                          {newSubtask.due_date && (
+                            <div className="pt-2 mt-2 border-t border-[rgba(255,255,255,0.05)]">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setNewSubtask((f) => ({ ...f, due_date: '' }));
+                                  setShowSubtaskDatePicker(false);
+                                }}
+                                className="w-full text-xs text-[#737373] hover:text-white"
+                              >
+                                Clear date
+                              </Button>
+                            </div>
+                          )}
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   </div>
                 </div>
               )}
