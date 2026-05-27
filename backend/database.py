@@ -647,7 +647,9 @@ def run_migrations():
                 """)
                 )
                 conn.commit()
-                print("[MIGRATION] is_external column added (defaulting all existing rows to FALSE)")
+                print(
+                    "[MIGRATION] is_external column added (defaulting all existing rows to FALSE)"
+                )
         except Exception as e:
             print(f"[MIGRATION ERROR] developers.is_external: {e}")
 

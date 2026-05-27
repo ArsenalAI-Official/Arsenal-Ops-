@@ -1085,9 +1085,7 @@ def update_work_item(
             propagate_from_subtask(item, db)
             # If re-parented, refresh the FORMER parent too (it just lost a subtask).
             if parent_changed and old_parent_id is not None:
-                old_parent = (
-                    db.query(WorkItem).filter(WorkItem.id == old_parent_id).first()
-                )
+                old_parent = db.query(WorkItem).filter(WorkItem.id == old_parent_id).first()
                 if old_parent is not None:
                     refresh_parent_and_epic(old_parent, db)
             db.commit()
@@ -1191,8 +1189,7 @@ def batch_update_status(
                     raise HTTPException(
                         status_code=400,
                         detail=(
-                            f"Can't mark epic {item.key} done — {open_child.key} "
-                            "is still open."
+                            f"Can't mark epic {item.key} done — {open_child.key} is still open."
                         ),
                     )
             elif item.type in (
@@ -1348,8 +1345,7 @@ def log_hours(
             raise HTTPException(
                 status_code=403,
                 detail=(
-                    "This ticket has subtasks — log hours against one of the "
-                    "subtasks instead."
+                    "This ticket has subtasks — log hours against one of the subtasks instead."
                 ),
             )
 
@@ -1359,9 +1355,7 @@ def log_hours(
             status_code=403,
             detail="This ticket has no assignee — hours can only be logged on assigned tickets.",
         )
-    caller_dev = (
-        db.query(Developer).filter(Developer.email == current_user.email).first()
-    )
+    caller_dev = db.query(Developer).filter(Developer.email == current_user.email).first()
     if not caller_dev or caller_dev.id != item.assignee_id:
         raise HTTPException(
             status_code=403,

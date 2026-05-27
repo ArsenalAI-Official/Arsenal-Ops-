@@ -219,7 +219,9 @@ async def startup_event():
                             )
                             existing.is_active = True
                             promoted += 1
-                            logger.warning("[BOOTSTRAP] Promoted %s to admin (legacy column)", email)
+                            logger.warning(
+                                "[BOOTSTRAP] Promoted %s to admin (legacy column)", email
+                            )
 
                         if admin_role is not None and not rbac_already_admin:
                             existing.roles.append(admin_role)
