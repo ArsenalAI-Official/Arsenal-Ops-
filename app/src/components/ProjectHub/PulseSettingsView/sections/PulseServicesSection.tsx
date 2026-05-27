@@ -10,6 +10,11 @@ interface PulseServicesSectionProps {
   onUpdateRow: (i: number, patch: Partial<IncludedServicesRow>) => void;
   onAddRow: () => void;
   onRemoveRow: (i: number) => void;
+  /** When true, hide the `usedHours` column — it's now sourced from the
+   *  derive endpoint (sum of time_entries.hours) rather than typed in. The
+   *  editor passes this on the Settings tab; the read-only viewer's table is
+   *  a separate component path, so this prop is scoped to the editor. */
+  hideDerivedColumns?: boolean;
 }
 
 const PulseServicesSection: React.FC<PulseServicesSectionProps> = ({
@@ -17,6 +22,7 @@ const PulseServicesSection: React.FC<PulseServicesSectionProps> = ({
   onUpdateRow,
   onAddRow,
   onRemoveRow,
+  hideDerivedColumns,
 }) => (
   <Section
     title="Billing & included services"
@@ -28,7 +34,7 @@ const PulseServicesSection: React.FC<PulseServicesSectionProps> = ({
           <tr>
             <th className="text-left p-1">Month</th>
             <th className="p-1">Total hrs</th>
-            <th className="p-1">Used hrs</th>
+            {!hideDerivedColumns && <th className="p-1">Used hrs</th>}
             <th className="p-1">Accrued hrs</th>
             <th className="p-1">Accrued $</th>
             <th className="p-1">Invoiced hrs</th>
@@ -56,14 +62,16 @@ const PulseServicesSection: React.FC<PulseServicesSectionProps> = ({
                   className="h-8 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-white text-xs w-20"
                 />
               </td>
-              <td className="p-1">
-                <Input
-                  type="number"
-                  value={r.usedHours}
-                  onChange={(e) => onUpdateRow(i, { usedHours: parseFloat(e.target.value) || 0 })}
-                  className="h-8 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-white text-xs w-20"
-                />
-              </td>
+              {!hideDerivedColumns && (
+                <td className="p-1">
+                  <Input
+                    type="number"
+                    value={r.usedHours}
+                    onChange={(e) => onUpdateRow(i, { usedHours: parseFloat(e.target.value) || 0 })}
+                    className="h-8 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-white text-xs w-20"
+                  />
+                </td>
+              )}
               <td className="p-1">
                 <Input
                   type="number"

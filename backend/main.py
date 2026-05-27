@@ -29,6 +29,7 @@ from routers.overview import router as overview_router  # noqa: E402
 from routers.personal_tasks import router as personal_tasks_router  # noqa: E402
 from routers.prd_analysis import router as prd_router  # noqa: E402
 from routers.projects import router as projects_router  # noqa: E402
+from routers.pulse import router as pulse_router  # noqa: E402
 from routers.roadmap import router as roadmap_router  # noqa: E402
 from routers.workitems import router as workitems_router  # noqa: E402
 
@@ -138,6 +139,7 @@ app.include_router(admin_router)
 app.include_router(roadmap_router)
 app.include_router(personal_tasks_router)
 app.include_router(overview_router)
+app.include_router(pulse_router)
 
 
 # Startup event for database initialization

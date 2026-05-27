@@ -12,6 +12,7 @@ from models.project_file import ProjectFile
 from models.project_goal import ProjectGoal
 from models.project_link import ProjectLink
 from models.project_milestone import ProjectMilestone
+from models.project_pulse_override import ProjectPulseOverride
 from models.role import Role, RoleCapability, user_roles
 from models.sprint import Sprint
 from models.task import Task
@@ -40,6 +41,7 @@ __all__ = [
     "TaskDependency",
     "ProjectGoal",
     "ProjectMilestone",
+    "ProjectPulseOverride",
     "ActivityLog",
     "ProjectFile",
     "ProjectLink",
