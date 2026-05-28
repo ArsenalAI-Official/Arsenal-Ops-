@@ -12,7 +12,6 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 sys.path.append("..")
-from sqlalchemy import func
 
 from database import get_db
 from logging_config import setup_logger
@@ -23,6 +22,7 @@ from models.user import User
 from models.work_item import WorkItem, WorkItemType
 from parser import parse as parse_roadmap
 from routers.auth import get_current_user
+from routers.workitems import update_epic_hours
 from services.roadmap_ai_parser import excel_to_readable_text, get_roadmap_ai_parser
 
 logger = setup_logger("roadmap")
@@ -429,8 +429,11 @@ def commit_roadmap_tickets(
         # Commit all changes
         db.commit()
 
-        # Update epic hours for all epics in this project
-        # This calculates total hours from all child stories
+        # Roll up epic hours using the canonical helper from routers/workitems.
+        # update_epic_hours handles all three columns (estimated / logged /
+        # remaining) and includes 3rd-level subtasks if any ever get imported.
+        # Replaced an inline estimate-only loop that diverged from the live
+        # rollup logic.
         epics = (
             db.query(WorkItem)
             .filter(
@@ -438,26 +441,8 @@ def commit_roadmap_tickets(
             )
             .all()
         )
-
         for epic in epics:
-            # Sum all work items' estimated_hours that belong to this epic (stories, tasks, bugs)
-            total_hours = (
-                db.query(func.coalesce(func.sum(WorkItem.estimated_hours), 0))
-                .filter(
-                    WorkItem.epic_id == epic.id,
-                    WorkItem.type.in_(
-                        [
-                            WorkItemType.USER_STORY.value,
-                            WorkItemType.TASK.value,
-                            WorkItemType.BUG.value,
-                        ]
-                    ),
-                )
-                .scalar()
-            )
-
-            epic.estimated_hours = total_hours
-            epic.updated_at = datetime.utcnow()
+            update_epic_hours(epic.id, db)
 
         # Final commit for epic hours
         db.commit()
