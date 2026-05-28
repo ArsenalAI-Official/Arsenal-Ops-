@@ -126,12 +126,14 @@ def update_epic_hours(epic_id: int, db: Session):
 
 def update_parent_status_from_subtasks(parent_id: int, db: Session):
     """
-    Auto-update Story/Task/Bug status based on its subtasks. Mirrors
-    update_epic_status_from_stories.
+    Reopen a Story/Task/Bug if it was previously marked done but one of its
+    subtasks has just been reopened.
 
-    - If ALL subtasks are done, mark the parent as done.
-    - If ANY subtask is not done and parent was done, reopen parent.
-    - If parent has no subtasks, do nothing (parent's own status governs).
+    Auto-completion was intentionally removed: parents are marked done
+    EXPLICITLY by the user (the API blocks the transition if any subtask is
+    still open via the rule in update_work_item). This function only handles
+    the reverse direction — keeping a parent's "done" status from drifting
+    into an inconsistent state when a descendant is reopened.
     """
     parent = db.query(WorkItem).filter(WorkItem.id == parent_id).first()
     if not parent:
@@ -141,6 +143,9 @@ def update_parent_status_from_subtasks(parent_id: int, db: Session):
         WorkItemType.TASK.value,
         WorkItemType.BUG.value,
     ):
+        return
+    if parent.status != WorkItemStatus.DONE.value:
+        # Parent isn't done — nothing to reopen.
         return
 
     subtasks = (
@@ -154,13 +159,8 @@ def update_parent_status_from_subtasks(parent_id: int, db: Session):
     if not subtasks:
         return
 
-    all_done = all(s.status == WorkItemStatus.DONE.value for s in subtasks)
-
-    if all_done and parent.status != WorkItemStatus.DONE.value:
-        parent.status = WorkItemStatus.DONE.value
-        parent.completed_at = datetime.utcnow()
-        parent.updated_at = datetime.utcnow()
-    elif not all_done and parent.status == WorkItemStatus.DONE.value:
+    any_open = any(s.status != WorkItemStatus.DONE.value for s in subtasks)
+    if any_open:
         parent.status = WorkItemStatus.TODO.value
         parent.completed_at = None
         parent.started_at = None
@@ -211,9 +211,14 @@ def propagate_from_subtask(subtask: WorkItem, db: Session):
 
 def update_epic_status_from_stories(epic_id: int, db: Session):
     """
-    Auto-update epic status based on all linked work items (stories/tasks/bugs).
-    - If ALL work items are done, mark epic as done
-    - If ANY work item is not done, reopen epic if it was done
+    Reopen an epic if it was previously marked done but one of its
+    stories/tasks/bugs has just been reopened.
+
+    Auto-completion was intentionally removed: epics are marked done
+    EXPLICITLY by the user (the API blocks the transition if any child is
+    still open via the rule in update_work_item). This function only handles
+    the reverse direction — keeping the epic's "done" status from drifting
+    into an inconsistent state when a child is reopened.
 
     Args:
         epic_id: ID of the epic to check
@@ -221,6 +226,9 @@ def update_epic_status_from_stories(epic_id: int, db: Session):
     """
     epic = db.query(WorkItem).filter(WorkItem.id == epic_id).first()
     if not epic or epic.type != WorkItemType.EPIC.value:
+        return
+    if epic.status != WorkItemStatus.DONE.value:
+        # Epic isn't done — nothing to reopen.
         return
 
     # Get all work items linked to this epic
@@ -239,16 +247,9 @@ def update_epic_status_from_stories(epic_id: int, db: Session):
         # No work items under this epic, don't auto-update status
         return
 
-    # Check if ALL items are done
-    all_done = all(item.status == "done" for item in items)
-
-    if all_done and epic.status != "done":
-        epic.status = "done"
-        epic.completed_at = datetime.utcnow()
-        epic.updated_at = datetime.utcnow()
-    elif not all_done and epic.status == "done":
-        # Reopen epic if one of its items is reopened
-        epic.status = "todo"
+    any_open = any(item.status != WorkItemStatus.DONE.value for item in items)
+    if any_open:
+        epic.status = WorkItemStatus.TODO.value
         epic.completed_at = None
         epic.started_at = None
         epic.updated_at = datetime.utcnow()
