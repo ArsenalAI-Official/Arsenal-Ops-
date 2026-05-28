@@ -1017,6 +1017,34 @@ def update_work_item(
         )
         db.add(activity)
 
+    # Auto-comment for every status transition — surfaces the move in the
+    # ticket's comment feed alongside the existing "Ticket transferred from X
+    # to Y" so the side panel reads as a single chronological audit trail.
+    if "status" in update_data and update_data["status"] != old_status:
+        from models.comment import Comment as _StatusComment
+        from models.developer import Developer as _AuthorDev
+
+        STATUS_LABELS = {
+            WorkItemStatus.BACKLOG.value: "Backlog",
+            WorkItemStatus.TODO.value: "To Do",
+            WorkItemStatus.IN_PROGRESS.value: "In Progress",
+            WorkItemStatus.IN_REVIEW.value: "In Review",
+            WorkItemStatus.DONE.value: "Done",
+        }
+        new_status = update_data["status"]
+        new_label = STATUS_LABELS.get(new_status, new_status.replace("_", " ").title())
+
+        author = db.query(_AuthorDev).filter(_AuthorDev.email == current_user.email).first()
+        author_id = author.id if author else None
+
+        db.add(
+            _StatusComment(
+                work_item_id=item.id,
+                author_id=author_id,
+                content=f"Moved to {new_label}",
+            )
+        )
+
     db.commit()
     db.refresh(item)
 
@@ -1427,6 +1455,19 @@ def log_hours(
     )
     db.add(time_entry)
     db.flush()  # ensure the new TimeEntry is visible to the sum query below
+
+    # Auto-comment: surfaces the log event in the ticket's comments feed
+    # alongside the existing "Ticket transferred from X to Y" comments so
+    # users see a single chronological audit trail in the side panel.
+    from models.comment import Comment as _LogComment
+
+    db.add(
+        _LogComment(
+            work_item_id=item_id,
+            author_id=developer.id if developer else None,
+            content=f"Logged {request.hours}h",
+        )
+    )
 
     # Recompute logged_hours from the live TimeEntry sum instead of `+=`.
     # The naive accumulator drifts whenever ANYTHING else has touched the column

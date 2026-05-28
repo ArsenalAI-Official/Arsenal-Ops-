@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   X,
   Edit2,
@@ -155,6 +155,10 @@ const TicketDetailPanel = ({
           remaining_hours: data.remaining_hours,
         } as MyTask;
         onTaskChanged(updated);
+        // Backend writes a "Logged Xh" auto-comment alongside the TimeEntry —
+        // bust the local cache and refetch so the panel shows it immediately.
+        commentCache.current.delete(task.id);
+        fetchComments(true);
         toast.success(`Logged ${hoursToLog}h! Remaining: ${data.remaining_hours}h`);
       } else {
         toast.error('Failed to log hours');
@@ -188,6 +192,12 @@ const TicketDetailPanel = ({
           // body wasn't JSON — keep the generic message
         }
         toast.error(detail);
+      } else {
+        // Backend writes a "Moved to <Status>" auto-comment for every status
+        // change. Bust the local cache and refetch so the panel surfaces it
+        // without the user closing and reopening the ticket.
+        commentCache.current.delete(task.id);
+        fetchComments(true);
       }
     } catch {
       onTaskChanged({ ...task, status: previousStatus } as MyTask);
@@ -313,14 +323,18 @@ const TicketDetailPanel = ({
     });
   };
 
-  // Fetch comments when task changes
-  useEffect(() => {
-    const fetchComments = async () => {
+  // Reusable comments fetcher. `force=true` skips the local cache so callers
+  // (status change, log-hours) can pull in the auto-comments the backend just
+  // wrote — "Marked as done", "Reopened ticket", "Logged Xh".
+  const fetchComments = useCallback(
+    async (force = false) => {
       if (!token) return;
-      const cached = commentCache.current.get(task.id);
-      if (cached !== undefined) {
-        setComments(cached);
-        return;
+      if (!force) {
+        const cached = commentCache.current.get(task.id);
+        if (cached !== undefined) {
+          setComments(cached);
+          return;
+        }
       }
       try {
         const response = await fetch(`${API_BASE_URL}/api/comments/workitem/${task.id}`, {
@@ -334,9 +348,14 @@ const TicketDetailPanel = ({
       } catch (error) {
         console.error('Failed to fetch comments:', error);
       }
-    };
+    },
+    [task.id, token],
+  );
+
+  // Fetch comments when task changes (cache hit short-circuits the network).
+  useEffect(() => {
     fetchComments();
-  }, [task.id, token]);
+  }, [fetchComments]);
 
   // Fetch all developers for @mentions
   useEffect(() => {

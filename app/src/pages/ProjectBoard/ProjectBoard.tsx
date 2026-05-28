@@ -753,9 +753,12 @@ const ProjectBoard = () => {
       const detail = err instanceof ApiError ? err.message : 'Failed to move ticket';
       toast.error(detail);
     },
-    onSettled: () => {
+    onSettled: (_data, _err, { itemId }) => {
       invalidateWorkItems();
       invalidateProject();
+      // Backend writes "Marked as done" / "Reopened ticket" auto-comments on
+      // done-boundary status changes — keep this item's comments in sync.
+      queryClient.invalidateQueries({ queryKey: ['workItem', itemId, 'comments'] });
     },
   });
 
@@ -1206,9 +1209,13 @@ const ProjectBoard = () => {
       toast.success(`Logged ${hours}h! Remaining: ${data.remaining_hours}h`);
     },
     onError: () => toast.error('Failed to log hours'),
-    onSettled: () => {
+    onSettled: (_data, _err, { itemId }) => {
       invalidateWorkItems();
       invalidateProject();
+      // Backend writes a "Logged Xh" auto-comment alongside the TimeEntry —
+      // invalidate this item's comments so the drawer surfaces it without
+      // forcing the user to close and reopen the panel.
+      queryClient.invalidateQueries({ queryKey: ['workItem', itemId, 'comments'] });
     },
   });
 
