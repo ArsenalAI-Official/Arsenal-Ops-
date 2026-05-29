@@ -61,6 +61,21 @@ def get_next_item_number(db: Session, key_prefix: str) -> int:
     return row or 1
 
 
+def _creator_dev_id(db: Session, current_user: User) -> int | None:
+    """Resolve the Developer.id for the currently authenticated user.
+
+    Used as the value for WorkItem.reporter_id on creation so the side panel
+    can render "Created By <name>". Returns None if the user has no linked
+    Developer row (rare — typically only admin-only accounts).
+    """
+    from models.developer import Developer
+
+    if not current_user or not current_user.email:
+        return None
+    dev = db.query(Developer).filter(Developer.email == current_user.email).first()
+    return dev.id if dev else None
+
+
 def update_epic_hours(epic_id: int, db: Session):
     """
     Roll up estimated_hours, logged_hours, and remaining_hours into the epic
@@ -535,6 +550,7 @@ def get_my_tasks(db: Session = Depends(get_db), current_user: User = Depends(get
             selectinload(WorkItem.parent),
             selectinload(WorkItem.epic),
             selectinload(WorkItem.sprint),
+            selectinload(WorkItem.reporter),
         )
         .filter(WorkItem.assignee_id == developer.id)
         .all()
@@ -575,6 +591,7 @@ def get_my_tasks(db: Session = Depends(get_db), current_user: User = Depends(get
                 "story_points": item.story_points or 0,
                 "assigned_hours": item.estimated_hours or 0,
                 "assignee": developer.name,
+                "reporter_name": item.reporter.name if item.reporter else None,
                 "description": item.description or "",
                 "tags": item.tags or [],
                 "acceptance_criteria": item.acceptance_criteria or [],
@@ -594,11 +611,21 @@ def get_my_tasks(db: Session = Depends(get_db), current_user: User = Depends(get
 def get_work_item(
     item_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
-    """Get a specific work item (requires auth)"""
+    """Get a specific work item (requires auth).
+
+    Augments the raw model with `reporter_name` and `assignee_name` so the
+    side panel can show "Created By" / "Assigned To" without a follow-up
+    lookup. The model's column dict is returned as-is otherwise.
+    """
     item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Work item not found")
-    return item
+    # Column dict + relation-derived fields. SQLAlchemy auto-serialization via
+    # FastAPI doesn't include relationships, so we add the names explicitly.
+    payload = {c.name: getattr(item, c.name) for c in item.__table__.columns}
+    payload["reporter_name"] = item.reporter.name if item.reporter else None
+    payload["assignee_name"] = item.assignee.name if item.assignee else None
+    return payload
 
 
 @router.post("/")
@@ -653,6 +680,10 @@ def create_work_item(
         sprint_id=item.sprint_id,
         epic_id=item.epic_id,
         parent_id=item.parent_id,
+        # Stamp the creator (looked up via Developer row matched on email).
+        # Used by the ticket side panel "Created By" line. Stays NULL if the
+        # current user has no linked developer record (rare — admin-only users).
+        reporter_id=_creator_dev_id(db, current_user),
         tags=item.tags,
         acceptance_criteria=item.acceptance_criteria,
         start_date=datetime.fromisoformat(item.start_date) if item.start_date else None,

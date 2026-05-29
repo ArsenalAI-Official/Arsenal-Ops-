@@ -673,6 +673,9 @@ const TicketDetailPanel = ({
               <div className="space-y-3">
                 {[
                   { label: 'Assignee', value: task.assignee || 'Unassigned' },
+                  ...(task.reporter_name
+                    ? [{ label: 'Created By', value: task.reporter_name }]
+                    : []),
                   { label: 'Sprint', value: task.sprint || 'Not assigned' },
                 ].map((m) => (
                   <div

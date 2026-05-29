@@ -51,6 +51,7 @@ interface WorkItem {
   priority: 'high' | 'medium' | 'low' | 'critical';
   assignee: string;
   assignee_id: number | null;
+  reporter_name?: string | null;
   sprint: string;
   sprint_id: number | null;
   product_id: string;
@@ -982,6 +983,9 @@ const ItemDetailDrawer = ({
               <div className="space-y-3">
                 {[
                   { label: 'Assignee', value: selectedItem.assignee },
+                  ...(itemDetail.reporter_name
+                    ? [{ label: 'Created By', value: itemDetail.reporter_name }]
+                    : []),
                   { label: 'Sprint', value: itemDetail.sprint },
                   ...(itemDetail.epic ? [{ label: 'Epic', value: itemDetail.epic }] : []),
                 ].map((m) => (

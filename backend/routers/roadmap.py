@@ -77,8 +77,13 @@ def create_work_item(
     assignee_id: int | None,
     epic_id: int | None = None,
     acceptance_criteria: list[str] | None = None,
+    reporter_id: int | None = None,
 ) -> WorkItem:
-    """Helper to create a work item with auto-generated key"""
+    """Helper to create a work item with auto-generated key.
+
+    reporter_id stamps the creator so the side panel can show "Created By".
+    Pass the uploader's developer_id for roadmap imports.
+    """
 
     # Generate key
     next_num = get_next_work_item_number(db, project.key_prefix)
@@ -99,6 +104,7 @@ def create_work_item(
         remaining_hours=hours,
         assignee_id=assignee_id,
         epic_id=epic_id,
+        reporter_id=reporter_id,
         acceptance_criteria=acceptance_criteria or [],
     )
 
@@ -297,6 +303,7 @@ def commit_roadmap_tickets(
                     effort_hrs=None,
                     assignee_id=None,
                     epic_id=None,
+                    reporter_id=current_dev.id,
                 )
                 epic_map[epic_name] = epic
 
@@ -346,6 +353,7 @@ def commit_roadmap_tickets(
                 assignee_id=assignee_id,
                 epic_id=epic_id,
                 acceptance_criteria=[],
+                reporter_id=current_dev.id,
             )
 
             created_tasks += 1

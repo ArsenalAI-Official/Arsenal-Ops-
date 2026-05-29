@@ -56,6 +56,7 @@ export interface MyTask {
   assigned_hours?: number;
   assignee?: string;
   assignee_id?: number | null;
+  reporter_name?: string | null;
   description?: string;
   tags?: string[];
   acceptance_criteria?: string[];
