@@ -1,5 +1,6 @@
 import { Calendar, AlertCircle, CheckCircle2 } from 'lucide-react';
 import type { MyTask } from './types';
+import MyCapacityCard from './MyCapacityCard';
 
 interface DashboardStatsProps {
   userName?: string;
@@ -108,6 +109,8 @@ const DashboardStats = ({
           )}
           <div className="text-xs text-[#737373] font-medium mt-1">Completed this week</div>
         </div>
+
+        <MyCapacityCard />
       </div>
     </div>
   );

@@ -75,6 +75,41 @@ def list_developers(db: Session = Depends(get_db), current_user: User = Depends(
     return developers
 
 
+@router.get("/me/capacity")
+def get_my_capacity(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Weekly capacity for the currently-logged-in developer (cross-project,
+    Saturday → Friday UTC). Same shape as a single row from
+    /api/admin/developers/capacity. Returns 404 if the user has no Developer
+    record yet (e.g., admin-only user)."""
+    from services.capacity_service import compute_capacity_breakdown, week_boundaries
+
+    dev = db.query(Developer).filter(Developer.email == current_user.email).first()
+    if not dev:
+        raise HTTPException(status_code=404, detail="No developer profile for this user")
+
+    week_start, week_end = week_boundaries()
+    breakdown = compute_capacity_breakdown(
+        dev.assigned_work_items or [],
+        week_start,
+        db=db,
+        developer_id=dev.id,
+    )
+    return {
+        "developer_id": dev.id,
+        "developer_name": dev.name,
+        "developer_email": dev.email,
+        "avatar_url": dev.avatar_url,
+        "project_count": len(dev.projects) if dev.projects else 0,
+        "specialization": getattr(dev, "specialization", None),
+        "week_start": week_start.isoformat(),
+        "week_end": week_end.isoformat(),
+        **breakdown,
+    }
+
+
 @router.get("/{developer_id}", response_model=DeveloperResponse)
 def get_developer(
     developer_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
