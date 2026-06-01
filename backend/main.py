@@ -293,14 +293,12 @@ def health_check():
     """Health check endpoint"""
     from datetime import datetime
 
-    azure_configured = bool(
-        os.getenv("AZURE_OPENAI_API_KEY") and os.getenv("AZURE_OPENAI_ENDPOINT")
-    )
+    openai_configured = bool(os.getenv("OPENAI_API_KEY"))
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "services": {
-            "ai_engine": "operational" if azure_configured else "missing_credentials",
+            "ai_engine": "operational" if openai_configured else "missing_credentials",
             "api": "operational",
         },
         "version": "1.0.0",

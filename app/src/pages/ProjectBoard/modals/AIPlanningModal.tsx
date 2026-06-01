@@ -1,4 +1,5 @@
 import { useState, useRef, Dispatch, SetStateAction } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Sparkles,
   Target,
@@ -22,6 +23,9 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import ArchitectureCard from '@/components/ArchitectureCard';
 import { apiFetch } from '@/lib/api';
+import { invalidateProjectScope } from '@/lib/invalidations';
+import GenerateRoadmapModal from '@/pages/ProjectDetail/modals/GenerateRoadmapModal';
+import { Download } from 'lucide-react';
 
 interface Architecture {
   id: number;
@@ -111,7 +115,9 @@ const AIPlanningModal = ({
   onCommitted,
   setIsGenerating,
 }: AIPlanningModalProps) => {
+  const queryClient = useQueryClient();
   const [aiStep, setAiStep] = useState<AIStep>('upload');
+  const [generateTemplateOpen, setGenerateTemplateOpen] = useState(false);
   const [uploadMode, setUploadMode] = useState<'prd' | 'roadmap'>('prd');
   const [prdFile, setPrdFile] = useState<File | null>(null);
   const [prdText, setPrdText] = useState('');
@@ -198,6 +204,10 @@ const AIPlanningModal = ({
       setAnalysis(data.analysis);
       setArchitectures(data.architectures);
       setAiStep('architectures');
+      // Backend has persisted PRDAnalysis + architectures. Invalidate the
+      // ProjectDetail caches so the analysis surfaces there even if the user
+      // closes this modal without going through preview/commit.
+      invalidateProjectScope(queryClient, project.id);
       toast.success('PRD analyzed successfully!');
     } catch (err: any) {
       toast.error(err?.message || 'Failed to analyze PRD');
@@ -244,9 +254,20 @@ const AIPlanningModal = ({
     setSelectedArchitectureId(archId);
     try {
       await apiFetch(`/api/prd/architectures/${archId}/select`, { method: 'POST' });
+      // Reflect the selection on ProjectDetail (project.selected_architecture).
+      invalidateProjectScope(queryClient, project.id);
     } catch (err) {
       console.error('Failed to select architecture:', err);
     }
+  };
+
+  // User wants to exit at the architectures step without going through the
+  // preview/commit flow. The PRDAnalysis and selected architecture are already
+  // persisted server-side; we just invalidate caches and close.
+  const handleSaveAndClose = () => {
+    invalidateProjectScope(queryClient, project.id);
+    toast.success('PRD analysis saved. You can resume any time.');
+    onClose();
   };
 
   // Preview generated tickets
@@ -625,6 +646,23 @@ const AIPlanningModal = ({
                         </>
                       )}
                     </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 bg-[rgba(224,185,84,0.05)] border border-[rgba(224,185,84,0.2)] rounded-xl p-4">
+                    <div>
+                      <p className="text-sm font-medium text-white">Don't have a roadmap file?</p>
+                      <p className="text-xs text-[#a3a3a3] mt-0.5">
+                        Download a starter template — pre-filled from your PRD if one's been
+                        analyzed, otherwise a blank scaffold with the right columns.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => setGenerateTemplateOpen(true)}
+                      className="bg-[#E0B954] hover:bg-[#C79E3B] text-black shrink-0"
+                    >
+                      <Download className="w-4 h-4 mr-1" />
+                      Download template
+                    </Button>
                   </div>
 
                   <div className="bg-[rgba(102,184,255,0.1)] border border-[rgba(102,184,255,0.3)] rounded-xl p-4">
@@ -1165,14 +1203,23 @@ const AIPlanningModal = ({
             {aiStep === 'architectures' && (
               <>
                 {uploadMode === 'prd' ? (
-                  <Button
-                    onClick={handlePreviewTickets}
-                    disabled={!selectedArchitectureId}
-                    className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl px-6 font-medium shadow-lg shadow-[#B8872A]/20 disabled:opacity-50"
-                  >
-                    <ArrowRight className="w-4 h-4 mr-2" />
-                    Preview Tickets
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={handleSaveAndClose}
+                      className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl px-6 font-medium shadow-lg shadow-[#B8872A]/20"
+                    >
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                      Save &amp; close
+                    </Button>
+                    <Button
+                      onClick={handlePreviewTickets}
+                      disabled={!selectedArchitectureId}
+                      className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl px-6 font-medium shadow-lg shadow-[#B8872A]/20 disabled:opacity-50"
+                    >
+                      <ArrowRight className="w-4 h-4 mr-2" />
+                      Preview Tickets
+                    </Button>
+                  </div>
                 ) : (
                   <Button
                     onClick={() => setAiStep('preview')}
@@ -1197,6 +1244,13 @@ const AIPlanningModal = ({
           </div>
         )}
       </div>
+
+      <GenerateRoadmapModal
+        open={generateTemplateOpen}
+        onOpenChange={setGenerateTemplateOpen}
+        projectId={project.id}
+        projectName={project.name}
+      />
     </div>
   );
 };

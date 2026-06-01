@@ -982,7 +982,13 @@ const ProjectDetail = () => {
               <ProjectInfoSection project={project} onSave={handleSaveEdit} />
 
               {/* PRD Analysis Section */}
-              {prdAnalysis && <PRDAnalysisSection prdAnalysis={prdAnalysis} />}
+              {prdAnalysis && (
+                <PRDAnalysisSection
+                  prdAnalysis={prdAnalysis}
+                  projectId={project.id}
+                  projectName={project.name}
+                />
+              )}
 
               {/* Architecture Section */}
               {project.selected_architecture && (

@@ -2,11 +2,14 @@
 PRD Analysis Router - Endpoints for PRD upload, analysis, and architecture generation
 """
 
+import io
+import re
 import sys
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from pydantic import BaseModel
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -14,7 +17,7 @@ sys.path.append("..")
 from sqlalchemy import func
 
 from database import get_db
-from models.architecture import Architecture, PRDAnalysis
+from models.architecture import Architecture, PRDAnalysis, RoadmapTemplate
 from models.developer import Developer, project_developers
 from models.project import Project
 from models.sprint import Sprint, SprintStatus
@@ -23,6 +26,7 @@ from models.work_item import WorkItem
 from routers.auth import get_current_user
 from services.architecture_generator import architecture_generator
 from services.prd_processor import prd_processor
+from services.roadmap_generator import build_week_dates, roadmap_generator
 
 router = APIRouter(prefix="/api/prd", tags=["PRD Analysis"])
 
@@ -52,6 +56,125 @@ class AIRefineRequest(BaseModel):
     change_instructions: str  # Plain English description of changes needed
 
 
+class GenerateRoadmapTemplateRequest(BaseModel):
+    start_date: str  # YYYY-MM-DD
+    end_date: str  # YYYY-MM-DD
+    sprint_weeks: int = Field(default=2, ge=1, le=6)
+
+
+# Max accepted PRD upload size. PRDs are text-heavy and rarely exceed a few MB;
+# the cap exists to prevent accidental/abusive uploads from OOMing the container.
+MAX_PRD_FILE_BYTES = 25 * 1024 * 1024  # 25 MB
+
+
+async def _run_prd_analysis_pipeline(
+    db: Session,
+    project: Project,
+    prd_content: str,
+    additional_context: str,
+    filename: str | None,
+) -> dict:
+    """
+    Shared analyze + persist pipeline for both file and text endpoints.
+
+    Surfaces AI failures as HTTP errors instead of silently storing the
+    service-layer error stubs. PRDAnalysis is committed before architecture
+    generation so a downstream AI failure still leaves the user with their
+    analysis (and a clear warning) rather than nothing.
+    """
+    additional_context = additional_context or ""
+
+    # Guard: empty content means the extractor returned nothing (e.g. a scanned
+    # PDF with no text layer). Feeding "" to the LLM produces a hallucinated
+    # analysis that ends up persisted as if real.
+    if not prd_content or not prd_content.strip():
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "PRD content is empty. If this was a scanned PDF, OCR is not supported "
+                "— upload a text-layer PDF or paste the content directly."
+            ),
+        )
+
+    # Step 1: AI analysis. analyze_prd catches its own exceptions and returns
+    # an error stub — surface that as a 502 rather than persisting it.
+    analysis = await architecture_generator.analyze_prd(
+        prd_content=prd_content,
+        project_name=project.name,
+        additional_context=additional_context,
+    )
+    if analysis.get("error"):
+        raise HTTPException(
+            status_code=502,
+            detail=f"AI analysis failed: {analysis['error']}",
+        )
+
+    # Step 2: persist PRDAnalysis. Commit standalone so a downstream
+    # architecture-generation failure still leaves the user with their analysis.
+    prd_analysis = PRDAnalysis(
+        project_id=project.id,
+        filename=filename,
+        prd_content=prd_content,
+        additional_context=additional_context,
+        summary=analysis.get("summary"),
+        key_features=analysis.get("key_features"),
+        technical_requirements=analysis.get("technical_requirements"),
+        cost_analysis=analysis.get("cost_analysis"),
+        recommended_tools=analysis.get("recommended_tools"),
+        risks=analysis.get("risks"),
+        timeline=analysis.get("timeline"),
+    )
+    db.add(prd_analysis)
+    db.commit()
+    db.refresh(prd_analysis)
+
+    # Step 3: AI architecture generation. Same error-stub treatment — but
+    # the analysis is already persisted, so return a warning instead of 502
+    # so the client can render the analysis.
+    architectures = await architecture_generator.generate_architectures(
+        prd_content=prd_content, project_name=project.name, analysis=analysis
+    )
+    if architectures.get("error"):
+        return {
+            "analysis": prd_analysis.to_dict(),
+            "architectures": [],
+            "warning": f"Architecture generation failed: {architectures['error']}",
+        }
+
+    # Step 4: stage all architectures, single commit so a mid-loop failure
+    # rolls them all back together.
+    arch_rows = []
+    for arch_type in ("recommended", "alternative"):
+        if arch_type not in architectures:
+            continue
+        arch_data = architectures[arch_type]
+        architecture = Architecture(
+            project_id=project.id,
+            name=arch_data.get("name", f"{arch_type.capitalize()} Architecture"),
+            description=arch_data.get("description", ""),
+            architecture_type=arch_type,
+            mermaid_code=arch_data.get("mermaid_code", ""),
+            cost_analysis=analysis.get("cost_analysis"),
+            tools_recommended=analysis.get("recommended_tools"),
+            pros=arch_data.get("pros", []),
+            cons=arch_data.get("cons", []),
+            estimated_cost=arch_data.get("estimated_cost", ""),
+            complexity=arch_data.get("complexity", "medium"),
+            time_to_implement=arch_data.get("time_to_implement", ""),
+        )
+        db.add(architecture)
+        arch_rows.append(architecture)
+
+    db.commit()
+    for a in arch_rows:
+        db.refresh(a)
+
+    return {
+        "analysis": prd_analysis.to_dict(),
+        "architectures": [a.to_dict() for a in arch_rows],
+    }
+
+
 @router.post("/analyze-file")
 async def analyze_prd_file(
     project_id: int = Form(...),
@@ -64,75 +187,30 @@ async def analyze_prd_file(
     Upload and analyze a PRD file (PDF or Word) (requires auth)
     Returns: PRD analysis and generated architectures
     """
-    # Verify project exists
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Read and process file
+    file_content = await file.read()
+    if len(file_content) > MAX_PRD_FILE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Max {MAX_PRD_FILE_BYTES // (1024 * 1024)} MB.",
+        )
+
     try:
-        file_content = await file.read()
         prd_data = prd_processor.process_prd(file_content, file.filename)
     except ValueError as e:
+        # Unsupported format / corrupted file — surface the extractor's message.
         raise HTTPException(status_code=400, detail=str(e)) from e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}") from e
 
-    # Analyze PRD with AI
-    analysis = await architecture_generator.analyze_prd(
+    return await _run_prd_analysis_pipeline(
+        db=db,
+        project=project,
         prd_content=prd_data["cleaned_text"],
-        project_name=project.name,
         additional_context=additional_context,
-    )
-
-    # Store PRD analysis
-    prd_analysis = PRDAnalysis(
-        project_id=project_id,
         filename=file.filename,
-        prd_content=prd_data["cleaned_text"],
-        additional_context=additional_context,
-        summary=analysis.get("summary"),
-        key_features=analysis.get("key_features"),
-        technical_requirements=analysis.get("technical_requirements"),
-        cost_analysis=analysis.get("cost_analysis"),
-        recommended_tools=analysis.get("recommended_tools"),
-        risks=analysis.get("risks"),
-        timeline=analysis.get("timeline"),
     )
-    db.add(prd_analysis)
-    db.commit()
-    db.refresh(prd_analysis)
-
-    # Generate architectures
-    architectures = await architecture_generator.generate_architectures(
-        prd_content=prd_data["cleaned_text"], project_name=project.name, analysis=analysis
-    )
-
-    # Store architectures
-    stored_architectures = []
-    for arch_type in ["recommended", "alternative"]:
-        if arch_type in architectures:
-            arch_data = architectures[arch_type]
-            architecture = Architecture(
-                project_id=project_id,
-                name=arch_data.get("name", f"{arch_type.capitalize()} Architecture"),
-                description=arch_data.get("description", ""),
-                architecture_type=arch_type,
-                mermaid_code=arch_data.get("mermaid_code", ""),
-                cost_analysis=analysis.get("cost_analysis"),
-                tools_recommended=analysis.get("recommended_tools"),
-                pros=arch_data.get("pros", []),
-                cons=arch_data.get("cons", []),
-                estimated_cost=arch_data.get("estimated_cost", ""),
-                complexity=arch_data.get("complexity", "medium"),
-                time_to_implement=arch_data.get("time_to_implement", ""),
-            )
-            db.add(architecture)
-            db.commit()
-            db.refresh(architecture)
-            stored_architectures.append(architecture.to_dict())
-
-    return {"analysis": prd_analysis.to_dict(), "architectures": stored_architectures}
 
 
 @router.post("/analyze-text")
@@ -145,66 +223,17 @@ async def analyze_prd_text(
     Analyze PRD from text input (requires auth)
     Returns: PRD analysis and generated architectures
     """
-    # Verify project exists
     project = db.query(Project).filter(Project.id == request.project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Analyze PRD with AI
-    analysis = await architecture_generator.analyze_prd(
+    return await _run_prd_analysis_pipeline(
+        db=db,
+        project=project,
         prd_content=request.prd_content,
-        project_name=project.name,
-        additional_context=request.additional_context,
-    )
-
-    # Store PRD analysis
-    prd_analysis = PRDAnalysis(
-        project_id=request.project_id,
+        additional_context=request.additional_context or "",
         filename=None,
-        prd_content=request.prd_content,
-        additional_context=request.additional_context,
-        summary=analysis.get("summary"),
-        key_features=analysis.get("key_features"),
-        technical_requirements=analysis.get("technical_requirements"),
-        cost_analysis=analysis.get("cost_analysis"),
-        recommended_tools=analysis.get("recommended_tools"),
-        risks=analysis.get("risks"),
-        timeline=analysis.get("timeline"),
     )
-    db.add(prd_analysis)
-    db.commit()
-    db.refresh(prd_analysis)
-
-    # Generate architectures
-    architectures = await architecture_generator.generate_architectures(
-        prd_content=request.prd_content, project_name=project.name, analysis=analysis
-    )
-
-    # Store architectures
-    stored_architectures = []
-    for arch_type in ["recommended", "alternative"]:
-        if arch_type in architectures:
-            arch_data = architectures[arch_type]
-            architecture = Architecture(
-                project_id=request.project_id,
-                name=arch_data.get("name", f"{arch_type.capitalize()} Architecture"),
-                description=arch_data.get("description", ""),
-                architecture_type=arch_type,
-                mermaid_code=arch_data.get("mermaid_code", ""),
-                cost_analysis=analysis.get("cost_analysis"),
-                tools_recommended=analysis.get("recommended_tools"),
-                pros=arch_data.get("pros", []),
-                cons=arch_data.get("cons", []),
-                estimated_cost=arch_data.get("estimated_cost", ""),
-                complexity=arch_data.get("complexity", "medium"),
-                time_to_implement=arch_data.get("time_to_implement", ""),
-            )
-            db.add(architecture)
-            db.commit()
-            db.refresh(architecture)
-            stored_architectures.append(architecture.to_dict())
-
-    return {"analysis": prd_analysis.to_dict(), "architectures": stored_architectures}
 
 
 @router.get("/projects/{project_id}/architectures")
@@ -699,3 +728,243 @@ async def preview_generated_tickets(
         "sprint_recommendation": ticket_result.get("sprint_recommendation", ""),
         "developers": developers,
     }
+
+
+def _slugify_filename(name: str) -> str:
+    """Conservative slug for use inside Content-Disposition filename."""
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "_", name or "project").strip("_")
+    return slug or "project"
+
+
+def _empty_starter_suggestions(week_dates: list[date]) -> dict:
+    """Pre-filled scaffold for the no-PRD path.
+
+    Includes one MILESTONE (parser.py rejects files without any milestone
+    week dates), two EPICs, and two TASKs under each — every column populated
+    so the user can see the expected shape and replace cells as they go.
+
+    All effort/week-hours math clamps to the available week range so the
+    file passes parser.py's effort_mismatch check on re-upload regardless
+    of how short the user's date window is.
+    """
+    weeks = [w.isoformat() for w in week_dates]
+    n = len(weeks)
+
+    def task_weeks(start: int, span: int, per_week: int) -> tuple[float, dict[str, float]]:
+        """Distribute `per_week` hours across `span` consecutive weeks
+        starting at index `start`. Clamps to the available range so the
+        sum always equals effort_hrs even with very short windows."""
+        end = min(start + span, n)
+        # If start is past the end of the range, clamp to the last week.
+        if end <= start:
+            return float(per_week), {weeks[-1]: float(per_week)}
+        wh = {weeks[i]: float(per_week) for i in range(start, end)}
+        return sum(wh.values()), wh
+
+    t1_total, t1_wh = task_weeks(0, 1, 8)
+    t2_total, t2_wh = task_weeks(0, 2, 8)
+    t3_total, t3_wh = task_weeks(1, 2, 12)
+    t4_total, t4_wh = task_weeks(2, 2, 12)
+
+    return {
+        "milestones": [{"name": "Phase 1", "start_week": weeks[0], "end_week": weeks[-1]}],
+        "epics": [
+            {
+                "name": "Foundation & Setup",
+                "milestone": "Phase 1",
+                "description": "Initial scaffolding, environment, and developer tooling.",
+            },
+            {
+                "name": "Core Features",
+                "milestone": "Phase 1",
+                "description": "Primary user-facing functionality.",
+            },
+        ],
+        "tasks": [
+            {
+                "name": "Project scaffolding",
+                "description": "Set up repo structure, base frameworks, and folder conventions.",
+                "milestone": "Phase 1",
+                "epic": "Foundation & Setup",
+                "priority": "High",
+                "effort_hrs": t1_total,
+                "week_hours": t1_wh,
+                "assignee": "Jane Doe",
+            },
+            {
+                "name": "CI/CD pipeline",
+                "description": "Lint, test, and deploy pipelines for the main branches.",
+                "milestone": "Phase 1",
+                "epic": "Foundation & Setup",
+                "priority": "Medium",
+                "effort_hrs": t2_total,
+                "week_hours": t2_wh,
+                "assignee": "John Smith",
+            },
+            {
+                "name": "User authentication",
+                "description": "Login, signup, and session management.",
+                "milestone": "Phase 1",
+                "epic": "Core Features",
+                "priority": "High",
+                "effort_hrs": t3_total,
+                "week_hours": t3_wh,
+                "assignee": "Jane Doe",
+            },
+            {
+                "name": "Dashboard UI",
+                "description": "Primary landing dashboard with key metrics.",
+                "milestone": "Phase 1",
+                "epic": "Core Features",
+                "priority": "Medium",
+                "effort_hrs": t4_total,
+                "week_hours": t4_wh,
+                "assignee": "John Smith",
+            },
+        ],
+    }
+
+
+@router.post("/projects/{project_id}/generate-roadmap-template")
+async def generate_roadmap_template(
+    project_id: int,
+    request: GenerateRoadmapTemplateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Generate a roadmap .xlsx template.
+
+    If the project has a PRD analysis, the LLM seeds the file with suggested
+    milestones / epics / tasks. Otherwise the user gets a blank scaffold with
+    the correct columns and one placeholder milestone — they fill it in and
+    re-upload via POST /api/roadmap/parse-file.
+    """
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    try:
+        start_date = date.fromisoformat(request.start_date)
+        end_date = date.fromisoformat(request.end_date)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400, detail="start_date and end_date must be YYYY-MM-DD"
+        ) from e
+
+    if end_date < start_date:
+        raise HTTPException(status_code=400, detail="end_date must be on or after start_date")
+
+    week_dates = build_week_dates(start_date, end_date)
+    if not week_dates:
+        raise HTTPException(status_code=400, detail="Date range produced zero weeks")
+
+    prd_analysis = (
+        db.query(PRDAnalysis)
+        .filter(PRDAnalysis.project_id == project_id)
+        .order_by(PRDAnalysis.created_at.desc())
+        .first()
+    )
+
+    # Two paths: AI-seeded (PRD exists) vs blank scaffold (no PRD).
+    # The blank scaffold path skips the LLM entirely and skips persistence —
+    # there's nothing AI-derived to save.
+    if prd_analysis is None:
+        suggestions = _empty_starter_suggestions(week_dates)
+        persist = False
+    else:
+        prd_data = prd_analysis.to_dict()
+        # to_dict() omits prd_content for size reasons; load it from the row so
+        # the LLM gets the full text.
+        prd_data["prd_content"] = prd_analysis.prd_content
+
+        try:
+            suggestions = await roadmap_generator.generate_suggestions(
+                prd_analysis=prd_data,
+                project_name=project.name,
+                week_dates=week_dates,
+                sprint_weeks=request.sprint_weeks,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=502, detail=str(e)) from e
+        except Exception as e:
+            raise HTTPException(
+                status_code=500, detail=f"Failed to generate roadmap suggestions: {str(e)}"
+            ) from e
+        persist = True
+
+    # Persist (upsert latest) before rendering, so a transient render error
+    # doesn't lose the AI output. Only applies to the AI-seeded path.
+    if persist:
+        existing = (
+            db.query(RoadmapTemplate).filter(RoadmapTemplate.project_id == project_id).first()
+        )
+        if existing:
+            existing.start_date = start_date
+            existing.end_date = end_date
+            existing.sprint_weeks = request.sprint_weeks
+            existing.suggestions = suggestions
+            existing.updated_at = datetime.utcnow()
+        else:
+            existing = RoadmapTemplate(
+                project_id=project_id,
+                start_date=start_date,
+                end_date=end_date,
+                sprint_weeks=request.sprint_weeks,
+                suggestions=suggestions,
+            )
+            db.add(existing)
+        db.commit()
+
+    xlsx_bytes = roadmap_generator.build_xlsx(suggestions, week_dates)
+
+    filename = f"{_slugify_filename(project.name)}_roadmap_template.xlsx"
+    return StreamingResponse(
+        io.BytesIO(xlsx_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/projects/{project_id}/roadmap-template")
+def get_roadmap_template(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return metadata for the saved roadmap template, or 404 if none exists."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    template = db.query(RoadmapTemplate).filter(RoadmapTemplate.project_id == project_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="No roadmap template saved for this project")
+
+    return template.to_dict()
+
+
+@router.get("/projects/{project_id}/roadmap-template/download")
+def download_roadmap_template(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Re-render the saved roadmap template and stream the .xlsx."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    template = db.query(RoadmapTemplate).filter(RoadmapTemplate.project_id == project_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="No roadmap template saved for this project")
+
+    week_dates = build_week_dates(template.start_date, template.end_date)
+    xlsx_bytes = roadmap_generator.build_xlsx(template.suggestions, week_dates)
+
+    filename = f"{_slugify_filename(project.name)}_roadmap_template.xlsx"
+    return StreamingResponse(
+        io.BytesIO(xlsx_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

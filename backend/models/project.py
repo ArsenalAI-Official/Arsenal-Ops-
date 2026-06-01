@@ -65,6 +65,12 @@ class Project(Base):
     prd_analyses = relationship(
         "PRDAnalysis", back_populates="project", cascade="all, delete-orphan"
     )
+    roadmap_template = relationship(
+        "RoadmapTemplate",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
     goals = relationship("ProjectGoal", back_populates="project", cascade="all, delete-orphan")
     project_milestones = relationship(
         "ProjectMilestone", back_populates="project", cascade="all, delete-orphan"

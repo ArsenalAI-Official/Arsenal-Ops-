@@ -15,37 +15,35 @@ from logging_config import setup_logger
 logger = setup_logger("roadmap_ai_parser")
 
 
-# Lazy initialization of Azure OpenAI client to prevent startup crashes
+# Lazy initialization of the OpenAI client to prevent startup crashes
 _client = None
 
 
 def get_openai_client():
-    """Get or create the Azure OpenAI client"""
+    """Get or create the OpenAI client"""
     global _client
     if _client is None:
         try:
-            from openai import AzureOpenAI
+            from openai import OpenAI
 
-            _client = AzureOpenAI(
-                azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
-                api_key=os.getenv("AZURE_OPENAI_API_KEY", ""),
-                api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview"),
+            _client = OpenAI(
+                api_key=os.getenv("OPENAI_API_KEY", ""),
                 timeout=90.0,
             )
         except Exception as e:
-            logger.warning(f"Failed to initialize Azure OpenAI client: {e}")
+            logger.warning(f"Failed to initialize OpenAI client: {e}")
             _client = None
     return _client
 
 
-DEPLOYMENT_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini")
+MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 
 class RoadmapAIParser:
     """AI service for intelligently parsing roadmap Excel files regardless of structure"""
 
     def __init__(self):
-        self.deployment = DEPLOYMENT_NAME
+        self.model = MODEL_NAME
 
     @property
     def client(self):
@@ -64,7 +62,7 @@ class RoadmapAIParser:
             Structured roadmap data in standard format (matches parser.py output)
         """
         if not self.client:
-            raise ValueError("LLM client not initialized. Check AZURE_OPENAI_API_KEY.")
+            raise ValueError("LLM client not initialized. Check OPENAI_API_KEY.")
 
         prompt = f"""You are an expert at parsing product roadmap Excel files in any format.
 
@@ -159,12 +157,12 @@ Return ONLY the JSON object, no explanations."""
 
         try:
             client = self.client
-            deployment = self.deployment
+            model = self.model
 
-            # Use asyncio.to_thread to call synchronous Azure OpenAI in async context
+            # Use asyncio.to_thread to call the synchronous OpenAI client in async context
             response = await asyncio.to_thread(
                 lambda: client.chat.completions.create(
-                    model=deployment,
+                    model=model,
                     messages=[
                         {
                             "role": "system",

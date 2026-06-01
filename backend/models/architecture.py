@@ -5,7 +5,17 @@ Architecture Model - Stores generated architecture designs for projects
 import sys
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import relationship
 
 sys.path.append("..")
@@ -117,4 +127,53 @@ class PRDAnalysis(Base):
             "risks": self.risks or [],
             "timeline": self.timeline or [],
             "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class RoadmapTemplate(Base):
+    """Latest AI-generated roadmap template for a project.
+
+    Only one row per project — the POST /generate-roadmap-template endpoint
+    upserts. The xlsx is not stored; we re-render from ``suggestions`` on
+    download so the renderer stays the single source of truth.
+    """
+
+    __tablename__ = "roadmap_templates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(
+        Integer,
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
+    # Planning window the AI was asked to fit the roadmap into.
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
+    sprint_weeks = Column(Integer, nullable=False, default=2)
+
+    # Structured AI output (milestones, epics, tasks) — same shape the
+    # renderer in services/roadmap_generator.py expects.
+    suggestions = Column(JSON, nullable=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    project = relationship("Project", back_populates="roadmap_template")
+
+    def to_dict(self):
+        suggestions = self.suggestions or {}
+        return {
+            "id": self.id,
+            "project_id": self.project_id,
+            "start_date": self.start_date.isoformat() if self.start_date else None,
+            "end_date": self.end_date.isoformat() if self.end_date else None,
+            "sprint_weeks": self.sprint_weeks,
+            "milestone_count": len(suggestions.get("milestones") or []),
+            "epic_count": len(suggestions.get("epics") or []),
+            "task_count": len(suggestions.get("tasks") or []),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

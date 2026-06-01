@@ -22,12 +22,10 @@ services:
         fromDatabase:
           name: productmind-db
           property: connectionString
-      - key: AZURE_OPENAI_API_KEY
+      - key: OPENAI_API_KEY
         sync: false # Set manually in Render dashboard
-      - key: AZURE_OPENAI_ENDPOINT
-        sync: false # Set manually in Render dashboard
-      - key: AZURE_OPENAI_DEPLOYMENT_NAME
-        value: gpt-4o
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
       - key: GITHUB_TOKEN
         sync: false # Set manually in Render dashboard (optional)
       - key: SMTP_HOST

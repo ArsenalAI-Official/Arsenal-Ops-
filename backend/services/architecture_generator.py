@@ -7,30 +7,28 @@ import json
 import os
 from typing import Any
 
-# Lazy initialization of Azure OpenAI client to prevent startup crashes
+# Lazy initialization of the OpenAI client to prevent startup crashes
 _client = None
 
 
 def get_openai_client():
-    """Get or create the Azure OpenAI client"""
+    """Get or create the OpenAI client"""
     global _client
     if _client is None:
         try:
-            from openai import AzureOpenAI
+            from openai import OpenAI
 
-            _client = AzureOpenAI(
-                azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
-                api_key=os.getenv("AZURE_OPENAI_API_KEY", ""),
-                api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview"),
+            _client = OpenAI(
+                api_key=os.getenv("OPENAI_API_KEY", ""),
                 timeout=90.0,
             )
         except Exception as e:
-            print(f"[WARNING] Failed to initialize Azure OpenAI client: {e}")
+            print(f"[WARNING] Failed to initialize OpenAI client: {e}")
             _client = None
     return _client
 
 
-DEPLOYMENT_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini")
+DEPLOYMENT_NAME = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 
 class ArchitectureGenerator:
