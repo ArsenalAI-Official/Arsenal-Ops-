@@ -252,6 +252,7 @@ const AIPlanningModal = ({
   // Select architecture
   const handleSelectArchitecture = async (archId: number) => {
     setSelectedArchitectureId(archId);
+    if (!project) return;
     try {
       await apiFetch(`/api/prd/architectures/${archId}/select`, { method: 'POST' });
       // Reflect the selection on ProjectDetail (project.selected_architecture).
@@ -265,6 +266,10 @@ const AIPlanningModal = ({
   // preview/commit flow. The PRDAnalysis and selected architecture are already
   // persisted server-side; we just invalidate caches and close.
   const handleSaveAndClose = () => {
+    if (!project) {
+      onClose();
+      return;
+    }
     invalidateProjectScope(queryClient, project.id);
     toast.success('PRD analysis saved. You can resume any time.');
     onClose();
@@ -1245,12 +1250,14 @@ const AIPlanningModal = ({
         )}
       </div>
 
-      <GenerateRoadmapModal
-        open={generateTemplateOpen}
-        onOpenChange={setGenerateTemplateOpen}
-        projectId={project.id}
-        projectName={project.name}
-      />
+      {project && (
+        <GenerateRoadmapModal
+          open={generateTemplateOpen}
+          onOpenChange={setGenerateTemplateOpen}
+          projectId={project.id}
+          projectName={project.name}
+        />
+      )}
     </div>
   );
 };
