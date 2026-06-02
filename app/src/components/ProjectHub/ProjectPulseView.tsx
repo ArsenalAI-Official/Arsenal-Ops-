@@ -928,7 +928,11 @@ const ForecastVsActualsCard: React.FC<{ pulse: PulseData }> = ({ pulse }) => {
 /* -------------------------------------------------------------------- */
 /*  PROJECT PULSE VIEW — Variant E (Combined / recommended)             */
 /* -------------------------------------------------------------------- */
-const ProjectPulseView: React.FC<{ pulse: PulseData }> = ({ pulse }) => {
+// React.memo so this parent bails out when ProjectDetail re-renders for
+// unrelated reasons — its `pulse` prop is referentially stable (useMergedPulse
+// memoizes it), so the already-memoized child charts stop re-rendering too.
+// When pulse actually changes (sync/override), identity changes and it re-renders.
+const ProjectPulseView: React.FC<{ pulse: PulseData }> = React.memo(({ pulse }) => {
   return (
     <div className="space-y-5">
       {/* Page header — breadcrumb + title + subtitle (Variant E) */}
@@ -960,6 +964,8 @@ const ProjectPulseView: React.FC<{ pulse: PulseData }> = ({ pulse }) => {
       <ForecastVsActualsCard pulse={pulse} />
     </div>
   );
-};
+});
+
+ProjectPulseView.displayName = 'ProjectPulseView';
 
 export default ProjectPulseView;

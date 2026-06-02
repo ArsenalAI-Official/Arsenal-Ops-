@@ -6,7 +6,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 sys.path.append("..")
 from database import get_db
@@ -129,7 +129,18 @@ def list_employees(db: Session = Depends(get_db)):
     """Get all internal employees/developers. External users (created via
     Admin → Users → Add User) are intentionally excluded — they live in the
     Users tab, not the Employees tab."""
-    developers = db.query(Developer).filter(Developer.is_external.is_(False)).all()
+    # selectinload (NOT joinedload) both collections: joinedload-ing two
+    # collections would produce a projects × work_items cartesian product.
+    # selectinload issues 2 extra batched queries → 3 total regardless of count.
+    developers = (
+        db.query(Developer)
+        .options(
+            selectinload(Developer.projects),
+            selectinload(Developer.assigned_work_items),
+        )
+        .filter(Developer.is_external.is_(False))
+        .all()
+    )
 
     result = []
     for dev in developers:
@@ -546,7 +557,17 @@ class ProjectResponse(BaseModel):
 )
 def list_all_projects(db: Session = Depends(get_db)):
     """Get all projects with stats for admin"""
-    projects = db.query(Project).all()
+    # selectinload (NOT joinedload) both collections to avoid a
+    # work_items × developers cartesian product; 3 queries total regardless
+    # of project count (was 1 + 2N from per-project lazy loads).
+    projects = (
+        db.query(Project)
+        .options(
+            selectinload(Project.work_items),
+            selectinload(Project.developers),
+        )
+        .all()
+    )
 
     result = []
     for project in projects:

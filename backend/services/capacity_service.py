@@ -176,6 +176,30 @@ def compute_capacity_breakdown(
         )
         total_logged_by_item = {wid: int(total or 0) for wid, total in rows}
 
+    # This-week logged hours per work item BY THIS DEVELOPER, batched into one
+    # grouped query. Previously this was a per-ticket query issued inside the
+    # loop below — an O(tickets) N+1 that dominated the admin capacity endpoint
+    # (O(developers * tickets) round-trips). developer_id is fixed for this
+    # call, so grouping by work_item_id alone yields the same per-ticket sum.
+    # Missing keys default to 0 to preserve the bucket/basis logic below.
+    this_week_logged_by_item: dict[int, int] = {}
+    if item_by_id:
+        week_rows = (
+            db.query(
+                TimeEntry.work_item_id,
+                func.coalesce(func.sum(TimeEntry.hours), 0).label("total"),
+            )
+            .filter(
+                TimeEntry.developer_id == developer_id,
+                TimeEntry.logged_at >= week_start,
+                TimeEntry.logged_at <= week_end,
+                TimeEntry.work_item_id.in_(item_by_id.keys()),
+            )
+            .group_by(TimeEntry.work_item_id)
+            .all()
+        )
+        this_week_logged_by_item = {wid: int(total or 0) for wid, total in week_rows}
+
     in_progress_hours = 0
     in_review_hours = 0
     done_hours = 0
@@ -188,18 +212,10 @@ def compute_capacity_breakdown(
         if bucket is None:
             continue
 
-        # Logged hours this week by THIS developer on this ticket.
-        logged_rows = (
-            db.query(TimeEntry.hours)
-            .filter(
-                TimeEntry.work_item_id == item.id,
-                TimeEntry.developer_id == developer_id,
-                TimeEntry.logged_at >= week_start,
-                TimeEntry.logged_at <= week_end,
-            )
-            .all()
-        )
-        logged_sum = sum((h or 0) for (h,) in logged_rows)
+        # Logged hours this week by THIS developer on this ticket. Sourced from
+        # the single grouped query precomputed above (was an O(tickets) per-item
+        # query here). Missing keys → 0, preserving the bucket/basis logic below.
+        logged_sum = this_week_logged_by_item.get(item.id, 0)
 
         is_current_holder = item.assignee_id == developer_id
 

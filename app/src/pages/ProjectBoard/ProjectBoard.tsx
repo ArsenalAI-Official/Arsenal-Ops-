@@ -440,7 +440,9 @@ const ProjectBoard = () => {
     queryFn: () => apiFetch<Sprint[]>(`/api/workitems/projects/${id}/sprints`),
     enabled: !!id,
   });
-  const sprints = sprintsQuery.data ?? [];
+  // Stable ref so the list-view memos below (orderedListSprints, listViewGroups)
+  // actually hold instead of busting on a fresh [] every render.
+  const sprints = useMemo(() => sprintsQuery.data ?? [], [sprintsQuery.data]);
 
   const developersQuery = useQuery<Array<{ id: number; name: string; email: string }>>({
     queryKey: ['developers'],
@@ -591,51 +593,79 @@ const ProjectBoard = () => {
     setter((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]));
   };
 
-  // Sprint grouping for list view
-  const listViewToday = new Date().toISOString().split('T')[0];
-  const isSprintCompleted = (s: Sprint) =>
-    s.status === 'completed' || (s.end_date != null && s.end_date < listViewToday);
-  const isSprintActive = (s: Sprint) =>
-    s.status === 'active' ||
-    (s.start_date != null &&
-      s.start_date <= listViewToday &&
-      s.end_date != null &&
-      s.end_date >= listViewToday);
+  // Sprint grouping for list view. `listViewToday` only needs day granularity,
+  // so compute it once per mount (also satisfies react-hooks/purity, which
+  // forbids a bare new Date() in the render body).
+  const listViewToday = useMemo(() => new Date().toISOString().split('T')[0], []);
+  // Hoisted out of the per-row list map below (was a `new Date()` allocated for
+  // every row + a react-hooks/purity violation). Day granularity is enough.
+  const todayMidnightMs = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }, []);
+  const isSprintCompleted = useCallback(
+    (s: Sprint) => s.status === 'completed' || (s.end_date != null && s.end_date < listViewToday),
+    [listViewToday],
+  );
+  const isSprintActive = useCallback(
+    (s: Sprint) =>
+      s.status === 'active' ||
+      (s.start_date != null &&
+        s.start_date <= listViewToday &&
+        s.end_date != null &&
+        s.end_date >= listViewToday),
+    [listViewToday],
+  );
 
-  const orderedListSprints = [
-    ...sprints
-      .filter((s) => !isSprintCompleted(s) && isSprintActive(s))
-      .sort(
-        (a, b) => new Date(b.start_date ?? 0).getTime() - new Date(a.start_date ?? 0).getTime(),
-      ),
-    ...sprints
-      .filter((s) => !isSprintCompleted(s) && !isSprintActive(s))
-      .sort(
-        (a, b) => new Date(a.start_date ?? 0).getTime() - new Date(b.start_date ?? 0).getTime(),
-      ),
-    ...(showCompletedSprints
-      ? sprints
-          .filter(isSprintCompleted)
-          .sort((a, b) => new Date(b.end_date ?? 0).getTime() - new Date(a.end_date ?? 0).getTime())
-      : []),
-  ];
+  // Memoized so these filter+sort chains don't re-run on every render (e.g. on
+  // every keystroke/drag) regardless of which view is active.
+  const orderedListSprints = useMemo(
+    () => [
+      ...sprints
+        .filter((s) => !isSprintCompleted(s) && isSprintActive(s))
+        .sort(
+          (a, b) => new Date(b.start_date ?? 0).getTime() - new Date(a.start_date ?? 0).getTime(),
+        ),
+      ...sprints
+        .filter((s) => !isSprintCompleted(s) && !isSprintActive(s))
+        .sort(
+          (a, b) => new Date(a.start_date ?? 0).getTime() - new Date(b.start_date ?? 0).getTime(),
+        ),
+      ...(showCompletedSprints
+        ? sprints
+            .filter(isSprintCompleted)
+            .sort(
+              (a, b) => new Date(b.end_date ?? 0).getTime() - new Date(a.end_date ?? 0).getTime(),
+            )
+        : []),
+    ],
+    [sprints, isSprintCompleted, isSprintActive, showCompletedSprints],
+  );
 
-  const listViewGroups = [
-    ...orderedListSprints.map((sprint) => ({
-      key: String(sprint.id),
-      label: sprint.name,
-      isCompleted: isSprintCompleted(sprint),
-      items: filteredItems.filter((item) => item.sprint_id === sprint.id),
-    })),
-    {
-      key: 'backlog',
-      label: 'Backlog',
-      isCompleted: false,
-      items: filteredItems.filter((item) => !item.sprint_id),
-    },
-  ].filter((g) => g.items.length > 0);
+  const listViewGroups = useMemo(
+    () =>
+      [
+        ...orderedListSprints.map((sprint) => ({
+          key: String(sprint.id),
+          label: sprint.name,
+          isCompleted: isSprintCompleted(sprint),
+          items: filteredItems.filter((item) => item.sprint_id === sprint.id),
+        })),
+        {
+          key: 'backlog',
+          label: 'Backlog',
+          isCompleted: false,
+          items: filteredItems.filter((item) => !item.sprint_id),
+        },
+      ].filter((g) => g.items.length > 0),
+    [orderedListSprints, filteredItems, isSprintCompleted],
+  );
 
-  const listViewEpicGroups = buildEpicGroups(filteredItems, workItems).groups;
+  const listViewEpicGroups = useMemo(
+    () => buildEpicGroups(filteredItems, workItems).groups,
+    [filteredItems, workItems],
+  );
 
   // Group items into ISO weeks by their "relevant date":
   //   completed → completed_at (the week the work actually finished)
@@ -2129,12 +2159,10 @@ const ProjectBoard = () => {
                             const priorityStyle =
                               PRIORITY_COLORS[item.priority] || PRIORITY_COLORS.medium;
                             const dueDate = item.due_date ? parseLocalDate(item.due_date) : null;
-                            const todayMidnight = new Date();
-                            todayMidnight.setHours(0, 0, 0, 0);
                             const isOverdue =
                               !!dueDate &&
                               !item.completed_at &&
-                              dueDate.getTime() < todayMidnight.getTime();
+                              dueDate.getTime() < todayMidnightMs;
                             return (
                               <div
                                 key={item.id}

@@ -12,6 +12,12 @@ interface PulseMonthlyBurnSectionProps {
   onAddRow: () => void;
   onRemoveRow: (i: number) => void;
   onChangeLastActualIdx: (n: number) => void;
+  /** When true, hide the `devAct` column, the actual/partial flag controls,
+   *  and the `lastActualIdx` selector — all now sourced from the derive
+   *  endpoint (sum of time_entries.hours by month + current date). The
+   *  editor passes this on the Settings tab; the read-only viewer's table
+   *  is a separate component path, so this prop is scoped to the editor. */
+  hideDerivedColumns?: boolean;
 }
 
 const PulseMonthlyBurnSection: React.FC<PulseMonthlyBurnSectionProps> = ({
@@ -21,6 +27,7 @@ const PulseMonthlyBurnSection: React.FC<PulseMonthlyBurnSectionProps> = ({
   onAddRow,
   onRemoveRow,
   onChangeLastActualIdx,
+  hideDerivedColumns,
 }) => (
   <Section
     title="Monthly burn"
@@ -32,14 +39,14 @@ const PulseMonthlyBurnSection: React.FC<PulseMonthlyBurnSectionProps> = ({
           <tr>
             <th className="text-left p-1">Month</th>
             <th className="p-1">Dev FC hrs</th>
-            <th className="p-1">Dev Act hrs</th>
+            {!hideDerivedColumns && <th className="p-1">Dev Act hrs</th>}
             <th className="p-1">Dev $</th>
             <th className="p-1">BA $</th>
             <th className="p-1">Mgmt $</th>
             <th className="p-1">Ad $</th>
             <th className="p-1">GTM $</th>
-            <th className="p-1">Actual</th>
-            <th className="p-1">MTD</th>
+            {!hideDerivedColumns && <th className="p-1">Actual</th>}
+            {!hideDerivedColumns && <th className="p-1">MTD</th>}
             <th className="p-1"></th>
           </tr>
         </thead>
@@ -61,18 +68,20 @@ const PulseMonthlyBurnSection: React.FC<PulseMonthlyBurnSectionProps> = ({
                   className="h-8 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-white text-xs w-20"
                 />
               </td>
-              <td className="p-1">
-                <Input
-                  type="number"
-                  value={m.devAct ?? ''}
-                  onChange={(e) =>
-                    onUpdateRow(i, {
-                      devAct: e.target.value === '' ? null : parseFloat(e.target.value) || 0,
-                    })
-                  }
-                  className="h-8 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-white text-xs w-20"
-                />
-              </td>
+              {!hideDerivedColumns && (
+                <td className="p-1">
+                  <Input
+                    type="number"
+                    value={m.devAct ?? ''}
+                    onChange={(e) =>
+                      onUpdateRow(i, {
+                        devAct: e.target.value === '' ? null : parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    className="h-8 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-white text-xs w-20"
+                  />
+                </td>
+              )}
               <td className="p-1">
                 <Input
                   type="number"
@@ -113,20 +122,24 @@ const PulseMonthlyBurnSection: React.FC<PulseMonthlyBurnSectionProps> = ({
                   className="h-8 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-white text-xs w-20"
                 />
               </td>
-              <td className="p-1 text-center">
-                <input
-                  type="checkbox"
-                  checked={!!m.actual}
-                  onChange={(e) => onUpdateRow(i, { actual: e.target.checked })}
-                />
-              </td>
-              <td className="p-1 text-center">
-                <input
-                  type="checkbox"
-                  checked={!!m.partial}
-                  onChange={(e) => onUpdateRow(i, { partial: e.target.checked })}
-                />
-              </td>
+              {!hideDerivedColumns && (
+                <td className="p-1 text-center">
+                  <input
+                    type="checkbox"
+                    checked={!!m.actual}
+                    onChange={(e) => onUpdateRow(i, { actual: e.target.checked })}
+                  />
+                </td>
+              )}
+              {!hideDerivedColumns && (
+                <td className="p-1 text-center">
+                  <input
+                    type="checkbox"
+                    checked={!!m.partial}
+                    onChange={(e) => onUpdateRow(i, { partial: e.target.checked })}
+                  />
+                </td>
+              )}
               <td className="p-1">
                 <Button
                   variant="ghost"
@@ -143,14 +156,16 @@ const PulseMonthlyBurnSection: React.FC<PulseMonthlyBurnSectionProps> = ({
       </table>
     </div>
     <div className="flex items-center justify-between gap-3 flex-wrap">
-      <Field label="Last actual month index (0-based)">
-        <Input
-          type="number"
-          value={lastActualIdx}
-          onChange={(e) => onChangeLastActualIdx(parseInt(e.target.value) || 0)}
-          className="bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-white w-32"
-        />
-      </Field>
+      {!hideDerivedColumns && (
+        <Field label="Last actual month index (0-based)">
+          <Input
+            type="number"
+            value={lastActualIdx}
+            onChange={(e) => onChangeLastActualIdx(parseInt(e.target.value) || 0)}
+            className="bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-white w-32"
+          />
+        </Field>
+      )}
       <Button
         variant="ghost"
         size="sm"

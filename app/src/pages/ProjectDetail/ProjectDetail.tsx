@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@/lib/api';
@@ -20,7 +20,8 @@ import {
   Activity,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { PulseData, loadPulseData } from '@/components/ProjectHub/pulseData';
+import { resetPulseData } from '@/components/ProjectHub/pulseData';
+import { useMergedPulse, usePulseManualData } from '@/components/ProjectHub/usePulseData';
 import { toast, Toaster } from 'sonner';
 // ArchitectureEditor (modal) is lazy here at the parent since edit state lives at the parent.
 // MermaidRenderer is lazy-loaded inside ArchitectureSection.
@@ -280,20 +281,26 @@ const ProjectDetail = () => {
 
   const [sprintsExpanded, setSprintsExpanded] = useState(false);
 
-  // Pulse view data — admin-edited variables, hydrated from localStorage with dummy defaults.
-  // Effect form is intentional: id can change via in-place navigation, so we
-  // re-hydrate from storage when it does. Same pattern as on main.
-  const [pulseData, setPulseData] = useState<PulseData | null>(null);
-  useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-    loadPulseData(id).then((data) => {
-      if (!cancelled) setPulseData(data);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
+  // Pulse view data — editorial overrides loaded from the server (with a
+  // localStorage fallback for offline / first-load). `usePulseManualData`
+  // hides the migration from the legacy `pulse-data:<id>` localStorage key
+  // and exposes a `saveMutation` the Pulse Settings tab uses to persist
+  // edits. The derived overlay below stays read-only.
+  const {
+    manual: pulseData,
+    saveMutation: pulseSaveMutation,
+    updatedAt: pulseUpdatedAt,
+    updatedBy: pulseUpdatedBy,
+  } = usePulseManualData(id);
+
+  // DB-derived overlay on top of the manual override blob. While the derived
+  // endpoint is loading or errors, `mergedPulseData === pulseData` so the
+  // Pulse view stays fully functional in the pure-manual path. The Pulse
+  // Settings tab still edits the raw manual data — derivation is read-only.
+  const { data: mergedPulseData, degradedSections: pulseDegradedSections } = useMergedPulse(
+    id,
+    pulseData,
+  );
 
   // ── react-query: project overview (B1) ──────────────────────────────────
   // One round-trip that returns project + sprints + goals + milestones +
@@ -378,7 +385,10 @@ const ProjectDetail = () => {
     },
     enabled: !!id,
   });
-  const hubWorkItems = hubWorkItemsQuery.data ?? [];
+  // Stable empty-array default so TimelineView/CalendarView row memos (which
+  // depend on these arrays) don't bust on a fresh [] every render. Identity
+  // still changes when query data changes, so live updates keep flowing.
+  const hubWorkItems = useMemo(() => hubWorkItemsQuery.data ?? [], [hubWorkItemsQuery.data]);
 
   // ── react-query: goals ──────────────────────────────────────────────────
   const goalsQuery = useQuery<Goal[]>({
@@ -386,7 +396,7 @@ const ProjectDetail = () => {
     queryFn: () => apiFetch<Goal[]>(`/api/projects/${id}/goals`),
     enabled: !!id,
   });
-  const goals = goalsQuery.data ?? [];
+  const goals = useMemo(() => goalsQuery.data ?? [], [goalsQuery.data]);
 
   // ── react-query: milestones ─────────────────────────────────────────────
   const milestonesQuery = useQuery<Milestone[]>({
@@ -394,7 +404,7 @@ const ProjectDetail = () => {
     queryFn: () => apiFetch<Milestone[]>(`/api/projects/${id}/milestones`),
     enabled: !!id,
   });
-  const milestones = milestonesQuery.data ?? [];
+  const milestones = useMemo(() => milestonesQuery.data ?? [], [milestonesQuery.data]);
 
   // ── react-query: activities ─────────────────────────────────────────────
   const activitiesQuery = useQuery<ActivityItem[]>({
@@ -1084,7 +1094,11 @@ const ProjectDetail = () => {
           {/* Pulse Tab (was Business Review) — gated on `project.pulse` */}
           {activeTab === 'pulse' &&
             (canAccessPulseTab ? (
-              <PulseTab hubLoading={hubLoading} pulseData={pulseData} />
+              <PulseTab
+                hubLoading={hubLoading}
+                pulseData={mergedPulseData}
+                degradedSections={pulseDegradedSections}
+              />
             ) : (
               <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
             ))}
@@ -1092,7 +1106,24 @@ const ProjectDetail = () => {
           {/* Pulse Settings Tab — gated on `project.pulse.settings` capability */}
           {activeTab === 'pulse_settings' &&
             (canAccessPulseSettings && id && pulseData ? (
-              <PulseSettingsTab projectId={id} pulseData={pulseData} onChange={setPulseData} />
+              <PulseSettingsTab
+                projectId={id}
+                pulseData={pulseData}
+                derivedMilestones={mergedPulseData?.milestones ?? pulseData.milestones}
+                updatedAt={pulseUpdatedAt}
+                updatedBy={pulseUpdatedBy}
+                onSave={async (data) => {
+                  await pulseSaveMutation.mutateAsync({ data });
+                }}
+                onReset={async (fixture) => {
+                  // Why server-first: if the PUT fails (e.g. 403 for a
+                  // non-admin), clearing localStorage first would leave the
+                  // user with no recoverable local copy of their data. Only
+                  // wipe the cache after the server confirms the reset.
+                  await pulseSaveMutation.mutateAsync({ data: fixture });
+                  resetPulseData(id);
+                }}
+              />
             ) : (
               <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
             ))}

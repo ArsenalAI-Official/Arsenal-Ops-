@@ -276,7 +276,12 @@ def format_projects_batch(projects: list[Project], db: Session) -> list[dict]:
                 "work_item_stats": stats_by_id.get(project.id, _empty_stats()),
                 "developers": devs_by_id.get(project.id, []),
                 "selected_architecture": selected.to_dict() if selected else None,
-                "architectures": [arch.to_dict() for arch in archs],
+                # NOTE: the full `architectures` list is intentionally NOT
+                # serialized here — no client reads project.architectures (the
+                # AI planning modal loads variants from /api/prd/analyze-*, a
+                # different endpoint). Each arch carries mermaid_code +
+                # cost_analysis JSON, so emitting the whole list bloated every
+                # /api/projects response for nothing. Only the selected one ships.
             }
         )
     return out

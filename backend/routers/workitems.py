@@ -617,7 +617,15 @@ def get_work_item(
     side panel can show "Created By" / "Assigned To" without a follow-up
     lookup. The model's column dict is returned as-is otherwise.
     """
-    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
+    item = (
+        db.query(WorkItem)
+        .options(
+            selectinload(WorkItem.assignee),
+            selectinload(WorkItem.reporter),
+        )
+        .filter(WorkItem.id == item_id)
+        .first()
+    )
     if not item:
         raise HTTPException(status_code=404, detail="Work item not found")
     # Column dict + relation-derived fields. SQLAlchemy auto-serialization via
@@ -1511,6 +1519,15 @@ def get_work_item_time_entries(
     # Get all time entries for this work item
     time_entries = db.query(TimeEntry).filter(TimeEntry.work_item_id == item_id).all()
 
+    # Batch-fetch the developers referenced by these entries in one query, so the
+    # per-entry loop below doesn't issue a Developer SELECT per time entry (N+1).
+    dev_ids = {te.developer_id for te in time_entries if te.developer_id}
+    devs_by_id = (
+        {d.id: d for d in db.query(Developer).filter(Developer.id.in_(dev_ids)).all()}
+        if dev_ids
+        else {}
+    )
+
     # Calculate week boundaries if filtering by this week
     week_start = None
     week_end = None
@@ -1528,11 +1545,7 @@ def get_work_item_time_entries(
         if this_week_only and te.logged_at and not (week_start <= te.logged_at <= week_end):
             continue
 
-        developer = (
-            db.query(Developer).filter(Developer.id == te.developer_id).first()
-            if te.developer_id
-            else None
-        )
+        developer = devs_by_id.get(te.developer_id) if te.developer_id else None
 
         result.append(
             {
@@ -2043,8 +2056,15 @@ def get_project_analytics(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Get all work items for the project
-    items = db.query(WorkItem).filter(WorkItem.project_id == project_id).all()
+    # Get all work items for the project. Eager-load assignee so the
+    # team-performance loop below (item.assignee.name) doesn't lazy-load a
+    # Developer per distinct assignee (N+1).
+    items = (
+        db.query(WorkItem)
+        .options(selectinload(WorkItem.assignee))
+        .filter(WorkItem.project_id == project_id)
+        .all()
+    )
 
     # Status distribution
     status_counts = {}
@@ -2154,8 +2174,16 @@ def get_hours_analytics(
     Authorized for users with the project.pm capability OR project-level admin
     membership on this specific project (matches frontend canSeePMTab logic).
     """
+    from models.developer import Developer
+
+    # Load the project once and reuse it for both the auth check and the body
+    # (previously queried twice on the non-PM path). Auth-check ordering is
+    # preserved exactly: a non-PM/non-admin caller still gets 403 (the
+    # `project and ...` guard yields is_project_admin=False for a missing
+    # project), and the 404 is raised afterwards only for PM/admin callers.
+    project = db.query(Project).filter(Project.id == project_id).first()
+
     if not current_user.has_capability("project.pm"):
-        project = db.query(Project).filter(Project.id == project_id).first()
         is_project_admin = bool(
             project
             and any(d.email == current_user.email and d.is_admin for d in project.developers)
@@ -2165,10 +2193,8 @@ def get_hours_analytics(
                 status_code=403,
                 detail="Missing required capability: project.pm or project-level admin",
             )
-    from models.developer import Developer
 
     # Verify project exists
-    project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -2248,12 +2274,13 @@ def get_hours_analytics(
     developer_ids_from_entries = {te.developer_id for te in all_time_entries if te.developer_id}
     existing_ids = {d.id for d in developers}
 
-    for dev_id in developer_ids_from_entries:
-        if dev_id not in existing_ids:
-            dev = db.query(Developer).filter(Developer.id == dev_id).first()
-            if dev:
-                developers.append(dev)
-                existing_ids.add(dev_id)
+    # Batch-load the contributors who logged time but aren't formal project
+    # members in a single query (was one Developer SELECT per missing id).
+    missing_ids = developer_ids_from_entries - existing_ids
+    if missing_ids:
+        for dev in db.query(Developer).filter(Developer.id.in_(missing_ids)).all():
+            developers.append(dev)
+            existing_ids.add(dev.id)
 
     # Build maps for quick lookup
     work_item_map = {item.id: item for item in items}
@@ -2440,13 +2467,11 @@ def get_hours_analytics(
     # Weekly breakdown - based on calendar weeks (Monday to Sunday)
     from datetime import timedelta
 
-    from models.time_entry import TimeEntry
-
     weekly_hours = []
 
-    # Get all time entries for this project's work items
-    work_item_ids = [item.id for item in items]
-    time_entries = db.query(TimeEntry).filter(TimeEntry.work_item_id.in_(work_item_ids)).all()
+    # Reuse the time entries already loaded above (all_time_entries) instead of
+    # re-running the identical query — same project work items, same transaction.
+    time_entries = all_time_entries
 
     # Calculate weeks from first sprint start (or project start if no sprints) to now
     today = datetime.utcnow()
