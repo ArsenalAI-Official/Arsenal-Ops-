@@ -158,6 +158,47 @@ export const resetPulseData = (projectId: string | number): void => {
   }
 };
 
+/**
+ * Structurally-valid PulseData with every metric zeroed and every list empty.
+ * Used by the "Clear all data" action in PulseSettings — distinct from the
+ * "Reset to dummy data" action, which fills the form with the demo fixture.
+ * The empty payload is a real persisted state (not localStorage absence) so
+ * a refresh doesn't bring fixture/demo data back.
+ */
+export const buildEmptyPulseData = (): PulseData => ({
+  project: { name: '', keyPrefix: '', contractStart: '', launchTarget: '', contractEnd: '' },
+  ledger: [],
+  months: [],
+  lastActualIdx: -1,
+  currentMonthTrackedPct: 0,
+  includedServices: [],
+  summary: {
+    healthScore: 0,
+    healthStatus: 'Healthy',
+    deliveryPct: 0,
+    deliveryCompleted: 0,
+    deliveryTotal: 0,
+    overdueCount: 0,
+    openBugs: 0,
+    criticalOpen: 0,
+    overallCompletion: 0,
+    workItems: 0,
+    pointsCompleted: 0,
+    pointsTotal: 0,
+    activeSprints: 0,
+    monthLabel: '',
+    monthIndex: 0,
+    totalMonths: 0,
+    narrative: '',
+    risksTrendNote: '',
+    peopleTrendNote: '',
+  },
+  risks: [],
+  milestones: [],
+  updates: [],
+  forecastVsActuals: { current: [], last: [], project: [] },
+});
+
 // ───────────────────────────────────────────────────────────────────────────
 // DB-derived overlay types & merge helper
 //
