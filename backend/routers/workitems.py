@@ -2345,9 +2345,7 @@ def get_hours_analytics(
         weekly_logged_history = [
             {
                 "week_start": _ws.isoformat(),
-                "week_end": (
-                    _ws + _td(days=6, hours=23, minutes=59, seconds=59)
-                ).isoformat(),
+                "week_end": (_ws + _td(days=6, hours=23, minutes=59, seconds=59)).isoformat(),
                 "hours": _hrs,
             }
             for _ws, _hrs in sorted(_weekly_bucket.items(), reverse=True)

@@ -1017,7 +1017,9 @@ def test_section8_pm_weekly_history_equals_admin_project_subset(db):
     admin_per_project: dict[str, dict[str, int]] = {}
     for week in admin_hist:
         for proj in week["projects"]:
-            admin_per_project.setdefault(proj["project_name"], {})[week["week_start"]] = proj["hours"]
+            admin_per_project.setdefault(proj["project_name"], {})[week["week_start"]] = proj[
+                "hours"
+            ]
 
     # PM: for each project, the dev's weekly_logged_history must match Admin's
     # project subset week-for-week.
@@ -1034,9 +1036,7 @@ def test_section8_pm_weekly_history_equals_admin_project_subset(db):
 
     # Sanity on the totals:
     #   Admin's overall total this week = 5 (Alpha) + 6 (Beta) + 1 (Gamma) = 12
-    this_week_total = next(
-        w["hours"] for w in admin_hist if w["week_start"] == ws.isoformat()
-    )
+    this_week_total = next(w["hours"] for w in admin_hist if w["week_start"] == ws.isoformat())
     assert this_week_total == 12
 
 
@@ -1058,9 +1058,7 @@ def test_section8_pm_capacity_sums_match_admin_total(db):
     ws, _ = _wb()
 
     # Alpha: in_progress fresh, no logs → 10h capacity
-    wiA = make_work_item(
-        db, pA.id, dev.id, status="in_progress", estimated_hours=10, started_at=ws
-    )
+    wiA = make_work_item(db, pA.id, dev.id, status="in_progress", estimated_hours=10, started_at=ws)
     add_assignment_span(db, wiA.id, dev.id, assigned_at=ws)
 
     # Beta: in_review, 3h logged this week + 5h remaining → 8h capacity
@@ -1122,8 +1120,11 @@ def test_section8_pm_capacity_sums_match_admin_total(db):
     # current-week-only scalar directly, but its weekly_logged_history first
     # entry (this week) must match.
     this_week_admin = next(
-        (w["hours"] for w in admin_row["weekly_logged_history"]
-         if w["week_start"] == ws.isoformat()),
+        (
+            w["hours"]
+            for w in admin_row["weekly_logged_history"]
+            if w["week_start"] == ws.isoformat()
+        ),
         0,
     )
     assert pm_logged_this_week == this_week_admin == 5  # 0 + 3 + 2
@@ -1261,10 +1262,14 @@ def test_section8_multi_week_with_zero_weeks_in_between(db):
 
     admin_by_week = {w["week_start"]: w["hours"] for w in admin_hist}
     pm_by_week = {w["week_start"]: w["hours"] for w in pm_hist}
-    assert admin_by_week == pm_by_week == {
-        ws.isoformat(): 4,
-        week_minus_3.isoformat(): 6,
-    }
+    assert (
+        admin_by_week
+        == pm_by_week
+        == {
+            ws.isoformat(): 4,
+            week_minus_3.isoformat(): 6,
+        }
+    )
 
 
 if __name__ == "__main__":
