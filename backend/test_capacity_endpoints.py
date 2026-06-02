@@ -23,10 +23,9 @@ Run:
     cd backend && /opt/anaconda3/bin/python -m pytest test_capacity_endpoints.py -v
 """
 
-import asyncio
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -35,33 +34,12 @@ from sqlalchemy.orm import sessionmaker
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-# Import every model so SQLAlchemy can resolve relationships when create_all runs.
-from models import (  # noqa: F401
-    project,
-    task,
-    persona,
-    user_story,
-    market_insight,
-    developer,
-    work_item,
-    sprint,
-    architecture,
-    user,
-    time_entry,
-    task_dependency,
-    project_goal,
-    project_milestone,
-    activity_log,
-    project_file,
-    work_item_assignment_history,
-)
-try:
-    from models import custom_restriction, personal_task  # noqa: F401
-except ImportError:
-    pass
-
-from database import Base
-
+# Side-effect import: models/__init__.py registers every model class with
+# Base.metadata so create_all() works. Using a package-level import keeps the
+# module names out of this file's scope so helper params like `project`,
+# `developer`, `work_item` don't shadow them.
+import models  # noqa: F401, E402
+from database import Base  # noqa: E402
 
 # --------------- In-memory SQLite test DB ---------------
 TEST_DB_URL = "sqlite:///:memory:"
