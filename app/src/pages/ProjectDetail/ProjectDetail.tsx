@@ -828,14 +828,33 @@ const ProjectDetail = () => {
     if (!user || !project) return false;
     return (project.developers ?? []).some((dev) => dev.email === user.email && dev.is_admin);
   };
+  // Overview and Tracker are parent tabs in the capability registry — they
+  // have multiple child capabilities (project.overview.*, project.tracker.*).
+  // A user gets the tab if they hold ANY child. Per-section gating inside
+  // each tab is a separate concern (TODO).
+  const canAccessOverviewTab =
+    can('project.overview.prd') ||
+    can('project.overview.architecture') ||
+    can('project.overview.team') ||
+    can('project.overview.resources');
+  const canAccessTrackerTab = can('project.tracker.sprints') || can('project.tracker.analytics');
+  const canAccessCalendarTab = can('project.calendar');
+  const canAccessPulseTab = can('project.pulse');
+  const canAccessActivityTab = can('project.activity');
   const canAccessPulseSettings = can('project.pulse.settings');
 
   const tabs = [
-    { id: 'overview' as TabType, label: 'Overview', icon: Info },
-    { id: 'tracker' as TabType, label: 'Project Tracker', icon: BarChart3 },
-    { id: 'calendar' as TabType, label: 'Timeline', icon: Calendar },
-    { id: 'pulse' as TabType, label: 'Pulse', icon: TrendingUp },
-    { id: 'activity' as TabType, label: 'Activity', icon: Activity },
+    ...(canAccessOverviewTab ? [{ id: 'overview' as TabType, label: 'Overview', icon: Info }] : []),
+    ...(canAccessTrackerTab
+      ? [{ id: 'tracker' as TabType, label: 'Project Tracker', icon: BarChart3 }]
+      : []),
+    ...(canAccessCalendarTab
+      ? [{ id: 'calendar' as TabType, label: 'Timeline', icon: Calendar }]
+      : []),
+    ...(canAccessPulseTab ? [{ id: 'pulse' as TabType, label: 'Pulse', icon: TrendingUp }] : []),
+    ...(canAccessActivityTab
+      ? [{ id: 'activity' as TabType, label: 'Activity', icon: Activity }]
+      : []),
     ...(canAccessPMTab()
       ? [{ id: 'project_manager' as TabType, label: 'Project Manager', icon: Clock }]
       : []),
@@ -912,8 +931,12 @@ const ProjectDetail = () => {
 
       {/* Content */}
       <main className="px-6 py-4 max-w-7xl mx-auto">
-        {/* Overview Tab */}
+        {/* Overview Tab — gated on any project.overview.* capability */}
+        {activeTab === 'overview' && !canAccessOverviewTab && (
+          <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
+        )}
         {activeTab === 'overview' &&
+          canAccessOverviewTab &&
           (hubLoading ? (
             // Full overview skeleton — shown until ALL data (analytics, PRD) is ready
             <div className="space-y-4 animate-pulse">
@@ -1011,8 +1034,8 @@ const ProjectDetail = () => {
               />
             </div>
           ))}
-        {/* Files/Links Section */}
-        {activeTab === 'overview' && !hubLoading && (
+        {/* Files/Links Section — only when overview tab is accessible */}
+        {activeTab === 'overview' && canAccessOverviewTab && !hubLoading && (
           <LinksSection
             links={links}
             isLoading={linksLoading}
@@ -1022,38 +1045,49 @@ const ProjectDetail = () => {
         )}
 
         <Suspense fallback={<div className="text-sm text-muted-foreground p-6">Loading...</div>}>
-          {/* Project Tracker Tab */}
-          {activeTab === 'tracker' && (
-            <TrackerTab
-              hubLoading={hubLoading}
-              sprints={sprints}
-              analytics={analytics}
-              sprintsExpanded={sprintsExpanded}
-              setSprintsExpanded={setSprintsExpanded}
-            />
-          )}
+          {/* Project Tracker Tab — gated on any project.tracker.* capability */}
+          {activeTab === 'tracker' &&
+            (canAccessTrackerTab ? (
+              <TrackerTab
+                hubLoading={hubLoading}
+                sprints={sprints}
+                analytics={analytics}
+                sprintsExpanded={sprintsExpanded}
+                setSprintsExpanded={setSprintsExpanded}
+              />
+            ) : (
+              <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
+            ))}
 
-          {/* Timeline Tab (Calendar + Timeline) */}
-          {activeTab === 'calendar' && (
-            <TimelineTab
-              hubLoading={hubLoading}
-              hubWorkItems={hubWorkItems}
-              milestones={milestones}
-              goals={goals}
-              projectStartDate={project.created_at}
-              projectId={parseInt(id!)}
-              developers={(project.developers ?? []).map((d) => ({
-                id: d.id,
-                name: d.name,
-                email: d.email,
-              }))}
-              onTaskUpdate={handleTaskUpdate}
-              onTaskCreate={handleTaskCreate}
-            />
-          )}
+          {/* Timeline Tab — gated on `project.calendar` */}
+          {activeTab === 'calendar' &&
+            (canAccessCalendarTab ? (
+              <TimelineTab
+                hubLoading={hubLoading}
+                hubWorkItems={hubWorkItems}
+                milestones={milestones}
+                goals={goals}
+                projectStartDate={project.created_at}
+                projectId={parseInt(id!)}
+                developers={(project.developers ?? []).map((d) => ({
+                  id: d.id,
+                  name: d.name,
+                  email: d.email,
+                }))}
+                onTaskUpdate={handleTaskUpdate}
+                onTaskCreate={handleTaskCreate}
+              />
+            ) : (
+              <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
+            ))}
 
-          {/* Pulse Tab (was Business Review) */}
-          {activeTab === 'pulse' && <PulseTab hubLoading={hubLoading} pulseData={pulseData} />}
+          {/* Pulse Tab (was Business Review) — gated on `project.pulse` */}
+          {activeTab === 'pulse' &&
+            (canAccessPulseTab ? (
+              <PulseTab hubLoading={hubLoading} pulseData={pulseData} />
+            ) : (
+              <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
+            ))}
 
           {/* Pulse Settings Tab — gated on `project.pulse.settings` capability */}
           {activeTab === 'pulse_settings' &&
@@ -1063,10 +1097,13 @@ const ProjectDetail = () => {
               <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
             ))}
 
-          {/* Activity Tab */}
-          {activeTab === 'activity' && (
-            <ActivityTab hubLoading={hubLoading} activities={activities} />
-          )}
+          {/* Activity Tab — gated on `project.activity` */}
+          {activeTab === 'activity' &&
+            (canAccessActivityTab ? (
+              <ActivityTab hubLoading={hubLoading} activities={activities} />
+            ) : (
+              <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
+            ))}
 
           {/* Project Manager Tab — capability-gated; only renders when canAccessPMTab() is true */}
           {activeTab === 'project_manager' && canAccessPMTab() && (
