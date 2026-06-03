@@ -699,7 +699,6 @@ SYSTEM_ROLES: list[tuple[str, str, list[str]]] = [
             "project.tracker.*",
             "project.calendar",
             "project.pulse",
-            "project.business",
             "project.activity",
         ],
     ),

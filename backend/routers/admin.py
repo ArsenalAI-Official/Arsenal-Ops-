@@ -167,7 +167,10 @@ def list_employees(db: Session = Depends(get_db)):
 
 @router.get(
     "/developers/capacity",
-    dependencies=[Depends(require_capability("admin.developers_capacity"))],
+    # Re-gated on `admin.employees` after `admin.developers_capacity` was
+    # retired. The capacity payload feeds the Employees tab's per-developer
+    # row, so the right cap is the one that gates that tab.
+    dependencies=[Depends(require_capability("admin.employees"))],
 )
 def get_developers_capacity(db: Session = Depends(get_db)):
     """Get weekly capacity for all developers across all projects.

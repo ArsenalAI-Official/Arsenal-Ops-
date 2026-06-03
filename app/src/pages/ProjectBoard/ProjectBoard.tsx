@@ -44,7 +44,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast, Toaster } from 'sonner';
 import StatusDotMenu from '@/components/ProjectsPage/StatusDotMenu';
-import { useAuth, isProjectManager } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { buildEpicGroups } from '@/lib/hierarchy/buildEpicGroups';
 import { apiFetch, ApiError } from '@/lib/api';
 import { invalidateProjectScope, invalidateWorkItemScope } from '@/lib/invalidations';
@@ -270,7 +270,7 @@ type ListSortKey = 'type' | 'status' | 'priority' | 'assignee' | 'due_date' | 'c
 const ProjectBoard = () => {
   const { id, ticketId } = useParams<{ id: string; ticketId?: string }>();
   const navigate = useNavigate();
-  const { token, user } = useAuth(); // token kept for legacy child components (TimeEntriesTable, TicketContributors, ReviewerView)
+  const { token, user, can } = useAuth(); // token kept for legacy child components (TimeEntriesTable, TicketContributors, ReviewerView)
   const queryClient = useQueryClient();
   const [showReviewer, setShowReviewer] = useState(false);
   // isEditing + editForm + drawer comment state moved into ItemDetailDrawer
@@ -2277,7 +2277,17 @@ const ProjectBoard = () => {
                         </span>
                       </button>
                       {group.key !== 'backlog' &&
-                        (isProjectManager(user) ||
+                        // Sprint complete/close is a managerial action. The
+                        // legacy gate was `isProjectManager(user)` (user.role
+                        // includes 'admin' or 'project_manager'). Capability
+                        // mapping: `project.pm` is granted to the admin role
+                        // (via `*`) and the project_manager role (via
+                        // `project.*`), but NOT to the developer role —
+                        // matching the original intent. Project-level path:
+                        // developers flagged is_admin on this project or
+                        // marked as "Project Creator" keep their existing
+                        // override even without the capability.
+                        (can('project.pm') ||
                           project?.developers?.some(
                             (d) =>
                               d.email === user?.email &&

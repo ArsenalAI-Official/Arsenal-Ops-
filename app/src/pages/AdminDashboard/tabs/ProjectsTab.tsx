@@ -266,14 +266,21 @@ const ProjectsTab = ({
           the EmployeesTab capacity drill-down pattern. */}
       {view === 'reports' && (
         <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.05)] rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[rgba(255,255,255,0.05)]">
-            <div className="flex items-center gap-2">
-              <CalendarRange className="w-4 h-4 text-[#E0B954]" />
-              <h3 className="text-sm font-semibold text-white">Weekly report</h3>
-              {reportRange && <span className="text-xs text-[#737373]">{reportRange}</span>}
+          {/* Legend — replaces the old "Weekly report" header. Clarifies that
+              only the Done column is week-windowed; the other columns are
+              current-state snapshots across the entire project. */}
+          {reportRows.length > 0 && (
+            <div className="px-4 py-2.5 border-b border-[rgba(255,255,255,0.05)] flex items-center gap-2 text-xs text-[#737373]">
+              <CalendarRange className="w-3.5 h-3.5 text-[#E0B954] shrink-0" />
+              <span>
+                <span className="text-[#a3a3a3]">Done</span> shows tickets marked done this week
+                {reportRange && <span className="text-[#525252]"> · {reportRange}</span>}
+              </span>
+              {weeklyReportLoading && (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#737373] ml-auto" />
+              )}
             </div>
-            {weeklyReportLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-[#737373]" />}
-          </div>
+          )}
 
           {weeklyReportLoading && reportRows.length === 0 ? (
             <div className="flex items-center justify-center gap-2 py-8 text-xs text-[#737373]">
@@ -293,7 +300,7 @@ const ProjectsTab = ({
                   <th className="text-right font-medium px-4 py-2 w-32">ToDo / Backlog</th>
                   <th className="text-right font-medium px-4 py-2 w-28">In progress</th>
                   <th className="text-right font-medium px-4 py-2 w-28">In review</th>
-                  <th className="text-right font-medium px-4 py-2 w-32">Done this week</th>
+                  <th className="text-right font-medium px-4 py-2 w-24">Done</th>
                 </tr>
               </thead>
               <tbody>

@@ -35,7 +35,6 @@ interface Sprint {
 interface PMViewProps {
   projectId: string;
   token: string;
-  isAdmin?: boolean;
   sprints?: Sprint[];
 }
 
@@ -140,7 +139,7 @@ interface WeeklyHours {
   items_completed: number;
 }
 
-export default function PMView({ projectId, token, isAdmin = false, sprints = [] }: PMViewProps) {
+export default function PMView({ projectId, token, sprints = [] }: PMViewProps) {
   const { can } = useAuth();
   const [analytics, setAnalytics] = useState<HoursAnalytics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -992,8 +991,9 @@ export default function PMView({ projectId, token, isAdmin = false, sprints = []
         </Button>
       </div>
 
-      {/* Debug Panel */}
-      {showDebugPanel && <HoursDebugPanel projectId={projectId} token={token} isAdmin={isAdmin} />}
+      {/* Debug Panel. HoursDebugPanel reads its own capability internally via
+          `can('admin.projects')` — no isAdmin prop chain needed. */}
+      {showDebugPanel && <HoursDebugPanel projectId={projectId} token={token} />}
     </div>
   );
 }

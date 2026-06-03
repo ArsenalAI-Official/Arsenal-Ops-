@@ -19,23 +19,17 @@ interface User {
   is_first_login: boolean;
 }
 
-// Helper functions for role checking
-export const hasRole = (userRole: string | undefined, requiredRole: string): boolean => {
-  if (!userRole) return false;
-  const roles = userRole.split(',').map((r) => r.trim());
-  return roles.includes(requiredRole);
-};
-
-export const hasAnyRole = (userRole: string | undefined, requiredRoles: string[]): boolean => {
-  if (!userRole) return false;
-  const roles = userRole.split(',').map((r) => r.trim());
-  return requiredRoles.some((role) => roles.includes(role));
-};
-
-export const isAdmin = (user: User | null): boolean => hasRole(user?.role, 'admin');
-export const isProjectManager = (user: User | null): boolean =>
-  hasAnyRole(user?.role, ['admin', 'project_manager']);
-export const isDeveloper = (user: User | null): boolean => hasRole(user?.role, 'developer');
+// Legacy role-string helpers (hasRole / hasAnyRole / isAdmin /
+// isProjectManager / isDeveloper) were removed in the RBAC consolidation.
+// All permission decisions now go through `can(capability_key)` exposed on
+// useAuth(). User.role on the JWT is preserved for backwards compatibility
+// with display surfaces (e.g. the admin Users tab role badges) but MUST NOT
+// drive access control. To check permissions, prefer:
+//
+//     const { can } = useAuth();
+//     if (can('admin.projects')) { ... }
+//
+// See backend/capabilities.py for the registry of valid keys.
 
 // Split into State and Actions contexts so consumers that only need to call
 // actions (e.g. logout button) don't re-render when state values (capabilities,

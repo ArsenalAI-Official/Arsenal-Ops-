@@ -31,28 +31,20 @@ const RouteSpinner = () => (
   </div>
 );
 
-// The admin capability registry (mirrors backend/capabilities.py). A user
-// reaching /admin needs at least ONE of these to see anything useful, so
-// the route guard redirects to / if the user holds none.
-const ADMIN_CAPABILITIES = [
-  'admin.dashboard',
-  'admin.employees',
-  'admin.projects',
-  'admin.users',
-  'admin.roles',
-  'admin.developers_capacity',
-  'admin.restrictions',
-] as const;
+import { hasAnyAdminCapability } from '@/lib/adminCaps';
 
 /**
  * Route guard for /admin. Renders children only when the user holds at least
  * one admin.* capability. Otherwise redirects to the projects home so users
  * can't see the admin shell at all. Backend endpoints are independently
  * gated, so this is defense-in-depth on the client.
+ *
+ * The admin-cap list itself lives in `lib/adminCaps.ts` so this guard and
+ * every Admin-nav-link visibility check stay in sync.
  */
 function RequireAnyAdminCapability({ children }: { children: ReactNode }) {
   const { can } = useAuth();
-  if (ADMIN_CAPABILITIES.some((cap) => can(cap))) return <>{children}</>;
+  if (hasAnyAdminCapability(can)) return <>{children}</>;
   return <Navigate to="/" replace />;
 }
 

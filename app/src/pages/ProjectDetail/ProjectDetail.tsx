@@ -7,18 +7,13 @@ import {
   invalidateWorkItemScope,
   invalidateAdminMembershipImpact,
 } from '@/lib/invalidations';
+import { ArrowLeft, LayoutGrid, ShieldAlert } from 'lucide-react';
 import {
-  ArrowLeft,
-  Info,
-  LayoutGrid,
-  ShieldAlert,
-  Clock,
-  DollarSign,
-  TrendingUp,
-  Calendar,
-  BarChart3,
-  Activity,
-} from 'lucide-react';
+  PROJECT_TABS,
+  PROJECT_TABS_BY_ID,
+  canAccessProjectTab,
+  type ProjectTabId,
+} from '@/lib/projectTabs';
 import { Button } from '@/components/ui/button';
 import { resetPulseData } from '@/components/ProjectHub/pulseData';
 import { useMergedPulse, usePulseManualData } from '@/components/ProjectHub/usePulseData';
@@ -671,14 +666,20 @@ const ProjectDetail = () => {
     demoteFromAdminMutation.mutate(developerId);
   };
 
-  // Check if current user is a system admin or project admin
+  // Check if current user can manage project membership (add/remove devs,
+  // promote/demote project admins). Two paths grant this:
+  //   1. Capability-based: `admin.projects` — system admins managing projects
+  //      from the admin shell.
+  //   2. Project membership: marked is_admin on this specific project's
+  //      developers list. Per-project, can't be expressed as a global cap.
+  //
+  // Replaces the legacy `user.role.includes('admin')` string match — that
+  // check ignored custom roles that had `admin.projects` granted via the
+  // role registry but didn't have 'admin' in their role-string column.
   const isCurrentUserAdmin = () => {
     if (!user || !project) return false;
-    const isSystemAdmin = user.role.includes('admin');
-    const isProjectAdmin = (project.developers ?? []).some(
-      (dev) => dev.email === user.email && dev.is_admin,
-    );
-    return isSystemAdmin || isProjectAdmin;
+    if (can('admin.projects')) return true;
+    return (project.developers ?? []).some((dev) => dev.email === user.email && dev.is_admin);
   };
 
   // ── mutation: save architecture ─────────────────────────────────────────
@@ -828,50 +829,27 @@ const ProjectDetail = () => {
     );
   }
 
-  // PM tab access: capability-gated for system roles (admin / PM grant
-  // `project.pm`), with a project-membership fallback so a developer marked
-  // `is_admin` on this specific project also sees the tab. The
-  // project-admin case isn't expressible as a global capability, so it
-  // stays as an inline check on top of the role-based grant.
-  const canAccessPMTab = () => {
-    if (can('project.pm')) return true;
-    if (!user || !project) return false;
-    return (project.developers ?? []).some((dev) => dev.email === user.email && dev.is_admin);
-  };
-  // Overview and Tracker are parent tabs in the capability registry — they
-  // have multiple child capabilities (project.overview.*, project.tracker.*).
-  // A user gets the tab if they hold ANY child. Per-section gating inside
-  // each tab is a separate concern (TODO).
-  const canAccessOverviewTab =
-    can('project.overview.prd') ||
-    can('project.overview.architecture') ||
-    can('project.overview.team') ||
-    can('project.overview.resources');
-  const canAccessTrackerTab = can('project.tracker.sprints') || can('project.tracker.analytics');
-  const canAccessCalendarTab = can('project.calendar');
-  const canAccessPulseTab = can('project.pulse');
-  const canAccessActivityTab = can('project.activity');
-  const canAccessPulseSettings = can('project.pulse.settings');
+  // Project-admin membership flag — needed for tabs that have
+  // `allowProjectAdmin: true` in the registry (currently just PM). Computed
+  // once here instead of inside each tab's gate so the per-tab check stays
+  // simple. False when user/project aren't loaded yet.
+  const isProjectAdmin = !!(
+    user &&
+    project &&
+    (project.developers ?? []).some((dev) => dev.email === user.email && dev.is_admin)
+  );
 
-  const tabs = [
-    ...(canAccessOverviewTab ? [{ id: 'overview' as TabType, label: 'Overview', icon: Info }] : []),
-    ...(canAccessTrackerTab
-      ? [{ id: 'tracker' as TabType, label: 'Project Tracker', icon: BarChart3 }]
-      : []),
-    ...(canAccessCalendarTab
-      ? [{ id: 'calendar' as TabType, label: 'Timeline', icon: Calendar }]
-      : []),
-    ...(canAccessPulseTab ? [{ id: 'pulse' as TabType, label: 'Pulse', icon: TrendingUp }] : []),
-    ...(canAccessActivityTab
-      ? [{ id: 'activity' as TabType, label: 'Activity', icon: Activity }]
-      : []),
-    ...(canAccessPMTab()
-      ? [{ id: 'project_manager' as TabType, label: 'Project Manager', icon: Clock }]
-      : []),
-    ...(canAccessPulseSettings
-      ? [{ id: 'pulse_settings' as TabType, label: 'Pulse Settings', icon: DollarSign }]
-      : []),
-  ];
+  /** Single per-tab access check used by both the tab strip and the URL-
+   *  direct-access content guard. Looks up the spec from the registry —
+   *  if the tab id is unknown (shouldn't happen, just defensive), denies. */
+  const canAccessTab = (id: ProjectTabId): boolean => {
+    const spec = PROJECT_TABS_BY_ID[id];
+    return spec ? canAccessProjectTab(spec, can, isProjectAdmin) : false;
+  };
+
+  // Tab strip — filter the registry by access. Order and labels come from
+  // the registry, so adding a new tab there automatically surfaces here.
+  const tabs = PROJECT_TABS.filter((spec) => canAccessTab(spec.id));
 
   // Filter out developers already in project
   const availableDevelopers = allDevelopers.filter(
@@ -942,11 +920,11 @@ const ProjectDetail = () => {
       {/* Content */}
       <main className="px-6 py-4 max-w-7xl mx-auto">
         {/* Overview Tab — gated on any project.overview.* capability */}
-        {activeTab === 'overview' && !canAccessOverviewTab && (
+        {activeTab === 'overview' && !canAccessTab('overview') && (
           <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
         )}
         {activeTab === 'overview' &&
-          canAccessOverviewTab &&
+          canAccessTab('overview') &&
           (hubLoading ? (
             // Full overview skeleton — shown until ALL data (analytics, PRD) is ready
             <div className="space-y-4 animate-pulse">
@@ -1045,7 +1023,7 @@ const ProjectDetail = () => {
             </div>
           ))}
         {/* Files/Links Section — only when overview tab is accessible */}
-        {activeTab === 'overview' && canAccessOverviewTab && !hubLoading && (
+        {activeTab === 'overview' && canAccessTab('overview') && !hubLoading && (
           <LinksSection
             links={links}
             isLoading={linksLoading}
@@ -1057,7 +1035,7 @@ const ProjectDetail = () => {
         <Suspense fallback={<div className="text-sm text-muted-foreground p-6">Loading...</div>}>
           {/* Project Tracker Tab — gated on any project.tracker.* capability */}
           {activeTab === 'tracker' &&
-            (canAccessTrackerTab ? (
+            (canAccessTab('tracker') ? (
               <TrackerTab
                 hubLoading={hubLoading}
                 sprints={sprints}
@@ -1071,7 +1049,7 @@ const ProjectDetail = () => {
 
           {/* Timeline Tab — gated on `project.calendar` */}
           {activeTab === 'calendar' &&
-            (canAccessCalendarTab ? (
+            (canAccessTab('calendar') ? (
               <TimelineTab
                 hubLoading={hubLoading}
                 hubWorkItems={hubWorkItems}
@@ -1093,7 +1071,7 @@ const ProjectDetail = () => {
 
           {/* Pulse Tab (was Business Review) — gated on `project.pulse` */}
           {activeTab === 'pulse' &&
-            (canAccessPulseTab ? (
+            (canAccessTab('pulse') ? (
               <PulseTab
                 hubLoading={hubLoading}
                 pulseData={mergedPulseData}
@@ -1105,7 +1083,7 @@ const ProjectDetail = () => {
 
           {/* Pulse Settings Tab — gated on `project.pulse.settings` capability */}
           {activeTab === 'pulse_settings' &&
-            (canAccessPulseSettings && id && pulseData ? (
+            (canAccessTab('pulse_settings') && id && pulseData ? (
               <PulseSettingsTab
                 projectId={id}
                 pulseData={pulseData}
@@ -1130,14 +1108,14 @@ const ProjectDetail = () => {
 
           {/* Activity Tab — gated on `project.activity` */}
           {activeTab === 'activity' &&
-            (canAccessActivityTab ? (
+            (canAccessTab('activity') ? (
               <ActivityTab hubLoading={hubLoading} activities={activities} />
             ) : (
               <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
             ))}
 
-          {/* Project Manager Tab — capability-gated; only renders when canAccessPMTab() is true */}
-          {activeTab === 'project_manager' && canAccessPMTab() && (
+          {/* Project Manager Tab — capability-gated; only renders when canAccessTab('project_manager') is true */}
+          {activeTab === 'project_manager' && canAccessTab('project_manager') && (
             <ProjectManagerTab hubLoading={hubLoading} projectId={id!} sprints={sprints} />
           )}
         </Suspense>

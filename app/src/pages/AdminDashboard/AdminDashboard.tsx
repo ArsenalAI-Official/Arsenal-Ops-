@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { toast, Toaster } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
+import { PROJECT_TABS } from '@/lib/projectTabs';
 import {
   invalidateProjectScope,
   invalidateAdminMembershipImpact,
@@ -101,15 +102,8 @@ interface Capability {
   description: string;
 }
 
-type AdminTab = 'dashboard' | 'employees' | 'projects' | 'users' | 'developers-capacity' | 'roles';
-const VALID_ADMIN_TABS: AdminTab[] = [
-  'dashboard',
-  'employees',
-  'projects',
-  'users',
-  'developers-capacity',
-  'roles',
-];
+type AdminTab = 'dashboard' | 'employees' | 'projects' | 'users' | 'roles';
+const VALID_ADMIN_TABS: AdminTab[] = ['dashboard', 'employees', 'projects', 'users', 'roles'];
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -1045,33 +1039,167 @@ const AdminDashboard = () => {
     });
   };
 
-  const isCoveredByWildcard = (key: string, grants: string[]): boolean => {
-    if (grants.includes(key)) return false;
+  // Display catalog for the Roles role-editor picker.
+  //
+  // PROJECT items are derived from the single project-tab registry
+  // (`lib/projectTabs.ts`) so adding a tab there automatically surfaces it in
+  // the role editor with the right label, description, grant key, and
+  // sub-rows. The ADMIN group is hand-curated since admin surfaces don't
+  // share the tab abstraction.
+  //
+  // Both surfaces use PM-friendly labels ("Overview", "Timeline") rather
+  // than raw keys; the keys still drive the grant — only the label is
+  // humanized.
+  interface PickerItem {
+    label: string;
+    grant: string;
+    description: string;
+    /** Optional sub-rows shown indented under the parent. When the parent's
+     *  grant (typically a wildcard) is active, children render as covered
+     *  and disabled — to customize, admin unchecks the parent first then
+     *  picks specific child grants. */
+    children?: { label: string; grant: string; description: string }[];
+  }
+
+  const PICKER_CATALOG: {
+    prefix: 'project' | 'admin';
+    label: string;
+    wildcard: string;
+    items: PickerItem[];
+  }[] = useMemo(
+    () => [
+      {
+        prefix: 'project',
+        label: 'Project',
+        wildcard: 'project.*',
+        // Mapped from PROJECT_TABS so the role editor reflects the live
+        // project-tab registry — no duplicated labels/descriptions to drift.
+        items: PROJECT_TABS.map((tab) => ({
+          label: tab.label,
+          grant: tab.picker.grant,
+          description: tab.picker.description,
+          children: tab.picker.children ? [...tab.picker.children] : undefined,
+        })),
+      },
+      {
+        prefix: 'admin',
+        label: 'Admin',
+        wildcard: 'admin.*',
+        items: [
+          {
+            label: 'Dashboard',
+            grant: 'admin.dashboard',
+            description: 'Admin dashboard summary',
+          },
+          {
+            label: 'Employees',
+            grant: 'admin.employees',
+            description: 'Manage employees',
+          },
+          {
+            label: 'Projects',
+            grant: 'admin.projects',
+            description: 'Manage projects from admin',
+          },
+          {
+            label: 'Users',
+            grant: 'admin.users',
+            description: 'Manage users and role assignments',
+          },
+          {
+            label: 'Roles',
+            grant: 'admin.roles',
+            description: 'Manage roles and capability grants',
+          },
+        ],
+      },
+    ],
+    [],
+  );
+
+  /** Strict "is this exact grant or a wildcard ancestor in the grant set?"
+   *  check. Sibling sub-caps and descendants do NOT count.
+   *
+   *  This is the LEAF check — for items that have children (or for groups),
+   *  use `isItemEffectivelyChecked` below which also returns true when
+   *  every child is effectively checked.
+   */
+  const isItemChecked = (grant: string, grants: string[]): boolean => {
     if (grants.includes('*')) return true;
+    if (grants.includes(grant)) return true;
     for (const g of grants) {
-      if (g.endsWith('.*')) {
-        const prefix = g.slice(0, -2);
-        if (key === prefix || key.startsWith(prefix + '.')) return true;
-      }
+      if (!g.endsWith('.*')) continue;
+      const prefix = g.slice(0, -2);
+      // grant is covered when it equals the wildcard's prefix or is a
+      // descendant. e.g. grant='project.pm.*' is covered by g='project.*'
+      // because 'project.pm.*' starts with 'project.'.
+      if (grant === prefix || grant.startsWith(prefix + '.')) return true;
     }
     return false;
   };
 
-  // Group capabilities by top-level prefix for the picker UI.
-  const groupedCapabilities = useMemo(() => {
-    const groups = new Map<string, Capability[]>();
-    for (const cap of capabilityRegistry) {
-      const top = cap.key.split('.')[0];
-      const list = groups.get(top) || [];
-      list.push(cap);
-      groups.set(top, list);
-    }
-    return Array.from(groups.entries()).map(([prefix, caps]) => ({
-      prefix,
-      wildcard: `${prefix}.*`,
-      caps,
-    }));
-  }, [capabilityRegistry]);
+  /** Recursive "effectively checked" — used for the display state of any
+   *  catalog node (group wildcard, top-level item, or child item).
+   *
+   *  Returns true when:
+   *    - The grant is exactly in `grants` or covered by a wildcard ancestor
+   *      (strict path — same as `isItemChecked`), OR
+   *    - The node has children AND every child is effectively checked
+   *      (auto-promote path — e.g. all 3 PM sub-rows checked → "Project
+   *      Manager" parent shows checked; all top-level project items
+   *      checked → "Grant all Project" shows checked).
+   *
+   *  Toggle logic uses this same predicate so clicking a parent that's
+   *  "checked because all children are" cleanly sweeps everything under it.
+   */
+  type CatalogNode = { grant: string; children?: readonly { grant: string }[] };
+
+  const isItemEffectivelyChecked = (node: CatalogNode, grants: string[]): boolean => {
+    if (isItemChecked(node.grant, grants)) return true;
+    if (!node.children || node.children.length === 0) return false;
+    return node.children.every((c) => isItemEffectivelyChecked(c, grants));
+  };
+
+  /** Toggle a catalog item.
+   *
+   *  Uses the EFFECTIVE checked state — so a parent that's showing checked
+   *  only because every child is granted will, on click, sweep those
+   *  children. Same shape works for the group wildcard ("Grant all Project")
+   *  when all top-level items are individually granted.
+   *
+   *  Uncheck: remove the exact grant; for wildcards, also sweep every
+   *  explicit sub-cap underneath. This single sweep handles both the
+   *  "wildcard directly granted" and "all children granted" auto-promote
+   *  paths because both end up with grants under the wildcard prefix.
+   *
+   *  Check: add the grant; for wildcards, sweep redundant explicit sub-caps
+   *  underneath since they're now covered. Keeps `grants` minimal.
+   */
+  const toggleCatalogItem = (node: CatalogNode) => {
+    const { grant } = node;
+    setRoleForm((f) => {
+      const grants = f.capability_keys;
+      const checked = isItemEffectivelyChecked(node, grants);
+      if (checked) {
+        let isUnderRemoved: (g: string) => boolean;
+        if (grant.endsWith('.*')) {
+          const prefix = grant.slice(0, -2);
+          isUnderRemoved = (g) => g === grant || g === prefix || g.startsWith(prefix + '.');
+        } else {
+          isUnderRemoved = (g) => g === grant;
+        }
+        return { ...f, capability_keys: grants.filter((g) => !isUnderRemoved(g)) };
+      }
+      let cleaned: string[];
+      if (grant.endsWith('.*')) {
+        const prefix = grant.slice(0, -2);
+        cleaned = grants.filter((g) => g !== prefix && !g.startsWith(prefix + '.'));
+      } else {
+        cleaned = grants.slice();
+      }
+      return { ...f, capability_keys: [...cleaned, grant] };
+    });
+  };
 
   return (
     <div className="min-h-screen bg-[#080808] text-white">
@@ -1222,9 +1350,11 @@ const AdminDashboard = () => {
         roleForm={roleForm}
         setRoleForm={setRoleForm}
         isSavingRole={isSavingRole}
-        groupedCapabilities={groupedCapabilities}
+        pickerCatalog={PICKER_CATALOG}
         toggleGrant={toggleGrant}
-        isCoveredByWildcard={isCoveredByWildcard}
+        toggleCatalogItem={toggleCatalogItem}
+        isItemChecked={isItemChecked}
+        isItemEffectivelyChecked={isItemEffectivelyChecked}
         toPascalCase={toPascalCase}
         handleSaveRole={handleSaveRole}
       />

@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
+import { hasAnyAdminCapability } from '@/lib/adminCaps';
 import { apiFetch } from '@/lib/api';
 import { invalidateProjectScope } from '@/lib/invalidations';
 
@@ -71,7 +72,7 @@ interface ProjectDetailResponse {
 
 const PersonalTasksPage = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, can } = useAuth();
   const queryClient = useQueryClient();
 
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -399,7 +400,10 @@ const PersonalTasksPage = () => {
                 <span className="text-sm text-[#a3a3a3] hidden md:block">{user.name}</span>
               </div>
             )}
-            {user?.role.includes('admin') && (
+            {/* Admin nav link visibility uses the same admin-cap set as the
+                /admin route guard (RequireAnyAdminCapability in App.tsx).
+                Keeps link + route in sync via lib/adminCaps.ts. */}
+            {hasAnyAdminCapability(can) && (
               <Button
                 variant="ghost"
                 onClick={() => navigate('/admin')}

@@ -1,4 +1,4 @@
-import { Plus, Pencil, Trash2, Shield, KeyRound } from 'lucide-react';
+import { Plus, Pencil, Trash2, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface Role {
@@ -61,9 +61,6 @@ const RolesTab = ({
               <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">
                 Description
               </th>
-              <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">
-                Capabilities
-              </th>
               <th className="text-left text-xs font-medium text-[#737373] py-3 px-4">Users</th>
               <th className="text-right text-xs font-medium text-[#737373] py-3 px-4">Actions</th>
             </tr>
@@ -87,32 +84,6 @@ const RolesTab = ({
                 <td className="py-3 px-4 text-sm text-[#a3a3a3]">
                   {role.description || <span className="text-[#525252]">—</span>}
                 </td>
-                <td className="py-3 px-4 text-sm text-[#a3a3a3]">
-                  {role.capability_keys.length === 0 ? (
-                    <span className="text-[#525252]">None</span>
-                  ) : role.capability_keys.includes('*') ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-[#E0B954]/15 text-[#E0B954]">
-                      <Shield className="w-3 h-3" />
-                      Full access
-                    </span>
-                  ) : (
-                    <div className="flex flex-wrap gap-1 max-w-md">
-                      {role.capability_keys.slice(0, 3).map((k) => (
-                        <span
-                          key={k}
-                          className="text-[10px] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.04)] text-[#a3a3a3] border border-[rgba(255,255,255,0.06)]"
-                        >
-                          {k}
-                        </span>
-                      ))}
-                      {role.capability_keys.length > 3 && (
-                        <span className="text-[10px] text-[#737373] px-1.5 py-0.5">
-                          +{role.capability_keys.length - 3} more
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </td>
                 <td className="py-3 px-4 text-sm text-[#a3a3a3]">{role.user_count ?? 0}</td>
                 <td className="py-3 px-4 text-right">
                   <div className="flex items-center justify-end gap-2">
@@ -120,21 +91,20 @@ const RolesTab = ({
                       variant="ghost"
                       size="sm"
                       onClick={() => onEditRole(role)}
-                      className="text-[#737373] hover:text-white h-8"
+                      className="text-[#737373] hover:text-white h-8 w-8 p-0"
+                      title="Edit role"
                     >
-                      <Pencil className="w-3.5 h-3.5 mr-1" />
-                      Edit
+                      <Pencil className="w-4 h-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => onDeleteRole(role)}
                       disabled={role.is_system || isDeletingRole}
-                      className="text-[#737373] hover:text-red-400 h-8 disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="text-red-400 hover:text-red-300 h-8 w-8 p-0 disabled:opacity-30 disabled:cursor-not-allowed"
                       title={role.is_system ? 'System roles cannot be deleted' : 'Delete role'}
                     >
-                      <Trash2 className="w-3.5 h-3.5 mr-1" />
-                      Delete
+                      <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
                 </td>
