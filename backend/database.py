@@ -48,6 +48,38 @@ def run_migrations():
     from sqlalchemy import text
 
     with engine.connect() as conn:
+        # Migration: Add category_id column to projects (links to
+        # project_categories, ON DELETE SET NULL so removing a category
+        # quietly unassigns its projects). The project_categories table
+        # itself is created by Base.metadata.create_all on first startup
+        # after this model lands.
+        try:
+            result = conn.execute(
+                text("""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = 'projects' AND column_name = 'category_id'
+            """)
+            )
+            if not result.fetchone():
+                print("[MIGRATION] Adding category_id column to projects...")
+                conn.execute(
+                    text("""
+                    ALTER TABLE projects
+                    ADD COLUMN category_id INTEGER
+                    REFERENCES project_categories(id) ON DELETE SET NULL
+                """)
+                )
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_projects_category_id ON projects(category_id)"
+                    )
+                )
+                conn.commit()
+                print("[MIGRATION] category_id column + index added successfully!")
+        except Exception as e:
+            print(f"[MIGRATION ERROR] projects.category_id: {e}")
+
         # Migration: Add logged_hours column to work_items
         try:
             result = conn.execute(

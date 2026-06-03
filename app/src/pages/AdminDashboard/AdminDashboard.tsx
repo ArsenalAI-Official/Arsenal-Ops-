@@ -17,6 +17,10 @@ import UserModal from './modals/UserModal';
 import EditUserModal from './modals/EditUserModal';
 import GitHubModal from './modals/GitHubModal';
 import ProjectMembersModal from './modals/ProjectMembersModal';
+import CategoryManagerModal, {
+  type ProjectCategory,
+  type CategoryFormPayload,
+} from './modals/CategoryManagerModal';
 import EmployeesTab, { type Employee, type DeveloperCapacity } from './tabs/EmployeesTab';
 import DashboardTab from './tabs/DashboardTab';
 import ProjectsTab from './tabs/ProjectsTab';
@@ -49,6 +53,10 @@ interface Project {
   github_repo_urls?: string[];
   github_repo_name: string | null;
   has_github_token: boolean;
+  // Category surface — flat fields populated by GET /api/admin/projects.
+  // null when the project hasn't been assigned to any category.
+  category_id: number | null;
+  category_name: string | null;
 }
 
 interface DashboardStats {
@@ -69,6 +77,23 @@ interface Role {
   user_count?: number;
   created_at?: string;
   updated_at?: string;
+}
+
+interface ProjectWeeklyReportRow {
+  project_id: number;
+  project_name: string;
+  category_id: number | null;
+  category_name: string | null;
+  todo_backlog: number;
+  in_progress: number;
+  in_review: number;
+  done_this_week: number;
+}
+
+interface ProjectWeeklyReport {
+  week_start: string;
+  week_end: string;
+  rows: ProjectWeeklyReportRow[];
 }
 
 interface Capability {
@@ -163,7 +188,19 @@ const AdminDashboard = () => {
     queryFn: () => apiFetch<Project[]>('/api/admin/projects'),
     ...ADMIN_REFETCH,
   });
-  const projects = projectsQuery.data ?? [];
+  // Stabilize the empty default — `data ?? []` creates a new array every
+  // render, which busts the downstream `filteredProjects` useMemo. See
+  // app/CLAUDE.md "Stabilize empty-default arrays".
+  const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
+
+  // Project categories — admin-managed labels for organizing projects.
+  // Same ADMIN_REFETCH cadence as the rest of the admin queries.
+  const categoriesQuery = useQuery<ProjectCategory[]>({
+    queryKey: ['admin', 'projectCategories'],
+    queryFn: () => apiFetch<ProjectCategory[]>('/api/admin/project-categories/'),
+    ...ADMIN_REFETCH,
+  });
+  const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
 
   const usersQuery = useQuery<User[]>({
     queryKey: ['admin', 'users'],
@@ -328,6 +365,117 @@ const AdminDashboard = () => {
   const [addMemberForm, setAddMemberForm] = useState<{ developer_id: string; role: string }>({
     developer_id: '',
     role: 'developer',
+  });
+
+  // Category manager modal + filter state.
+  // categoryFilter values:
+  //   'all'           → no filter (default)
+  //   'uncategorized' → only projects with category_id === null
+  //   '<numeric id>'  → only projects with category_id === Number(value)
+  // The string-id form pairs naturally with a native <select> whose option
+  // values are always strings — avoids a discriminated-union for one dropdown.
+  const [showCategoryManagerModal, setShowCategoryManagerModal] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+
+  // Filtered projects feed into the ProjectsTab card grid. Computed here so
+  // the filter state lives next to the project list and we don't ship a
+  // separate filtering hook into the tab.
+  const filteredProjects = useMemo(() => {
+    if (categoryFilter === 'all') return projects;
+    if (categoryFilter === 'uncategorized') return projects.filter((p) => p.category_id === null);
+    const id = Number(categoryFilter);
+    return Number.isFinite(id) ? projects.filter((p) => p.category_id === id) : projects;
+  }, [projects, categoryFilter]);
+
+  // Weekly report — server-side filtered by the same category filter the card
+  // grid uses. The query key includes `categoryFilter` so React Query refetches
+  // on filter change. We translate the encoded filter into the query-string
+  // params the backend expects (`uncategorized=true` vs `category_id=<id>`).
+  const weeklyReportQuery = useQuery<ProjectWeeklyReport>({
+    queryKey: ['admin', 'projectsWeeklyReport', categoryFilter],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (categoryFilter === 'uncategorized') {
+        params.set('uncategorized', 'true');
+      } else {
+        const id = Number(categoryFilter);
+        if (Number.isFinite(id)) params.set('category_id', String(id));
+      }
+      const qs = params.toString();
+      return apiFetch<ProjectWeeklyReport>(
+        `/api/admin/projects/weekly-report${qs ? `?${qs}` : ''}`,
+      );
+    },
+    ...ADMIN_REFETCH,
+  });
+
+  // ── Category CRUD mutations ───────────────────────────────────────────
+  // Invalidate three keys on any category mutation:
+  //   ['admin','projectCategories'] — drives the manager modal list
+  //   ['admin','projects']          — project cards show category badges
+  //   ['admin','projectsWeeklyReport'] — report rows include category_name
+  // A rename of a category needs to reflow into the cards AND the report;
+  // an assignment change re-buckets which projects show in a filtered report.
+  const invalidateCategoryScope = () => {
+    queryClient.invalidateQueries({ queryKey: ['admin', 'projectCategories'] });
+    queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] });
+    queryClient.invalidateQueries({ queryKey: ['admin', 'projectsWeeklyReport'] });
+  };
+
+  const createCategoryMutation = useMutation({
+    mutationFn: (payload: CategoryFormPayload) =>
+      apiFetch<ProjectCategory>('/api/admin/project-categories/', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      toast.success('Category created');
+      invalidateCategoryScope();
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to create category'),
+  });
+
+  const updateCategoryMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: CategoryFormPayload }) =>
+      apiFetch<ProjectCategory>(`/api/admin/project-categories/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      toast.success('Category updated');
+      invalidateCategoryScope();
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to update category'),
+  });
+
+  const deleteCategoryMutation = useMutation({
+    mutationFn: (id: number) =>
+      apiFetch<void>(`/api/admin/project-categories/${id}`, { method: 'DELETE' }),
+    onSuccess: (_data, deletedId) => {
+      toast.success('Category deleted');
+      // Reset the filter to 'all' ONLY if the active filter was on the
+      // category we just deleted — otherwise a delete of an unrelated
+      // category would silently change the user's filter.
+      setCategoryFilter((current) => (current === String(deletedId) ? 'all' : current));
+      invalidateCategoryScope();
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to delete category'),
+  });
+
+  // Assigning a category to a single project. Uses the existing
+  // PUT /api/projects/{id} surface (extended with category_id support).
+  // Passing null clears the assignment ("uncategorized").
+  const setProjectCategoryMutation = useMutation({
+    mutationFn: ({ projectId, categoryId }: { projectId: number; categoryId: number | null }) =>
+      apiFetch(`/api/projects/${projectId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ category_id: categoryId }),
+      }),
+    onSuccess: () => {
+      invalidateCategoryScope();
+    },
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : 'Failed to update project category'),
   });
 
   const handleEditEmployee = (employee: Employee) => {
@@ -1016,7 +1164,16 @@ const AdminDashboard = () => {
             {activeTab === 'projects' &&
               (canSeeProjects ? (
                 <ProjectsTab
-                  projects={projects}
+                  projects={filteredProjects}
+                  categories={categories}
+                  categoryFilter={categoryFilter}
+                  onCategoryFilterChange={setCategoryFilter}
+                  onOpenCategoryManager={() => setShowCategoryManagerModal(true)}
+                  onSetProjectCategory={(projectId, categoryId) =>
+                    setProjectCategoryMutation.mutate({ projectId, categoryId })
+                  }
+                  weeklyReport={weeklyReportQuery.data ?? null}
+                  weeklyReportLoading={weeklyReportQuery.isLoading}
                   invitingProjectId={invitingProjectId}
                   onEditGitHubSettings={handleEditGitHubSettings}
                   onSendGitHubInvites={handleSendGitHubInvites}
@@ -1208,6 +1365,23 @@ const AdminDashboard = () => {
         handleRemoveProjectMember={handleRemoveProjectMember}
         addMemberPending={addMemberMutation.isPending}
         removeMemberPending={removeMemberMutation.isPending}
+      />
+
+      <CategoryManagerModal
+        open={showCategoryManagerModal}
+        onOpenChange={setShowCategoryManagerModal}
+        categories={categories}
+        isLoading={categoriesQuery.isLoading}
+        isMutating={
+          createCategoryMutation.isPending ||
+          updateCategoryMutation.isPending ||
+          deleteCategoryMutation.isPending
+        }
+        onCreate={(payload) => createCategoryMutation.mutateAsync(payload).then(() => undefined)}
+        onUpdate={(id, payload) =>
+          updateCategoryMutation.mutateAsync({ id, payload }).then(() => undefined)
+        }
+        onDelete={(id) => deleteCategoryMutation.mutateAsync(id).then(() => undefined)}
       />
     </div>
   );

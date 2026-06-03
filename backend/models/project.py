@@ -4,7 +4,7 @@ import enum
 import sys
 from datetime import datetime
 
-from sqlalchemy import JSON, Column, DateTime, Index, Integer, String, Text
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 sys.path.append("..")
@@ -43,6 +43,15 @@ class Project(Base):
     github_repo_name = Column(String(100))  # e.g., "org/repo"
     github_token = Column(String(100))  # Project-specific GitHub token for invitations
 
+    # Optional admin-managed category. ON DELETE SET NULL so removing a
+    # category quietly unassigns its projects rather than blocking or cascading.
+    category_id = Column(
+        Integer,
+        ForeignKey("project_categories.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     end_date = Column(DateTime, nullable=True)  # Project end date
@@ -78,6 +87,7 @@ class Project(Base):
     activity_logs = relationship(
         "ActivityLog", back_populates="project", cascade="all, delete-orphan"
     )
+    category = relationship("ProjectCategory", back_populates="projects", lazy="joined")
 
     # Indexes for common queries
     __table_args__ = (

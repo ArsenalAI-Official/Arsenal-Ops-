@@ -1,5 +1,5 @@
 import { useState, useRef, Dispatch, SetStateAction } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Sparkles,
   Target,
@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import ArchitectureCard from '@/components/ArchitectureCard';
 import { apiFetch } from '@/lib/api';
@@ -116,6 +117,23 @@ const AIPlanningModal = ({
   setIsGenerating,
 }: AIPlanningModalProps) => {
   const queryClient = useQueryClient();
+
+  // Backend rule: one PRD per project. The /analyze-* endpoints 409 if an
+  // analysis already exists. Check up-front so we can disable the Analyze
+  // button + show a tooltip explanation instead of letting the user spend a
+  // file pick + click only to see an error toast.
+  //
+  // The endpoint returns `null` when no analysis exists (not 404), so we
+  // probe with a useQuery and treat truthy data as "already analyzed". The
+  // query auto-disables when project is null, and stays cheap since the
+  // payload is small.
+  const existingPRDQuery = useQuery<unknown>({
+    queryKey: ['prdAnalysisExists', project?.id],
+    queryFn: () => apiFetch(`/api/prd/projects/${project?.id}/analysis`),
+    enabled: !!project?.id,
+  });
+  const hasExistingPRDAnalysis = existingPRDQuery.data != null;
+
   const [aiStep, setAiStep] = useState<AIStep>('upload');
   const [generateTemplateOpen, setGenerateTemplateOpen] = useState(false);
   const [uploadMode, setUploadMode] = useState<'prd' | 'roadmap'>('prd');
@@ -1183,14 +1201,35 @@ const AIPlanningModal = ({
             {aiStep === 'upload' && (
               <>
                 {uploadMode === 'prd' && (
-                  <Button
-                    onClick={handleAnalyzePRD}
-                    disabled={!prdFile && !prdText.trim()}
-                    className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl px-6 font-medium shadow-lg shadow-[#B8872A]/20 disabled:opacity-50"
-                  >
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Analyze PRD
-                  </Button>
+                  /* The backend enforces one PRD per project (409 on second
+                     upload). Disable the button up-front when an analysis
+                     exists and explain why via tooltip. Wrap the button in a
+                     <span> because pointer events don't fire on disabled
+                     buttons — Radix Tooltip needs a hoverable target. */
+                  <TooltipProvider delayDuration={150}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className={hasExistingPRDAnalysis ? 'cursor-not-allowed' : ''}>
+                          <Button
+                            onClick={handleAnalyzePRD}
+                            disabled={hasExistingPRDAnalysis || (!prdFile && !prdText.trim())}
+                            className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl px-6 font-medium shadow-lg shadow-[#B8872A]/20 disabled:opacity-50"
+                            // Pointer events off so the wrapping span's hover
+                            // wins and the tooltip shows even when disabled.
+                            style={hasExistingPRDAnalysis ? { pointerEvents: 'none' } : undefined}
+                          >
+                            <Sparkles className="w-4 h-4 mr-2" />
+                            Analyze PRD
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      {hasExistingPRDAnalysis && (
+                        <TooltipContent>
+                          A PRD analysis already exists for this project!
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
                 {uploadMode === 'roadmap' && (
                   <Button
