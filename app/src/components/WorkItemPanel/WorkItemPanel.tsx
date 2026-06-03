@@ -15,9 +15,13 @@ import {
   Inbox,
   ExternalLink,
   Target,
+  ClipboardList,
+  Link2,
+  List,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { NumberInput } from '@/components/ui/number-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarIcon } from '@/components/ui/calendar';
@@ -248,13 +252,6 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
     if (Number.isNaN(subjectId)) return [];
     return fullWorkItems.filter((wi) => wi.type === 'subtask' && wi.parent_id === subjectId);
   }, [fullWorkItems, item.id]);
-
-  const parentOfCurrent = useMemo(() => {
-    if (item.type !== 'subtask' || item.parent_id == null) return null;
-    return fullWorkItems.find((wi) => Number(wi.id) === item.parent_id) ?? null;
-  }, [fullWorkItems, item.type, item.parent_id]);
-
-  const canHaveSubtasks = item.type === 'task' || item.type === 'user_story' || item.type === 'bug';
 
   // ─── Compact mutations ─────────────────────────────────────────────────────
   const invalidateWorkItems = () => {
@@ -505,7 +502,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       <div className={item.type === 'epic' ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-2 gap-3'}>
         <div>
           <label className="text-xs font-medium text-[#737373] block mb-1.5">Story Points</label>
-          <Input type="number" defaultValue={item.story_points}
+          <NumberInput defaultValue={item.story_points}
             onChange={(e) => setEditForm((f) => ({ ...f, story_points: parseInt(e.target.value) || 0 }))}
             className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
           />
@@ -513,7 +510,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
         {item.type !== 'epic' && (
           <div>
             <label className="text-xs font-medium text-[#737373] block mb-1.5">Allocated Hours</label>
-            <Input type="number" defaultValue={item.assigned_hours}
+            <NumberInput defaultValue={item.assigned_hours}
               onChange={(e) => setEditForm((f) => ({ ...f, assigned_hours: parseInt(e.target.value) || 0 }))}
               className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
             />
@@ -524,14 +521,14 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-medium text-[#737373] block mb-1.5">Logged Hours</label>
-            <Input type="number" defaultValue={item.logged_hours || 0}
+            <NumberInput defaultValue={item.logged_hours || 0}
               onChange={(e) => setEditForm((f) => ({ ...f, logged_hours: parseInt(e.target.value) || 0 }))}
               className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
             />
           </div>
           <div>
             <label className="text-xs font-medium text-[#737373] block mb-1.5">Remaining Hours</label>
-            <Input type="number" defaultValue={item.remaining_hours}
+            <NumberInput defaultValue={item.remaining_hours}
               onChange={(e) => setEditForm((f) => ({ ...f, remaining_hours: parseInt(e.target.value) || 0 }))}
               className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
             />
@@ -674,14 +671,14 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="text-xs font-medium text-[#737373] block mb-1.5">Story Points</label>
-          <Input type="number" value={editForm.story_points ?? 0}
+          <NumberInput value={editForm.story_points ?? 0}
             onChange={(e) => setEditForm({ ...editForm, story_points: parseInt(e.target.value) || 0 })}
             className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
           />
         </div>
         <div>
           <label className="text-xs font-medium text-[#737373] block mb-1.5">Allocated Hours</label>
-          <Input type="number" value={editForm.assigned_hours ?? 0}
+          <NumberInput value={editForm.assigned_hours ?? 0}
             onChange={(e) => setEditForm({ ...editForm, assigned_hours: parseInt(e.target.value) || 0 })}
             className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
           />
@@ -804,7 +801,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
                   const allocated = item.assigned_hours || 0;
                   const logged = item.logged_hours || 0;
                   const pct = allocated > 0 ? Math.min(100, Math.round((logged / allocated) * 100)) : 0;
-                  const barColor = pct >= 100 ? '#EF4444' : pct >= 75 ? '#F59E0B' : '#34D399';
+                  const barColor = pct >= 100 ? '#34D399' : '#E0B954';
                   return (
                     <div className="space-y-1.5">
                       <div className="flex justify-between text-xs text-[#8A8A8A]">
@@ -823,6 +820,34 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
         )}
       </div>
 
+      {/* Log Work Hours — directly below hours card for quick access */}
+      {(props.variant === 'compact' || isAssignee) && item.type !== 'epic' && (
+        <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
+          <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">Log Work Hours</div>
+          <div className="flex items-center gap-3">
+            <label htmlFor={`log-hours-${item.id}`} className="sr-only">Hours to log</label>
+            <NumberInput
+              ref={logHoursRef}
+              id={`log-hours-${item.id}`}
+              placeholder="Hours"
+              min="0"
+              max="24"
+              className="w-28 h-9"
+              aria-describedby={`log-hours-status-${item.id}`}
+            />
+            <Button size="sm" disabled={isLoggingHours} onClick={handleLogHours}
+              className="bg-[#E0B954] hover:bg-[#C79E3B] text-[#080808] font-medium rounded-xl h-9 disabled:opacity-50">
+              <Clock className="w-3.5 h-3.5 mr-1.5" />
+              {isLoggingHours ? 'Logging…' : 'Log Hours'}
+            </Button>
+          </div>
+          <p id={`log-hours-status-${item.id}`} className="text-xs text-[#8A8A8A] mt-2">
+            <span className="text-white font-medium">{item.logged_hours || 0}h</span> logged ·{' '}
+            <span className="text-white font-medium">{item.remaining_hours}h</span> remaining
+          </p>
+        </div>
+      )}
+
       {/* Metadata rows */}
       <div className="space-y-3">
         {[
@@ -837,7 +862,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
         ))}
       </div>
 
-      {/* Hierarchy — full: clickable rows; compact: key pills */}
+      {/* Hierarchy */}
       {props.variant === 'full' ? renderFullHierarchy() : renderCompactHierarchy()}
 
       {/* Tags */}
@@ -849,35 +874,6 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
               <span key={tag} className="px-2.5 py-1 rounded-lg bg-[rgba(255,255,255,0.05)] text-[#a3a3a3] text-xs">{tag}</span>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Log Hours (assignee only) */}
-      {isAssignee && (
-        <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
-          <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">Log Work Hours</div>
-          <div className="flex items-center gap-3">
-            <label htmlFor={`log-hours-${item.id}`} className="sr-only">Hours to log</label>
-            <Input
-              ref={logHoursRef}
-              id={`log-hours-${item.id}`}
-              type="number"
-              placeholder="Hours"
-              min="0"
-              max="24"
-              className="w-24 h-9 bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
-              aria-describedby={`log-hours-status-${item.id}`}
-            />
-            <Button size="sm" disabled={isLoggingHours} onClick={handleLogHours}
-              className="bg-[#E0B954] hover:bg-[#C79E3B] text-white rounded-xl h-9 disabled:opacity-50">
-              <Clock className="w-3.5 h-3.5 mr-1.5" />
-              {isLoggingHours ? 'Logging…' : 'Log Hours'}
-            </Button>
-          </div>
-          <p id={`log-hours-status-${item.id}`} className="text-xs text-[#8A8A8A] mt-2">
-            <span className="text-white font-medium">{item.logged_hours || 0}h</span> logged ·{' '}
-            <span className="text-white font-medium">{item.remaining_hours}h</span> remaining
-          </p>
         </div>
       )}
 
@@ -913,93 +909,228 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       {/* Sprint actions (full only) */}
       {props.variant === 'full' && renderSprintActions()}
 
-      {/* Subtasks (full only) */}
-      {props.variant === 'full' && canHaveSubtasks && renderSubtasks()}
-
-      {/* Parent backlink (full only, when item is a subtask) */}
-      {props.variant === 'full' && item.type === 'subtask' && parentOfCurrent && (
-        <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
-          <div className="text-xs text-[#8A8A8A] mb-2 font-medium">Parent</div>
-          <div className="flex items-center gap-2 text-sm px-2.5 py-1.5 rounded-lg bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)]">
-            <span className="text-[11px] text-[#737373] font-mono">{parentOfCurrent.key}</span>
-            <span className="text-sm text-white truncate">{parentOfCurrent.title}</span>
-          </div>
-        </div>
-      )}
-
       {/* Comments */}
       {renderComments()}
     </>
   );
 
-  // ─── Full hierarchy (clickable rows) ──────────────────────────────────────
+  // ─── Full hierarchy (clickable rows, type-specific) ──────────────────────
   const renderFullHierarchy = () => {
     if (props.variant !== 'full') return null;
     const subjectType = item.type;
     const subjectId = parseInt(item.id);
-    const showEpicSlot = fieldSupportsType(subjectType, 'epic_id');
-    const showParentSlot = fieldSupportsType(subjectType, 'parent_id');
-    const showChildSlot = subjectType !== 'bug';
-    if (!showEpicSlot && !showParentSlot && !showChildSlot) return null;
 
-    const epicItem = item.epic_id ? fullWorkItems.find((wi) => wi.id === item.epic_id?.toString()) : null;
-    const parentItem = item.parent_id ? fullWorkItems.find((wi) => wi.id === item.parent_id?.toString()) : null;
-    const childItems = !showChildSlot ? [] : subjectType === 'epic'
-      ? fullWorkItems.filter((wi) => wi.epic_id === subjectId)
-      : fullWorkItems.filter((wi) => wi.parent_id === subjectId);
-
-    const renderRow = (target: WorkItem) => (
-      <div key={target.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] cursor-pointer hover:border-[rgba(255,255,255,0.08)] transition-colors"
-        onClick={() => props.variant === 'full' && props.navigate(`/project/${props.projectId}/board/${target.id}`)}>
-        <span className="text-xs font-mono text-[#737373] flex-shrink-0">{target.key}</span>
-        <span className="text-sm text-[#a3a3a3] truncate flex-1">{target.title}</span>
-        <span className="text-xs text-[#555] capitalize flex-shrink-0">{target.status.replace(/_/g, ' ')}</span>
-      </div>
-    );
+    const epicItem = item.epic_id
+      ? fullWorkItems.find((wi) => wi.id === item.epic_id?.toString())
+      : null;
 
     const renderEmpty = (label: string) => (
       <div className="flex items-center px-3 py-2 rounded-lg border border-dashed border-[rgba(255,255,255,0.06)] text-xs text-[#555] italic">{label}</div>
     );
 
+    const sectionLabel = (icon: React.ReactNode, text: string) => (
+      <div className="flex items-center gap-1.5 text-xs text-[#8A8A8A] mb-2 font-medium">{icon}{text}</div>
+    );
+
+    // Palette for assignee avatars — deterministic by id
+    const AVATAR_PALETTE = ['#E0B954', '#60A5FA', '#34D399', '#A78BFA', '#F97316', '#F43F5E'];
+    const avatarColor = (id: number | null | undefined) =>
+      AVATAR_PALETTE[(id ?? 0) % AVATAR_PALETTE.length];
+
+    // Shared row renderer: avatar · key+title+progress · status badge
+    const renderItemRow = (target: WorkItem) => {
+      const sc = STATUS_CONFIG[target.status as keyof typeof STATUS_CONFIG];
+      const allocated = target.assigned_hours ?? 0;
+      const logged = target.logged_hours ?? 0;
+      const pct = allocated > 0 ? Math.min(100, Math.round((logged / allocated) * 100)) : 0;
+      const barColor = logged >= allocated && allocated > 0 ? '#34D399' : '#E0B954';
+      const ac = avatarColor(target.assignee_id);
+      return (
+        <div key={target.id}
+          className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)] cursor-pointer hover:border-[rgba(255,255,255,0.1)] transition-colors"
+          onClick={() => props.navigate(`/project/${props.projectId}/board/${target.id}`)}>
+          {/* Assignee avatar */}
+          <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-semibold"
+            style={{ backgroundColor: `${ac}20`, color: ac }}>
+            {target.assignee ? target.assignee.charAt(0).toUpperCase() : '—'}
+          </div>
+          {/* Key + title + progress bar */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <span className="text-[11px] text-[#737373] font-mono flex-shrink-0">{target.key}</span>
+              <span className="text-sm text-white truncate">{target.title}</span>
+            </div>
+            <div className="h-1 rounded-full bg-[rgba(255,255,255,0.07)] overflow-hidden">
+              <div className="h-full rounded-full transition-all"
+                style={{ width: `${pct}%`, backgroundColor: barColor }} />
+            </div>
+          </div>
+          {/* Hours — logged / allocated */}
+          <span className="text-[11px] text-[#555] flex-shrink-0 tabular-nums">
+            {logged}h/{allocated}h
+          </span>
+          {/* Status badge — right end */}
+          <span className="text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wide flex-shrink-0"
+            style={{ color: sc?.color ?? '#737373', background: `${sc?.color ?? '#737373'}1a` }}>
+            {sc?.label ?? target.status}
+          </span>
+        </div>
+      );
+    };
+
+    // ── Subtask: only show parent ("Belongs to") ──────────────────────────
+    if (subjectType === 'subtask') {
+      const parentItem = item.parent_id
+        ? fullWorkItems.find((wi) => wi.id === item.parent_id?.toString())
+        : null;
+      return (
+        <div>
+          {sectionLabel(<Link2 className="w-3.5 h-3.5" />, 'Belongs to')}
+          {parentItem ? renderItemRow(parentItem) : renderEmpty('No parent')}
+        </div>
+      );
+    }
+
+    // ── Epic: show member items ───────────────────────────────────────────
+    if (subjectType === 'epic') {
+      const epicItems = fullWorkItems.filter((wi) => wi.epic_id === subjectId);
+      return (
+        <div>
+          {sectionLabel(<List className="w-3.5 h-3.5" />, `Items${epicItems.length > 0 ? ` (${epicItems.length})` : ''}`)}
+          {epicItems.length > 0
+            ? <div className="space-y-1.5">{epicItems.map(renderItemRow)}</div>
+            : renderEmpty('No items')}
+        </div>
+      );
+    }
+
+    // ── Bug / Story / Task: Epic + Subtasks (with creation form) ─────────
+    const subtasks = subtasksOfCurrent;
     return (
       <div className="space-y-4">
-        {showEpicSlot && (
-          <div>
-            <div className="text-xs text-[#8A8A8A] mb-2 font-medium">Epic</div>
-            {epicItem ? renderRow(epicItem) : renderEmpty('No epic')}
+        <div>
+          {sectionLabel(<Target className="w-3.5 h-3.5" />, 'Epic')}
+          {epicItem ? renderItemRow(epicItem) : renderEmpty('No epic')}
+        </div>
+        <div>
+          {sectionLabel(
+            <ClipboardList className="w-3.5 h-3.5" />,
+            `Subtasks${subtasks.length > 0 ? ` (${subtasks.length})` : ''}`,
+          )}
+          {subtasks.length > 0 && (
+            <div className="space-y-1.5 mb-3">
+              {subtasks.map(renderItemRow)}
+            </div>
+          )}
+          {/* Inline subtask creation */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Input value={newSubtask.title}
+                onChange={(e) => setNewSubtask((f) => ({ ...f, title: e.target.value }))}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && newSubtask.title.trim()) { e.preventDefault(); createSubtask.mutate({ ...newSubtask, title: newSubtask.title.trim() }); } }}
+                placeholder="Add a subtask…" disabled={createSubtask.isPending}
+                className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-9 text-sm flex-1"
+              />
+              <Button size="sm"
+                onClick={() => { if (newSubtask.title.trim()) createSubtask.mutate({ ...newSubtask, title: newSubtask.title.trim() }); }}
+                disabled={createSubtask.isPending || !newSubtask.title.trim()}
+                className="bg-[#E0B954] hover:bg-[#C79E3B] text-[#080808] rounded-xl h-9 px-3 disabled:opacity-50">
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                {createSubtask.isPending ? 'Adding…' : 'Add'}
+              </Button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <select value={newSubtask.assignee_id ?? ''} title="Assignee"
+                onChange={(e) => setNewSubtask((f) => ({ ...f, assignee_id: e.target.value ? parseInt(e.target.value) : null }))}
+                disabled={createSubtask.isPending}
+                className="h-9 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl px-2 text-xs">
+                <option value="">Unassigned</option>
+                {props.project?.developers?.map((dev) => (
+                  <option key={dev.id} value={dev.id}>{dev.name}</option>
+                ))}
+              </select>
+              <NumberInput min={0} max={999} value={newSubtask.estimated_hours}
+                onChange={(e) => setNewSubtask((f) => ({ ...f, estimated_hours: e.target.value }))}
+                disabled={createSubtask.isPending} placeholder="Hours" title="Estimated hours"
+                className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-9 text-xs"
+              />
+              <Popover open={showSubtaskDatePicker} onOpenChange={setShowSubtaskDatePicker}>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="outline" disabled={createSubtask.isPending}
+                    className="h-9 w-full justify-start text-left font-normal bg-[#0A0A14] border-[rgba(255,255,255,0.08)] text-white hover:bg-[#0A0A14] hover:text-white rounded-xl px-2 text-xs">
+                    <Calendar className="w-3.5 h-3.5 mr-1.5 flex-shrink-0" />
+                    <span className="truncate">{newSubtask.due_date ? parseLocalDate(newSubtask.due_date)?.toLocaleDateString() : 'Pick a date'}</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent side="bottom" align="start" className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(224,185,84,0.2)]">
+                  <CalendarIcon mode="single" selected={parseLocalDate(newSubtask.due_date || undefined)}
+                    onSelect={(date) => { if (date) { setNewSubtask((f) => ({ ...f, due_date: formatLocalDate(date) })); setShowSubtaskDatePicker(false); } }}
+                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                    classNames={CALENDAR_CLASS_NAMES}
+                  />
+                  {newSubtask.due_date && (
+                    <div className="pt-2 mt-2 border-t border-[rgba(255,255,255,0.05)]">
+                      <Button size="sm" variant="ghost"
+                        onClick={() => { setNewSubtask((f) => ({ ...f, due_date: '' })); setShowSubtaskDatePicker(false); }}
+                        className="w-full text-xs text-[#737373] hover:text-white">Clear date</Button>
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
-        )}
-        {showParentSlot && (
-          <div>
-            <div className="text-xs text-[#8A8A8A] mb-2 font-medium">Belongs to</div>
-            {parentItem ? renderRow(parentItem) : renderEmpty('No parent')}
-          </div>
-        )}
-        {showChildSlot && (
-          <div>
-            <div className="text-xs text-[#8A8A8A] mb-2 font-medium">Child Items{childItems.length > 0 ? ` (${childItems.length})` : ''}</div>
-            {childItems.length > 0 ? <div className="space-y-1.5">{childItems.map(renderRow)}</div> : renderEmpty('No child items')}
-          </div>
-        )}
+        </div>
       </div>
     );
   };
 
-  // ─── Compact hierarchy (static key pills) ─────────────────────────────────
+  // ─── Compact hierarchy (same card style as full, key-only rows) ──────────
   const renderCompactHierarchy = () => {
-    if (!item.epic_key && !item.parent_key) return null;
+    const openInBoard = (relatedId: number | null | undefined) => {
+      if (props.variant !== 'compact' || !relatedId) return;
+      const projectId = (item as WorkItem & { project_id?: number }).project_id ?? 0;
+      props.onOpenInBoard(projectId, String(relatedId));
+    };
+
+    // key-only card: type-icon avatar · key · external link
+    const renderCompactRow = (
+      keyStr: string,
+      relatedId: number | null | undefined,
+      Icon: React.ElementType,
+      accentColor: string,
+    ) => (
+      <div
+        className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)] cursor-pointer hover:border-[rgba(255,255,255,0.1)] transition-colors"
+        onClick={() => openInBoard(relatedId)}
+      >
+        <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center"
+          style={{ backgroundColor: `${accentColor}20` }}>
+          <Icon className="w-3.5 h-3.5" style={{ color: accentColor }} />
+        </div>
+        <span className="text-sm font-mono text-[#a3a3a3] flex-1">{keyStr}</span>
+        <ExternalLink className="w-3.5 h-3.5 text-[#555] flex-shrink-0" />
+      </div>
+    );
+
+    if (item.type === 'subtask') {
+      if (!item.parent_key) return null;
+      return (
+        <div>
+          <div className="flex items-center gap-1.5 text-xs text-[#8A8A8A] mb-2 font-medium">
+            <Link2 className="w-3.5 h-3.5" /> Belongs to
+          </div>
+          {renderCompactRow(item.parent_key, item.parent_id, Link2, '#E0B954')}
+        </div>
+      );
+    }
+
+    if (!item.epic_key) return null;
     return (
       <div>
-        <div className="text-xs text-[#8A8A8A] mb-2 font-medium">Hierarchy</div>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {item.epic_key && (
-            <span className="flex items-center gap-1 px-2 py-1 rounded-md bg-[rgba(167,139,250,0.12)] text-[#A78BFA] text-xs">Epic: {item.epic_key}</span>
-          )}
-          {item.epic_key && item.parent_key && <span className="text-[#555] text-xs">›</span>}
-          {item.parent_key && (
-            <span className="flex items-center gap-1 px-2 py-1 rounded-md bg-[rgba(224,185,84,0.10)] text-[#E0B954] text-xs">Parent: {item.parent_key}</span>
-          )}
+        <div className="flex items-center gap-1.5 text-xs text-[#8A8A8A] mb-2 font-medium">
+          <Target className="w-3.5 h-3.5" /> Epic
         </div>
+        {renderCompactRow(item.epic_key, item.epic_id, Target, '#A78BFA')}
       </div>
     );
   };
@@ -1038,89 +1169,6 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
               {sprints.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           )}
-        </div>
-      </div>
-    );
-  };
-
-  // ─── Subtasks (full only) ──────────────────────────────────────────────────
-  const renderSubtasks = () => {
-    if (props.variant !== 'full') return null;
-    return (
-      <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-xs text-[#8A8A8A] font-semibold uppercase tracking-wider">
-            Subtasks{subtasksOfCurrent.length > 0 && <span className="ml-1.5 text-[#525252]">({subtasksOfCurrent.length})</span>}
-          </div>
-        </div>
-        {subtasksOfCurrent.length > 0 && (
-          <ul className="space-y-1.5 mb-3">
-            {subtasksOfCurrent.map((st) => {
-              const stConf = STATUS_CONFIG[st.status as keyof typeof STATUS_CONFIG];
-              return (
-                <li key={st.id} className="flex items-center gap-2 text-sm px-2.5 py-1.5 rounded-lg bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)]">
-                  <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded"
-                    style={{ color: stConf?.color ?? '#737373', background: `${stConf?.color ?? '#737373'}1a` }}>
-                    {stConf?.label ?? st.status}
-                  </span>
-                  <span className="text-[11px] text-[#737373] font-mono">{st.key}</span>
-                  <span className="text-sm text-white truncate flex-1">{st.title}</span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Input value={newSubtask.title} onChange={(e) => setNewSubtask((f) => ({ ...f, title: e.target.value }))}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && newSubtask.title.trim()) { e.preventDefault(); createSubtask.mutate({ ...newSubtask, title: newSubtask.title.trim() }); } }}
-              placeholder="Add a subtask…" disabled={createSubtask.isPending}
-              className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-9 text-sm flex-1"
-            />
-            <Button size="sm" onClick={() => { if (newSubtask.title.trim()) createSubtask.mutate({ ...newSubtask, title: newSubtask.title.trim() }); }}
-              disabled={createSubtask.isPending || !newSubtask.title.trim()}
-              className="bg-[#E0B954] hover:bg-[#C79E3B] text-[#080808] rounded-xl h-9 px-3 disabled:opacity-50">
-              <Plus className="w-3.5 h-3.5 mr-1" />
-              {createSubtask.isPending ? 'Adding…' : 'Add'}
-            </Button>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <select value={newSubtask.assignee_id ?? ''} onChange={(e) => setNewSubtask((f) => ({ ...f, assignee_id: e.target.value ? parseInt(e.target.value) : null }))}
-              disabled={createSubtask.isPending} title="Assignee"
-              className="h-9 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl px-2 text-xs">
-              <option value="">Unassigned</option>
-              {(props.variant === 'full' ? props.project?.developers : [])?.map((dev) => (
-                <option key={dev.id} value={dev.id}>{dev.name}</option>
-              ))}
-            </select>
-            <Input type="number" min={0} max={999} value={newSubtask.estimated_hours}
-              onChange={(e) => setNewSubtask((f) => ({ ...f, estimated_hours: e.target.value }))}
-              disabled={createSubtask.isPending} placeholder="Hours" title="Estimated hours"
-              className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-9 text-xs"
-            />
-            <Popover open={showSubtaskDatePicker} onOpenChange={setShowSubtaskDatePicker}>
-              <PopoverTrigger asChild>
-                <Button type="button" variant="outline" disabled={createSubtask.isPending}
-                  className="h-9 w-full justify-start text-left font-normal bg-[#0A0A14] border-[rgba(255,255,255,0.08)] text-white hover:bg-[#0A0A14] hover:text-white rounded-xl px-2 text-xs">
-                  <Calendar className="w-3.5 h-3.5 mr-1.5 flex-shrink-0" />
-                  <span className="truncate">{newSubtask.due_date ? parseLocalDate(newSubtask.due_date)?.toLocaleDateString() : 'Pick a date'}</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent side="bottom" align="start" className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(224,185,84,0.2)]">
-                <CalendarIcon mode="single" selected={parseLocalDate(newSubtask.due_date || undefined)}
-                  onSelect={(date) => { if (date) { setNewSubtask((f) => ({ ...f, due_date: formatLocalDate(date) })); setShowSubtaskDatePicker(false); } }}
-                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                  classNames={CALENDAR_CLASS_NAMES}
-                />
-                {newSubtask.due_date && (
-                  <div className="pt-2 mt-2 border-t border-[rgba(255,255,255,0.05)]">
-                    <Button size="sm" variant="ghost" onClick={() => { setNewSubtask((f) => ({ ...f, due_date: '' })); setShowSubtaskDatePicker(false); }}
-                      className="w-full text-xs text-[#737373] hover:text-white">Clear date</Button>
-                  </div>
-                )}
-              </PopoverContent>
-            </Popover>
-          </div>
         </div>
       </div>
     );
