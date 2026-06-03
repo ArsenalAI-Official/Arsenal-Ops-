@@ -178,14 +178,15 @@ const ItemDetailDrawer = ({
 }: ItemDetailDrawerProps) => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  // Only the ticket's assignee may log hours (matches backend enforcement in
-  // routers/workitems.py::log_hours). Resolve the current user's developer id
-  // via project developers and compare against selectedItem.assignee_id.
-  const isAssignee = useMemo(() => {
-    if (!user?.email || !selectedItem.assignee_id) return false;
-    const myDev = allDevelopers.find((d) => d.email === user.email);
-    return !!myDev && myDev.id === selectedItem.assignee_id;
-  }, [user?.email, selectedItem.assignee_id, allDevelopers]);
+  // Current user's developer id — used both to gate the "Log hours" form
+  // (only the ticket's assignee may log; matches backend enforcement in
+  // routers/workitems.py::log_hours) and to power the inline "Assign to me"
+  // button on the Assignee row when the ticket has no assignee.
+  const currentUserDevId = useMemo(() => {
+    if (!user?.email) return null;
+    return allDevelopers.find((d) => d.email === user.email)?.id ?? null;
+  }, [user?.email, allDevelopers]);
+  const isAssignee = !!currentUserDevId && currentUserDevId === selectedItem.assignee_id;
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<WorkItem>>({});
   const [newComment, setNewComment] = useState('');
@@ -990,8 +991,28 @@ const ItemDetailDrawer = ({
 
               {/* Metadata */}
               <div className="space-y-3">
+                {/* Assignee row — pulled out of the generic map so we can
+                    inject an "Assign to me" quick-action when the ticket is
+                    unassigned. Excludes epics (aggregation nodes, never
+                    assigned) and users with no developer row on this project. */}
+                <div className="flex items-center justify-between py-2 border-b border-[rgba(255,255,255,0.03)]">
+                  <span className="text-xs text-[#737373]">Assignee</span>
+                  {selectedItem.assignee_id ? (
+                    <span className="text-sm text-[#f5f5f5]">{selectedItem.assignee}</span>
+                  ) : selectedItem.type !== 'epic' && currentUserDevId ? (
+                    <button
+                      type="button"
+                      onClick={() => onSaveEdit({ assignee_id: currentUserDevId })}
+                      disabled={isSavingEdit}
+                      className="text-xs font-medium px-2.5 py-1 rounded-md bg-[rgba(224,185,84,0.12)] text-[#E0B954] hover:bg-[rgba(224,185,84,0.2)] disabled:opacity-50 transition-colors"
+                    >
+                      Assign to me
+                    </button>
+                  ) : (
+                    <span className="text-sm text-[#f5f5f5]">Unassigned</span>
+                  )}
+                </div>
                 {[
-                  { label: 'Assignee', value: selectedItem.assignee },
                   ...(itemDetail.reporter_name
                     ? [{ label: 'Created By', value: itemDetail.reporter_name }]
                     : []),
