@@ -17,7 +17,7 @@ from models.project import Project
 from models.sprint import Sprint, SprintStatus
 from models.user import User
 from models.work_item import WorkItem, WorkItemStatus, WorkItemType
-from routers.auth import get_current_user
+from routers.auth import get_current_user, require_capability
 from services.email_service import email_service
 from services.hierarchy import validate_hierarchy
 from services.llm_agent import llm_agent
@@ -641,9 +641,9 @@ def create_work_item(
     item: WorkItemCreate,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_capability("project.tracker_write")),
 ):
-    """Create a new work item"""
+    """Create a new work item (requires `project.tracker_write`)."""
     # Get project for key prefix
     project = db.query(Project).filter(Project.id == item.project_id).first()
     if not project:
@@ -1718,9 +1718,9 @@ async def generate_work_items(
 def create_sprint(
     sprint: SprintCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_capability("project.tracker_write")),
 ):
-    """Create a new sprint (requires auth)"""
+    """Create a new sprint (requires `project.tracker_write`)."""
     # Verify project exists
     project = db.query(Project).filter(Project.id == sprint.project_id).first()
     if not project:

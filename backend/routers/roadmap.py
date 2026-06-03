@@ -22,7 +22,7 @@ from models.sprint import Sprint
 from models.user import User
 from models.work_item import WorkItem, WorkItemType
 from parser import parse as parse_roadmap
-from routers.auth import get_current_user
+from routers.auth import require_capability
 from routers.workitems import update_epic_hours
 from services.roadmap_ai_parser import excel_to_readable_text, get_roadmap_ai_parser
 
@@ -120,11 +120,11 @@ async def parse_roadmap_file(
     file: UploadFile = File(...),
     sprint_weeks: int = Form(default=2),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_capability("project.ai.write")),
 ):
     """
-    Upload and parse a roadmap Excel file
-    Returns: Summary of epics, tasks, assignees, timeline, conflicts, warnings, and sprints
+    Upload and parse a roadmap Excel file (requires `project.ai.write`).
+    Returns: Summary of epics, tasks, assignees, timeline, conflicts, warnings, and sprints.
     """
     # Verify project exists
     project = db.query(Project).filter(Project.id == project_id).first()
@@ -253,12 +253,12 @@ async def parse_roadmap_file(
 def commit_roadmap_tickets(
     request: RoadmapCommitRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_capability("project.ai.write")),
 ):
     """
-    Create work items from parsed roadmap data
-    Creates epics first, then tasks linked to epics
-    Handles assignee lookup with fallback to current user
+    Create work items from parsed roadmap data (requires `project.ai.write`).
+    Creates epics first, then tasks linked to epics.
+    Handles assignee lookup with fallback to current user.
     """
     # Verify project exists
     project = db.query(Project).filter(Project.id == request.project_id).first()

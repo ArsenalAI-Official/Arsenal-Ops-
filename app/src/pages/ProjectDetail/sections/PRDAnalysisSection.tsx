@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { apiFetch, ApiError } from '@/lib/api';
 import { API_BASE_URL } from '@/config/api';
+import { useAuth } from '@/contexts/AuthContext';
 import GenerateRoadmapModal from '../modals/GenerateRoadmapModal';
 
 interface RoadmapTemplateMeta {
@@ -100,6 +101,10 @@ async function downloadSavedRoadmap(projectId: number): Promise<void> {
 const PRDAnalysisSection = ({ prdAnalysis, projectId, projectName }: PRDAnalysisSectionProps) => {
   const [roadmapModalOpen, setRoadmapModalOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  // Roadmap (re)generation is gated on `project.ai.write`. Reading the saved
+  // analysis stays available to anyone with overview/PRD read access.
+  const { can } = useAuth();
+  const canWriteAI = can('project.ai.write');
 
   const templateQuery = useQuery<RoadmapTemplateMeta | null>({
     queryKey: ['roadmapTemplate', projectId],
@@ -346,77 +351,85 @@ const PRDAnalysisSection = ({ prdAnalysis, projectId, projectName }: PRDAnalysis
         )}
       </div>
 
-      {/* Roadmap template — saved card OR generate button */}
-      <div className="mt-5 pt-4 border-t border-[rgba(255,255,255,0.05)]">
-        {templateLoading ? (
-          <div className="flex items-center gap-2 text-xs text-[#737373]">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            Loading roadmap template…
-          </div>
-        ) : template ? (
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-white">Roadmap template</p>
-              <p className="text-xs text-[#737373]">
-                {template.start_date} → {template.end_date} · {template.milestone_count} milestone
-                {template.milestone_count === 1 ? '' : 's'}, {template.epic_count} epic
-                {template.epic_count === 1 ? '' : 's'}, {template.task_count} task
-                {template.task_count === 1 ? '' : 's'}
-              </p>
-              <p className="text-[11px] text-[#525252] mt-0.5">
-                Last generated{' '}
-                {new Date(template.updated_at).toLocaleString(undefined, {
-                  dateStyle: 'medium',
-                  timeStyle: 'short',
-                })}
-              </p>
+      {/* Roadmap template — saved card OR generate button. Suppressed
+          entirely when there's no template AND the user lacks AI write,
+          otherwise the wrapper would render as an orphan top border. */}
+      {(templateLoading || template || canWriteAI) && (
+        <div className="mt-5 pt-4 border-t border-[rgba(255,255,255,0.05)]">
+          {templateLoading ? (
+            <div className="flex items-center gap-2 text-xs text-[#737373]">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Loading roadmap template…
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <Button
-                onClick={() => setRoadmapModalOpen(true)}
-                className="bg-[#E0B954] hover:bg-[#C79E3B] text-black"
-              >
-                <RefreshCw className="w-4 h-4 mr-1" />
-                Regenerate
-              </Button>
-              <Button
-                onClick={handleDownload}
-                disabled={downloading}
-                className="bg-[#E0B954] hover:bg-[#C79E3B] text-black"
-              >
-                {downloading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                    Downloading…
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4 mr-1" />
-                    Download
-                  </>
+          ) : template ? (
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-white">Roadmap template</p>
+                <p className="text-xs text-[#737373]">
+                  {template.start_date} → {template.end_date} · {template.milestone_count} milestone
+                  {template.milestone_count === 1 ? '' : 's'}, {template.epic_count} epic
+                  {template.epic_count === 1 ? '' : 's'}, {template.task_count} task
+                  {template.task_count === 1 ? '' : 's'}
+                </p>
+                <p className="text-[11px] text-[#525252] mt-0.5">
+                  Last generated{' '}
+                  {new Date(template.updated_at).toLocaleString(undefined, {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                  })}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {canWriteAI && (
+                  <Button
+                    onClick={() => setRoadmapModalOpen(true)}
+                    className="bg-[#E0B954] hover:bg-[#C79E3B] text-black"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-1" />
+                    Regenerate
+                  </Button>
                 )}
-              </Button>
+                <Button
+                  onClick={handleDownload}
+                  disabled={downloading}
+                  className="bg-[#E0B954] hover:bg-[#C79E3B] text-black"
+                >
+                  {downloading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                      Downloading…
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4 mr-1" />
+                      Download
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-white">Roadmap template</p>
-              <p className="text-xs text-[#737373]">
-                Download an editable Excel roadmap based on this PRD, then re-upload via the roadmap
-                importer.
-              </p>
-            </div>
-            <Button
-              onClick={() => setRoadmapModalOpen(true)}
-              className="bg-[#E0B954] hover:bg-[#C79E3B] text-black shrink-0"
-            >
-              <Download className="w-4 h-4 mr-1" />
-              Generate roadmap
-            </Button>
-          </div>
-        )}
-      </div>
+          ) : (
+            canWriteAI && (
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-white">Roadmap template</p>
+                  <p className="text-xs text-[#737373]">
+                    Download an editable Excel roadmap based on this PRD, then re-upload via the
+                    roadmap importer.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => setRoadmapModalOpen(true)}
+                  className="bg-[#E0B954] hover:bg-[#C79E3B] text-black shrink-0"
+                >
+                  <Download className="w-4 h-4 mr-1" />
+                  Generate roadmap
+                </Button>
+              </div>
+            )
+          )}
+        </div>
+      )}
 
       <GenerateRoadmapModal
         open={roadmapModalOpen}

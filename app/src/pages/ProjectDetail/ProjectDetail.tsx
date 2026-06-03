@@ -494,29 +494,9 @@ const ProjectDetail = () => {
     },
   });
 
-  const taskCreateMutation = useMutation({
-    mutationFn: (taskData: any) =>
-      apiFetch<any>('/api/workitems/', {
-        method: 'POST',
-        body: JSON.stringify({ ...taskData, project_id: id }),
-      }),
-    onSuccess: () => {
-      toast.success('Task created!');
-    },
-    onError: () => toast.error('Failed to create task'),
-    onSettled: () => {
-      invalidateWorkItemScope(queryClient, id);
-      invalidateProjectScope(queryClient, id);
-    },
-  });
-
-  // Task update/create handlers for TimelineView
+  // Task update handler for TimelineView
   const handleTaskUpdate = (itemId: string, updates: any) => {
     taskUpdateMutation.mutate({ itemId, updates });
-  };
-
-  const handleTaskCreate = (taskData: any) => {
-    taskCreateMutation.mutate(taskData);
   };
 
   // ── mutation: save project edits ────────────────────────────────────────
@@ -990,7 +970,11 @@ const ProjectDetail = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              <ProjectInfoSection project={project} onSave={handleSaveEdit} />
+              <ProjectInfoSection
+                project={project}
+                isCurrentUserAdmin={isCurrentUserAdmin()}
+                onSave={handleSaveEdit}
+              />
 
               {/* PRD Analysis Section */}
               {prdAnalysis && (
@@ -1057,13 +1041,7 @@ const ProjectDetail = () => {
                 goals={goals}
                 projectStartDate={project.created_at}
                 projectId={parseInt(id!)}
-                developers={(project.developers ?? []).map((d) => ({
-                  id: d.id,
-                  name: d.name,
-                  email: d.email,
-                }))}
                 onTaskUpdate={handleTaskUpdate}
-                onTaskCreate={handleTaskCreate}
               />
             ) : (
               <div className="text-center py-12 text-[#737373]">This section is restricted.</div>

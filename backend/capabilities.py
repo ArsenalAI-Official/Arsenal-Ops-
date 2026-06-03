@@ -29,6 +29,15 @@ CAPABILITIES: dict[str, str] = {
     "project.pm": "Access project manager tab",
     "project.pm.summary_cards": "View PM summary cards",
     "project.pm.developer_hours": "View PM developer hours summary",
+    # Write-side capabilities. Intentionally NOT nested under a read group's
+    # namespace (e.g. `project.tracker_write`, not `project.tracker.write`)
+    # so the matching read wildcard (`project.tracker.*`) does not auto-grant
+    # write access. Top-level under `project` means only `project.*` and `*`
+    # sweep them in.
+    "project.tracker_write": "Create work items and sprints",
+    "project.ai.write": "Use AI generators (PRD analyzer, roadmap parser)",
+    "project.create": "Create new projects",
+    "project.assign_personal_task": "Assign personal tasks to a project (convert to ticket)",
     # Admin screens
     "admin.dashboard": "Access admin dashboard",
     "admin.employees": "Manage employees",

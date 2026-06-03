@@ -15,7 +15,7 @@ from models.personal_task import PersonalTask
 from models.project import Project
 from models.user import User
 from models.work_item import WorkItem, WorkItemStatus
-from routers.auth import get_current_user
+from routers.auth import get_current_user, require_capability
 from routers.workitems import get_next_item_number
 
 router = APIRouter(prefix="/api/personal-tasks", tags=["Personal Tasks"])
@@ -173,9 +173,9 @@ def convert_to_ticket(
     task_id: int,
     request: ConvertToTicketRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_capability("project.assign_personal_task")),
 ):
-    """Convert a personal task to a project ticket"""
+    """Convert a personal task to a project ticket (requires `project.assign_personal_task`)."""
     from models.developer import Developer
     from services.email_service import email_service
 

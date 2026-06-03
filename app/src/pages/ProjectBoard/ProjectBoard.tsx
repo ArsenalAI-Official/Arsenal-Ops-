@@ -1441,24 +1441,29 @@ const ProjectBoard = () => {
               <Eye className="w-3.5 h-3.5" />
               Reviewer
             </Button>
-            <Button
-              onClick={handleAIGenerate}
-              disabled={isGenerating}
-              size="sm"
-              className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-lg font-medium h-9 transition-opacity"
-            >
-              {isGenerating ? (
-                <>
-                  <div className="w-3.5 h-3.5 border-2 border-[#080808]/30 border-t-[#080808] rounded-full animate-spin mr-2" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3.5 h-3.5 mr-2" />
-                  AI Generate
-                </>
-              )}
-            </Button>
+            {/* AI Generate — gated on `project.ai.write`. Hidden entirely
+                when missing so the modal (which would 403 on submit) can't
+                be opened. */}
+            {can('project.ai.write') && (
+              <Button
+                onClick={handleAIGenerate}
+                disabled={isGenerating}
+                size="sm"
+                className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-lg font-medium h-9 transition-opacity"
+              >
+                {isGenerating ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-[#080808]/30 border-t-[#080808] rounded-full animate-spin mr-2" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 mr-2" />
+                    AI Generate
+                  </>
+                )}
+              </Button>
+            )}
             <Button
               onClick={() => navigate(`/project/${id}`)}
               size="sm"
@@ -1799,42 +1804,47 @@ const ProjectBoard = () => {
               </button>
             </div>
 
-            <div className="relative">
-              <Button
-                onClick={() => setShowAddMenu((prev) => !prev)}
-                size="sm"
-                className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-lg font-medium h-8 px-3 text-xs transition-opacity"
-              >
-                <Plus className="w-3 h-3" />
-              </Button>
-              {showAddMenu && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setShowAddMenu(false)} />
-                  <div className="absolute right-0 top-full mt-1 z-20 bg-[#1a1a1a] border border-[rgba(255,255,255,0.08)] rounded-lg shadow-xl overflow-hidden min-w-[130px]">
-                    <button
-                      onClick={() => {
-                        setShowCreateForm(true);
-                        setShowAddMenu(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
-                    >
-                      <Plus className="w-3.5 h-3.5 text-[#E0B954]" />
-                      New Item
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowCreateSprintModal(true);
-                        setShowAddMenu(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
-                    >
-                      <Plus className="w-3.5 h-3.5 text-[#E0B954]" />
-                      New Sprint
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+            {/* "+" menu — gated on `project.tracker_write`. The whole button
+                is hidden when the user can't create either kind of item, so
+                we don't render an empty dropdown. */}
+            {can('project.tracker_write') && (
+              <div className="relative">
+                <Button
+                  onClick={() => setShowAddMenu((prev) => !prev)}
+                  size="sm"
+                  className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-lg font-medium h-8 px-3 text-xs transition-opacity"
+                >
+                  <Plus className="w-3 h-3" />
+                </Button>
+                {showAddMenu && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowAddMenu(false)} />
+                    <div className="absolute right-0 top-full mt-1 z-20 bg-[#1a1a1a] border border-[rgba(255,255,255,0.08)] rounded-lg shadow-xl overflow-hidden min-w-[130px]">
+                      <button
+                        onClick={() => {
+                          setShowCreateForm(true);
+                          setShowAddMenu(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-[#E0B954]" />
+                        New Item
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowCreateSprintModal(true);
+                          setShowAddMenu(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-[#E0B954]" />
+                        New Sprint
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </header>

@@ -39,10 +39,15 @@ interface Project {
 
 interface ProjectInfoSectionProps {
   project: Project;
+  /** True when the current user is a project admin OR system admin.
+   *  Mirrors `isCurrentUserAdmin()` from ProjectDetail. Drives the visibility
+   *  of the inline Edit button; the matching backend gate lives on
+   *  `PUT /api/projects/{id}` via `require_project_admin`. */
+  isCurrentUserAdmin: boolean;
   onSave: (updates: Partial<Project>) => void;
 }
 
-const ProjectInfoSection = ({ project, onSave }: ProjectInfoSectionProps) => {
+const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfoSectionProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Project>>({});
   const [showCalendarStartDate, setShowCalendarStartDate] = useState(false);
@@ -59,18 +64,20 @@ const ProjectInfoSection = ({ project, onSave }: ProjectInfoSectionProps) => {
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-white">Project Information</h2>
           {!isEditing ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setEditForm(project);
-                setIsEditing(true);
-              }}
-              className="text-[#737373] hover:text-white"
-            >
-              <Pencil className="w-4 h-4 mr-2" />
-              Edit
-            </Button>
+            isCurrentUserAdmin && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setEditForm(project);
+                  setIsEditing(true);
+                }}
+                className="text-[#737373] hover:text-white"
+              >
+                <Pencil className="w-4 h-4 mr-2" />
+                Edit
+              </Button>
+            )
           ) : (
             <div className="flex gap-2">
               <Button

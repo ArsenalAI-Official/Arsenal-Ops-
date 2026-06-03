@@ -24,7 +24,7 @@ from models.project import Project
 from models.sprint import Sprint, SprintStatus
 from models.user import User
 from models.work_item import WorkItem
-from routers.auth import get_current_user
+from routers.auth import get_current_user, require_capability
 from services.architecture_generator import architecture_generator
 from services.prd_processor import prd_processor
 from services.roadmap_generator import build_week_dates, roadmap_generator
@@ -219,11 +219,11 @@ async def analyze_prd_file(
     additional_context: str = Form(""),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_capability("project.ai.write")),
 ):
     """
-    Upload and analyze a PRD file (PDF or Word) (requires auth)
-    Returns: PRD analysis and generated architectures
+    Upload and analyze a PRD file (PDF or Word) (requires `project.ai.write`).
+    Returns: PRD analysis and generated architectures.
     """
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
@@ -256,11 +256,11 @@ async def analyze_prd_file(
 async def analyze_prd_text(
     request: TextAnalysisRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_capability("project.ai.write")),
 ):
     """
-    Analyze PRD from text input (requires auth)
-    Returns: PRD analysis and generated architectures
+    Analyze PRD from text input (requires `project.ai.write`).
+    Returns: PRD analysis and generated architectures.
     """
     project = db.query(Project).filter(Project.id == request.project_id).first()
     if not project:
@@ -870,10 +870,10 @@ async def generate_roadmap_template(
     project_id: int,
     request: GenerateRoadmapTemplateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_capability("project.ai.write")),
 ):
     """
-    Generate a roadmap .xlsx template.
+    Generate a roadmap .xlsx template (requires `project.ai.write`).
 
     If the project has a PRD analysis, the LLM seeds the file with suggested
     milestones / epics / tasks. Otherwise the user gets a blank scaffold with

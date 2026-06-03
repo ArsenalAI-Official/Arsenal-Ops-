@@ -19,7 +19,7 @@ from models.architecture import Architecture
 from models.developer import Developer, project_developers
 from models.project import Project
 from models.user import User, UserRole
-from routers.auth import get_current_user
+from routers.auth import get_current_user, require_capability
 from services.github_service import GitHubService, github_service
 
 router = APIRouter(prefix="/api/projects", tags=["Projects"])
@@ -36,12 +36,21 @@ def has_project_access(project: Project, user: User) -> bool:
 
 
 def is_project_admin(project_id: int, user: User, db: Session) -> bool:
-    """Check if user is a project-specific admin"""
-    # System admins are project admins
-    if "admin" in user.role:
+    """Return True when the user can act as a project admin on this project.
+
+    Two paths grant project-admin rights, matching the frontend's
+    `isCurrentUserAdmin` semantics in `ProjectDetail.tsx`:
+      1. Capability-based: the user holds `admin.projects` (system admins via
+         `*`, or any custom role explicitly granted it). Replaces the legacy
+         `"admin" in user.role` substring check, which missed users whose
+         admin status came from the RBAC user_roles relationship rather than
+         the legacy comma-separated `users.role` column.
+      2. Membership-based: the user appears in this project's developers
+         list with the `is_admin` flag set on the join row.
+    """
+    if user.has_capability("admin.projects"):
         return True
 
-    # Check if user is a project admin
     result = db.execute(
         select(project_developers.c.is_admin)
         .where(
@@ -311,9 +320,9 @@ def format_project(project: Project, db: Session) -> dict:
 def create_project(
     project: ProjectCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_capability("project.create")),
 ):
-    """Create a new project (all authenticated users can create)"""
+    """Create a new project (requires `project.create`)."""
     # Check for duplicate project name
     existing = db.query(Project).filter(Project.name == project.name).first()
     if existing:
@@ -469,8 +478,15 @@ def update_project(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Update a project (requires access)"""
-    project = require_project_access(project_id, current_user, db)
+    """Update a project's information.
+
+    Restricted to project admins (`is_admin` on this project's membership)
+    and system admins (`admin.projects` capability). Was previously
+    `require_project_access` — i.e. any assigned developer — which let regular
+    team members rename or restatus the project. Now matches the same gate
+    used by add/remove/promote/demote-developer endpoints.
+    """
+    project = require_project_admin(project_id, current_user, db)
 
     # Update each field if provided
     if update.name is not None:
@@ -676,10 +692,14 @@ def add_developer_to_project(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Add a developer to a project (requires auth)"""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    """Add a developer to a project.
+
+    Restricted to project admins (`is_admin` on this project's membership)
+    and system admins (`admin.projects` capability). `require_project_admin`
+    handles the 404-if-no-project and 403-if-not-admin cases and returns the
+    loaded Project row, so we don't repeat the lookup.
+    """
+    require_project_admin(project_id, current_user, db)
 
     developer = db.query(Developer).filter(Developer.id == assignment.developer_id).first()
     if not developer:
@@ -717,10 +737,11 @@ def remove_developer_from_project(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Remove a developer from a project (requires auth)"""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    """Remove a developer from a project.
+
+    Restricted to project admins and system admins — same gate as add/promote.
+    """
+    require_project_admin(project_id, current_user, db)
 
     # Delete from association table
     result = db.execute(

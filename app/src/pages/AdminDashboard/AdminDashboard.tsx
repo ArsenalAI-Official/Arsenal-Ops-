@@ -1074,12 +1074,40 @@ const AdminDashboard = () => {
         wildcard: 'project.*',
         // Mapped from PROJECT_TABS so the role editor reflects the live
         // project-tab registry — no duplicated labels/descriptions to drift.
-        items: PROJECT_TABS.map((tab) => ({
-          label: tab.label,
-          grant: tab.picker.grant,
-          description: tab.picker.description,
-          children: tab.picker.children ? [...tab.picker.children] : undefined,
-        })),
+        // The two write-side entries below are appended manually because they
+        // gate creation surfaces (work items/sprints, PRD/roadmap AI) that
+        // aren't tabs and so don't live in PROJECT_TABS. Cap keys live
+        // outside the read groups' wildcards on purpose (`project.tracker_write`
+        // is a sibling of `project.tracker`, not nested under it) so granting
+        // read access doesn't auto-grant write.
+        items: [
+          ...PROJECT_TABS.map((tab) => ({
+            label: tab.label,
+            grant: tab.picker.grant,
+            description: tab.picker.description,
+            children: tab.picker.children ? [...tab.picker.children] : undefined,
+          })),
+          {
+            label: 'Create items & sprints',
+            grant: 'project.tracker_write',
+            description: 'Create new work items and sprints (write)',
+          },
+          {
+            label: 'AI Generators',
+            grant: 'project.ai.write',
+            description: 'Run PRD analyzer and roadmap parser (write)',
+          },
+          {
+            label: 'Create new projects',
+            grant: 'project.create',
+            description: 'Create new projects from the home page (write)',
+          },
+          {
+            label: 'Assign personal tasks to project',
+            grant: 'project.assign_personal_task',
+            description: 'Convert a personal task into a project ticket (write)',
+          },
+        ],
       },
       {
         prefix: 'admin',
