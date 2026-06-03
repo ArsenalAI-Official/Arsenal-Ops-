@@ -34,7 +34,7 @@ CAPABILITIES: dict[str, str] = {
     # so the matching read wildcard (`project.tracker.*`) does not auto-grant
     # write access. Top-level under `project` means only `project.*` and `*`
     # sweep them in.
-    "project.tracker_write": "Create work items and sprints",
+    "project.tracker_write": "Create, edit, and delete work items and sprints",
     "project.ai.write": "Use AI generators (PRD analyzer, roadmap parser)",
     "project.create": "Create new projects",
     "project.assign_personal_task": "Assign personal tasks to a project (convert to ticket)",

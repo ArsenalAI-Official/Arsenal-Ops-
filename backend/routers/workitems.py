@@ -797,7 +797,7 @@ def update_work_item(
     update: WorkItemUpdate,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_capability("project.tracker_write")),
 ):
     """Update an existing work item (requires auth)"""
     item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
@@ -1301,9 +1301,11 @@ def batch_update_status(
 
 @router.delete("/{item_id}")
 def delete_work_item(
-    item_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_capability("project.tracker_write")),
 ):
-    """Delete a work item (requires auth)"""
+    """Delete a work item (requires `project.tracker_write`)."""
     item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Work item not found")
@@ -2201,7 +2203,7 @@ def get_hours_analytics(
         if not is_project_admin:
             raise HTTPException(
                 status_code=403,
-                detail="Missing required capability: project.pm or project-level admin",
+                detail="Do not have permission",
             )
 
     # Verify project exists

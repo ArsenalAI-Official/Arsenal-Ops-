@@ -178,7 +178,7 @@ def require_capability(cap: str):
         if not current_user.has_capability(cap):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Missing required capability: {cap}",
+                detail="Do not have permission",
             )
         return current_user
 

@@ -1088,9 +1088,9 @@ const AdminDashboard = () => {
             children: tab.picker.children ? [...tab.picker.children] : undefined,
           })),
           {
-            label: 'Create items & sprints',
+            label: 'Manage items & sprints',
             grant: 'project.tracker_write',
-            description: 'Create new work items and sprints (write)',
+            description: 'Create, edit, and delete work items and sprints',
           },
           {
             label: 'AI Generators',

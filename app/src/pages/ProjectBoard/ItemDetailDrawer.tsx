@@ -177,7 +177,11 @@ const ItemDetailDrawer = ({
   getNextSprint,
 }: ItemDetailDrawerProps) => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
+  // Gate Edit / Delete / Assign-to-me on the same `project.tracker_write` cap
+  // that the backend's PUT /api/workitems/{id} and DELETE /api/workitems/{id}
+  // now require. Picker label: "Manage items & sprints".
+  const canWriteTracker = can('project.tracker_write');
   // Current user's developer id — used both to gate the "Log hours" form
   // (only the ticket's assignee may log; matches backend enforcement in
   // routers/workitems.py::log_hours) and to power the inline "Assign to me"
@@ -519,32 +523,36 @@ const ItemDetailDrawer = ({
             <span className="text-sm text-[#737373] font-mono">{selectedItem.id}</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={selectedItem.status === 'done' && !isEditing}
-              title={
-                selectedItem.status === 'done' && !isEditing
-                  ? 'This ticket is done. Re-open it (Move to → any non-done status) before editing.'
-                  : undefined
-              }
-              onClick={() => {
-                setIsEditing(!isEditing);
-                if (!isEditing) setEditForm(selectedItem);
-              }}
-              className="text-[#737373] hover:text-white rounded-lg h-8 px-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Pencil className="w-3.5 h-3.5 mr-1" />
-              {isEditing ? 'Cancel' : 'Edit'}
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => onDeleteItem(selectedItem.id)}
-              className="text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg h-8 px-2.5"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </Button>
+            {canWriteTracker && (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={selectedItem.status === 'done' && !isEditing}
+                title={
+                  selectedItem.status === 'done' && !isEditing
+                    ? 'This ticket is done. Re-open it (Move to → any non-done status) before editing.'
+                    : undefined
+                }
+                onClick={() => {
+                  setIsEditing(!isEditing);
+                  if (!isEditing) setEditForm(selectedItem);
+                }}
+                className="text-[#737373] hover:text-white rounded-lg h-8 px-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Pencil className="w-3.5 h-3.5 mr-1" />
+                {isEditing ? 'Cancel' : 'Edit'}
+              </Button>
+            )}
+            {canWriteTracker && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => onDeleteItem(selectedItem.id)}
+                className="text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg h-8 px-2.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            )}
             <Button
               size="sm"
               variant="ghost"
@@ -999,7 +1007,7 @@ const ItemDetailDrawer = ({
                   <span className="text-xs text-[#737373]">Assignee</span>
                   {selectedItem.assignee_id ? (
                     <span className="text-sm text-[#f5f5f5]">{selectedItem.assignee}</span>
-                  ) : selectedItem.type !== 'epic' && currentUserDevId ? (
+                  ) : selectedItem.type !== 'epic' && currentUserDevId && canWriteTracker ? (
                     <button
                       type="button"
                       onClick={() => onSaveEdit({ assignee_id: currentUserDevId })}

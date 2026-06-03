@@ -271,6 +271,11 @@ const ProjectBoard = () => {
   const { id, ticketId } = useParams<{ id: string; ticketId?: string }>();
   const navigate = useNavigate();
   const { token, user, can } = useAuth(); // token kept for legacy child components (TimeEntriesTable, TicketContributors, ReviewerView)
+  // Gate any UI that mutates a work item — kanban drag (PUT for status),
+  // StatusDotMenu (PUT for status), Edit/Delete in the side panel, and the
+  // "Assign to me" pill. Backend mirrors this with require_capability on
+  // PUT /api/workitems/{id} and DELETE /api/workitems/{id}.
+  const canWriteTracker = can('project.tracker_write');
   const queryClient = useQueryClient();
   const [showReviewer, setShowReviewer] = useState(false);
   // isEditing + editForm + drawer comment state moved into ItemDetailDrawer
@@ -2056,10 +2061,16 @@ const ProjectBoard = () => {
                                   </span>
                                 </div>
                                 <div className="flex items-center">
-                                  <StatusDotMenu
-                                    status={item.status}
-                                    onChange={(newStatus) => handleStatusChange(item, newStatus)}
-                                  />
+                                  {canWriteTracker ? (
+                                    <StatusDotMenu
+                                      status={item.status}
+                                      onChange={(newStatus) => handleStatusChange(item, newStatus)}
+                                    />
+                                  ) : (
+                                    <span className="text-xs text-[#a3a3a3] capitalize">
+                                      {item.status.replace('_', ' ')}
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="flex items-center">
                                   <span
@@ -2200,10 +2211,16 @@ const ProjectBoard = () => {
                                   </span>
                                 </div>
                                 <div className="flex items-center">
-                                  <StatusDotMenu
-                                    status={item.status}
-                                    onChange={(newStatus) => handleStatusChange(item, newStatus)}
-                                  />
+                                  {canWriteTracker ? (
+                                    <StatusDotMenu
+                                      status={item.status}
+                                      onChange={(newStatus) => handleStatusChange(item, newStatus)}
+                                    />
+                                  ) : (
+                                    <span className="text-xs text-[#a3a3a3] capitalize">
+                                      {item.status.replace('_', ' ')}
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="flex items-center">
                                   <span
@@ -2389,10 +2406,16 @@ const ProjectBoard = () => {
                                 </span>
                               </div>
                               <div className="flex items-center">
-                                <StatusDotMenu
-                                  status={item.status}
-                                  onChange={(newStatus) => handleStatusChange(item, newStatus)}
-                                />
+                                {canWriteTracker ? (
+                                  <StatusDotMenu
+                                    status={item.status}
+                                    onChange={(newStatus) => handleStatusChange(item, newStatus)}
+                                  />
+                                ) : (
+                                  <span className="text-xs text-[#a3a3a3] capitalize">
+                                    {item.status.replace('_', ' ')}
+                                  </span>
+                                )}
                               </div>
                               <div className="flex items-center">
                                 <span
