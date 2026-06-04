@@ -1,0 +1,301 @@
+import { useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { invalidateAdminUserRoleImpact } from '@/lib/invalidations';
+import type { Capability, Role, User } from '../types';
+import {
+  type CatalogNode,
+  applyToggleCatalogItem,
+  applyToggleGrant,
+  buildPickerCatalog,
+} from '../lib/capabilityPicker';
+import { ADMIN_REFETCH } from './adminRefetch';
+
+interface Options {
+  /** Roles list: Roles tab renders it; Users tab's role-assignment modal reads it. */
+  rolesEnabled: boolean;
+  /** Capability registry feeds the Roles tab's role editor only. */
+  capabilitiesEnabled: boolean;
+}
+
+/**
+ * Owns the Roles-tab domain: roles + capability queries, the role create/edit
+ * modal (incl. the capability-picker toggles), role CRUD, and per-user role
+ * assignment. `refreshCapsTwice` re-pulls the current user's capabilities after
+ * role mutations (twice, to outlast the backend LRU window). Invalidation of
+ * `['admin','roles']` + `['admin','users']` preserved from the original.
+ */
+export function useRolesAdmin({ rolesEnabled, capabilitiesEnabled }: Options) {
+  const queryClient = useQueryClient();
+  const { user, refreshCapabilities } = useAuth();
+
+  const rolesQuery = useQuery<Role[]>({
+    queryKey: ['admin', 'roles'],
+    queryFn: () => apiFetch<Role[]>('/api/auth/admin/roles'),
+    enabled: rolesEnabled,
+    ...ADMIN_REFETCH,
+  });
+  const roles = useMemo(() => rolesQuery.data ?? [], [rolesQuery.data]);
+
+  const capabilitiesQuery = useQuery<Capability[]>({
+    queryKey: ['admin', 'capabilities'],
+    queryFn: () => apiFetch<Capability[]>('/api/auth/capabilities'),
+    enabled: capabilitiesEnabled,
+    ...ADMIN_REFETCH,
+  });
+  const capabilityRegistry = useMemo(() => capabilitiesQuery.data ?? [], [capabilitiesQuery.data]);
+
+  // Refresh capabilities twice: once now, once after the backend LRU window
+  // expires for the most common case. Used after role mutations that may
+  // affect the current user's capabilities.
+  const refreshCapsTwice = () => {
+    refreshCapabilities();
+    setTimeout(() => refreshCapabilities(), 1500);
+  };
+
+  // RBAC role create/edit modal state
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [roleForm, setRoleForm] = useState<{
+    name: string;
+    description: string;
+    capability_keys: string[];
+  }>({ name: '', description: '', capability_keys: [] });
+
+  // RBAC: role create/update/delete mutations
+  const invalidateRoles = () => {
+    queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
+    queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+  };
+
+  const createRoleMutation = useMutation({
+    mutationFn: (vars: { name: string; description: string | null; capability_keys: string[] }) =>
+      apiFetch<Role>('/api/auth/admin/roles', {
+        method: 'POST',
+        body: JSON.stringify(vars),
+      }),
+    onSuccess: (_data, vars) => {
+      toast.success(`Role '${vars.name}' created`);
+      setShowRoleModal(false);
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Failed to create role';
+      toast.error(msg);
+    },
+    onSettled: () => {
+      invalidateRoles();
+      // Any role the current user holds could now have different caps.
+      refreshCapsTwice();
+    },
+  });
+
+  const updateRoleMetaMutation = useMutation({
+    mutationFn: (vars: { id: number; name: string; description: string | null }) =>
+      apiFetch<Role>(`/api/auth/admin/roles/${vars.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name: vars.name, description: vars.description }),
+      }),
+    onSettled: () => {
+      invalidateRoles();
+      refreshCapsTwice();
+    },
+  });
+
+  const replaceRoleCapsMutation = useMutation({
+    mutationFn: (vars: { id: number; capability_keys: string[] }) =>
+      apiFetch<Role>(`/api/auth/admin/roles/${vars.id}/capabilities`, {
+        method: 'PUT',
+        body: JSON.stringify({ capability_keys: vars.capability_keys }),
+      }),
+    onSettled: () => {
+      invalidateRoles();
+      refreshCapsTwice();
+    },
+  });
+
+  const deleteRoleMutation = useMutation({
+    mutationFn: (id: number) => apiFetch<void>(`/api/auth/admin/roles/${id}`, { method: 'DELETE' }),
+    onSuccess: (_data, _id) => {
+      toast.success('Role deleted');
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Failed to delete role';
+      toast.error(msg);
+    },
+    onSettled: () => {
+      invalidateRoles();
+      refreshCapsTwice();
+    },
+  });
+
+  const assignUserRoleMutation = useMutation({
+    mutationFn: (vars: { userId: number; roleId: number }) =>
+      apiFetch<void>(`/api/auth/admin/users/${vars.userId}/roles/${vars.roleId}`, {
+        method: 'POST',
+      }),
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Failed to assign role';
+      toast.error(msg);
+    },
+    onSettled: (_data, _err, vars) => {
+      invalidateRoles();
+      invalidateAdminUserRoleImpact(queryClient);
+      if (vars && vars.userId === user?.id) {
+        refreshCapsTwice();
+      }
+    },
+  });
+
+  const removeUserRoleMutation = useMutation({
+    mutationFn: (vars: { userId: number; roleId: number }) =>
+      apiFetch<void>(`/api/auth/admin/users/${vars.userId}/roles/${vars.roleId}`, {
+        method: 'DELETE',
+      }),
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Failed to remove role';
+      toast.error(msg);
+    },
+    onSettled: (_data, _err, vars) => {
+      invalidateRoles();
+      invalidateAdminUserRoleImpact(queryClient);
+      if (vars && vars.userId === user?.id) {
+        refreshCapsTwice();
+      }
+    },
+  });
+
+  const isSavingRole =
+    createRoleMutation.isPending ||
+    updateRoleMetaMutation.isPending ||
+    replaceRoleCapsMutation.isPending;
+
+  const handleOpenCreateRole = () => {
+    setEditingRole(null);
+    setRoleForm({ name: '', description: '', capability_keys: [] });
+    setShowRoleModal(true);
+  };
+
+  const handleOpenEditRole = (role: Role) => {
+    setEditingRole(role);
+    setRoleForm({
+      name: role.name,
+      description: role.description || '',
+      capability_keys: [...role.capability_keys],
+    });
+    setShowRoleModal(true);
+  };
+
+  const handleSaveRole = async () => {
+    const name = roleForm.name.trim();
+    if (!name) {
+      toast.error('Role name is required');
+      return;
+    }
+    if (editingRole) {
+      try {
+        const needsMetaUpdate =
+          name !== editingRole.name ||
+          (roleForm.description || '') !== (editingRole.description || '');
+        if (needsMetaUpdate) {
+          await updateRoleMetaMutation.mutateAsync({
+            id: editingRole.id,
+            // System roles keep their original name; description is editable.
+            name: editingRole.is_system ? editingRole.name : name,
+            description: roleForm.description.trim() || null,
+          });
+        }
+        await replaceRoleCapsMutation.mutateAsync({
+          id: editingRole.id,
+          capability_keys: roleForm.capability_keys,
+        });
+        toast.success(`Role '${name}' updated`);
+        setShowRoleModal(false);
+        invalidateRoles();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to save role';
+        toast.error(msg);
+      }
+    } else {
+      createRoleMutation.mutate({
+        name,
+        description: roleForm.description.trim() || null,
+        capability_keys: roleForm.capability_keys,
+      });
+    }
+  };
+
+  const handleDeleteRole = (role: Role) => {
+    if (role.is_system) {
+      toast.error('Cannot delete a system role');
+      return;
+    }
+    if (
+      !confirm(
+        `Delete role "${role.name}"? Users assigned to this role will lose its capabilities.`,
+      )
+    )
+      return;
+    deleteRoleMutation.mutate(role.id);
+  };
+
+  const handleToggleUserRoleById = (targetUser: User, role: Role, isChecked: boolean) => {
+    if (isChecked) {
+      assignUserRoleMutation.mutate(
+        { userId: targetUser.id, roleId: role.id },
+        {
+          onSuccess: () => toast.success(`Assigned '${role.name}'`),
+        },
+      );
+    } else {
+      removeUserRoleMutation.mutate(
+        { userId: targetUser.id, roleId: role.id },
+        {
+          onSuccess: () => toast.success(`Removed '${role.name}'`),
+        },
+      );
+    }
+  };
+
+  // RBAC capability-picker wiring. The pure grant-resolution logic lives in
+  // ../lib/capabilityPicker (unit-tested); here we only memoize the display
+  // catalog and wrap the two toggles in setRoleForm.
+  const PICKER_CATALOG = useMemo(() => buildPickerCatalog(), []);
+
+  const toggleGrant = (key: string) => {
+    setRoleForm((f) => ({
+      ...f,
+      capability_keys: applyToggleGrant(f.capability_keys, key, capabilityRegistry),
+    }));
+  };
+
+  const toggleCatalogItem = (node: CatalogNode) => {
+    setRoleForm((f) => ({
+      ...f,
+      capability_keys: applyToggleCatalogItem(f.capability_keys, node),
+    }));
+  };
+
+  return {
+    roles,
+    isLoading: rolesQuery.isLoading,
+    // role create/edit modal
+    showRoleModal,
+    setShowRoleModal,
+    editingRole,
+    roleForm,
+    setRoleForm,
+    isSavingRole,
+    PICKER_CATALOG,
+    toggleGrant,
+    toggleCatalogItem,
+    handleOpenCreateRole,
+    handleOpenEditRole,
+    handleSaveRole,
+    handleDeleteRole,
+    deleteRoleMutation,
+    // per-user role assignment (used by the Users tab's inline role modal)
+    handleToggleUserRoleById,
+  };
+}
