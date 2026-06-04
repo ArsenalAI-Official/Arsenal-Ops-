@@ -11,13 +11,12 @@ import { ADMIN_REFETCH } from './adminRefetch';
  * Employees tab and developer lists consistent (developer-role users surface in
  * both) — preserved from the original component, see app/CLAUDE.md.
  */
-export function useUsersAdmin(enabled: boolean) {
+export function useUsersAdmin() {
   const queryClient = useQueryClient();
 
   const usersQuery = useQuery<User[]>({
     queryKey: ['admin', 'users'],
     queryFn: () => apiFetch<User[]>('/api/auth/admin/users'),
-    enabled,
     ...ADMIN_REFETCH,
   });
   const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data]);

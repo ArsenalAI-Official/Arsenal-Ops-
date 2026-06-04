@@ -14,13 +14,12 @@ import { ADMIN_REFETCH } from './adminRefetch';
  * passes it in. Category-scope invalidation (categories + projects + weekly
  * report) preserved from the original component.
  */
-export function useProjectsAdmin(enabled: boolean) {
+export function useProjectsAdmin() {
   const queryClient = useQueryClient();
 
   const projectsQuery = useQuery<Project[]>({
     queryKey: ['admin', 'projects'],
     queryFn: () => apiFetch<Project[]>('/api/admin/projects'),
-    enabled,
     ...ADMIN_REFETCH,
   });
   // Stabilize the empty default — `data ?? []` creates a new array every render,
@@ -30,7 +29,6 @@ export function useProjectsAdmin(enabled: boolean) {
   const categoriesQuery = useQuery<ProjectCategory[]>({
     queryKey: ['admin', 'projectCategories'],
     queryFn: () => apiFetch<ProjectCategory[]>('/api/admin/project-categories/'),
-    enabled,
     ...ADMIN_REFETCH,
   });
   const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
@@ -67,7 +65,6 @@ export function useProjectsAdmin(enabled: boolean) {
         `/api/admin/projects/weekly-report${qs ? `?${qs}` : ''}`,
       );
     },
-    enabled,
     ...ADMIN_REFETCH,
   });
 

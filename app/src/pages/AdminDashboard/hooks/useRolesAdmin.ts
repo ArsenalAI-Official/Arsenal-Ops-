@@ -2,9 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
-import { useAuth } from '@/contexts/AuthContext';
-import { invalidateAdminUserRoleImpact } from '@/lib/invalidations';
-import type { Capability, Role, User } from '../types';
+import type { Capability, Role } from '../types';
 import {
   type CatalogNode,
   applyToggleCatalogItem,
@@ -12,48 +10,29 @@ import {
   buildPickerCatalog,
 } from '../lib/capabilityPicker';
 import { ADMIN_REFETCH } from './adminRefetch';
-
-interface Options {
-  /** Roles list: Roles tab renders it; Users tab's role-assignment modal reads it. */
-  rolesEnabled: boolean;
-  /** Capability registry feeds the Roles tab's role editor only. */
-  capabilitiesEnabled: boolean;
-}
+import { useRolesList } from './useRolesList';
+import { useRefreshCapsTwice } from './useRefreshCapsTwice';
 
 /**
- * Owns the Roles-tab domain: roles + capability queries, the role create/edit
- * modal (incl. the capability-picker toggles), role CRUD, and per-user role
- * assignment. `refreshCapsTwice` re-pulls the current user's capabilities after
- * role mutations (twice, to outlast the backend LRU window). Invalidation of
- * `['admin','roles']` + `['admin','users']` preserved from the original.
+ * Owns the Roles-tab role-editor: the roles list (via useRolesList) + capability
+ * registry, the role create/edit modal (incl. the capability-picker toggles),
+ * and role CRUD. Per-user role *assignment* lives in useUserRoleAssignment (the
+ * Users tab needs it without this editor machinery). `refreshCapsTwice` re-pulls
+ * the current user's caps after role-cap changes. No `enabled` flag — the
+ * RolesContainer only mounts when the Roles tab is active.
  */
-export function useRolesAdmin({ rolesEnabled, capabilitiesEnabled }: Options) {
+export function useRolesAdmin() {
   const queryClient = useQueryClient();
-  const { user, refreshCapabilities } = useAuth();
+  const refreshCapsTwice = useRefreshCapsTwice();
 
-  const rolesQuery = useQuery<Role[]>({
-    queryKey: ['admin', 'roles'],
-    queryFn: () => apiFetch<Role[]>('/api/auth/admin/roles'),
-    enabled: rolesEnabled,
-    ...ADMIN_REFETCH,
-  });
-  const roles = useMemo(() => rolesQuery.data ?? [], [rolesQuery.data]);
+  const { roles, isLoading: rolesLoading } = useRolesList();
 
   const capabilitiesQuery = useQuery<Capability[]>({
     queryKey: ['admin', 'capabilities'],
     queryFn: () => apiFetch<Capability[]>('/api/auth/capabilities'),
-    enabled: capabilitiesEnabled,
     ...ADMIN_REFETCH,
   });
   const capabilityRegistry = useMemo(() => capabilitiesQuery.data ?? [], [capabilitiesQuery.data]);
-
-  // Refresh capabilities twice: once now, once after the backend LRU window
-  // expires for the most common case. Used after role mutations that may
-  // affect the current user's capabilities.
-  const refreshCapsTwice = () => {
-    refreshCapabilities();
-    setTimeout(() => refreshCapabilities(), 1500);
-  };
 
   // RBAC role create/edit modal state
   const [showRoleModal, setShowRoleModal] = useState(false);
@@ -127,42 +106,6 @@ export function useRolesAdmin({ rolesEnabled, capabilitiesEnabled }: Options) {
     onSettled: () => {
       invalidateRoles();
       refreshCapsTwice();
-    },
-  });
-
-  const assignUserRoleMutation = useMutation({
-    mutationFn: (vars: { userId: number; roleId: number }) =>
-      apiFetch<void>(`/api/auth/admin/users/${vars.userId}/roles/${vars.roleId}`, {
-        method: 'POST',
-      }),
-    onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : 'Failed to assign role';
-      toast.error(msg);
-    },
-    onSettled: (_data, _err, vars) => {
-      invalidateRoles();
-      invalidateAdminUserRoleImpact(queryClient);
-      if (vars && vars.userId === user?.id) {
-        refreshCapsTwice();
-      }
-    },
-  });
-
-  const removeUserRoleMutation = useMutation({
-    mutationFn: (vars: { userId: number; roleId: number }) =>
-      apiFetch<void>(`/api/auth/admin/users/${vars.userId}/roles/${vars.roleId}`, {
-        method: 'DELETE',
-      }),
-    onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : 'Failed to remove role';
-      toast.error(msg);
-    },
-    onSettled: (_data, _err, vars) => {
-      invalidateRoles();
-      invalidateAdminUserRoleImpact(queryClient);
-      if (vars && vars.userId === user?.id) {
-        refreshCapsTwice();
-      }
     },
   });
 
@@ -240,24 +183,6 @@ export function useRolesAdmin({ rolesEnabled, capabilitiesEnabled }: Options) {
     deleteRoleMutation.mutate(role.id);
   };
 
-  const handleToggleUserRoleById = (targetUser: User, role: Role, isChecked: boolean) => {
-    if (isChecked) {
-      assignUserRoleMutation.mutate(
-        { userId: targetUser.id, roleId: role.id },
-        {
-          onSuccess: () => toast.success(`Assigned '${role.name}'`),
-        },
-      );
-    } else {
-      removeUserRoleMutation.mutate(
-        { userId: targetUser.id, roleId: role.id },
-        {
-          onSuccess: () => toast.success(`Removed '${role.name}'`),
-        },
-      );
-    }
-  };
-
   // RBAC capability-picker wiring. The pure grant-resolution logic lives in
   // ../lib/capabilityPicker (unit-tested); here we only memoize the display
   // catalog and wrap the two toggles in setRoleForm.
@@ -279,7 +204,7 @@ export function useRolesAdmin({ rolesEnabled, capabilitiesEnabled }: Options) {
 
   return {
     roles,
-    isLoading: rolesQuery.isLoading,
+    isLoading: rolesLoading,
     // role create/edit modal
     showRoleModal,
     setShowRoleModal,
@@ -295,7 +220,5 @@ export function useRolesAdmin({ rolesEnabled, capabilitiesEnabled }: Options) {
     handleSaveRole,
     handleDeleteRole,
     deleteRoleMutation,
-    // per-user role assignment (used by the Users tab's inline role modal)
-    handleToggleUserRoleById,
   };
 }

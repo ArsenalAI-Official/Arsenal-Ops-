@@ -4,40 +4,25 @@ import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import type { Employee, DeveloperCapacity } from '../types';
 import { ADMIN_REFETCH } from './adminRefetch';
+import { useEmployeesList } from './useEmployeesList';
 
 const WEEKLY_CAPACITY_HRS = 40;
 
-interface Options {
-  /** Employees list is needed by the Employees tab AND the Projects tab's
-   *  add-member modal. */
-  employeesEnabled: boolean;
-  /** Capacity feeds the Employees tab only. */
-  capacityEnabled: boolean;
-}
-
 /**
- * Owns the Employees-tab domain: the employees + capacity queries, the derived
- * team-capacity summary and spec list, and the employee create/edit/delete
- * modal state + mutations. Cross-cutting invalidation (stats, capacity,
- * developers) preserved from the original component — see app/CLAUDE.md.
+ * Owns the Employees-tab domain: the employees (via useEmployeesList) + capacity
+ * queries, the derived team-capacity summary and spec list, and the employee
+ * create/edit/delete modal state + mutations. No `enabled` flag — the
+ * EmployeesContainer only mounts when the Employees tab is active. Cross-cutting
+ * invalidation (stats, capacity, developers) preserved — see app/CLAUDE.md.
  */
-export function useEmployeesAdmin({ employeesEnabled, capacityEnabled }: Options) {
+export function useEmployeesAdmin() {
   const queryClient = useQueryClient();
 
-  const employeesQuery = useQuery<Employee[]>({
-    queryKey: ['admin', 'employees'],
-    queryFn: () => apiFetch<Employee[]>('/api/admin/employees'),
-    enabled: employeesEnabled,
-    ...ADMIN_REFETCH,
-  });
-  // useMemo keeps the array reference stable across renders so downstream
-  // useMemo hooks (filtered/sorted views) don't bust their caches every render.
-  const employees = useMemo(() => employeesQuery.data ?? [], [employeesQuery.data]);
+  const { employees, isLoading: employeesLoading } = useEmployeesList();
 
   const capacityQuery = useQuery<DeveloperCapacity[]>({
     queryKey: ['admin', 'developers-capacity'],
     queryFn: () => apiFetch<DeveloperCapacity[]>('/api/admin/developers/capacity'),
-    enabled: capacityEnabled,
     ...ADMIN_REFETCH,
   });
   const developerCapacities = useMemo(() => capacityQuery.data ?? [], [capacityQuery.data]);
@@ -182,7 +167,7 @@ export function useEmployeesAdmin({ employeesEnabled, capacityEnabled }: Options
     developerCapacities,
     teamCapacity,
     availableSpecs,
-    isLoading: employeesQuery.isLoading || capacityQuery.isLoading,
+    isLoading: employeesLoading || capacityQuery.isLoading,
     // employee modal
     showEmployeeModal,
     setShowEmployeeModal,
