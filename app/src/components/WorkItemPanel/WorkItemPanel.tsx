@@ -42,6 +42,8 @@ import {
   CALENDAR_CLASS_NAMES,
 } from './constants';
 import type { WorkItem, Sprint, AllDeveloper, ProjectLite, Comment, ProjectDeveloper } from './types';
+import { AddSubtaskModal } from './AddSubtaskModal';
+import type { AddSubtaskFormValues } from './AddSubtaskModal';
 
 // ─── Prop types ──────────────────────────────────────────────────────────────
 
@@ -149,11 +151,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
   // Compact variant: project developers fetched on edit start
   const [compactEditDevs, setCompactEditDevs] = useState<ProjectDeveloper[]>([]);
 
-  // Full variant subtask form
-  interface SubtaskForm { title: string; assignee_id: number | null; estimated_hours: string; due_date: string }
-  const emptySubtask: SubtaskForm = { title: '', assignee_id: null, estimated_hours: '', due_date: '' };
-  const [newSubtask, setNewSubtask] = useState<SubtaskForm>(emptySubtask);
-  const [showSubtaskDatePicker, setShowSubtaskDatePicker] = useState(false);
+  const [showAddSubtaskModal, setShowAddSubtaskModal] = useState(false);
 
   // ─── Comment state ─────────────────────────────────────────────────────────
   const [newComment, setNewComment] = useState('');
@@ -310,7 +308,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
 
   // ─── Full-variant subtask mutation ─────────────────────────────────────────
   const createSubtask = useMutation({
-    mutationFn: (form: SubtaskForm) => {
+    mutationFn: (form: AddSubtaskFormValues) => {
       const projectId =
         (item as WorkItem & { project_id?: number }).project_id ??
         (props.variant === 'full' ? Number(props.projectId) : undefined);
@@ -334,7 +332,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       });
     },
     onSuccess: () => {
-      setNewSubtask(emptySubtask);
+      setShowAddSubtaskModal(false);
       toast.success('Subtask added');
       queryClient.invalidateQueries({ queryKey: ['workItems'] });
       queryClient.invalidateQueries({ queryKey: ['workItem', item.id, 'detail'] });
@@ -441,8 +439,9 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
 
   // ─── Derived display values ────────────────────────────────────────────────
   const typeConfig = TYPE_CONFIG[item.type] ?? TYPE_CONFIG.task;
-  const statusConfig = STATUS_CONFIG[item.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.todo;
   const priorityColor = PRIORITY_COLOR[item.priority] ?? '#737373';
+  const AVATAR_PALETTE = ['#E0B954', '#60A5FA', '#34D399', '#A78BFA', '#F97316', '#F43F5E'];
+  const avatarColor = (id: number | null | undefined) => AVATAR_PALETTE[(id ?? 0) % AVATAR_PALETTE.length];
 
   // ─── Edit form (full variant) ──────────────────────────────────────────────
   const renderFullEditForm = () => (
@@ -591,13 +590,6 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
         </div>
       )}
       <div>
-        <label className="text-xs font-medium text-[#737373] block mb-1.5">Sprint</label>
-        <Input defaultValue={itemDetail.sprint}
-          onChange={(e) => setEditForm((f) => ({ ...f, sprint: e.target.value }))}
-          className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
-        />
-      </div>
-      <div>
         <label className="text-xs font-medium text-[#737373] block mb-1.5">Due Date</label>
         <Popover open={showCalendarEditForm} onOpenChange={setShowCalendarEditForm}>
           <PopoverTrigger asChild>
@@ -745,7 +737,14 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
     <>
       {/* Title + description */}
       <div className="pb-4 border-b border-[rgba(255,255,255,0.05)]">
-        <h2 className="text-xl font-bold text-white mb-3">{item.title}</h2>
+        <h2 className="text-xl font-bold text-white mb-2">{item.title}</h2>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-semibold"
+            style={{ backgroundColor: `${avatarColor(item.assignee_id)}20`, color: avatarColor(item.assignee_id) }}>
+            {item.assignee ? item.assignee.charAt(0).toUpperCase() : '—'}
+          </div>
+          <span className="text-sm text-[#a3a3a3]">{item.assignee || 'Unassigned'}</span>
+        </div>
         <p className="text-sm leading-relaxed whitespace-pre-wrap">
           {itemDetail.description
             ? <span className="text-[#a3a3a3]">{renderTextWithNewlines(itemDetail.description)}</span>
@@ -754,25 +753,39 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
         </p>
       </div>
 
-      {/* Status + priority pills */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border"
-          style={{ color: statusConfig.color, borderColor: `${statusConfig.color}40`, backgroundColor: `${statusConfig.color}15` }}>
-          <statusConfig.icon className="w-3 h-3" />
-          {statusConfig.label}
-        </span>
-        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border"
-          style={{ color: priorityColor, borderColor: `${priorityColor}40`, backgroundColor: `${priorityColor}15` }}>
-          {item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}
-        </span>
+      {/* Status buttons */}
+      <div className="pt-4">
+        <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">Status</div>
+        <div className="grid grid-cols-4 gap-2">
+          {(Object.keys(STATUS_CONFIG).filter(s => s !== 'backlog') as Array<keyof typeof STATUS_CONFIG>).map((status) => (
+            <Button key={status} size="sm"
+              onClick={() => handleStatusChange(status)}
+              aria-pressed={item.status === status}
+              className={`rounded-lg text-xs h-9 transition-all ${item.status === status
+                ? 'text-white shadow-lg'
+                : 'bg-transparent border border-[rgba(255,255,255,0.07)] text-[#737373] hover:text-white hover:border-[rgba(244,246,255,0.15)]'}`}
+              style={item.status === status ? { backgroundColor: STATUS_CONFIG[status].color, boxShadow: `0 4px 12px ${STATUS_CONFIG[status].color}33` } : {}}
+            >
+              {STATUS_CONFIG[status].label}
+            </Button>
+          ))}
+        </div>
       </div>
 
-      {/* Stat grid — Story Points, Due Date, Hours */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Stat grid — Story Points, Priority, Due Date, Hours */}
+      <div className="grid grid-cols-3 gap-3">
         <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.10)] rounded-xl p-3.5">
           <dl>
             <dt className="text-[10px] text-[#8A8A8A] font-medium uppercase tracking-wider mb-1">Story Points</dt>
             <dd className="text-lg font-bold text-[#a3a3a3]">{item.story_points}</dd>
+          </dl>
+        </div>
+        <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.10)] rounded-xl p-3.5">
+          <dl>
+            <dt className="text-[10px] text-[#8A8A8A] font-medium uppercase tracking-wider mb-1">Priority</dt>
+            <dd className="text-lg font-bold" style={{ color: priorityColor }}>
+              {item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}
+            </dd>
           </dl>
         </div>
         <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.10)] rounded-xl p-3.5">
@@ -793,7 +806,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
         </div>
         {/* Hours card — full width */}
         {item.type !== 'epic' && (
-          <div className="col-span-2 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.10)] rounded-xl p-3.5">
+          <div className="col-span-3 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.10)] rounded-xl p-3.5">
             <dl>
               <dt className="text-[10px] text-[#8A8A8A] font-medium uppercase tracking-wider mb-2">Hours</dt>
               <dd>
@@ -849,21 +862,27 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       )}
 
       {/* Metadata rows */}
-      <div className="space-y-3">
-        {[
-          { label: 'Assignee', value: item.assignee || 'Unassigned' },
-          ...(itemDetail.reporter_name ? [{ label: 'Created By', value: itemDetail.reporter_name }] : []),
-          { label: 'Sprint', value: itemDetail.sprint || 'None' },
-        ].map((m) => (
-          <div key={m.label} className="flex items-center justify-between py-2 border-b border-[rgba(255,255,255,0.03)]">
-            <span className="text-xs text-[#8A8A8A]">{m.label}</span>
-            <span className="text-sm text-[#f5f5f5]">{m.value}</span>
+      {itemDetail.reporter_name && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between py-2 border-b border-[rgba(255,255,255,0.03)]">
+            <span className="text-xs text-[#8A8A8A]">Created By</span>
+            <span className="text-sm text-[#f5f5f5]">{itemDetail.reporter_name}</span>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
-      {/* Hierarchy */}
-      {props.variant === 'full' ? renderFullHierarchy() : renderCompactHierarchy()}
+      {/* Linked Items */}
+      {props.variant === 'full' ? (
+        <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
+          <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">Linked Items</div>
+          {renderFullHierarchy()}
+        </div>
+      ) : renderCompactHierarchy() && (
+        <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
+          <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">Linked Items</div>
+          {renderCompactHierarchy()}
+        </div>
+      )}
 
       {/* Tags */}
       {item.tags?.length > 0 && (
@@ -881,30 +900,6 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       {props.variant === 'full' && (
         <TicketContributors workItemId={item.id} token={token || ''} />
       )}
-
-      {/* Status buttons */}
-      <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
-        <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">
-          Status
-          <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-medium" style={{ color: statusConfig.color, backgroundColor: `${statusConfig.color}20` }}>
-            {statusConfig.label}
-          </span>
-        </div>
-        <div className="grid grid-cols-4 gap-2">
-          {(Object.keys(STATUS_CONFIG).filter(s => s !== 'backlog') as Array<keyof typeof STATUS_CONFIG>).map((status) => (
-            <Button key={status} size="sm"
-              onClick={() => handleStatusChange(status)}
-              aria-pressed={item.status === status}
-              className={`rounded-lg text-xs h-9 transition-all ${item.status === status
-                ? 'text-white shadow-lg'
-                : 'bg-transparent border border-[rgba(255,255,255,0.07)] text-[#737373] hover:text-white hover:border-[rgba(244,246,255,0.15)]'}`}
-              style={item.status === status ? { backgroundColor: STATUS_CONFIG[status].color, boxShadow: `0 4px 12px ${STATUS_CONFIG[status].color}33` } : {}}
-            >
-              {STATUS_CONFIG[status].label}
-            </Button>
-          ))}
-        </div>
-      </div>
 
       {/* Sprint actions (full only) */}
       {props.variant === 'full' && renderSprintActions()}
@@ -931,11 +926,6 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
     const sectionLabel = (icon: React.ReactNode, text: string) => (
       <div className="flex items-center gap-1.5 text-xs text-[#8A8A8A] mb-2 font-medium">{icon}{text}</div>
     );
-
-    // Palette for assignee avatars — deterministic by id
-    const AVATAR_PALETTE = ['#E0B954', '#60A5FA', '#34D399', '#A78BFA', '#F97316', '#F43F5E'];
-    const avatarColor = (id: number | null | undefined) =>
-      AVATAR_PALETTE[(id ?? 0) % AVATAR_PALETTE.length];
 
     // Shared row renderer: avatar · key+title+progress · status badge
     const renderItemRow = (target: WorkItem) => {
@@ -1022,63 +1012,11 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
               {subtasks.map(renderItemRow)}
             </div>
           )}
-          {/* Inline subtask creation */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Input value={newSubtask.title}
-                onChange={(e) => setNewSubtask((f) => ({ ...f, title: e.target.value }))}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && newSubtask.title.trim()) { e.preventDefault(); createSubtask.mutate({ ...newSubtask, title: newSubtask.title.trim() }); } }}
-                placeholder="Add a subtask…" disabled={createSubtask.isPending}
-                className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-9 text-sm flex-1"
-              />
-              <Button size="sm"
-                onClick={() => { if (newSubtask.title.trim()) createSubtask.mutate({ ...newSubtask, title: newSubtask.title.trim() }); }}
-                disabled={createSubtask.isPending || !newSubtask.title.trim()}
-                className="bg-[#E0B954] hover:bg-[#C79E3B] text-[#080808] rounded-xl h-9 px-3 disabled:opacity-50">
-                <Plus className="w-3.5 h-3.5 mr-1" />
-                {createSubtask.isPending ? 'Adding…' : 'Add'}
-              </Button>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <select value={newSubtask.assignee_id ?? ''} title="Assignee"
-                onChange={(e) => setNewSubtask((f) => ({ ...f, assignee_id: e.target.value ? parseInt(e.target.value) : null }))}
-                disabled={createSubtask.isPending}
-                className="h-9 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl px-2 text-xs">
-                <option value="">Unassigned</option>
-                {props.project?.developers?.map((dev) => (
-                  <option key={dev.id} value={dev.id}>{dev.name}</option>
-                ))}
-              </select>
-              <NumberInput min={0} max={999} value={newSubtask.estimated_hours}
-                onChange={(e) => setNewSubtask((f) => ({ ...f, estimated_hours: e.target.value }))}
-                disabled={createSubtask.isPending} placeholder="Hours" title="Estimated hours"
-                className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-9 text-xs"
-              />
-              <Popover open={showSubtaskDatePicker} onOpenChange={setShowSubtaskDatePicker}>
-                <PopoverTrigger asChild>
-                  <Button type="button" variant="outline" disabled={createSubtask.isPending}
-                    className="h-9 w-full justify-start text-left font-normal bg-[#0A0A14] border-[rgba(255,255,255,0.08)] text-white hover:bg-[#0A0A14] hover:text-white rounded-xl px-2 text-xs">
-                    <Calendar className="w-3.5 h-3.5 mr-1.5 flex-shrink-0" />
-                    <span className="truncate">{newSubtask.due_date ? parseLocalDate(newSubtask.due_date)?.toLocaleDateString() : 'Pick a date'}</span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent side="bottom" align="start" className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(224,185,84,0.2)]">
-                  <CalendarIcon mode="single" selected={parseLocalDate(newSubtask.due_date || undefined)}
-                    onSelect={(date) => { if (date) { setNewSubtask((f) => ({ ...f, due_date: formatLocalDate(date) })); setShowSubtaskDatePicker(false); } }}
-                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                    classNames={CALENDAR_CLASS_NAMES}
-                  />
-                  {newSubtask.due_date && (
-                    <div className="pt-2 mt-2 border-t border-[rgba(255,255,255,0.05)]">
-                      <Button size="sm" variant="ghost"
-                        onClick={() => { setNewSubtask((f) => ({ ...f, due_date: '' })); setShowSubtaskDatePicker(false); }}
-                        className="w-full text-xs text-[#737373] hover:text-white">Clear date</Button>
-                    </div>
-                  )}
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
+          <Button size="sm" variant="ghost"
+            onClick={() => setShowAddSubtaskModal(true)}
+            className="w-full border border-dashed border-[rgba(255,255,255,0.08)] text-[#555] hover:bg-[rgba(255,255,255,0.04)] hover:text-white hover:border-[rgba(255,255,255,0.15)] rounded-lg h-9 text-xs">
+            <Plus className="w-3.5 h-3.5 mr-1.5" /> Add a subtask
+          </Button>
         </div>
       </div>
     );
@@ -1277,7 +1215,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
                 disabled={isDoneAndNotEditing}
                 title={isDoneAndNotEditing ? 'Re-open this ticket before editing.' : undefined}
                 onClick={() => { if (isEditing) { setIsEditing(false); setEditForm({}); } else { startEditing(); } }}
-                className="text-[#737373] hover:text-white rounded-lg h-8 px-2.5 disabled:opacity-40 disabled:cursor-not-allowed">
+                className="text-[#737373] hover:text-white hover:bg-[rgba(255,255,255,0.06)] rounded-lg h-8 px-2.5 disabled:opacity-40 disabled:cursor-not-allowed">
                 <Pencil className="w-3.5 h-3.5 mr-1" />
                 {isEditing ? 'Cancel' : 'Edit'}
               </Button>
@@ -1291,7 +1229,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
               </Button>
             )}
             <Button size="sm" variant="ghost" onClick={onClose} aria-label="Close panel"
-              className="text-[#737373] hover:text-white rounded-lg h-8 px-2.5">
+              className="text-[#737373] hover:text-white hover:bg-[rgba(255,255,255,0.06)] rounded-lg h-8 px-2.5">
               <X className="w-4 h-4" />
             </Button>
           </div>
@@ -1325,6 +1263,15 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
           </div>
         )}
       </div>
+
+      {showAddSubtaskModal && (
+        <AddSubtaskModal
+          developers={props.variant === 'full' ? (props.project?.developers ?? []) : []}
+          isPending={createSubtask.isPending}
+          onClose={() => setShowAddSubtaskModal(false)}
+          onSubmit={(form) => createSubtask.mutate(form)}
+        />
+      )}
     </>
   );
 };

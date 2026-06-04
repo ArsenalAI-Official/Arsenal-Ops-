@@ -92,9 +92,19 @@ body {
 
 /* ─── Focus ─────────────────────────────────── */
 *:focus-visible {
-  outline: 2px solid rgba(224, 185, 84, 0.6);
-  outline-offset: 2px;
-  border-radius: 4px;
+  outline: 1.5px solid rgba(224, 185, 84, 0.55);
+  outline-offset: 0;
+  border-radius: 8px;
+}
+
+/* Form elements: border-color change only — no glow shadow */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[data-slot='select-trigger']:focus-visible,
+[role='combobox']:focus-visible {
+  box-shadow: none !important;
+  outline: none;
 }
 
 /* ─── Selects ───────────────────────────────── */
