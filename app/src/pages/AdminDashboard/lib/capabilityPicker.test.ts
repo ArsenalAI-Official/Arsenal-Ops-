@@ -302,3 +302,46 @@ describe('buildPickerCatalog', () => {
     ]);
   });
 });
+
+describe('edge cases the live catalog masks (pin current behavior)', () => {
+  const reg: Capability[] = [
+    { key: 'project.read', description: '' },
+    { key: 'project.write', description: '' },
+  ];
+
+  it('toggles the global "*" grant off to empty', () => {
+    expect(applyToggleGrant(['*'], '*', reg)).toEqual([]);
+  });
+
+  it('adding "*" simply appends it (does NOT minimize existing non-covered grants)', () => {
+    // '*' isn't a covering wildcard of 'project.read' via the expansion path, so the
+    // result just appends '*'. Pins today's non-minimizing behavior against a future
+    // "collapse redundant grants" change.
+    expectSameSet(applyToggleGrant(['project.read'], '*', reg), ['project.read', '*']);
+  });
+
+  it('appends to an empty grant set', () => {
+    expect(applyToggleGrant([], 'project.read', reg)).toEqual(['project.read']);
+  });
+
+  it('unchecking a wildcard-covered key expands to empty when the key is the only matching cap', () => {
+    // grants=['project.*'], toggling 'project.read' off expands the wildcard into its
+    // sub-caps minus the toggled key; with a registry whose only matching cap IS the
+    // toggled key, the expansion collapses to nothing.
+    expect(
+      applyToggleGrant(['project.*'], 'project.read', [{ key: 'project.read', description: '' }]),
+    ).toEqual([]);
+  });
+
+  it('uncheck sweeps the full prefix even when "checked" was promoted from a partial child list', () => {
+    // The node lists only ONE child. With that child AND an unlisted sibling granted,
+    // the node reads as "effectively checked" (its listed child is granted), and
+    // unchecking sweeps the entire 'project.' prefix — removing the unlisted sibling
+    // too. Documents (does not endorse) the asymmetry between the children-based
+    // "checked" predicate and the prefix-based uncheck sweep.
+    const node: CatalogNode = { grant: 'project.*', children: [{ grant: 'project.read' }] };
+    const grants = ['project.read', 'project.extra'];
+    expect(isItemEffectivelyChecked(node, grants)).toBe(true);
+    expect(applyToggleCatalogItem(grants, node)).toEqual([]);
+  });
+});

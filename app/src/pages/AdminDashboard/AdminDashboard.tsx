@@ -28,11 +28,38 @@ const RolesContainer = lazy(() => import('./containers/RolesContainer'));
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { can } = useAuth();
+
+  // Per-tab capability gates. The /admin route guard in App.tsx already ensures
+  // the user holds at least one admin.* capability before this component mounts;
+  // these gates control which tabs they actually see and protect against
+  // URL-direct access (?tab=users) for caps the user lacks.
+  const canSeeDashboard = can('admin.dashboard');
+  const canSeeEmployees = can('admin.employees');
+  const canSeeProjects = can('admin.projects');
+  const canSeeUsers = can('admin.users');
+  const canSeeRoles = can('admin.roles');
+
+  // Land on the first tab the user can actually see (in tab-bar order) rather
+  // than always defaulting to Dashboard — a user without `admin.dashboard` would
+  // otherwise open /admin to a "restricted" pane despite having other tabs.
+  const firstVisibleTab: AdminTab = canSeeDashboard
+    ? 'dashboard'
+    : canSeeEmployees
+      ? 'employees'
+      : canSeeProjects
+        ? 'projects'
+        : canSeeUsers
+          ? 'users'
+          : canSeeRoles
+            ? 'roles'
+            : 'dashboard';
+
   const tabFromUrl = searchParams.get('tab');
   const initialTab: AdminTab =
     tabFromUrl && (VALID_ADMIN_TABS as string[]).includes(tabFromUrl)
       ? (tabFromUrl as AdminTab)
-      : 'dashboard';
+      : firstVisibleTab;
   const [activeTab, setActiveTabState] = useState<AdminTab>(initialTab);
 
   const setActiveTab = (tab: AdminTab) => {
@@ -56,24 +83,12 @@ const AdminDashboard = () => {
     const resolved: AdminTab =
       urlTab && (VALID_ADMIN_TABS as string[]).includes(urlTab)
         ? (urlTab as AdminTab)
-        : 'dashboard';
+        : firstVisibleTab;
     if (resolved !== activeTab) {
       setActiveTabState(resolved);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
-
-  const { can } = useAuth();
-
-  // Per-tab capability gates. The /admin route guard in App.tsx already ensures
-  // the user holds at least one admin.* capability before this component mounts;
-  // these gates control which tabs they actually see and protect against
-  // URL-direct access (?tab=users) for caps the user lacks.
-  const canSeeDashboard = can('admin.dashboard');
-  const canSeeEmployees = can('admin.employees');
-  const canSeeProjects = can('admin.projects');
-  const canSeeUsers = can('admin.users');
-  const canSeeRoles = can('admin.roles');
 
   const restricted = (
     <div className="text-center py-12 text-[#737373]">This section is restricted.</div>

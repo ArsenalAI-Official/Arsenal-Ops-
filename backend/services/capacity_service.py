@@ -30,7 +30,7 @@ from collections.abc import Iterable
 from datetime import datetime, timedelta
 
 from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from models.time_entry import TimeEntry
 from models.work_item_assignment_history import WorkItemAssignmentHistory
@@ -236,7 +236,13 @@ def compute_capacity_breakdown(
 
     extra_ids = (logged_ids | history_ids) - set(item_by_id.keys())
     if extra_ids:
-        extras_q = db.query(WorkItem).filter(WorkItem.id.in_(extra_ids))
+        # Eager-load .project — _ticket_to_dict_for_dev reads item.project.name,
+        # which would otherwise lazy-load one SELECT per extra ticket.
+        extras_q = (
+            db.query(WorkItem)
+            .options(joinedload(WorkItem.project))
+            .filter(WorkItem.id.in_(extra_ids))
+        )
         if restrict_to_project_ids is not None:
             extras_q = extras_q.filter(WorkItem.project_id.in_(restrict_to_project_ids))
         for ex in extras_q.all():
@@ -378,7 +384,15 @@ def compute_capacity_breakdowns_batch(
         all_extra_ids |= extras
     extra_items_by_id: dict[int, object] = {}
     if all_extra_ids:
-        for ex in db.query(WorkItem).filter(WorkItem.id.in_(all_extra_ids)).all():
+        # Eager-load .project to keep this O(1)-in-developer-count fetch from
+        # lazy-loading one SELECT per extra ticket in _ticket_to_dict_for_dev.
+        extras_rows = (
+            db.query(WorkItem)
+            .options(joinedload(WorkItem.project))
+            .filter(WorkItem.id.in_(all_extra_ids))
+            .all()
+        )
+        for ex in extras_rows:
             extra_items_by_id[ex.id] = ex
 
     # Union of every item we'll score — drives the two grouped TimeEntry sums.
