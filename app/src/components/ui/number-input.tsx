@@ -70,7 +70,10 @@ const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
           tabIndex={-1}
           aria-label="Decrease"
           disabled={!!disabled}
-          onMouseDown={(e) => { e.preventDefault(); adjust(-stepVal); }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            adjust(-stepVal);
+          }}
           className={cn(chevron, 'border-r border-[rgba(255,255,255,0.06)]')}
         >
           <ChevronDown className="w-3.5 h-3.5" />
@@ -92,7 +95,10 @@ const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
           tabIndex={-1}
           aria-label="Increase"
           disabled={!!disabled}
-          onMouseDown={(e) => { e.preventDefault(); adjust(stepVal); }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            adjust(stepVal);
+          }}
           className={cn(chevron, 'border-l border-[rgba(255,255,255,0.06)]')}
         >
           <ChevronUp className="w-3.5 h-3.5" />

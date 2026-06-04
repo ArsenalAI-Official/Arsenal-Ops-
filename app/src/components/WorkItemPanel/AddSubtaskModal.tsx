@@ -23,9 +23,19 @@ interface AddSubtaskModalProps {
   onSubmit: (form: AddSubtaskFormValues) => void;
 }
 
-const empty: AddSubtaskFormValues = { title: '', assignee_id: null, estimated_hours: '', due_date: '' };
+const empty: AddSubtaskFormValues = {
+  title: '',
+  assignee_id: null,
+  estimated_hours: '',
+  due_date: '',
+};
 
-export const AddSubtaskModal = ({ developers, isPending, onClose, onSubmit }: AddSubtaskModalProps) => {
+export const AddSubtaskModal = ({
+  developers,
+  isPending,
+  onClose,
+  onSubmit,
+}: AddSubtaskModalProps) => {
   const [form, setForm] = useState<AddSubtaskFormValues>(empty);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -62,7 +72,12 @@ export const AddSubtaskModal = ({ developers, isPending, onClose, onSubmit }: Ad
               autoFocus
               value={form.title}
               onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && form.title.trim()) { e.preventDefault(); handleSubmit(); } }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && form.title.trim()) {
+                  e.preventDefault();
+                  handleSubmit();
+                }
+              }}
               placeholder="Subtask title…"
               className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
             />
@@ -73,18 +88,27 @@ export const AddSubtaskModal = ({ developers, isPending, onClose, onSubmit }: Ad
               <label className="text-xs font-medium text-[#737373] block mb-1.5">Assignee</label>
               <select
                 value={form.assignee_id ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, assignee_id: e.target.value ? parseInt(e.target.value) : null }))}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    assignee_id: e.target.value ? parseInt(e.target.value) : null,
+                  }))
+                }
                 className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl px-3 text-sm"
               >
                 <option value="">Unassigned</option>
                 {developers.map((dev) => (
-                  <option key={dev.id} value={dev.id}>{dev.name}</option>
+                  <option key={dev.id} value={dev.id}>
+                    {dev.name}
+                  </option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="text-xs font-medium text-[#737373] block mb-1.5">Estimated Hours</label>
+              <label className="text-xs font-medium text-[#737373] block mb-1.5">
+                Estimated Hours
+              </label>
               <NumberInput
                 min={0}
                 max={999}
@@ -106,22 +130,41 @@ export const AddSubtaskModal = ({ developers, isPending, onClose, onSubmit }: Ad
                   className="w-full justify-start text-left font-normal bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.04)] hover:text-[#F4F6FF] rounded-xl h-10"
                 >
                   <Calendar className="w-4 h-4 mr-2 flex-shrink-0" />
-                  <span>{form.due_date ? parseLocalDate(form.due_date)?.toLocaleDateString() : 'Pick a date'}</span>
+                  <span>
+                    {form.due_date
+                      ? parseLocalDate(form.due_date)?.toLocaleDateString()
+                      : 'Pick a date'}
+                  </span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent side="bottom" align="start" className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(224,185,84,0.2)]">
+              <PopoverContent
+                side="bottom"
+                align="start"
+                className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(224,185,84,0.2)]"
+              >
                 <CalendarIcon
                   mode="single"
                   selected={parseLocalDate(form.due_date || undefined)}
-                  onSelect={(date) => { if (date) { setForm((f) => ({ ...f, due_date: formatLocalDate(date) })); setShowDatePicker(false); } }}
+                  onSelect={(date) => {
+                    if (date) {
+                      setForm((f) => ({ ...f, due_date: formatLocalDate(date) }));
+                      setShowDatePicker(false);
+                    }
+                  }}
                   disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                   classNames={CALENDAR_CLASS_NAMES}
                 />
                 {form.due_date && (
                   <div className="pt-2 mt-2 border-t border-[rgba(255,255,255,0.05)]">
-                    <Button size="sm" variant="ghost"
-                      onClick={() => { setForm((f) => ({ ...f, due_date: '' })); setShowDatePicker(false); }}
-                      className="w-full text-xs text-[#737373] hover:text-white">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setForm((f) => ({ ...f, due_date: '' }));
+                        setShowDatePicker(false);
+                      }}
+                      className="w-full text-xs text-[#737373] hover:text-white"
+                    >
                       Clear date
                     </Button>
                   </div>
@@ -133,7 +176,12 @@ export const AddSubtaskModal = ({ developers, isPending, onClose, onSubmit }: Ad
 
         {/* Footer */}
         <div className="flex justify-end gap-3 p-5 border-t border-[rgba(255,255,255,0.05)]">
-          <Button variant="ghost" onClick={onClose} disabled={isPending} className="text-[#737373] rounded-xl px-5">
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            disabled={isPending}
+            className="text-[#737373] rounded-xl px-5"
+          >
             Cancel
           </Button>
           <Button

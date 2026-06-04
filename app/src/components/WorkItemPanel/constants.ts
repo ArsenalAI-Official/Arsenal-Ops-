@@ -22,8 +22,18 @@ export const TYPE_CONFIG = {
 // Sprint Actions handles moving items in/out of backlog.
 export const STATUS_CONFIG = {
   todo: { label: 'To Do', color: '#60A5FA', icon: Plus, gradient: 'from-[#60A5FA]/10' },
-  in_progress: { label: 'In Progress', color: '#E0B954', icon: Clock, gradient: 'from-[#E0B954]/10' },
-  in_review: { label: 'In Review', color: '#A78BFA', icon: AlertCircle, gradient: 'from-[#A78BFA]/10' },
+  in_progress: {
+    label: 'In Progress',
+    color: '#E0B954',
+    icon: Clock,
+    gradient: 'from-[#E0B954]/10',
+  },
+  in_review: {
+    label: 'In Review',
+    color: '#A78BFA',
+    icon: AlertCircle,
+    gradient: 'from-[#A78BFA]/10',
+  },
   done: { label: 'Done', color: '#34D399', icon: CheckCircle2, gradient: 'from-[#34D399]/10' },
   // backlog kept for read display; not shown as a transition button
   backlog: { label: 'Backlog', color: '#555555', icon: Inbox, gradient: 'from-[#555555]/10' },

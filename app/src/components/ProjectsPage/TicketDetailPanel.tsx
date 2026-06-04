@@ -14,8 +14,7 @@ interface TicketDetailPanelProps {
 // Thin adapter: maps MyTask → WorkItem shape for the shared WorkItemPanel.
 // MyTask is structurally compatible; fields are a superset of WorkItem's
 // required surface, so the cast is safe at runtime.
-const taskToWorkItem = (task: MyTask): WorkItem =>
-  task as unknown as WorkItem;
+const taskToWorkItem = (task: MyTask): WorkItem => task as unknown as WorkItem;
 
 const TicketDetailPanel = ({
   task,

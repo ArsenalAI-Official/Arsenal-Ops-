@@ -35,13 +35,15 @@ import {
 } from '@/lib/hierarchy/validateReparent';
 import { apiFetch } from '@/lib/api';
 import { parseLocalDate, formatLocalDate } from '@/components/ProjectsPage/utils';
-import {
-  TYPE_CONFIG,
-  STATUS_CONFIG,
-  PRIORITY_COLOR,
-  CALENDAR_CLASS_NAMES,
-} from './constants';
-import type { WorkItem, Sprint, AllDeveloper, ProjectLite, Comment, ProjectDeveloper } from './types';
+import { TYPE_CONFIG, STATUS_CONFIG, PRIORITY_COLOR, CALENDAR_CLASS_NAMES } from './constants';
+import type {
+  WorkItem,
+  Sprint,
+  AllDeveloper,
+  ProjectLite,
+  Comment,
+  ProjectDeveloper,
+} from './types';
 import { AddSubtaskModal } from './AddSubtaskModal';
 import type { AddSubtaskFormValues } from './AddSubtaskModal';
 
@@ -116,7 +118,10 @@ function renderCommentContent(
     const mm = part.match(/<<<M_(\d+)>>>/);
     if (mm) {
       return (
-        <span key={`m-${idx++}`} className="bg-[rgba(224,185,84,0.2)] text-[#E0B954] px-1.5 py-0.5 rounded-md font-medium">
+        <span
+          key={`m-${idx++}`}
+          className="bg-[rgba(224,185,84,0.2)] text-[#E0B954] px-1.5 py-0.5 rounded-md font-medium"
+        >
           @{devMap.get(parseInt(mm[1]))}
         </span>
       );
@@ -125,16 +130,24 @@ function renderCommentContent(
     if (um) {
       const url = urls[parseInt(um[1])];
       return (
-        <a key={`u-${idx++}`} href={url} target="_blank" rel="noopener noreferrer"
-          className="text-[#E0B954] hover:text-[#C79E3B] underline hover:no-underline transition-colors break-all">
+        <a
+          key={`u-${idx++}`}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[#E0B954] hover:text-[#C79E3B] underline hover:no-underline transition-colors break-all"
+        >
           {url}
         </a>
       );
     }
-    return part.split('\n').flatMap((line, li, arr) => [
-      <span key={`t-${idx}-${li}`}>{line}</span>,
-      li < arr.length - 1 ? <br key={`tb-${idx}-${li}`} /> : null,
-    ]).filter(Boolean);
+    return part
+      .split('\n')
+      .flatMap((line, li, arr) => [
+        <span key={`t-${idx}-${li}`}>{line}</span>,
+        li < arr.length - 1 ? <br key={`tb-${idx}-${li}`} /> : null,
+      ])
+      .filter(Boolean);
   });
 }
 
@@ -226,7 +239,10 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       const cur = queue.shift()!;
       for (const cid of childrenByParent.get(cur) ?? []) {
         const cn = Number(cid);
-        if (!Number.isNaN(cn) && !ex.has(cn)) { ex.add(cn); queue.push(cn); }
+        if (!Number.isNaN(cn) && !ex.has(cn)) {
+          ex.add(cn);
+          queue.push(cn);
+        }
       }
     }
     return ex;
@@ -291,10 +307,13 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
 
   const logHoursCompact = useMutation({
     mutationFn: (hours: number) =>
-      apiFetch<{ logged_hours: number; remaining_hours: number }>(`/api/workitems/${item.id}/log-hours`, {
-        method: 'POST',
-        body: JSON.stringify({ hours }),
-      }),
+      apiFetch<{ logged_hours: number; remaining_hours: number }>(
+        `/api/workitems/${item.id}/log-hours`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ hours }),
+        },
+      ),
     onSuccess: (data: { logged_hours: number; remaining_hours: number }) => {
       if (props.variant === 'compact') props.onItemChanged({ ...item, ...data });
       invalidateWorkItems();
@@ -363,7 +382,8 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
 
   // ─── Action wrappers (route to full callbacks or compact mutations) ─────────
   const isSavingEdit = props.variant === 'full' ? props.isSavingEdit : saveEditCompact.isPending;
-  const isLoggingHours = props.variant === 'full' ? props.isLoggingHours : logHoursCompact.isPending;
+  const isLoggingHours =
+    props.variant === 'full' ? props.isLoggingHours : logHoursCompact.isPending;
 
   const handleSaveEdit = () => {
     if (isSavingEdit) return;
@@ -405,7 +425,9 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
           const data = await apiFetch(`/api/projects/${projectId}`);
           setCompactEditDevs((data as { developers?: ProjectDeveloper[] }).developers ?? []);
         }
-      } catch { /* proceed without project devs */ }
+      } catch {
+        /* proceed without project devs */
+      }
     }
     setEditForm({ ...itemDetail });
     setIsEditing(true);
@@ -418,8 +440,10 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
     const lastAt = value.lastIndexOf('@');
     if (lastAt !== -1) {
       const after = value.substring(lastAt + 1);
-      if (!after.includes(' ')) { setMentionFilter(after); setShowMentions(true); }
-      else setShowMentions(false);
+      if (!after.includes(' ')) {
+        setMentionFilter(after);
+        setShowMentions(true);
+      } else setShowMentions(false);
     } else {
       setShowMentions(false);
     }
@@ -441,7 +465,8 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
   const typeConfig = TYPE_CONFIG[item.type] ?? TYPE_CONFIG.task;
   const priorityColor = PRIORITY_COLOR[item.priority] ?? '#737373';
   const AVATAR_PALETTE = ['#E0B954', '#60A5FA', '#34D399', '#A78BFA', '#F97316', '#F43F5E'];
-  const avatarColor = (id: number | null | undefined) => AVATAR_PALETTE[(id ?? 0) % AVATAR_PALETTE.length];
+  const avatarColor = (id: number | null | undefined) =>
+    AVATAR_PALETTE[(id ?? 0) % AVATAR_PALETTE.length];
 
   // ─── Edit form (full variant) ──────────────────────────────────────────────
   const renderFullEditForm = () => (
@@ -471,8 +496,14 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
               const newType = e.target.value as WorkItem['type'];
               setEditForm((f) => {
                 const next: Partial<WorkItem> = { ...f, type: newType };
-                if (!fieldSupportsType(newType, 'epic_id')) { next.epic_id = null; next.epic_key = null; }
-                if (!fieldSupportsType(newType, 'parent_id')) { next.parent_id = null; next.parent_key = null; }
+                if (!fieldSupportsType(newType, 'epic_id')) {
+                  next.epic_id = null;
+                  next.epic_key = null;
+                }
+                if (!fieldSupportsType(newType, 'parent_id')) {
+                  next.parent_id = null;
+                  next.parent_key = null;
+                }
                 return next;
               });
             }}
@@ -488,7 +519,9 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
           <label className="text-xs font-medium text-[#737373] block mb-1.5">Priority</label>
           <select
             defaultValue={item.priority}
-            onChange={(e) => setEditForm((f) => ({ ...f, priority: e.target.value as WorkItem['priority'] }))}
+            onChange={(e) =>
+              setEditForm((f) => ({ ...f, priority: e.target.value as WorkItem['priority'] }))
+            }
             className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
           >
             <option value="critical">Critical</option>
@@ -501,16 +534,24 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       <div className={item.type === 'epic' ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-2 gap-3'}>
         <div>
           <label className="text-xs font-medium text-[#737373] block mb-1.5">Story Points</label>
-          <NumberInput defaultValue={item.story_points}
-            onChange={(e) => setEditForm((f) => ({ ...f, story_points: parseInt(e.target.value) || 0 }))}
+          <NumberInput
+            defaultValue={item.story_points}
+            onChange={(e) =>
+              setEditForm((f) => ({ ...f, story_points: parseInt(e.target.value) || 0 }))
+            }
             className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
           />
         </div>
         {item.type !== 'epic' && (
           <div>
-            <label className="text-xs font-medium text-[#737373] block mb-1.5">Allocated Hours</label>
-            <NumberInput defaultValue={item.assigned_hours}
-              onChange={(e) => setEditForm((f) => ({ ...f, assigned_hours: parseInt(e.target.value) || 0 }))}
+            <label className="text-xs font-medium text-[#737373] block mb-1.5">
+              Allocated Hours
+            </label>
+            <NumberInput
+              defaultValue={item.assigned_hours}
+              onChange={(e) =>
+                setEditForm((f) => ({ ...f, assigned_hours: parseInt(e.target.value) || 0 }))
+              }
               className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
             />
           </div>
@@ -520,15 +561,23 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-medium text-[#737373] block mb-1.5">Logged Hours</label>
-            <NumberInput defaultValue={item.logged_hours || 0}
-              onChange={(e) => setEditForm((f) => ({ ...f, logged_hours: parseInt(e.target.value) || 0 }))}
+            <NumberInput
+              defaultValue={item.logged_hours || 0}
+              onChange={(e) =>
+                setEditForm((f) => ({ ...f, logged_hours: parseInt(e.target.value) || 0 }))
+              }
               className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-[#737373] block mb-1.5">Remaining Hours</label>
-            <NumberInput defaultValue={item.remaining_hours}
-              onChange={(e) => setEditForm((f) => ({ ...f, remaining_hours: parseInt(e.target.value) || 0 }))}
+            <label className="text-xs font-medium text-[#737373] block mb-1.5">
+              Remaining Hours
+            </label>
+            <NumberInput
+              defaultValue={item.remaining_hours}
+              onChange={(e) =>
+                setEditForm((f) => ({ ...f, remaining_hours: parseInt(e.target.value) || 0 }))
+              }
               className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
             />
           </div>
@@ -538,12 +587,19 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
         <label className="text-xs font-medium text-[#737373] block mb-1.5">Assignee</label>
         <select
           value={editForm.assignee_id ?? item.assignee_id ?? ''}
-          onChange={(e) => setEditForm((f) => ({ ...f, assignee_id: e.target.value ? parseInt(e.target.value) : null }))}
+          onChange={(e) =>
+            setEditForm((f) => ({
+              ...f,
+              assignee_id: e.target.value ? parseInt(e.target.value) : null,
+            }))
+          }
           className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl px-3 text-sm"
         >
           <option value="">Unassigned</option>
           {(props.variant === 'full' ? props.project?.developers : [])?.map((dev) => (
-            <option key={dev.id} value={dev.id}>{dev.name} ({dev.role})</option>
+            <option key={dev.id} value={dev.id}>
+              {dev.name} ({dev.role})
+            </option>
           ))}
         </select>
       </div>
@@ -554,12 +610,26 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
             value={editForm.epic_id ?? item.epic_id ?? null}
             valueKey={editForm.epic_key ?? item.epic_key ?? null}
             items={fullWorkItems}
-            allowedTypes={getAllowedTargetTypes((editForm.type ?? item.type) as WorkItem['type'], 'epic_id')}
+            allowedTypes={getAllowedTargetTypes(
+              (editForm.type ?? item.type) as WorkItem['type'],
+              'epic_id',
+            )}
             excludeIds={epicExcludeIds}
             onChange={(newId, newKey) => {
-              const target = newId != null ? (fullWorkItems.find((wi) => wi.id === String(newId)) ?? null) : null;
-              const v = validateReparent({ ...item, ...editForm, type: (editForm.type ?? item.type) as WorkItem['type'] }, target, 'epic_id', fullWorkItems);
-              if (!v.ok) { toast.error(v.reason ?? 'Invalid epic'); return; }
+              const target =
+                newId != null
+                  ? (fullWorkItems.find((wi) => wi.id === String(newId)) ?? null)
+                  : null;
+              const v = validateReparent(
+                { ...item, ...editForm, type: (editForm.type ?? item.type) as WorkItem['type'] },
+                target,
+                'epic_id',
+                fullWorkItems,
+              );
+              if (!v.ok) {
+                toast.error(v.reason ?? 'Invalid epic');
+                return;
+              }
               setEditForm((f) => ({ ...f, epic_id: newId, epic_key: newKey }));
             }}
             placeholder="No epic"
@@ -568,24 +638,45 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       )}
       {fieldSupportsType((editForm.type ?? item.type) as WorkItem['type'], 'parent_id') && (
         <div>
-          <label className="text-xs font-medium text-[#737373] block mb-1.5" title="This task is part of a larger story or task.">Belongs to</label>
+          <label
+            className="text-xs font-medium text-[#737373] block mb-1.5"
+            title="This task is part of a larger story or task."
+          >
+            Belongs to
+          </label>
           <WorkItemCombobox
             value={editForm.parent_id ?? item.parent_id ?? null}
             valueKey={editForm.parent_key ?? item.parent_key ?? null}
             items={fullWorkItems}
-            allowedTypes={getAllowedTargetTypes((editForm.type ?? item.type) as WorkItem['type'], 'parent_id')}
+            allowedTypes={getAllowedTargetTypes(
+              (editForm.type ?? item.type) as WorkItem['type'],
+              'parent_id',
+            )}
             excludeIds={parentExcludeIds}
             disabled={selectedItemHasChildren}
             onChange={(newId, newKey) => {
-              const target = newId != null ? (fullWorkItems.find((wi) => wi.id === String(newId)) ?? null) : null;
-              const v = validateReparent({ ...item, ...editForm, type: (editForm.type ?? item.type) as WorkItem['type'] }, target, 'parent_id', fullWorkItems);
-              if (!v.ok) { toast.error(v.reason ?? 'Invalid parent'); return; }
+              const target =
+                newId != null
+                  ? (fullWorkItems.find((wi) => wi.id === String(newId)) ?? null)
+                  : null;
+              const v = validateReparent(
+                { ...item, ...editForm, type: (editForm.type ?? item.type) as WorkItem['type'] },
+                target,
+                'parent_id',
+                fullWorkItems,
+              );
+              if (!v.ok) {
+                toast.error(v.reason ?? 'Invalid parent');
+                return;
+              }
               setEditForm((f) => ({ ...f, parent_id: newId, parent_key: newKey }));
             }}
             placeholder="No parent"
           />
           {selectedItemHasChildren && (
-            <p className="text-[10px] text-[#737373] mt-1.5 leading-snug">This task already has child tasks, so it can't be nested under another item.</p>
+            <p className="text-[10px] text-[#737373] mt-1.5 leading-snug">
+              This task already has child tasks, so it can't be nested under another item.
+            </p>
           )}
         </div>
       )}
@@ -596,14 +687,25 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
             <Button className="w-full justify-start text-left font-normal bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.04)] hover:text-[#F4F6FF] rounded-xl h-10">
               <Calendar className="w-4 h-4 mr-2" />
               {editForm.due_date
-                ? parseLocalDate(editForm.due_date as string)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                ? parseLocalDate(editForm.due_date as string)?.toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })
                 : 'Pick a date'}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0 bg-[#0d0d0d] border-[rgba(255,255,255,0.07)]" align="start">
+          <PopoverContent
+            className="w-auto p-0 bg-[#0d0d0d] border-[rgba(255,255,255,0.07)]"
+            align="start"
+          >
             <CalendarIcon
               mode="single"
-              selected={parseLocalDate(editForm.due_date === '' || !editForm.due_date ? undefined : (editForm.due_date as string))}
+              selected={parseLocalDate(
+                editForm.due_date === '' || !editForm.due_date
+                  ? undefined
+                  : (editForm.due_date as string),
+              )}
               onSelect={(date) => {
                 if (date) {
                   setEditForm({ ...editForm, due_date: formatLocalDate(date) });
@@ -616,9 +718,22 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
           </PopoverContent>
         </Popover>
       </div>
-      <Button onClick={handleSaveEdit} disabled={isSavingEdit}
-        className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl w-full h-10 disabled:opacity-70">
-        {isSavingEdit ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</> : <><Save className="w-4 h-4 mr-2" />Save Changes</>}
+      <Button
+        onClick={handleSaveEdit}
+        disabled={isSavingEdit}
+        className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl w-full h-10 disabled:opacity-70"
+      >
+        {isSavingEdit ? (
+          <>
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            Saving…
+          </>
+        ) : (
+          <>
+            <Save className="w-4 h-4 mr-2" />
+            Save Changes
+          </>
+        )}
       </Button>
     </div>
   );
@@ -628,21 +743,28 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
     <div className="space-y-4">
       <div>
         <label className="text-xs font-medium text-[#737373] block mb-1.5">Title</label>
-        <Input value={editForm.title ?? ''} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+        <Input
+          value={editForm.title ?? ''}
+          onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
           className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
         />
       </div>
       <div>
         <label className="text-xs font-medium text-[#737373] block mb-1.5">Description</label>
-        <Textarea value={editForm.description ?? ''} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+        <Textarea
+          value={editForm.description ?? ''}
+          onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
           className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl min-h-[120px] resize-none whitespace-pre-wrap"
         />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="text-xs font-medium text-[#737373] block mb-1.5">Type</label>
-          <select value={editForm.type ?? item.type} onChange={(e) => setEditForm({ ...editForm, type: e.target.value as WorkItem['type'] })}
-            className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm">
+          <select
+            value={editForm.type ?? item.type}
+            onChange={(e) => setEditForm({ ...editForm, type: e.target.value as WorkItem['type'] })}
+            className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
+          >
             <option value="user_story">Story</option>
             <option value="task">Task</option>
             <option value="bug">Bug</option>
@@ -651,8 +773,13 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
         </div>
         <div>
           <label className="text-xs font-medium text-[#737373] block mb-1.5">Priority</label>
-          <select value={editForm.priority ?? item.priority} onChange={(e) => setEditForm({ ...editForm, priority: e.target.value as WorkItem['priority'] })}
-            className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm">
+          <select
+            value={editForm.priority ?? item.priority}
+            onChange={(e) =>
+              setEditForm({ ...editForm, priority: e.target.value as WorkItem['priority'] })
+            }
+            className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
+          >
             <option value="critical">Critical</option>
             <option value="high">High</option>
             <option value="medium">Medium</option>
@@ -663,23 +790,34 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="text-xs font-medium text-[#737373] block mb-1.5">Story Points</label>
-          <NumberInput value={editForm.story_points ?? 0}
-            onChange={(e) => setEditForm({ ...editForm, story_points: parseInt(e.target.value) || 0 })}
+          <NumberInput
+            value={editForm.story_points ?? 0}
+            onChange={(e) =>
+              setEditForm({ ...editForm, story_points: parseInt(e.target.value) || 0 })
+            }
             className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
           />
         </div>
         <div>
           <label className="text-xs font-medium text-[#737373] block mb-1.5">Allocated Hours</label>
-          <NumberInput value={editForm.assigned_hours ?? 0}
-            onChange={(e) => setEditForm({ ...editForm, assigned_hours: parseInt(e.target.value) || 0 })}
+          <NumberInput
+            value={editForm.assigned_hours ?? 0}
+            onChange={(e) =>
+              setEditForm({ ...editForm, assigned_hours: parseInt(e.target.value) || 0 })
+            }
             className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
           />
         </div>
       </div>
       <div>
         <label className="text-xs font-medium text-[#737373] block mb-1.5">Status</label>
-        <select value={editForm.status ?? item.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value as WorkItem['status'] })}
-          className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm">
+        <select
+          value={editForm.status ?? item.status}
+          onChange={(e) =>
+            setEditForm({ ...editForm, status: e.target.value as WorkItem['status'] })
+          }
+          className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
+        >
           <option value="todo">To Do</option>
           <option value="in_progress">In Progress</option>
           <option value="in_review">In Review</option>
@@ -692,14 +830,30 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
           <PopoverTrigger asChild>
             <Button className="w-full justify-start text-left font-normal bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.04)] hover:text-[#F4F6FF] rounded-xl h-10">
               <Calendar className="w-4 h-4 mr-2" />
-              {editForm.due_date ? parseLocalDate(editForm.due_date as string)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Pick a date'}
+              {editForm.due_date
+                ? parseLocalDate(editForm.due_date as string)?.toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })
+                : 'Pick a date'}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0 bg-[#0d0d0d] border-[rgba(255,255,255,0.07)]" align="start">
+          <PopoverContent
+            className="w-auto p-0 bg-[#0d0d0d] border-[rgba(255,255,255,0.07)]"
+            align="start"
+          >
             <CalendarIcon
               mode="single"
-              selected={parseLocalDate(editForm.due_date === null ? undefined : (editForm.due_date as string | undefined))}
-              onSelect={(date) => { if (date) { setEditForm({ ...editForm, due_date: formatLocalDate(date) }); setShowCalendarEditForm(false); } }}
+              selected={parseLocalDate(
+                editForm.due_date === null ? undefined : (editForm.due_date as string | undefined),
+              )}
+              onSelect={(date) => {
+                if (date) {
+                  setEditForm({ ...editForm, due_date: formatLocalDate(date) });
+                  setShowCalendarEditForm(false);
+                }
+              }}
               disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
               classNames={CALENDAR_CLASS_NAMES}
             />
@@ -710,22 +864,39 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
         <label className="text-xs font-medium text-[#737373] block mb-1.5">Assignee</label>
         <select
           value={editForm.assignee_id ?? item.assignee_id ?? ''}
-          onChange={(e) => setEditForm({ ...editForm, assignee_id: e.target.value ? parseInt(e.target.value) : null })}
+          onChange={(e) =>
+            setEditForm({
+              ...editForm,
+              assignee_id: e.target.value ? parseInt(e.target.value) : null,
+            })
+          }
           className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl px-3 text-sm"
         >
           <option value="">Unassigned</option>
           {compactEditDevs.map((dev) => (
-            <option key={dev.id} value={dev.id}>{dev.name} ({dev.role})</option>
+            <option key={dev.id} value={dev.id}>
+              {dev.name} ({dev.role})
+            </option>
           ))}
         </select>
       </div>
       <div className="flex gap-3 pt-2">
-        <Button onClick={handleSaveEdit} disabled={isSavingEdit}
-          className="flex-1 bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl h-10 font-medium">
+        <Button
+          onClick={handleSaveEdit}
+          disabled={isSavingEdit}
+          className="flex-1 bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl h-10 font-medium"
+        >
           {isSavingEdit ? 'Saving…' : 'Save Changes'}
         </Button>
-        <Button onClick={() => { setIsEditing(false); setEditForm({}); setCompactEditDevs([]); }} variant="outline"
-          className="flex-1 bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#a3a3a3] hover:text-white rounded-xl h-10">
+        <Button
+          onClick={() => {
+            setIsEditing(false);
+            setEditForm({});
+            setCompactEditDevs([]);
+          }}
+          variant="outline"
+          className="flex-1 bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#a3a3a3] hover:text-white rounded-xl h-10"
+        >
           Cancel
         </Button>
       </div>
@@ -739,32 +910,55 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       <div className="pb-4 border-b border-[rgba(255,255,255,0.05)]">
         <h2 className="text-xl font-bold text-white mb-2">{item.title}</h2>
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-semibold"
-            style={{ backgroundColor: `${avatarColor(item.assignee_id)}20`, color: avatarColor(item.assignee_id) }}>
+          <div
+            className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-semibold"
+            style={{
+              backgroundColor: `${avatarColor(item.assignee_id)}20`,
+              color: avatarColor(item.assignee_id),
+            }}
+          >
             {item.assignee ? item.assignee.charAt(0).toUpperCase() : '—'}
           </div>
           <span className="text-sm text-[#a3a3a3]">{item.assignee || 'Unassigned'}</span>
         </div>
         <p className="text-sm leading-relaxed whitespace-pre-wrap">
-          {itemDetail.description
-            ? <span className="text-[#a3a3a3]">{renderTextWithNewlines(itemDetail.description)}</span>
-            : <span className="text-[#555] italic">No description — click Edit to add one.</span>
-          }
+          {itemDetail.description ? (
+            <span className="text-[#a3a3a3]">{renderTextWithNewlines(itemDetail.description)}</span>
+          ) : (
+            <span className="text-[#555] italic">No description — click Edit to add one.</span>
+          )}
         </p>
       </div>
 
       {/* Status buttons */}
       <div className="pt-4">
-        <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">Status</div>
+        <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">
+          Status
+        </div>
         <div className="grid grid-cols-4 gap-2">
-          {(Object.keys(STATUS_CONFIG).filter(s => s !== 'backlog') as Array<keyof typeof STATUS_CONFIG>).map((status) => (
-            <Button key={status} size="sm"
+          {(
+            Object.keys(STATUS_CONFIG).filter((s) => s !== 'backlog') as Array<
+              keyof typeof STATUS_CONFIG
+            >
+          ).map((status) => (
+            <Button
+              key={status}
+              size="sm"
               onClick={() => handleStatusChange(status)}
               aria-pressed={item.status === status}
-              className={`rounded-lg text-xs h-9 transition-all ${item.status === status
-                ? 'text-white shadow-lg'
-                : 'bg-transparent border border-[rgba(255,255,255,0.07)] text-[#737373] hover:text-white hover:border-[rgba(244,246,255,0.15)]'}`}
-              style={item.status === status ? { backgroundColor: STATUS_CONFIG[status].color, boxShadow: `0 4px 12px ${STATUS_CONFIG[status].color}33` } : {}}
+              className={`rounded-lg text-xs h-9 transition-all ${
+                item.status === status
+                  ? 'text-white shadow-lg'
+                  : 'bg-transparent border border-[rgba(255,255,255,0.07)] text-[#737373] hover:text-white hover:border-[rgba(244,246,255,0.15)]'
+              }`}
+              style={
+                item.status === status
+                  ? {
+                      backgroundColor: STATUS_CONFIG[status].color,
+                      boxShadow: `0 4px 12px ${STATUS_CONFIG[status].color}33`,
+                    }
+                  : {}
+              }
             >
               {STATUS_CONFIG[status].label}
             </Button>
@@ -776,13 +970,17 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.10)] rounded-xl p-3.5">
           <dl>
-            <dt className="text-[10px] text-[#8A8A8A] font-medium uppercase tracking-wider mb-1">Story Points</dt>
+            <dt className="text-[10px] text-[#8A8A8A] font-medium uppercase tracking-wider mb-1">
+              Story Points
+            </dt>
             <dd className="text-lg font-bold text-[#a3a3a3]">{item.story_points}</dd>
           </dl>
         </div>
         <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.10)] rounded-xl p-3.5">
           <dl>
-            <dt className="text-[10px] text-[#8A8A8A] font-medium uppercase tracking-wider mb-1">Priority</dt>
+            <dt className="text-[10px] text-[#8A8A8A] font-medium uppercase tracking-wider mb-1">
+              Priority
+            </dt>
             <dd className="text-lg font-bold" style={{ color: priorityColor }}>
               {item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}
             </dd>
@@ -790,17 +988,24 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
         </div>
         <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.10)] rounded-xl p-3.5">
           <dl>
-            <dt className="text-[10px] text-[#8A8A8A] font-medium uppercase tracking-wider mb-1">Due Date</dt>
-            <dd className="text-lg font-bold" style={{
-              color: (() => {
-                if (!itemDetail.due_date) return '#555';
-                const d = parseLocalDate(itemDetail.due_date);
-                if (!d) return '#E0B954';
-                const diffDays = Math.ceil((d.getTime() - Date.now()) / 86400000);
-                return diffDays < 0 ? '#EF4444' : diffDays <= 7 ? '#F59E0B' : '#34D399';
-              })(),
-            }}>
-              {itemDetail.due_date ? (parseLocalDate(itemDetail.due_date)?.toLocaleDateString() ?? 'Not set') : 'Not set'}
+            <dt className="text-[10px] text-[#8A8A8A] font-medium uppercase tracking-wider mb-1">
+              Due Date
+            </dt>
+            <dd
+              className="text-lg font-bold"
+              style={{
+                color: (() => {
+                  if (!itemDetail.due_date) return '#555';
+                  const d = parseLocalDate(itemDetail.due_date);
+                  if (!d) return '#E0B954';
+                  const diffDays = Math.ceil((d.getTime() - Date.now()) / 86400000);
+                  return diffDays < 0 ? '#EF4444' : diffDays <= 7 ? '#F59E0B' : '#34D399';
+                })(),
+              }}
+            >
+              {itemDetail.due_date
+                ? (parseLocalDate(itemDetail.due_date)?.toLocaleDateString() ?? 'Not set')
+                : 'Not set'}
             </dd>
           </dl>
         </div>
@@ -808,21 +1013,32 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
         {item.type !== 'epic' && (
           <div className="col-span-3 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.10)] rounded-xl p-3.5">
             <dl>
-              <dt className="text-[10px] text-[#8A8A8A] font-medium uppercase tracking-wider mb-2">Hours</dt>
+              <dt className="text-[10px] text-[#8A8A8A] font-medium uppercase tracking-wider mb-2">
+                Hours
+              </dt>
               <dd>
                 {(() => {
                   const allocated = item.assigned_hours || 0;
                   const logged = item.logged_hours || 0;
-                  const pct = allocated > 0 ? Math.min(100, Math.round((logged / allocated) * 100)) : 0;
+                  const pct =
+                    allocated > 0 ? Math.min(100, Math.round((logged / allocated) * 100)) : 0;
                   const barColor = pct >= 100 ? '#34D399' : '#E0B954';
                   return (
                     <div className="space-y-1.5">
                       <div className="flex justify-between text-xs text-[#8A8A8A]">
-                        <span><span className="text-white font-semibold">{logged}h</span> logged</span>
-                        <span><span className="text-white font-semibold">{item.remaining_hours}h</span> remaining of {allocated}h</span>
+                        <span>
+                          <span className="text-white font-semibold">{logged}h</span> logged
+                        </span>
+                        <span>
+                          <span className="text-white font-semibold">{item.remaining_hours}h</span>{' '}
+                          remaining of {allocated}h
+                        </span>
                       </div>
                       <div className="h-1.5 rounded-full bg-[rgba(255,255,255,0.07)] overflow-hidden">
-                        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: barColor }} />
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{ width: `${pct}%`, backgroundColor: barColor }}
+                        />
                       </div>
                     </div>
                   );
@@ -836,9 +1052,13 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       {/* Log Work Hours — directly below hours card for quick access */}
       {(props.variant === 'compact' || isAssignee) && item.type !== 'epic' && (
         <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
-          <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">Log Work Hours</div>
+          <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">
+            Log Work Hours
+          </div>
           <div className="flex items-center gap-3">
-            <label htmlFor={`log-hours-${item.id}`} className="sr-only">Hours to log</label>
+            <label htmlFor={`log-hours-${item.id}`} className="sr-only">
+              Hours to log
+            </label>
             <NumberInput
               ref={logHoursRef}
               id={`log-hours-${item.id}`}
@@ -848,8 +1068,12 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
               className="w-28 h-9"
               aria-describedby={`log-hours-status-${item.id}`}
             />
-            <Button size="sm" disabled={isLoggingHours} onClick={handleLogHours}
-              className="bg-[#E0B954] hover:bg-[#C79E3B] text-[#080808] font-medium rounded-xl h-9 disabled:opacity-50">
+            <Button
+              size="sm"
+              disabled={isLoggingHours}
+              onClick={handleLogHours}
+              className="bg-[#E0B954] hover:bg-[#C79E3B] text-[#080808] font-medium rounded-xl h-9 disabled:opacity-50"
+            >
               <Clock className="w-3.5 h-3.5 mr-1.5" />
               {isLoggingHours ? 'Logging…' : 'Log Hours'}
             </Button>
@@ -874,14 +1098,20 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       {/* Linked Items */}
       {props.variant === 'full' ? (
         <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
-          <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">Linked Items</div>
+          <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">
+            Linked Items
+          </div>
           {renderFullHierarchy()}
         </div>
-      ) : renderCompactHierarchy() && (
-        <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
-          <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">Linked Items</div>
-          {renderCompactHierarchy()}
-        </div>
+      ) : (
+        renderCompactHierarchy() && (
+          <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
+            <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">
+              Linked Items
+            </div>
+            {renderCompactHierarchy()}
+          </div>
+        )
       )}
 
       {/* Tags */}
@@ -890,16 +1120,19 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
           <div className="text-xs text-[#8A8A8A] mb-2 font-medium">Tags</div>
           <div className="flex flex-wrap gap-2">
             {item.tags.map((tag) => (
-              <span key={tag} className="px-2.5 py-1 rounded-lg bg-[rgba(255,255,255,0.05)] text-[#a3a3a3] text-xs">{tag}</span>
+              <span
+                key={tag}
+                className="px-2.5 py-1 rounded-lg bg-[rgba(255,255,255,0.05)] text-[#a3a3a3] text-xs"
+              >
+                {tag}
+              </span>
             ))}
           </div>
         </div>
       )}
 
       {/* Contributors (full only) */}
-      {props.variant === 'full' && (
-        <TicketContributors workItemId={item.id} token={token || ''} />
-      )}
+      {props.variant === 'full' && <TicketContributors workItemId={item.id} token={token || ''} />}
 
       {/* Sprint actions (full only) */}
       {props.variant === 'full' && renderSprintActions()}
@@ -920,11 +1153,16 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       : null;
 
     const renderEmpty = (label: string) => (
-      <div className="flex items-center px-3 py-2 rounded-lg border border-dashed border-[rgba(255,255,255,0.06)] text-xs text-[#555] italic">{label}</div>
+      <div className="flex items-center px-3 py-2 rounded-lg border border-dashed border-[rgba(255,255,255,0.06)] text-xs text-[#555] italic">
+        {label}
+      </div>
     );
 
     const sectionLabel = (icon: React.ReactNode, text: string) => (
-      <div className="flex items-center gap-1.5 text-xs text-[#8A8A8A] mb-2 font-medium">{icon}{text}</div>
+      <div className="flex items-center gap-1.5 text-xs text-[#8A8A8A] mb-2 font-medium">
+        {icon}
+        {text}
+      </div>
     );
 
     // Shared row renderer: avatar · key+title+progress · status badge
@@ -936,23 +1174,31 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       const barColor = logged >= allocated && allocated > 0 ? '#34D399' : '#E0B954';
       const ac = avatarColor(target.assignee_id);
       return (
-        <div key={target.id}
+        <div
+          key={target.id}
           className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)] cursor-pointer hover:border-[rgba(255,255,255,0.1)] transition-colors"
-          onClick={() => props.navigate(`/project/${props.projectId}/board/${target.id}`)}>
+          onClick={() => props.navigate(`/project/${props.projectId}/board/${target.id}`)}
+        >
           {/* Assignee avatar */}
-          <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-semibold"
-            style={{ backgroundColor: `${ac}20`, color: ac }}>
+          <div
+            className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-semibold"
+            style={{ backgroundColor: `${ac}20`, color: ac }}
+          >
             {target.assignee ? target.assignee.charAt(0).toUpperCase() : '—'}
           </div>
           {/* Key + title + progress bar */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 mb-1.5">
-              <span className="text-[11px] text-[#737373] font-mono flex-shrink-0">{target.key}</span>
+              <span className="text-[11px] text-[#737373] font-mono flex-shrink-0">
+                {target.key}
+              </span>
               <span className="text-sm text-white truncate">{target.title}</span>
             </div>
             <div className="h-1 rounded-full bg-[rgba(255,255,255,0.07)] overflow-hidden">
-              <div className="h-full rounded-full transition-all"
-                style={{ width: `${pct}%`, backgroundColor: barColor }} />
+              <div
+                className="h-full rounded-full transition-all"
+                style={{ width: `${pct}%`, backgroundColor: barColor }}
+              />
             </div>
           </div>
           {/* Hours — logged / allocated */}
@@ -960,8 +1206,10 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
             {logged}h/{allocated}h
           </span>
           {/* Status badge — right end */}
-          <span className="text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wide flex-shrink-0"
-            style={{ color: sc?.color ?? '#737373', background: `${sc?.color ?? '#737373'}1a` }}>
+          <span
+            className="text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wide flex-shrink-0"
+            style={{ color: sc?.color ?? '#737373', background: `${sc?.color ?? '#737373'}1a` }}
+          >
             {sc?.label ?? target.status}
           </span>
         </div>
@@ -986,10 +1234,15 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       const epicItems = fullWorkItems.filter((wi) => wi.epic_id === subjectId);
       return (
         <div>
-          {sectionLabel(<List className="w-3.5 h-3.5" />, `Items${epicItems.length > 0 ? ` (${epicItems.length})` : ''}`)}
-          {epicItems.length > 0
-            ? <div className="space-y-1.5">{epicItems.map(renderItemRow)}</div>
-            : renderEmpty('No items')}
+          {sectionLabel(
+            <List className="w-3.5 h-3.5" />,
+            `Items${epicItems.length > 0 ? ` (${epicItems.length})` : ''}`,
+          )}
+          {epicItems.length > 0 ? (
+            <div className="space-y-1.5">{epicItems.map(renderItemRow)}</div>
+          ) : (
+            renderEmpty('No items')
+          )}
         </div>
       );
     }
@@ -1008,13 +1261,14 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
             `Subtasks${subtasks.length > 0 ? ` (${subtasks.length})` : ''}`,
           )}
           {subtasks.length > 0 && (
-            <div className="space-y-1.5 mb-3">
-              {subtasks.map(renderItemRow)}
-            </div>
+            <div className="space-y-1.5 mb-3">{subtasks.map(renderItemRow)}</div>
           )}
-          <Button size="sm" variant="ghost"
+          <Button
+            size="sm"
+            variant="ghost"
             onClick={() => setShowAddSubtaskModal(true)}
-            className="w-full border border-dashed border-[rgba(255,255,255,0.08)] text-[#555] hover:bg-[rgba(255,255,255,0.04)] hover:text-white hover:border-[rgba(255,255,255,0.15)] rounded-lg h-9 text-xs">
+            className="w-full border border-dashed border-[rgba(255,255,255,0.08)] text-[#555] hover:bg-[rgba(255,255,255,0.04)] hover:text-white hover:border-[rgba(255,255,255,0.15)] rounded-lg h-9 text-xs"
+          >
             <Plus className="w-3.5 h-3.5 mr-1.5" /> Add a subtask
           </Button>
         </div>
@@ -1041,8 +1295,10 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
         className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)] cursor-pointer hover:border-[rgba(255,255,255,0.1)] transition-colors"
         onClick={() => openInBoard(relatedId)}
       >
-        <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center"
-          style={{ backgroundColor: `${accentColor}20` }}>
+        <div
+          className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center"
+          style={{ backgroundColor: `${accentColor}20` }}
+        >
           <Icon className="w-3.5 h-3.5" style={{ color: accentColor }} />
         </div>
         <span className="text-sm font-mono text-[#a3a3a3] flex-1">{keyStr}</span>
@@ -1085,26 +1341,45 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
 
     return (
       <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
-        <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">Sprint</div>
+        <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">
+          Sprint
+        </div>
         <div className="flex flex-wrap gap-2">
           {item.sprint_id && nextSprintId && item.status !== 'done' && (
-            <Button size="sm" onClick={() => onMoveToSprint(item.id, nextSprintId)}
-              className="rounded-lg text-xs h-9 bg-[rgba(245,158,11,0.1)] border border-[rgba(245,158,11,0.3)] text-[#F59E0B] hover:bg-[rgba(245,158,11,0.2)]">
+            <Button
+              size="sm"
+              onClick={() => onMoveToSprint(item.id, nextSprintId)}
+              className="rounded-lg text-xs h-9 bg-[rgba(245,158,11,0.1)] border border-[rgba(245,158,11,0.3)] text-[#F59E0B] hover:bg-[rgba(245,158,11,0.2)]"
+            >
               <ArrowRight className="w-3 h-3 mr-1" /> Push to Next Sprint
             </Button>
           )}
           {item.sprint_id && (
-            <Button size="sm" onClick={() => onMoveToSprint(item.id, null)}
-              className="rounded-lg text-xs h-9 bg-transparent border border-[rgba(255,255,255,0.07)] text-[#737373] hover:text-white hover:border-[rgba(244,246,255,0.15)]">
+            <Button
+              size="sm"
+              onClick={() => onMoveToSprint(item.id, null)}
+              className="rounded-lg text-xs h-9 bg-transparent border border-[rgba(255,255,255,0.07)] text-[#737373] hover:text-white hover:border-[rgba(244,246,255,0.15)]"
+            >
               <Inbox className="w-3 h-3 mr-1" /> Remove from Sprint
             </Button>
           )}
           {!item.sprint_id && (
-            <select onChange={(e) => { if (e.target.value) { onMoveToSprint(item.id, parseInt(e.target.value)); e.target.value = ''; } }}
+            <select
+              onChange={(e) => {
+                if (e.target.value) {
+                  onMoveToSprint(item.id, parseInt(e.target.value));
+                  e.target.value = '';
+                }
+              }}
               className="h-9 text-xs bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#a3a3a3] rounded-lg px-3 appearance-none cursor-pointer hover:border-[rgba(244,246,255,0.15)]"
-              defaultValue="">
+              defaultValue=""
+            >
               <option value="">Add to Sprint…</option>
-              {sprints.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {sprints.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
             </select>
           )}
         </div>
@@ -1115,70 +1390,110 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
   // ─── Comments ──────────────────────────────────────────────────────────────
   const renderComments = () => (
     <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
-      <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">Activity &amp; Comments</div>
+      <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">
+        Activity &amp; Comments
+      </div>
       <div className="relative mb-4">
-        <Textarea value={newComment} onChange={handleCommentChange}
+        <Textarea
+          value={newComment}
+          onChange={handleCommentChange}
           placeholder="Add a comment… Use @ to mention someone"
           className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl min-h-[80px] placeholder:text-[#334155] resize-none"
         />
         {showMentions && (
           <div className="absolute left-0 right-0 top-full mt-1 bg-[#1A1D26] border border-[rgba(255,255,255,0.08)] rounded-xl shadow-xl z-10 max-h-48 overflow-y-auto">
-            {allDevelopers.filter((d) => d.name.toLowerCase().includes(mentionFilter.toLowerCase())).slice(0, 5).map((dev) => (
-              <button key={dev.id} onClick={() => insertMention(dev)}
-                className="w-full px-3 py-2 text-left text-sm text-[#f5f5f5] hover:bg-[rgba(224,185,84,0.1)] flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-[rgba(224,185,84,0.2)] flex items-center justify-center text-xs text-[#E0B954]">
-                  {dev.name.charAt(0).toUpperCase()}
-                </div>
-                <span>{dev.name}</span>
-                <span className="text-[#737373] text-xs ml-auto">{dev.email}</span>
-              </button>
-            ))}
-            {allDevelopers.filter((d) => d.name.toLowerCase().includes(mentionFilter.toLowerCase())).length === 0 && (
+            {allDevelopers
+              .filter((d) => d.name.toLowerCase().includes(mentionFilter.toLowerCase()))
+              .slice(0, 5)
+              .map((dev) => (
+                <button
+                  key={dev.id}
+                  onClick={() => insertMention(dev)}
+                  className="w-full px-3 py-2 text-left text-sm text-[#f5f5f5] hover:bg-[rgba(224,185,84,0.1)] flex items-center gap-2"
+                >
+                  <div className="w-6 h-6 rounded-full bg-[rgba(224,185,84,0.2)] flex items-center justify-center text-xs text-[#E0B954]">
+                    {dev.name.charAt(0).toUpperCase()}
+                  </div>
+                  <span>{dev.name}</span>
+                  <span className="text-[#737373] text-xs ml-auto">{dev.email}</span>
+                </button>
+              ))}
+            {allDevelopers.filter((d) => d.name.toLowerCase().includes(mentionFilter.toLowerCase()))
+              .length === 0 && (
               <div className="px-3 py-2 text-sm text-[#737373]">No matching developers</div>
             )}
           </div>
         )}
         <div className="flex gap-2 mt-2 flex-wrap">
-          <Button size="sm" onClick={() => handleSubmitComment('comment')} disabled={!newComment.trim() || submitComment.isPending}
-            className="bg-[rgba(224,185,84,0.1)] border border-[rgba(224,185,84,0.3)] text-[#E0B954] hover:bg-[rgba(224,185,84,0.2)] rounded-lg text-xs h-8">
+          <Button
+            size="sm"
+            onClick={() => handleSubmitComment('comment')}
+            disabled={!newComment.trim() || submitComment.isPending}
+            className="bg-[rgba(224,185,84,0.1)] border border-[rgba(224,185,84,0.3)] text-[#E0B954] hover:bg-[rgba(224,185,84,0.2)] rounded-lg text-xs h-8"
+          >
             <MessageSquare className="w-3 h-3 mr-1" /> Comment
           </Button>
-          <Button size="sm" onClick={() => handleSubmitComment('blocker')} disabled={!newComment.trim() || submitComment.isPending}
-            className="bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.3)] text-[#EF4444] hover:bg-[rgba(239,68,68,0.2)] rounded-lg text-xs h-8">
+          <Button
+            size="sm"
+            onClick={() => handleSubmitComment('blocker')}
+            disabled={!newComment.trim() || submitComment.isPending}
+            className="bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.3)] text-[#EF4444] hover:bg-[rgba(239,68,68,0.2)] rounded-lg text-xs h-8"
+          >
             <AlertCircle className="w-3 h-3 mr-1" /> Report Blocker
           </Button>
-          <Button size="sm" onClick={() => handleSubmitComment('business_review')} disabled={!newComment.trim() || submitComment.isPending}
-            className="bg-[rgba(167,139,250,0.1)] border border-[rgba(167,139,250,0.3)] text-[#A78BFA] hover:bg-[rgba(167,139,250,0.2)] rounded-lg text-xs h-8">
+          <Button
+            size="sm"
+            onClick={() => handleSubmitComment('business_review')}
+            disabled={!newComment.trim() || submitComment.isPending}
+            className="bg-[rgba(167,139,250,0.1)] border border-[rgba(167,139,250,0.3)] text-[#A78BFA] hover:bg-[rgba(167,139,250,0.2)] rounded-lg text-xs h-8"
+          >
             <Target className="w-3 h-3 mr-1" /> Business Review
           </Button>
         </div>
       </div>
       <div className="space-y-3 max-h-64 overflow-y-auto">
         {comments.length === 0 ? (
-          <div className="text-center py-6 text-[#737373] text-sm">No comments yet. Be the first to comment!</div>
+          <div className="text-center py-6 text-[#737373] text-sm">
+            No comments yet. Be the first to comment!
+          </div>
         ) : (
           comments.map((comment) => (
-            <div key={comment.id} className={`p-3 rounded-xl ${
-              comment.comment_type === 'blocker' ? 'bg-[rgba(239,68,68,0.05)] border border-[rgba(239,68,68,0.2)]'
-              : comment.comment_type === 'business_review' ? 'bg-[rgba(167,139,250,0.05)] border border-[rgba(167,139,250,0.2)]'
-              : 'bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)]'
-            }`}>
+            <div
+              key={comment.id}
+              className={`p-3 rounded-xl ${
+                comment.comment_type === 'blocker'
+                  ? 'bg-[rgba(239,68,68,0.05)] border border-[rgba(239,68,68,0.2)]'
+                  : comment.comment_type === 'business_review'
+                    ? 'bg-[rgba(167,139,250,0.05)] border border-[rgba(167,139,250,0.2)]'
+                    : 'bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)]'
+              }`}
+            >
               <div className="flex items-center gap-2 mb-2">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-                  comment.comment_type === 'blocker' ? 'bg-[rgba(239,68,68,0.2)] text-[#EF4444]'
-                  : comment.comment_type === 'business_review' ? 'bg-[rgba(167,139,250,0.2)] text-[#A78BFA]'
-                  : 'bg-[rgba(224,185,84,0.2)] text-[#E0B954]'
-                }`}>
+                <div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
+                    comment.comment_type === 'blocker'
+                      ? 'bg-[rgba(239,68,68,0.2)] text-[#EF4444]'
+                      : comment.comment_type === 'business_review'
+                        ? 'bg-[rgba(167,139,250,0.2)] text-[#A78BFA]'
+                        : 'bg-[rgba(224,185,84,0.2)] text-[#E0B954]'
+                  }`}
+                >
                   {comment.author_name?.charAt?.(0)?.toUpperCase() || '?'}
                 </div>
                 <span className="text-sm font-medium text-[#f5f5f5]">{comment.author_name}</span>
                 {comment.comment_type === 'blocker' && (
-                  <span className="px-1.5 py-0.5 rounded-md bg-[rgba(239,68,68,0.2)] text-[#EF4444] text-[10px] font-medium">BLOCKER</span>
+                  <span className="px-1.5 py-0.5 rounded-md bg-[rgba(239,68,68,0.2)] text-[#EF4444] text-[10px] font-medium">
+                    BLOCKER
+                  </span>
                 )}
                 {comment.comment_type === 'business_review' && (
-                  <span className="px-1.5 py-0.5 rounded-md bg-[rgba(167,139,250,0.2)] text-[#A78BFA] text-[10px] font-medium">BUSINESS REVIEW</span>
+                  <span className="px-1.5 py-0.5 rounded-md bg-[rgba(167,139,250,0.2)] text-[#A78BFA] text-[10px] font-medium">
+                    BUSINESS REVIEW
+                  </span>
                 )}
-                <span className="text-xs text-[#737373] ml-auto">{new Date(comment.created_at).toLocaleDateString()}</span>
+                <span className="text-xs text-[#737373] ml-auto">
+                  {new Date(comment.created_at).toLocaleDateString()}
+                </span>
               </div>
               <p className="text-sm text-[#a3a3a3] leading-relaxed">
                 {renderCommentContent(comment.content, comment.mentions, devMap)}
@@ -1196,13 +1511,16 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
   return (
     <>
       <div className="fixed inset-0 bg-black/40 z-40" onClick={onClose} />
-      <div className={`fixed right-0 top-0 bottom-0 w-full ${props.variant === 'full' ? 'max-w-xl animate-in slide-in-from-right duration-300' : 'max-w-lg'} bg-[#080808] border-l border-[rgba(255,255,255,0.07)] z-50 flex flex-col shadow-2xl shadow-black/50`}>
-
+      <div
+        className={`fixed right-0 top-0 bottom-0 w-full ${props.variant === 'full' ? 'max-w-xl animate-in slide-in-from-right duration-300' : 'max-w-lg'} bg-[#080808] border-l border-[rgba(255,255,255,0.07)] z-50 flex flex-col shadow-2xl shadow-black/50`}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-sm font-medium"
-              style={{ backgroundColor: typeConfig.bg, color: typeConfig.color }}>
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-sm font-medium"
+              style={{ backgroundColor: typeConfig.bg, color: typeConfig.color }}
+            >
               <typeConfig.icon className="w-4 h-4" />
               {typeConfig.label}
             </div>
@@ -1211,25 +1529,44 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
           <div className="flex items-center gap-1.5">
             {/* Edit (full variant — in header) */}
             {props.variant === 'full' && (
-              <Button size="sm" variant="ghost"
+              <Button
+                size="sm"
+                variant="ghost"
                 disabled={isDoneAndNotEditing}
                 title={isDoneAndNotEditing ? 'Re-open this ticket before editing.' : undefined}
-                onClick={() => { if (isEditing) { setIsEditing(false); setEditForm({}); } else { startEditing(); } }}
-                className="text-[#737373] hover:text-white hover:bg-[rgba(255,255,255,0.06)] rounded-lg h-8 px-2.5 disabled:opacity-40 disabled:cursor-not-allowed">
+                onClick={() => {
+                  if (isEditing) {
+                    setIsEditing(false);
+                    setEditForm({});
+                  } else {
+                    startEditing();
+                  }
+                }}
+                className="text-[#737373] hover:text-white hover:bg-[rgba(255,255,255,0.06)] rounded-lg h-8 px-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
                 <Pencil className="w-3.5 h-3.5 mr-1" />
                 {isEditing ? 'Cancel' : 'Edit'}
               </Button>
             )}
             {/* Delete (full only) */}
             {props.variant === 'full' && (
-              <Button size="sm" variant="ghost" aria-label="Delete work item"
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-label="Delete work item"
                 onClick={() => props.variant === 'full' && props.onDeleteItem(item.id)}
-                className="text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg h-8 px-2.5">
+                className="text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg h-8 px-2.5"
+              >
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
             )}
-            <Button size="sm" variant="ghost" onClick={onClose} aria-label="Close panel"
-              className="text-[#737373] hover:text-white hover:bg-[rgba(255,255,255,0.06)] rounded-lg h-8 px-2.5">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={onClose}
+              aria-label="Close panel"
+              className="text-[#737373] hover:text-white hover:bg-[rgba(255,255,255,0.06)] rounded-lg h-8 px-2.5"
+            >
               <X className="w-4 h-4" />
             </Button>
           </div>
@@ -1238,9 +1575,10 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
           {isEditing
-            ? (props.variant === 'full' ? renderFullEditForm() : renderCompactEditForm())
-            : renderViewMode()
-          }
+            ? props.variant === 'full'
+              ? renderFullEditForm()
+              : renderCompactEditForm()
+            : renderViewMode()}
         </div>
 
         {/* Footer (compact only: Edit + Open ticket) */}
@@ -1250,13 +1588,21 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
               onClick={startEditing}
               disabled={isDoneAndNotEditing}
               title={isDoneAndNotEditing ? 'Re-open this ticket before editing.' : undefined}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] text-white font-semibold text-sm hover:bg-[rgba(255,255,255,0.08)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] text-white font-semibold text-sm hover:bg-[rgba(255,255,255,0.08)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
               <Pencil className="w-4 h-4" />
               Edit
             </button>
             <button
-              onClick={() => props.variant === 'compact' && props.onOpenInBoard((item as WorkItem & { project_id?: number }).project_id ?? 0, item.id)}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-[#E0B954] to-[#C79E3B] text-[#080808] font-semibold text-sm hover:opacity-90 transition-opacity">
+              onClick={() =>
+                props.variant === 'compact' &&
+                props.onOpenInBoard(
+                  (item as WorkItem & { project_id?: number }).project_id ?? 0,
+                  item.id,
+                )
+              }
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-[#E0B954] to-[#C79E3B] text-[#080808] font-semibold text-sm hover:opacity-90 transition-opacity"
+            >
               <ExternalLink className="w-4 h-4" />
               Open ticket
             </button>

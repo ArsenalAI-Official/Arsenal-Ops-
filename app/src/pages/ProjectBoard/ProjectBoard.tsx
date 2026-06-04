@@ -293,7 +293,11 @@ const ProjectBoard = () => {
       if (stored === 'week') return stored;
       // 'epic' was a valid list grouping before Epic became a top-level view — clear it.
       if (stored === 'epic') {
-        try { window.localStorage.removeItem(`projectBoard.listGroupBy.${id ?? ''}`); } catch { /* ignore */ }
+        try {
+          window.localStorage.removeItem(`projectBoard.listGroupBy.${id ?? ''}`);
+        } catch {
+          /* ignore */
+        }
       }
       return 'sprint';
     } catch {
@@ -2108,7 +2112,9 @@ const ProjectBoard = () => {
                                         {item.assignee.charAt(0).toUpperCase()}
                                       </span>
                                     </div>
-                                    <span className="text-xs text-[#a3a3a3] truncate">{item.assignee}</span>
+                                    <span className="text-xs text-[#a3a3a3] truncate">
+                                      {item.assignee}
+                                    </span>
                                   </>
                                 ) : (
                                   <span className="text-xs text-[#555] truncate">—</span>
@@ -2320,7 +2326,9 @@ const ProjectBoard = () => {
                                           {item.assignee.charAt(0).toUpperCase()}
                                         </span>
                                       </div>
-                                      <span className="text-xs text-[#a3a3a3] truncate">{item.assignee}</span>
+                                      <span className="text-xs text-[#a3a3a3] truncate">
+                                        {item.assignee}
+                                      </span>
                                     </>
                                   ) : (
                                     <span className="text-xs text-[#555] truncate">—</span>
@@ -2527,7 +2535,9 @@ const ProjectBoard = () => {
                                         {item.assignee.charAt(0).toUpperCase()}
                                       </span>
                                     </div>
-                                    <span className="text-xs text-[#a3a3a3] truncate">{item.assignee}</span>
+                                    <span className="text-xs text-[#a3a3a3] truncate">
+                                      {item.assignee}
+                                    </span>
                                   </>
                                 ) : (
                                   <span className="text-xs text-[#555] truncate">—</span>
