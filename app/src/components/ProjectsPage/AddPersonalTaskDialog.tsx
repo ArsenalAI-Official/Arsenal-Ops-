@@ -142,11 +142,15 @@ const AddPersonalTaskDialog = ({
                     <SelectValue placeholder="Choose a project..." />
                   </SelectTrigger>
                   <SelectContent className="bg-[#0d0d0d] border-[rgba(255,255,255,0.08)]">
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={project.id.toString()}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
+                    {[...projects]
+                      .sort((a, b) =>
+                        a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+                      )
+                      .map((project) => (
+                        <SelectItem key={project.id} value={project.id.toString()}>
+                          {project.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>

@@ -25,11 +25,18 @@ const ProjectsBox = ({
   onDeleteProject,
 }: ProjectsBoxProps) => {
   const { can } = useAuth();
-  const filteredProjects = projects.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.description.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  // Filter by search, then sort A → Z by display name. `.filter` already
+  // returns a fresh array so chaining `.sort` doesn't mutate the parent's
+  // `projects` prop. localeCompare with `sensitivity: 'base'` makes the
+  // order case- and accent-insensitive — same comparator used in the task
+  // dialogs (AddPersonalTaskDialog / ConvertToTicketDialog) for consistency.
+  const filteredProjects = projects
+    .filter(
+      (p) =>
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.description.toLowerCase().includes(searchQuery.toLowerCase()),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 
   return (
     <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-2xl flex flex-col h-full">
