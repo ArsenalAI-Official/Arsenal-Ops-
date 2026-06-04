@@ -85,6 +85,12 @@ const MyCapacityCard = () => {
   const statusColor =
     status === 'Available' ? '#34D399' : status === 'Moderate' ? '#F59E0B' : '#EF4444';
 
+  // Total hours I actually logged this week across every project.
+  const totalLoggedThisWeek = (data?.tickets ?? []).reduce(
+    (s, t) => s + (t.your_logged_this_week ?? 0),
+    0,
+  );
+
   // Group contributing tickets by project for the modal detail view.
   const projectGroupsMap = (data?.tickets ?? []).reduce<
     Record<
@@ -126,10 +132,15 @@ const MyCapacityCard = () => {
         {isLoading ? (
           <div className="h-8 w-16 bg-[rgba(255,255,255,0.06)] rounded-lg animate-pulse mb-1" />
         ) : (
-          <div className="text-3xl font-bold tracking-tight" style={{ color: statusColor }}>
-            {used}h
-            <span className="text-base text-[#737373] font-normal"> / {WEEKLY_CAPACITY}h</span>
-          </div>
+          <>
+            <div className="text-3xl font-bold tracking-tight" style={{ color: statusColor }}>
+              {used}h
+              <span className="text-base text-[#737373] font-normal"> / {WEEKLY_CAPACITY}h</span>
+            </div>
+            <div className="text-[11px] text-[#E0B954] font-medium mt-0.5">
+              {totalLoggedThisWeek}h logged this week
+            </div>
+          </>
         )}
         <div className="text-xs text-[#737373] font-medium mt-1">Capacity this week</div>
       </button>
@@ -161,7 +172,7 @@ const MyCapacityCard = () => {
 
           {data && (
             <div className="space-y-4 mt-2">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <span
                   className="text-xs font-medium whitespace-nowrap px-2.5 py-1 rounded-md border"
                   style={{
@@ -172,6 +183,9 @@ const MyCapacityCard = () => {
                 >
                   {status} · {used}h / {WEEKLY_CAPACITY}h (
                   {Math.round((used / WEEKLY_CAPACITY) * 100)}%)
+                </span>
+                <span className="text-xs text-[#E0B954] font-medium">
+                  {totalLoggedThisWeek}h logged this week
                 </span>
               </div>
 

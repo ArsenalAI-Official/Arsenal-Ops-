@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { toast, Toaster } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
+import { PROJECT_TABS } from '@/lib/projectTabs';
 import {
   invalidateProjectScope,
   invalidateAdminMembershipImpact,
@@ -17,6 +18,10 @@ import UserModal from './modals/UserModal';
 import EditUserModal from './modals/EditUserModal';
 import GitHubModal from './modals/GitHubModal';
 import ProjectMembersModal from './modals/ProjectMembersModal';
+import CategoryManagerModal, {
+  type ProjectCategory,
+  type CategoryFormPayload,
+} from './modals/CategoryManagerModal';
 import EmployeesTab, { type Employee, type DeveloperCapacity } from './tabs/EmployeesTab';
 import DashboardTab from './tabs/DashboardTab';
 import ProjectsTab from './tabs/ProjectsTab';
@@ -49,6 +54,10 @@ interface Project {
   github_repo_urls?: string[];
   github_repo_name: string | null;
   has_github_token: boolean;
+  // Category surface — flat fields populated by GET /api/admin/projects.
+  // null when the project hasn't been assigned to any category.
+  category_id: number | null;
+  category_name: string | null;
 }
 
 interface DashboardStats {
@@ -71,20 +80,30 @@ interface Role {
   updated_at?: string;
 }
 
+interface ProjectWeeklyReportRow {
+  project_id: number;
+  project_name: string;
+  category_id: number | null;
+  category_name: string | null;
+  todo_backlog: number;
+  in_progress: number;
+  in_review: number;
+  done_this_week: number;
+}
+
+interface ProjectWeeklyReport {
+  week_start: string;
+  week_end: string;
+  rows: ProjectWeeklyReportRow[];
+}
+
 interface Capability {
   key: string;
   description: string;
 }
 
-type AdminTab = 'dashboard' | 'employees' | 'projects' | 'users' | 'developers-capacity' | 'roles';
-const VALID_ADMIN_TABS: AdminTab[] = [
-  'dashboard',
-  'employees',
-  'projects',
-  'users',
-  'developers-capacity',
-  'roles',
-];
+type AdminTab = 'dashboard' | 'employees' | 'projects' | 'users' | 'roles';
+const VALID_ADMIN_TABS: AdminTab[] = ['dashboard', 'employees', 'projects', 'users', 'roles'];
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -163,7 +182,19 @@ const AdminDashboard = () => {
     queryFn: () => apiFetch<Project[]>('/api/admin/projects'),
     ...ADMIN_REFETCH,
   });
-  const projects = projectsQuery.data ?? [];
+  // Stabilize the empty default — `data ?? []` creates a new array every
+  // render, which busts the downstream `filteredProjects` useMemo. See
+  // app/CLAUDE.md "Stabilize empty-default arrays".
+  const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
+
+  // Project categories — admin-managed labels for organizing projects.
+  // Same ADMIN_REFETCH cadence as the rest of the admin queries.
+  const categoriesQuery = useQuery<ProjectCategory[]>({
+    queryKey: ['admin', 'projectCategories'],
+    queryFn: () => apiFetch<ProjectCategory[]>('/api/admin/project-categories/'),
+    ...ADMIN_REFETCH,
+  });
+  const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
 
   const usersQuery = useQuery<User[]>({
     queryKey: ['admin', 'users'],
@@ -261,7 +292,17 @@ const AdminDashboard = () => {
     [employees],
   );
 
-  const { user, refreshCapabilities } = useAuth(); // keeps auth guard active; token read from localStorage by apiFetch
+  const { user, refreshCapabilities, can } = useAuth(); // keeps auth guard active; token read from localStorage by apiFetch
+
+  // Per-tab capability gates. The /admin route guard in App.tsx already
+  // ensures the user holds at least one admin.* capability before this
+  // component mounts; these gates control which tabs they actually see
+  // and protect against URL-direct access (?tab=users) for caps the user lacks.
+  const canSeeDashboard = can('admin.dashboard');
+  const canSeeEmployees = can('admin.employees');
+  const canSeeProjects = can('admin.projects');
+  const canSeeUsers = can('admin.users');
+  const canSeeRoles = can('admin.roles');
 
   // Refresh capabilities twice: once now, once after the backend LRU window
   // expires for the most common case. Used after role mutations that may
@@ -318,6 +359,117 @@ const AdminDashboard = () => {
   const [addMemberForm, setAddMemberForm] = useState<{ developer_id: string; role: string }>({
     developer_id: '',
     role: 'developer',
+  });
+
+  // Category manager modal + filter state.
+  // categoryFilter values:
+  //   'all'           → no filter (default)
+  //   'uncategorized' → only projects with category_id === null
+  //   '<numeric id>'  → only projects with category_id === Number(value)
+  // The string-id form pairs naturally with a native <select> whose option
+  // values are always strings — avoids a discriminated-union for one dropdown.
+  const [showCategoryManagerModal, setShowCategoryManagerModal] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+
+  // Filtered projects feed into the ProjectsTab card grid. Computed here so
+  // the filter state lives next to the project list and we don't ship a
+  // separate filtering hook into the tab.
+  const filteredProjects = useMemo(() => {
+    if (categoryFilter === 'all') return projects;
+    if (categoryFilter === 'uncategorized') return projects.filter((p) => p.category_id === null);
+    const id = Number(categoryFilter);
+    return Number.isFinite(id) ? projects.filter((p) => p.category_id === id) : projects;
+  }, [projects, categoryFilter]);
+
+  // Weekly report — server-side filtered by the same category filter the card
+  // grid uses. The query key includes `categoryFilter` so React Query refetches
+  // on filter change. We translate the encoded filter into the query-string
+  // params the backend expects (`uncategorized=true` vs `category_id=<id>`).
+  const weeklyReportQuery = useQuery<ProjectWeeklyReport>({
+    queryKey: ['admin', 'projectsWeeklyReport', categoryFilter],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (categoryFilter === 'uncategorized') {
+        params.set('uncategorized', 'true');
+      } else {
+        const id = Number(categoryFilter);
+        if (Number.isFinite(id)) params.set('category_id', String(id));
+      }
+      const qs = params.toString();
+      return apiFetch<ProjectWeeklyReport>(
+        `/api/admin/projects/weekly-report${qs ? `?${qs}` : ''}`,
+      );
+    },
+    ...ADMIN_REFETCH,
+  });
+
+  // ── Category CRUD mutations ───────────────────────────────────────────
+  // Invalidate three keys on any category mutation:
+  //   ['admin','projectCategories'] — drives the manager modal list
+  //   ['admin','projects']          — project cards show category badges
+  //   ['admin','projectsWeeklyReport'] — report rows include category_name
+  // A rename of a category needs to reflow into the cards AND the report;
+  // an assignment change re-buckets which projects show in a filtered report.
+  const invalidateCategoryScope = () => {
+    queryClient.invalidateQueries({ queryKey: ['admin', 'projectCategories'] });
+    queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] });
+    queryClient.invalidateQueries({ queryKey: ['admin', 'projectsWeeklyReport'] });
+  };
+
+  const createCategoryMutation = useMutation({
+    mutationFn: (payload: CategoryFormPayload) =>
+      apiFetch<ProjectCategory>('/api/admin/project-categories/', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      toast.success('Category created');
+      invalidateCategoryScope();
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to create category'),
+  });
+
+  const updateCategoryMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: CategoryFormPayload }) =>
+      apiFetch<ProjectCategory>(`/api/admin/project-categories/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      toast.success('Category updated');
+      invalidateCategoryScope();
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to update category'),
+  });
+
+  const deleteCategoryMutation = useMutation({
+    mutationFn: (id: number) =>
+      apiFetch<void>(`/api/admin/project-categories/${id}`, { method: 'DELETE' }),
+    onSuccess: (_data, deletedId) => {
+      toast.success('Category deleted');
+      // Reset the filter to 'all' ONLY if the active filter was on the
+      // category we just deleted — otherwise a delete of an unrelated
+      // category would silently change the user's filter.
+      setCategoryFilter((current) => (current === String(deletedId) ? 'all' : current));
+      invalidateCategoryScope();
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to delete category'),
+  });
+
+  // Assigning a category to a single project. Uses the existing
+  // PUT /api/projects/{id} surface (extended with category_id support).
+  // Passing null clears the assignment ("uncategorized").
+  const setProjectCategoryMutation = useMutation({
+    mutationFn: ({ projectId, categoryId }: { projectId: number; categoryId: number | null }) =>
+      apiFetch(`/api/projects/${projectId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ category_id: categoryId }),
+      }),
+    onSuccess: () => {
+      invalidateCategoryScope();
+    },
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : 'Failed to update project category'),
   });
 
   const handleEditEmployee = (employee: Employee) => {
@@ -887,33 +1039,195 @@ const AdminDashboard = () => {
     });
   };
 
-  const isCoveredByWildcard = (key: string, grants: string[]): boolean => {
-    if (grants.includes(key)) return false;
+  // Display catalog for the Roles role-editor picker.
+  //
+  // PROJECT items are derived from the single project-tab registry
+  // (`lib/projectTabs.ts`) so adding a tab there automatically surfaces it in
+  // the role editor with the right label, description, grant key, and
+  // sub-rows. The ADMIN group is hand-curated since admin surfaces don't
+  // share the tab abstraction.
+  //
+  // Both surfaces use PM-friendly labels ("Overview", "Timeline") rather
+  // than raw keys; the keys still drive the grant — only the label is
+  // humanized.
+  interface PickerItem {
+    label: string;
+    grant: string;
+    description: string;
+    /** Optional sub-rows shown indented under the parent. When the parent's
+     *  grant (typically a wildcard) is active, children render as covered
+     *  and disabled — to customize, admin unchecks the parent first then
+     *  picks specific child grants. */
+    children?: { label: string; grant: string; description: string }[];
+  }
+
+  const PICKER_CATALOG: {
+    prefix: 'project' | 'admin';
+    label: string;
+    wildcard: string;
+    items: PickerItem[];
+  }[] = useMemo(
+    () => [
+      {
+        prefix: 'project',
+        label: 'Project',
+        wildcard: 'project.*',
+        // Mapped from PROJECT_TABS so the role editor reflects the live
+        // project-tab registry — no duplicated labels/descriptions to drift.
+        // The two write-side entries below are appended manually because they
+        // gate creation surfaces (work items/sprints, PRD/roadmap AI) that
+        // aren't tabs and so don't live in PROJECT_TABS. Cap keys live
+        // outside the read groups' wildcards on purpose (`project.tracker_write`
+        // is a sibling of `project.tracker`, not nested under it) so granting
+        // read access doesn't auto-grant write.
+        items: [
+          ...PROJECT_TABS.map((tab) => ({
+            label: tab.label,
+            grant: tab.picker.grant,
+            description: tab.picker.description,
+            children: tab.picker.children ? [...tab.picker.children] : undefined,
+          })),
+          {
+            label: 'Manage items & sprints',
+            grant: 'project.tracker_write',
+            description: 'Create, edit, and delete work items and sprints',
+          },
+          {
+            label: 'AI Generators',
+            grant: 'project.ai.write',
+            description: 'Run PRD analyzer and roadmap parser (write)',
+          },
+          {
+            label: 'Create new projects',
+            grant: 'project.create',
+            description: 'Create new projects from the home page (write)',
+          },
+          {
+            label: 'Assign personal tasks to project',
+            grant: 'project.assign_personal_task',
+            description: 'Convert a personal task into a project ticket (write)',
+          },
+        ],
+      },
+      {
+        prefix: 'admin',
+        label: 'Admin',
+        wildcard: 'admin.*',
+        items: [
+          {
+            label: 'Dashboard',
+            grant: 'admin.dashboard',
+            description: 'Admin dashboard summary',
+          },
+          {
+            label: 'Employees',
+            grant: 'admin.employees',
+            description: 'Manage employees',
+          },
+          {
+            label: 'Projects',
+            grant: 'admin.projects',
+            description: 'Manage projects from admin',
+          },
+          {
+            label: 'Users',
+            grant: 'admin.users',
+            description: 'Manage users and role assignments',
+          },
+          {
+            label: 'Roles',
+            grant: 'admin.roles',
+            description: 'Manage roles and capability grants',
+          },
+        ],
+      },
+    ],
+    [],
+  );
+
+  /** Strict "is this exact grant or a wildcard ancestor in the grant set?"
+   *  check. Sibling sub-caps and descendants do NOT count.
+   *
+   *  This is the LEAF check — for items that have children (or for groups),
+   *  use `isItemEffectivelyChecked` below which also returns true when
+   *  every child is effectively checked.
+   */
+  const isItemChecked = (grant: string, grants: string[]): boolean => {
     if (grants.includes('*')) return true;
+    if (grants.includes(grant)) return true;
     for (const g of grants) {
-      if (g.endsWith('.*')) {
-        const prefix = g.slice(0, -2);
-        if (key === prefix || key.startsWith(prefix + '.')) return true;
-      }
+      if (!g.endsWith('.*')) continue;
+      const prefix = g.slice(0, -2);
+      // grant is covered when it equals the wildcard's prefix or is a
+      // descendant. e.g. grant='project.pm.*' is covered by g='project.*'
+      // because 'project.pm.*' starts with 'project.'.
+      if (grant === prefix || grant.startsWith(prefix + '.')) return true;
     }
     return false;
   };
 
-  // Group capabilities by top-level prefix for the picker UI.
-  const groupedCapabilities = useMemo(() => {
-    const groups = new Map<string, Capability[]>();
-    for (const cap of capabilityRegistry) {
-      const top = cap.key.split('.')[0];
-      const list = groups.get(top) || [];
-      list.push(cap);
-      groups.set(top, list);
-    }
-    return Array.from(groups.entries()).map(([prefix, caps]) => ({
-      prefix,
-      wildcard: `${prefix}.*`,
-      caps,
-    }));
-  }, [capabilityRegistry]);
+  /** Recursive "effectively checked" — used for the display state of any
+   *  catalog node (group wildcard, top-level item, or child item).
+   *
+   *  Returns true when:
+   *    - The grant is exactly in `grants` or covered by a wildcard ancestor
+   *      (strict path — same as `isItemChecked`), OR
+   *    - The node has children AND every child is effectively checked
+   *      (auto-promote path — e.g. all 3 PM sub-rows checked → "Project
+   *      Manager" parent shows checked; all top-level project items
+   *      checked → "Grant all Project" shows checked).
+   *
+   *  Toggle logic uses this same predicate so clicking a parent that's
+   *  "checked because all children are" cleanly sweeps everything under it.
+   */
+  type CatalogNode = { grant: string; children?: readonly { grant: string }[] };
+
+  const isItemEffectivelyChecked = (node: CatalogNode, grants: string[]): boolean => {
+    if (isItemChecked(node.grant, grants)) return true;
+    if (!node.children || node.children.length === 0) return false;
+    return node.children.every((c) => isItemEffectivelyChecked(c, grants));
+  };
+
+  /** Toggle a catalog item.
+   *
+   *  Uses the EFFECTIVE checked state — so a parent that's showing checked
+   *  only because every child is granted will, on click, sweep those
+   *  children. Same shape works for the group wildcard ("Grant all Project")
+   *  when all top-level items are individually granted.
+   *
+   *  Uncheck: remove the exact grant; for wildcards, also sweep every
+   *  explicit sub-cap underneath. This single sweep handles both the
+   *  "wildcard directly granted" and "all children granted" auto-promote
+   *  paths because both end up with grants under the wildcard prefix.
+   *
+   *  Check: add the grant; for wildcards, sweep redundant explicit sub-caps
+   *  underneath since they're now covered. Keeps `grants` minimal.
+   */
+  const toggleCatalogItem = (node: CatalogNode) => {
+    const { grant } = node;
+    setRoleForm((f) => {
+      const grants = f.capability_keys;
+      const checked = isItemEffectivelyChecked(node, grants);
+      if (checked) {
+        let isUnderRemoved: (g: string) => boolean;
+        if (grant.endsWith('.*')) {
+          const prefix = grant.slice(0, -2);
+          isUnderRemoved = (g) => g === grant || g === prefix || g.startsWith(prefix + '.');
+        } else {
+          isUnderRemoved = (g) => g === grant;
+        }
+        return { ...f, capability_keys: grants.filter((g) => !isUnderRemoved(g)) };
+      }
+      let cleaned: string[];
+      if (grant.endsWith('.*')) {
+        const prefix = grant.slice(0, -2);
+        cleaned = grants.filter((g) => g !== prefix && !g.startsWith(prefix + '.'));
+      } else {
+        cleaned = grants.slice();
+      }
+      return { ...f, capability_keys: [...cleaned, grant] };
+    });
+  };
 
   return (
     <div className="min-h-screen bg-[#080808] text-white">
@@ -944,11 +1258,15 @@ const AdminDashboard = () => {
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex gap-1 overflow-x-auto pb-2">
             {[
-              { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-              { id: 'employees', label: 'Employees', icon: Users },
-              { id: 'projects', label: 'Projects', icon: FolderKanban },
-              { id: 'users', label: 'Users', icon: Shield },
-              { id: 'roles', label: 'Roles', icon: KeyRound },
+              ...(canSeeDashboard
+                ? [{ id: 'dashboard', label: 'Dashboard', icon: BarChart3 }]
+                : []),
+              ...(canSeeEmployees ? [{ id: 'employees', label: 'Employees', icon: Users }] : []),
+              ...(canSeeProjects
+                ? [{ id: 'projects', label: 'Projects', icon: FolderKanban }]
+                : []),
+              ...(canSeeUsers ? [{ id: 'users', label: 'Users', icon: Shield }] : []),
+              ...(canSeeRoles ? [{ id: 'roles', label: 'Roles', icon: KeyRound }] : []),
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -975,55 +1293,79 @@ const AdminDashboard = () => {
           </div>
         ) : (
           <>
-            {/* Dashboard Tab */}
-            {activeTab === 'dashboard' && stats && (
-              <DashboardTab stats={stats} setActiveTab={setActiveTab} />
-            )}
+            {/* Dashboard Tab — gated on admin.dashboard */}
+            {activeTab === 'dashboard' &&
+              (canSeeDashboard ? (
+                stats && <DashboardTab stats={stats} setActiveTab={setActiveTab} />
+              ) : (
+                <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
+              ))}
 
-            {/* Employees Tab */}
-            {activeTab === 'employees' && (
-              <EmployeesTab
-                employees={employees}
-                developerCapacities={developerCapacities}
-                teamCapacity={teamCapacity}
-                availableSpecs={availableSpecs}
-                onEditEmployee={handleEditEmployee}
-                onDeleteEmployee={handleDeleteEmployee}
-              />
-            )}
+            {/* Employees Tab — gated on admin.employees */}
+            {activeTab === 'employees' &&
+              (canSeeEmployees ? (
+                <EmployeesTab
+                  employees={employees}
+                  developerCapacities={developerCapacities}
+                  teamCapacity={teamCapacity}
+                  availableSpecs={availableSpecs}
+                  onEditEmployee={handleEditEmployee}
+                  onDeleteEmployee={handleDeleteEmployee}
+                />
+              ) : (
+                <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
+              ))}
 
-            {/* Projects Tab */}
-            {activeTab === 'projects' && (
-              <ProjectsTab
-                projects={projects}
-                invitingProjectId={invitingProjectId}
-                onEditGitHubSettings={handleEditGitHubSettings}
-                onSendGitHubInvites={handleSendGitHubInvites}
-                onOpenProjectMembers={handleOpenProjectMembers}
-              />
-            )}
+            {/* Projects Tab — gated on admin.projects */}
+            {activeTab === 'projects' &&
+              (canSeeProjects ? (
+                <ProjectsTab
+                  projects={filteredProjects}
+                  categories={categories}
+                  categoryFilter={categoryFilter}
+                  onCategoryFilterChange={setCategoryFilter}
+                  onOpenCategoryManager={() => setShowCategoryManagerModal(true)}
+                  onSetProjectCategory={(projectId, categoryId) =>
+                    setProjectCategoryMutation.mutate({ projectId, categoryId })
+                  }
+                  weeklyReport={weeklyReportQuery.data ?? null}
+                  weeklyReportLoading={weeklyReportQuery.isLoading}
+                  invitingProjectId={invitingProjectId}
+                  onEditGitHubSettings={handleEditGitHubSettings}
+                  onSendGitHubInvites={handleSendGitHubInvites}
+                  onOpenProjectMembers={handleOpenProjectMembers}
+                />
+              ) : (
+                <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
+              ))}
 
-            {/* Users Tab */}
-            {activeTab === 'users' && (
-              <UsersTab
-                users={users}
-                onEditUserRoles={setOpenRoleDropdown}
-                onAddUser={() => setShowUserModal(true)}
-                onDeleteUser={handleDeleteUser}
-                onEditUser={handleOpenEditUser}
-              />
-            )}
+            {/* Users Tab — gated on admin.users */}
+            {activeTab === 'users' &&
+              (canSeeUsers ? (
+                <UsersTab
+                  users={users}
+                  onEditUserRoles={setOpenRoleDropdown}
+                  onAddUser={() => setShowUserModal(true)}
+                  onDeleteUser={handleDeleteUser}
+                  onEditUser={handleOpenEditUser}
+                />
+              ) : (
+                <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
+              ))}
 
-            {/* Roles Tab */}
-            {activeTab === 'roles' && (
-              <RolesTab
-                roles={roles}
-                isDeletingRole={deleteRoleMutation.isPending}
-                onCreateRole={handleOpenCreateRole}
-                onEditRole={handleOpenEditRole}
-                onDeleteRole={handleDeleteRole}
-              />
-            )}
+            {/* Roles Tab — gated on admin.roles */}
+            {activeTab === 'roles' &&
+              (canSeeRoles ? (
+                <RolesTab
+                  roles={roles}
+                  isDeletingRole={deleteRoleMutation.isPending}
+                  onCreateRole={handleOpenCreateRole}
+                  onEditRole={handleOpenEditRole}
+                  onDeleteRole={handleDeleteRole}
+                />
+              ) : (
+                <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
+              ))}
           </>
         )}
       </div>
@@ -1036,9 +1378,11 @@ const AdminDashboard = () => {
         roleForm={roleForm}
         setRoleForm={setRoleForm}
         isSavingRole={isSavingRole}
-        groupedCapabilities={groupedCapabilities}
+        pickerCatalog={PICKER_CATALOG}
         toggleGrant={toggleGrant}
-        isCoveredByWildcard={isCoveredByWildcard}
+        toggleCatalogItem={toggleCatalogItem}
+        isItemChecked={isItemChecked}
+        isItemEffectivelyChecked={isItemEffectivelyChecked}
         toPascalCase={toPascalCase}
         handleSaveRole={handleSaveRole}
       />
@@ -1179,6 +1523,23 @@ const AdminDashboard = () => {
         handleRemoveProjectMember={handleRemoveProjectMember}
         addMemberPending={addMemberMutation.isPending}
         removeMemberPending={removeMemberMutation.isPending}
+      />
+
+      <CategoryManagerModal
+        open={showCategoryManagerModal}
+        onOpenChange={setShowCategoryManagerModal}
+        categories={categories}
+        isLoading={categoriesQuery.isLoading}
+        isMutating={
+          createCategoryMutation.isPending ||
+          updateCategoryMutation.isPending ||
+          deleteCategoryMutation.isPending
+        }
+        onCreate={(payload) => createCategoryMutation.mutateAsync(payload).then(() => undefined)}
+        onUpdate={(id, payload) =>
+          updateCategoryMutation.mutateAsync({ id, payload }).then(() => undefined)
+        }
+        onDelete={(id) => deleteCategoryMutation.mutateAsync(id).then(() => undefined)}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { RotateCcw, Save, Settings } from 'lucide-react';
+import { RotateCcw, Save, Settings, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -22,6 +22,7 @@ import {
   MonthRow,
   PulseRisk,
   IncludedServicesRow,
+  buildEmptyPulseData,
 } from '../pulseData';
 import { PulseOverridesUser } from '../usePulseData';
 import PulseSummarySection from './sections/PulseSummarySection';
@@ -97,6 +98,14 @@ const PulseSettingsView: React.FC<PulseSettingsViewProps> = ({
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Two-stage confirmation flow for the destructive "Clear all data" action.
+  // 'idle'        → no dialog open.
+  // 'first'       → first dialog open: "Clear all Pulse data?" with a Continue
+  //                 button that advances to the second prompt instead of acting.
+  // 'second'      → second dialog open: explicit "Yes, clear all data" button
+  //                 that fires handleClear. Cancel/Esc from either stage aborts.
+  const [clearStage, setClearStage] = useState<'idle' | 'first' | 'second'>('idle');
+
   // Why: refresh the relative "Last saved" caption only when the audit
   // timestamp changes — keeps the value out of the render path (purity rule)
   // and avoids a per-second tick we don't need for a settings screen.
@@ -139,6 +148,25 @@ const PulseSettingsView: React.FC<PulseSettingsViewProps> = ({
       toast.info('Reset to dummy data');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to reset Pulse data');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Fires after BOTH confirmation dialogs have been accepted. Persists an
+  // empty payload through the same onReset path the dummy reset uses, so the
+  // server round-trip + localStorage wipe stay consistent.
+  const handleClear = async () => {
+    setClearStage('idle');
+    setIsSaving(true);
+    try {
+      const empty = buildEmptyPulseData();
+      await onReset(empty);
+      setData(empty);
+      setIsDirty(false);
+      toast.success('Pulse data cleared');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to clear Pulse data');
     } finally {
       setIsSaving(false);
     }
@@ -271,38 +299,119 @@ const PulseSettingsView: React.FC<PulseSettingsViewProps> = ({
          *  by X) moves alongside it down there. The header only carries
          *  Reset because Reset is destructive and benefits from being far
          *  from the dirty-state Save button. */}
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={isSaving}
-              className="border-[#EF4444]/30 text-[#FCA5A5] hover:bg-[#EF4444]/10 hover:text-[#FCA5A5]"
-            >
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Reset to dummy data
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Reset Pulse data?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This overwrites every editorial field — narrative, ledger, risks, milestone
-                financials, monthly cost categories — with the dummy fixture. The server-saved blob
-                is replaced. There is no undo.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleReset}
-                className="bg-[#EF4444] text-white hover:bg-[#DC2626]"
+        <div className="flex items-center gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isSaving}
+                className="border-[#EF4444]/30 text-[#FCA5A5] hover:bg-[#EF4444]/10 hover:text-[#FCA5A5]"
               >
-                Reset
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Reset to dummy data
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reset Pulse data?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This overwrites every editorial field — narrative, ledger, risks, milestone
+                  financials, monthly cost categories — with the dummy fixture. The server-saved
+                  blob is replaced. There is no undo.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleReset}
+                  className="bg-[#EF4444] text-white hover:bg-[#DC2626]"
+                >
+                  Reset
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* "Clear all data" — distinct from "Reset to dummy data": the
+              latter restores the demo fixture, this wipes to truly empty.
+              Two-stage confirmation because the action is irreversible and
+              destructive of *all* Pulse editorial content. */}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={isSaving}
+            onClick={() => setClearStage('first')}
+            className="border-[#EF4444]/30 text-[#FCA5A5] hover:bg-[#EF4444]/10 hover:text-[#FCA5A5]"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Clear all data
+          </Button>
+
+          {/* Stage 1 — first prompt. Confirm advances to stage 2 rather than
+              firing the destructive action immediately. */}
+          <AlertDialog
+            open={clearStage === 'first'}
+            onOpenChange={(open) => {
+              if (!open) setClearStage('idle');
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear all Pulse data?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This wipes every editorial field on this project's Pulse — narrative, ledger,
+                  risks, milestones, monthly cost categories, billing inputs — to zero. There is no
+                  undo. You'll be asked to confirm one more time.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => {
+                    // Don't let the AlertDialogAction close the root — we
+                    // want to chain straight into the second prompt.
+                    e.preventDefault();
+                    setClearStage('second');
+                  }}
+                  className="bg-[#EF4444] text-white hover:bg-[#DC2626]"
+                >
+                  Continue
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Stage 2 — final confirmation. Only this dialog's action button
+              actually clears the data. Stronger language so a habitual
+              "yes-clicker" still gets a pause. */}
+          <AlertDialog
+            open={clearStage === 'second'}
+            onOpenChange={(open) => {
+              if (!open) setClearStage('idle');
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This permanently clears all Pulse data for this project. The server-saved blob
+                  will be replaced with an empty payload immediately. You will lose every
+                  manually-entered narrative, ledger row, risk, milestone budget, and billing row.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleClear}
+                  className="bg-[#EF4444] text-white hover:bg-[#DC2626]"
+                >
+                  Yes, clear all data
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
 
       <DerivedBanner>

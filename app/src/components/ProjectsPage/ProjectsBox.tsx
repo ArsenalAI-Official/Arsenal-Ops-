@@ -25,11 +25,18 @@ const ProjectsBox = ({
   onDeleteProject,
 }: ProjectsBoxProps) => {
   const { can } = useAuth();
-  const filteredProjects = projects.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.description.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  // Filter by search, then sort A → Z by display name. `.filter` already
+  // returns a fresh array so chaining `.sort` doesn't mutate the parent's
+  // `projects` prop. localeCompare with `sensitivity: 'base'` makes the
+  // order case- and accent-insensitive — same comparator used in the task
+  // dialogs (AddPersonalTaskDialog / ConvertToTicketDialog) for consistency.
+  const filteredProjects = projects
+    .filter(
+      (p) =>
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.description.toLowerCase().includes(searchQuery.toLowerCase()),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 
   return (
     <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-2xl flex flex-col h-full">
@@ -50,13 +57,18 @@ const ProjectsBox = ({
               className="pl-8 w-32 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-lg h-7 text-xs focus:border-[#E0B954]/50"
             />
           </div>
-          <button
-            onClick={onCreateProjectClick}
-            className="w-7 h-7 flex items-center justify-center rounded-lg bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] transition-opacity"
-            title="New Project"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+          {/* Create-project — gated on `project.create`. Hidden entirely
+              for roles without the cap; backend POST /api/projects/ enforces
+              the same gate so the UI/backend can't drift. */}
+          {can('project.create') && (
+            <button
+              onClick={onCreateProjectClick}
+              className="w-7 h-7 flex items-center justify-center rounded-lg bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] transition-opacity"
+              title="New Project"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
       <div className="flex-1 overflow-y-auto p-3">

@@ -19,7 +19,7 @@ from models.architecture import Architecture
 from models.developer import Developer, project_developers
 from models.project import Project
 from models.user import User, UserRole
-from routers.auth import get_current_user
+from routers.auth import get_current_user, require_capability
 from services.github_service import GitHubService, github_service
 
 router = APIRouter(prefix="/api/projects", tags=["Projects"])
@@ -36,12 +36,21 @@ def has_project_access(project: Project, user: User) -> bool:
 
 
 def is_project_admin(project_id: int, user: User, db: Session) -> bool:
-    """Check if user is a project-specific admin"""
-    # System admins are project admins
-    if "admin" in user.role:
+    """Return True when the user can act as a project admin on this project.
+
+    Two paths grant project-admin rights, matching the frontend's
+    `isCurrentUserAdmin` semantics in `ProjectDetail.tsx`:
+      1. Capability-based: the user holds `admin.projects` (system admins via
+         `*`, or any custom role explicitly granted it). Replaces the legacy
+         `"admin" in user.role` substring check, which missed users whose
+         admin status came from the RBAC user_roles relationship rather than
+         the legacy comma-separated `users.role` column.
+      2. Membership-based: the user appears in this project's developers
+         list with the `is_admin` flag set on the join row.
+    """
+    if user.has_capability("admin.projects"):
         return True
 
-    # Check if user is a project admin
     result = db.execute(
         select(project_developers.c.is_admin)
         .where(
@@ -97,6 +106,9 @@ class ProjectCreate(BaseModel):
     github_repo_url: str | None = None
     github_repo_urls: list[str] | None = None
     developers: list[DeveloperAssignment] | None = []
+    # Optional category at creation time. Validated against the DB in the
+    # endpoint (400 if the id doesn't exist).
+    category_id: int | None = None
 
 
 class ProjectUpdate(BaseModel):
@@ -107,6 +119,13 @@ class ProjectUpdate(BaseModel):
     github_repo_urls: list[str] | None = None
     created_at: str | None = None
     end_date: str | None = None
+    # Three states for category_id on update:
+    #   - field omitted from the request body → leave unchanged
+    #   - field present as null  → clear the category (uncategorized)
+    #   - field present as int   → set/change to that category
+    # The Pydantic v2 distinction between "missing" and "explicit null" is
+    # surfaced via model_fields_set; we read that in the update handler.
+    category_id: int | None = None
 
 
 class ProjectDeveloperResponse(BaseModel):
@@ -276,7 +295,17 @@ def format_projects_batch(projects: list[Project], db: Session) -> list[dict]:
                 "work_item_stats": stats_by_id.get(project.id, _empty_stats()),
                 "developers": devs_by_id.get(project.id, []),
                 "selected_architecture": selected.to_dict() if selected else None,
-                "architectures": [arch.to_dict() for arch in archs],
+                # Category surface: flat fields the frontend can read without
+                # joining. project.category is lazy="joined", so this lookup
+                # is already in memory and adds no extra query.
+                "category_id": project.category_id,
+                "category_name": project.category.name if project.category else None,
+                # NOTE: the full `architectures` list is intentionally NOT
+                # serialized here — no client reads project.architectures (the
+                # AI planning modal loads variants from /api/prd/analyze-*, a
+                # different endpoint). Each arch carries mermaid_code +
+                # cost_analysis JSON, so emitting the whole list bloated every
+                # /api/projects response for nothing. Only the selected one ships.
             }
         )
     return out
@@ -291,9 +320,9 @@ def format_project(project: Project, db: Session) -> dict:
 def create_project(
     project: ProjectCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_capability("project.create")),
 ):
-    """Create a new project (all authenticated users can create)"""
+    """Create a new project (requires `project.create`)."""
     # Check for duplicate project name
     existing = db.query(Project).filter(Project.name == project.name).first()
     if existing:
@@ -312,6 +341,20 @@ def create_project(
         if github_repo_url not in github_repo_urls:
             github_repo_urls.insert(0, github_repo_url)
 
+    # Validate category before insert. Doing the lookup pre-commit means a bad
+    # id 400s cleanly instead of bouncing off an FK constraint at flush time.
+    if project.category_id is not None:
+        from models.project_category import ProjectCategory
+
+        cat_exists = (
+            db.query(ProjectCategory.id).filter(ProjectCategory.id == project.category_id).first()
+        )
+        if not cat_exists:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Category {project.category_id} does not exist",
+            )
+
     new_project = Project(
         name=project.name,
         description=project.description,
@@ -319,6 +362,7 @@ def create_project(
         github_repo_url=github_repo_url,
         github_repo_urls=github_repo_urls,
         github_repo_name=github_repo_name,
+        category_id=project.category_id,
     )
 
     db.add(new_project)
@@ -379,25 +423,42 @@ def create_project(
 
 
 @router.get("/")
-def list_projects(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """List all projects (admin sees all, developers see assigned only)"""
+def list_projects(
+    category_id: int | None = None,
+    uncategorized: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List projects (admin sees all, developers see assigned only).
+
+    Optional filters:
+        - ``?category_id=5`` → only projects in category 5
+        - ``?uncategorized=true`` → only projects with no category assigned
+
+    The two flags are mutually exclusive; if both are supplied,
+    ``uncategorized`` wins (explicit "no category" beats a numeric id).
+    """
     # Check if user has admin role (handles multi-role users like 'admin,developer')
     user_roles = [role.strip() for role in current_user.role.split(",")]
     is_admin = UserRole.ADMIN.value in user_roles
 
     if is_admin:
-        # Admin sees all projects
-        projects = db.query(Project).all()
+        query = db.query(Project)
     else:
-        # Developer sees only assigned projects
-        projects = (
+        query = (
             db.query(Project)
             .join(project_developers)
             .join(Developer)
             .filter(Developer.email == current_user.email)
-            .all()
         )
 
+    # Category filter applied to whichever base query is in use.
+    if uncategorized:
+        query = query.filter(Project.category_id.is_(None))
+    elif category_id is not None:
+        query = query.filter(Project.category_id == category_id)
+
+    projects = query.all()
     return format_projects_batch(projects, db)
 
 
@@ -417,8 +478,15 @@ def update_project(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Update a project (requires access)"""
-    project = require_project_access(project_id, current_user, db)
+    """Update a project's information.
+
+    Restricted to project admins (`is_admin` on this project's membership)
+    and system admins (`admin.projects` capability). Was previously
+    `require_project_access` — i.e. any assigned developer — which let regular
+    team members rename or restatus the project. Now matches the same gate
+    used by add/remove/promote/demote-developer endpoints.
+    """
+    project = require_project_admin(project_id, current_user, db)
 
     # Update each field if provided
     if update.name is not None:
@@ -458,6 +526,27 @@ def update_project(
         with contextlib.suppress(ValueError, TypeError):
             # Parse YYYY-MM-DD format from frontend
             project.end_date = datetime.strptime(update.end_date, "%Y-%m-%d")
+
+    # Category — three states: omitted (no-op), explicit null (clear),
+    # explicit id (set/change). model_fields_set distinguishes "omitted"
+    # from "explicit null" since both serialize as None on the model.
+    if "category_id" in update.model_fields_set:
+        from models.project_category import ProjectCategory
+
+        if update.category_id is None:
+            project.category_id = None
+        else:
+            exists = (
+                db.query(ProjectCategory.id)
+                .filter(ProjectCategory.id == update.category_id)
+                .first()
+            )
+            if not exists:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Category {update.category_id} does not exist",
+                )
+            project.category_id = update.category_id
 
     project.updated_at = datetime.utcnow()
     db.commit()
@@ -603,10 +692,14 @@ def add_developer_to_project(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Add a developer to a project (requires auth)"""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    """Add a developer to a project.
+
+    Restricted to project admins (`is_admin` on this project's membership)
+    and system admins (`admin.projects` capability). `require_project_admin`
+    handles the 404-if-no-project and 403-if-not-admin cases and returns the
+    loaded Project row, so we don't repeat the lookup.
+    """
+    require_project_admin(project_id, current_user, db)
 
     developer = db.query(Developer).filter(Developer.id == assignment.developer_id).first()
     if not developer:
@@ -644,10 +737,11 @@ def remove_developer_from_project(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Remove a developer from a project (requires auth)"""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    """Remove a developer from a project.
+
+    Restricted to project admins and system admins — same gate as add/promote.
+    """
+    require_project_admin(project_id, current_user, db)
 
     # Delete from association table
     result = db.execute(

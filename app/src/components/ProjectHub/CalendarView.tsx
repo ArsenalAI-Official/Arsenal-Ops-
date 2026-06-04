@@ -92,12 +92,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const [view, setView] = useState<(typeof Views)[keyof typeof Views]>(Views.MONTH);
 
   const events: CalendarEvent[] = useMemo(() => {
-    console.log(
-      'CalendarView - workItems:',
-      workItems.length,
-      workItems.map((i) => ({ key: i.key, start_date: i.start_date, due_date: i.due_date })),
-    );
-
     const taskEvents: CalendarEvent[] = workItems
       .filter((item) => item.due_date || item.start_date)
       .map((item) => {
@@ -117,8 +111,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           resource: { ...item, type: 'task' },
         };
       });
-
-    console.log('CalendarView - events created:', taskEvents.length);
 
     const milestoneEvents: CalendarEvent[] = milestones
       .filter((m) => m.due_date)

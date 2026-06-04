@@ -6,7 +6,6 @@ import {
   ChevronRight,
   ZoomIn,
   ZoomOut,
-  Plus,
   X,
   BookOpen,
   ClipboardList,
@@ -49,12 +48,6 @@ interface Goal {
   progress?: number;
 }
 
-interface Developer {
-  id: number;
-  name: string;
-  email: string;
-}
-
 interface SprintBand {
   id: number;
   name: string;
@@ -70,16 +63,8 @@ interface TimelineViewProps {
   sprints?: SprintBand[];
   projectStartDate: string;
   projectId: number;
-  developers?: Developer[];
   onTaskClick?: (item: WorkItem) => void;
   onTaskUpdate?: (itemId: string, updates: { start_date?: string; due_date?: string }) => void;
-  onTaskCreate?: (task: {
-    title: string;
-    start_date: string;
-    due_date: string;
-    estimated_hours: number;
-    assignee_id?: number;
-  }) => void;
 }
 
 type ZoomLevel = 'day' | 'week' | 'month';
@@ -170,10 +155,8 @@ const TimelineView: React.FC<TimelineViewProps> = ({
   sprints = [],
   projectStartDate: _projectStartDate,
   projectId: _projectId,
-  developers = [],
   onTaskClick,
   onTaskUpdate: _onTaskUpdate,
-  onTaskCreate,
 }) => {
   const [selectedItem, setSelectedItem] = useState<WorkItem | null>(null);
   const [zoom, setZoom] = useState<ZoomLevel>('week');
@@ -183,15 +166,6 @@ const TimelineView: React.FC<TimelineViewProps> = ({
     d.setDate(d.getDate() - colDays('week') * 2);
     return d;
   });
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newTask, setNewTask] = useState(() => ({
-    title: '',
-    start_date: new Date().toISOString().split('T')[0],
-    due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    estimated_hours: 8,
-    assignee_id: undefined as number | undefined,
-  }));
-
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Build rows from workItems, milestones, goals
@@ -297,26 +271,6 @@ const TimelineView: React.FC<TimelineViewProps> = ({
     setViewStart(d);
   };
 
-  const handleAddTask = () => {
-    if (onTaskCreate && newTask.title.trim()) {
-      onTaskCreate({
-        title: newTask.title,
-        start_date: newTask.start_date,
-        due_date: newTask.due_date,
-        estimated_hours: newTask.estimated_hours,
-        assignee_id: newTask.assignee_id,
-      });
-      setShowAddModal(false);
-      setNewTask({
-        title: '',
-        start_date: new Date().toISOString().split('T')[0],
-        due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        estimated_hours: 8,
-        assignee_id: undefined,
-      });
-    }
-  };
-
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayX = dateToX(today);
@@ -351,16 +305,6 @@ const TimelineView: React.FC<TimelineViewProps> = ({
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-white flex items-center gap-2">Timeline View</CardTitle>
           <div className="flex items-center gap-2">
-            {onTaskCreate && (
-              <button
-                className="px-3 py-1.5 rounded-md bg-[#E0B954] text-[#080808] font-semibold hover:opacity-90 transition-colors flex items-center gap-2 text-sm shadow-md shadow-[#E0B954]/20"
-                onClick={() => setShowAddModal(true)}
-              >
-                <Plus className="w-4 h-4" />
-                Add Task
-              </button>
-            )}
-            <div className="w-px h-6 bg-gray-600 mx-1" />
             <button
               className="px-3 py-1.5 rounded-md border border-gray-600 text-white bg-transparent hover:bg-gray-700 transition-colors"
               onClick={() => navigateBy(-1)}
@@ -835,101 +779,6 @@ const TimelineView: React.FC<TimelineViewProps> = ({
             </div>
           </div>
         </>
-      )}
-
-      {/* Add Task Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-[#121212] rounded-lg p-6 w-full max-w-md border border-[rgba(255,255,255,0.08)]">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-white text-lg font-semibold">Add New Task</h3>
-              <button
-                className="text-gray-400 hover:text-white"
-                onClick={() => setShowAddModal(false)}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Title *</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 bg-[#121212] border border-[#333333] rounded-md text-[#f5f5f5] focus:outline-none focus:border-[#E0B954] focus:ring-1 focus:ring-[#E0B954]/20"
-                  placeholder="Enter task title"
-                  value={newTask.title}
-                  onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    className="w-full px-3 py-2 bg-[#121212] border border-[#333333] rounded-md text-[#f5f5f5] focus:outline-none focus:border-[#E0B954] focus:ring-1 focus:ring-[#E0B954]/20"
-                    value={newTask.start_date}
-                    onChange={(e) => setNewTask({ ...newTask, start_date: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Due Date</label>
-                  <input
-                    type="date"
-                    className="w-full px-3 py-2 bg-[#121212] border border-[#333333] rounded-md text-[#f5f5f5] focus:outline-none focus:border-[#E0B954] focus:ring-1 focus:ring-[#E0B954]/20"
-                    value={newTask.due_date}
-                    onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Estimated Hours</label>
-                <input
-                  type="number"
-                  className="w-full px-3 py-2 bg-[#121212] border border-[#333333] rounded-md text-[#f5f5f5] focus:outline-none focus:border-[#E0B954] focus:ring-1 focus:ring-[#E0B954]/20"
-                  value={newTask.estimated_hours}
-                  onChange={(e) =>
-                    setNewTask({ ...newTask, estimated_hours: parseInt(e.target.value) || 0 })
-                  }
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Assignee</label>
-                <select
-                  className="w-full px-3 py-2 bg-[#121212] border border-[#333333] rounded-md text-[#f5f5f5] focus:outline-none focus:border-[#E0B954] focus:ring-1 focus:ring-[#E0B954]/20"
-                  value={newTask.assignee_id || ''}
-                  onChange={(e) =>
-                    setNewTask({
-                      ...newTask,
-                      assignee_id: e.target.value ? parseInt(e.target.value) : undefined,
-                    })
-                  }
-                >
-                  <option value="">Unassigned</option>
-                  {developers.map((dev) => (
-                    <option key={dev.id} value={dev.id}>
-                      {dev.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                className="px-4 py-2 rounded-md border border-gray-600 text-white hover:bg-gray-700 transition-colors"
-                onClick={() => setShowAddModal(false)}
-              >
-                Cancel
-              </button>
-              <button
-                className="px-4 py-2 rounded-md bg-[#E0B954] text-[#080808] font-semibold hover:opacity-90 transition-colors disabled:opacity-50"
-                onClick={handleAddTask}
-                disabled={!newTask.title.trim()}
-              >
-                Add Task
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </>
   );

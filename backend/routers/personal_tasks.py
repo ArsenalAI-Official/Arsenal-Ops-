@@ -15,7 +15,7 @@ from models.personal_task import PersonalTask
 from models.project import Project
 from models.user import User
 from models.work_item import WorkItem, WorkItemStatus
-from routers.auth import get_current_user
+from routers.auth import get_current_user, require_capability
 from routers.workitems import get_next_item_number
 
 router = APIRouter(prefix="/api/personal-tasks", tags=["Personal Tasks"])
@@ -173,9 +173,9 @@ def convert_to_ticket(
     task_id: int,
     request: ConvertToTicketRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_capability("project.assign_personal_task")),
 ):
-    """Convert a personal task to a project ticket"""
+    """Convert a personal task to a project ticket (requires `project.assign_personal_task`)."""
     from models.developer import Developer
     from services.email_service import email_service
 
@@ -197,11 +197,18 @@ def convert_to_ticket(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Determine assignee: use explicitly chosen developer or fall back to current user
+    # Resolve the current user's developer row once. Used as:
+    #   - `reporter_id` on the work item → drives the "Created By" field
+    #     on the ticket side panel (parallels routers/workitems.create_work_item,
+    #     which uses `_creator_dev_id` for the same purpose).
+    #   - the fallback assignee when the request doesn't specify one.
+    creator_dev = db.query(Developer).filter(Developer.email == current_user.email).first()
+
+    # Determine assignee: use explicitly chosen developer or fall back to creator.
     if request.assignee_developer_id:
         assignee = db.query(Developer).filter(Developer.id == request.assignee_developer_id).first()
     else:
-        assignee = db.query(Developer).filter(Developer.email == current_user.email).first()
+        assignee = creator_dev
 
     # Generate key BEFORE inserting (key is NOT NULL). Use the shared helper
     # so the Postgres-vs-SQLite split lives in one place.
@@ -218,7 +225,12 @@ def convert_to_ticket(
     next_number = get_next_item_number(db, key_prefix)
     generated_key = f"{key_prefix}-{next_number}"
 
-    # Create work item with key already set
+    # Create work item with key already set.
+    # `reporter_id` stamps the creator so the side panel renders "Created By"
+    # — without it, the field stays blank on tickets converted from personal
+    # tasks. Falls back to None when the current user has no Developer row
+    # (rare; admin-only accounts) — same forgiving behaviour as _creator_dev_id
+    # in routers/workitems.py.
     work_item = WorkItem(
         project_id=request.project_id,
         type=request.type or "task",
@@ -230,6 +242,7 @@ def convert_to_ticket(
         estimated_hours=request.estimated_hours or task.estimated_hours or 0,
         remaining_hours=request.estimated_hours or task.estimated_hours or 0,
         assignee_id=assignee.id if assignee else None,
+        reporter_id=creator_dev.id if creator_dev else None,
         tags=task.tags or [],
     )
 
@@ -246,11 +259,13 @@ def convert_to_ticket(
     db.refresh(work_item)
     db.refresh(task)
 
-    # Send assignment email notification
-    if assignee and assignee.email:
+    # Send assignment email notification. Skip on self-assignment —
+    # converting your own personal task to a ticket assigned to yourself
+    # doesn't need an "X assigned you Y" email. Matches the same guard used
+    # by routers/workitems.py:create_work_item / update_work_item.
+    if assignee and assignee.email and assignee.email != current_user.email:
         try:
-            assigner = db.query(Developer).filter(Developer.email == current_user.email).first()
-            assigner_name = assigner.name if assigner else current_user.name
+            assigner_name = creator_dev.name if creator_dev else current_user.name
             email_service.send_task_assignment_notification(
                 to_email=assignee.email,
                 to_name=assignee.name,

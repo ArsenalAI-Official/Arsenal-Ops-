@@ -268,8 +268,9 @@ class TestFormatProjectsBatch:
         assert {d["email"] for d in r1["developers"]} == {"a@x.com", "b@x.com"}
         assert r1["selected_architecture"] is not None
         assert r1["selected_architecture"]["id"] == 10
-        # ordered by created_at desc → id 11 then id 10
-        assert [a["id"] for a in r1["architectures"]] == [11, 10]
+        # The full `architectures` list is intentionally NOT serialized into the
+        # project payload (no client reads it); only selected_architecture ships.
+        assert "architectures" not in r1
         assert r1["github_repo_url"] == "https://github.com/o/repo"
 
         # Project 2 — one dev, one (unselected) architecture, one done item.
@@ -277,13 +278,13 @@ class TestFormatProjectsBatch:
         assert len(r2["developers"]) == 1
         assert r2["developers"][0]["email"] == "a@x.com"
         assert r2["selected_architecture"] is None
-        assert [a["id"] for a in r2["architectures"]] == [12]
+        assert "architectures" not in r2
         assert r2["work_item_stats"]["completion_pct"] == 100.0
 
         # Project 3 — no devs, no items, no architectures. Empty stats.
         r3 = result[2]
         assert r3["developers"] == []
-        assert r3["architectures"] == []
+        assert "architectures" not in r3
         assert r3["selected_architecture"] is None
         assert r3["work_item_stats"] == {
             "total": 0,

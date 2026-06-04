@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { API_BASE_URL } from '@/config/api';
 import { invalidateProjectScope, invalidateWorkItemScope } from '@/lib/invalidations';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   AlertTriangle,
   CheckCircle,
@@ -17,7 +18,6 @@ import {
 interface HoursDebugPanelProps {
   projectId: string;
   token: string;
-  isAdmin: boolean;
 }
 
 interface ConsistencyIssue {
@@ -59,8 +59,13 @@ interface RepairResult {
   message: string;
 }
 
-export default function HoursDebugPanel({ projectId, token, isAdmin }: HoursDebugPanelProps) {
+export default function HoursDebugPanel({ projectId, token }: HoursDebugPanelProps) {
   const queryClient = useQueryClient();
+  const { can } = useAuth();
+  // Only callers with admin.projects capability can repair inconsistencies.
+  // This replaces the legacy `isAdmin` prop chain that propagated through
+  // PMView from a parent that wasn't actually computing role state.
+  const isAdmin = can('admin.projects');
   const [debugData, setDebugData] = useState<DebugData | null>(null);
   const [repairResult, setRepairResult] = useState<RepairResult | null>(null);
   const [loading, setLoading] = useState(false);

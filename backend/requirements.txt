@@ -19,6 +19,7 @@ passlib==1.7.4
 bcrypt==3.2.2
 google-auth>=2.26.0
 google-auth-oauthlib>=1.2.0
+google-api-python-client>=2.0.0
 cachetools>=5.3
 
 # Lint / formatting — pinned because CI runs `ruff check` + `ruff format

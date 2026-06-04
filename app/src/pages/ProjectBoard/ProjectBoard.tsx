@@ -45,7 +45,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast, Toaster } from 'sonner';
 import StatusDotMenu from '@/components/ProjectsPage/StatusDotMenu';
-import { useAuth, isProjectManager } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { buildEpicGroups } from '@/lib/hierarchy/buildEpicGroups';
 import { apiFetch, ApiError } from '@/lib/api';
 import { invalidateProjectScope, invalidateWorkItemScope } from '@/lib/invalidations';
@@ -271,7 +271,12 @@ type ListSortKey = 'type' | 'status' | 'priority' | 'assignee' | 'due_date' | 'c
 const ProjectBoard = () => {
   const { id, ticketId } = useParams<{ id: string; ticketId?: string }>();
   const navigate = useNavigate();
-  const { token, user } = useAuth(); // token kept for legacy child components (TimeEntriesTable, TicketContributors, ReviewerView)
+  const { token, user, can } = useAuth(); // token kept for legacy child components (TimeEntriesTable, TicketContributors, ReviewerView)
+  // Gate any UI that mutates a work item — kanban drag (PUT for status),
+  // StatusDotMenu (PUT for status), Edit/Delete in the side panel, and the
+  // "Assign to me" pill. Backend mirrors this with require_capability on
+  // PUT /api/workitems/{id} and DELETE /api/workitems/{id}.
+  const canWriteTracker = can('project.tracker_write');
   const queryClient = useQueryClient();
   const [showReviewer, setShowReviewer] = useState(false);
   // isEditing + editForm + drawer comment state moved into ItemDetailDrawer
@@ -473,7 +478,9 @@ const ProjectBoard = () => {
     queryFn: () => apiFetch<Sprint[]>(`/api/workitems/projects/${id}/sprints`),
     enabled: !!id,
   });
-  const sprints = sprintsQuery.data ?? [];
+  // Stable ref so the list-view memos below (orderedListSprints, listViewGroups)
+  // actually hold instead of busting on a fresh [] every render.
+  const sprints = useMemo(() => sprintsQuery.data ?? [], [sprintsQuery.data]);
 
   const developersQuery = useQuery<Array<{ id: number; name: string; email: string }>>({
     queryKey: ['developers'],
@@ -624,51 +631,79 @@ const ProjectBoard = () => {
     setter((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]));
   };
 
-  // Sprint grouping for list view
-  const listViewToday = new Date().toISOString().split('T')[0];
-  const isSprintCompleted = (s: Sprint) =>
-    s.status === 'completed' || (s.end_date != null && s.end_date < listViewToday);
-  const isSprintActive = (s: Sprint) =>
-    s.status === 'active' ||
-    (s.start_date != null &&
-      s.start_date <= listViewToday &&
-      s.end_date != null &&
-      s.end_date >= listViewToday);
+  // Sprint grouping for list view. `listViewToday` only needs day granularity,
+  // so compute it once per mount (also satisfies react-hooks/purity, which
+  // forbids a bare new Date() in the render body).
+  const listViewToday = useMemo(() => new Date().toISOString().split('T')[0], []);
+  // Hoisted out of the per-row list map below (was a `new Date()` allocated for
+  // every row + a react-hooks/purity violation). Day granularity is enough.
+  const todayMidnightMs = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }, []);
+  const isSprintCompleted = useCallback(
+    (s: Sprint) => s.status === 'completed' || (s.end_date != null && s.end_date < listViewToday),
+    [listViewToday],
+  );
+  const isSprintActive = useCallback(
+    (s: Sprint) =>
+      s.status === 'active' ||
+      (s.start_date != null &&
+        s.start_date <= listViewToday &&
+        s.end_date != null &&
+        s.end_date >= listViewToday),
+    [listViewToday],
+  );
 
-  const orderedListSprints = [
-    ...sprints
-      .filter((s) => !isSprintCompleted(s) && isSprintActive(s))
-      .sort(
-        (a, b) => new Date(b.start_date ?? 0).getTime() - new Date(a.start_date ?? 0).getTime(),
-      ),
-    ...sprints
-      .filter((s) => !isSprintCompleted(s) && !isSprintActive(s))
-      .sort(
-        (a, b) => new Date(a.start_date ?? 0).getTime() - new Date(b.start_date ?? 0).getTime(),
-      ),
-    ...(showCompletedSprints
-      ? sprints
-          .filter(isSprintCompleted)
-          .sort((a, b) => new Date(b.end_date ?? 0).getTime() - new Date(a.end_date ?? 0).getTime())
-      : []),
-  ];
+  // Memoized so these filter+sort chains don't re-run on every render (e.g. on
+  // every keystroke/drag) regardless of which view is active.
+  const orderedListSprints = useMemo(
+    () => [
+      ...sprints
+        .filter((s) => !isSprintCompleted(s) && isSprintActive(s))
+        .sort(
+          (a, b) => new Date(b.start_date ?? 0).getTime() - new Date(a.start_date ?? 0).getTime(),
+        ),
+      ...sprints
+        .filter((s) => !isSprintCompleted(s) && !isSprintActive(s))
+        .sort(
+          (a, b) => new Date(a.start_date ?? 0).getTime() - new Date(b.start_date ?? 0).getTime(),
+        ),
+      ...(showCompletedSprints
+        ? sprints
+            .filter(isSprintCompleted)
+            .sort(
+              (a, b) => new Date(b.end_date ?? 0).getTime() - new Date(a.end_date ?? 0).getTime(),
+            )
+        : []),
+    ],
+    [sprints, isSprintCompleted, isSprintActive, showCompletedSprints],
+  );
 
-  const listViewGroups = [
-    ...orderedListSprints.map((sprint) => ({
-      key: String(sprint.id),
-      label: sprint.name,
-      isCompleted: isSprintCompleted(sprint),
-      items: filteredItems.filter((item) => item.sprint_id === sprint.id),
-    })),
-    {
-      key: 'backlog',
-      label: 'Backlog',
-      isCompleted: false,
-      items: filteredItems.filter((item) => !item.sprint_id),
-    },
-  ].filter((g) => g.items.length > 0);
+  const listViewGroups = useMemo(
+    () =>
+      [
+        ...orderedListSprints.map((sprint) => ({
+          key: String(sprint.id),
+          label: sprint.name,
+          isCompleted: isSprintCompleted(sprint),
+          items: filteredItems.filter((item) => item.sprint_id === sprint.id),
+        })),
+        {
+          key: 'backlog',
+          label: 'Backlog',
+          isCompleted: false,
+          items: filteredItems.filter((item) => !item.sprint_id),
+        },
+      ].filter((g) => g.items.length > 0),
+    [orderedListSprints, filteredItems, isSprintCompleted],
+  );
 
-  const listViewEpicGroups = buildEpicGroups(filteredItems, workItems).groups;
+  const listViewEpicGroups = useMemo(
+    () => buildEpicGroups(filteredItems, workItems).groups,
+    [filteredItems, workItems],
+  );
 
   // Group items into ISO weeks by their "relevant date":
   //   completed → completed_at (the week the work actually finished)
@@ -1444,24 +1479,29 @@ const ProjectBoard = () => {
               <Eye className="w-3.5 h-3.5" />
               Reviewer
             </Button>
-            <Button
-              onClick={handleAIGenerate}
-              disabled={isGenerating}
-              size="sm"
-              className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-lg font-medium h-9 transition-opacity"
-            >
-              {isGenerating ? (
-                <>
-                  <div className="w-3.5 h-3.5 border-2 border-[#080808]/30 border-t-[#080808] rounded-full animate-spin mr-2" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3.5 h-3.5 mr-2" />
-                  AI Generate
-                </>
-              )}
-            </Button>
+            {/* AI Generate — gated on `project.ai.write`. Hidden entirely
+                when missing so the modal (which would 403 on submit) can't
+                be opened. */}
+            {can('project.ai.write') && (
+              <Button
+                onClick={handleAIGenerate}
+                disabled={isGenerating}
+                size="sm"
+                className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-lg font-medium h-9 transition-opacity"
+              >
+                {isGenerating ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-[#080808]/30 border-t-[#080808] rounded-full animate-spin mr-2" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 mr-2" />
+                    AI Generate
+                  </>
+                )}
+              </Button>
+            )}
             <Button
               onClick={() => navigate(`/project/${id}`)}
               size="sm"
@@ -1814,55 +1854,58 @@ const ProjectBoard = () => {
               ))}
             </div>
 
-            <div className="relative">
-              <Button
-                onClick={() => setShowAddMenu((prev) => !prev)}
-                size="sm"
-                className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-lg font-medium h-8 px-3 text-xs transition-opacity flex items-center gap-1.5"
-              >
-                <Plus className="w-3 h-3" />
-                Add
-              </Button>
-              {showAddMenu && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setShowAddMenu(false)} />
-                  <div className="absolute right-0 top-full mt-1 z-20 bg-[#1a1a1a] border border-[rgba(255,255,255,0.08)] rounded-lg shadow-xl overflow-hidden min-w-[140px]">
-                    <button
-                      onClick={() => {
-                        setCreateFormType('user_story');
-                        setShowCreateForm(true);
-                        setShowAddMenu(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
-                    >
-                      <Plus className="w-3.5 h-3.5 text-[#E0B954]" />
-                      New Item
-                    </button>
-                    <button
-                      onClick={() => {
-                        setCreateFormType('epic');
-                        setShowCreateForm(true);
-                        setShowAddMenu(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
-                    >
-                      <Target className="w-3.5 h-3.5 text-[#A78BFA]" />
-                      New Epic
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowCreateSprintModal(true);
-                        setShowAddMenu(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
-                    >
-                      <Repeat2 className="w-3.5 h-3.5 text-[#E0B954]" />
-                      New Sprint
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+            {/* "+" menu — gated on `project.tracker_write`. */}
+            {can('project.tracker_write') && (
+              <div className="relative">
+                <Button
+                  onClick={() => setShowAddMenu((prev) => !prev)}
+                  size="sm"
+                  className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-lg font-medium h-8 px-3 text-xs transition-opacity flex items-center gap-1.5"
+                >
+                  <Plus className="w-3 h-3" />
+                  Add
+                </Button>
+                {showAddMenu && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowAddMenu(false)} />
+                    <div className="absolute right-0 top-full mt-1 z-20 bg-[#1a1a1a] border border-[rgba(255,255,255,0.08)] rounded-lg shadow-xl overflow-hidden min-w-[140px]">
+                      <button
+                        onClick={() => {
+                          setCreateFormType('user_story');
+                          setShowCreateForm(true);
+                          setShowAddMenu(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-[#E0B954]" />
+                        New Item
+                      </button>
+                      <button
+                        onClick={() => {
+                          setCreateFormType('epic');
+                          setShowCreateForm(true);
+                          setShowAddMenu(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
+                      >
+                        <Target className="w-3.5 h-3.5 text-[#A78BFA]" />
+                        New Epic
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowCreateSprintModal(true);
+                          setShowAddMenu(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
+                      >
+                        <Repeat2 className="w-3.5 h-3.5 text-[#E0B954]" />
+                        New Sprint
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -2144,7 +2187,182 @@ const ProjectBoard = () => {
               )}
             </div>
 
-            {listGroupBy === 'week' ? (
+            {listGroupBy === 'epic' ? (
+              listViewEpicGroups.length === 0 ? (
+                <div className="py-16 text-center text-[#737373] text-sm">No items found</div>
+              ) : (
+                listViewEpicGroups.map((group) => {
+                  const isCollapsed = collapsedSprints.has(group.key);
+                  const isUnparented = group.key === 'unparented';
+                  const epicKey = group.epic?.key as string | undefined;
+                  return (
+                    <div
+                      key={group.key}
+                      className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl overflow-hidden"
+                    >
+                      {/* Epic group header */}
+                      <div className="flex items-center gap-2.5 px-5 py-3.5 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
+                        <button
+                          onClick={() => toggleSprintCollapse(group.key)}
+                          className="flex items-center gap-2.5 flex-1 text-left min-w-0"
+                        >
+                          {isCollapsed ? (
+                            <ChevronRight className="w-3.5 h-3.5 text-[#737373] shrink-0" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5 text-[#737373] shrink-0" />
+                          )}
+                          {isUnparented ? (
+                            <span className="text-sm font-semibold text-[#737373] italic">
+                              No epic
+                            </span>
+                          ) : (
+                            <>
+                              <Target className="w-3.5 h-3.5 text-[#A78BFA] shrink-0" />
+                              {epicKey && (
+                                <span className="text-[11px] font-mono text-[#A78BFA] shrink-0">
+                                  {epicKey}
+                                </span>
+                              )}
+                              <span className="text-sm font-semibold text-[#f5f5f5] truncate">
+                                {group.label}
+                              </span>
+                            </>
+                          )}
+                          <span className="text-xs text-[#737373] shrink-0">
+                            {group.count} item{group.count !== 1 ? 's' : ''}
+                          </span>
+                        </button>
+                        {!isUnparented && group.epic && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/project/${id}/board/${group.epic!.id}`);
+                            }}
+                            className="text-[10px] text-[#737373] hover:text-[#A78BFA] transition-colors shrink-0"
+                            title="Open epic"
+                          >
+                            Open epic →
+                          </button>
+                        )}
+                      </div>
+
+                      {!isCollapsed && (
+                        <>
+                          {/* Table header */}
+                          <div className="grid grid-cols-[120px_1fr_120px_100px_80px_120px_110px_110px] gap-4 px-5 py-3 border-t border-[rgba(255,255,255,0.05)] text-xs text-[#737373] font-semibold uppercase tracking-wider">
+                            {renderListSortHeader('Type', 'type')}
+                            <span>Title</span>
+                            {renderListSortHeader('Status', 'status')}
+                            {renderListSortHeader('Priority', 'priority')}
+                            <span>Points</span>
+                            {renderListSortHeader('Assignee', 'assignee')}
+                            {renderListSortHeader('Due Date', 'due_date')}
+                            {renderListSortHeader('Completed', 'completed_at')}
+                          </div>
+                          {(listItemComparator
+                            ? [...group.rows]
+                                .sort((a, b) => listItemComparator(a.item, b.item))
+                                .map((r) => ({ item: r.item, depth: 0 }))
+                            : group.rows
+                          ).map(({ item, depth }) => {
+                            const typeInfo = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
+                            const TypeIcon = typeInfo.icon;
+                            const priorityStyle =
+                              PRIORITY_COLORS[item.priority] || PRIORITY_COLORS.medium;
+                            return (
+                              <div
+                                key={item.id}
+                                onMouseEnter={() => prefetchComments(item.id)}
+                                onClick={() => {
+                                  navigate(`/project/${id}/board/${item.id}`);
+                                }}
+                                className="grid grid-cols-[120px_1fr_120px_100px_80px_120px_110px_110px] gap-4 px-5 py-3.5 border-t border-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.025)] cursor-pointer transition-colors group"
+                              >
+                                <div className="flex items-center">
+                                  <div
+                                    className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs"
+                                    style={{ backgroundColor: typeInfo.bg, color: typeInfo.color }}
+                                  >
+                                    <TypeIcon className="w-3 h-3" />
+                                    {typeInfo.label}
+                                  </div>
+                                </div>
+                                <div
+                                  className="flex items-center gap-3 min-w-0"
+                                  style={{ paddingLeft: depth === 1 ? 24 : 0 }}
+                                >
+                                  {depth === 1 && (
+                                    <span
+                                      className="text-[#444] font-mono text-xs shrink-0"
+                                      aria-hidden
+                                    >
+                                      └─
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] text-[#E0B954] font-mono font-medium shrink-0">
+                                    {item.key}
+                                  </span>
+                                  <span className="text-sm text-[#f5f5f5] truncate group-hover:text-white transition-colors">
+                                    {item.title}
+                                  </span>
+                                </div>
+                                <div className="flex items-center">
+                                  {canWriteTracker ? (
+                                    <StatusDotMenu
+                                      status={item.status}
+                                      onChange={(newStatus) => handleStatusChange(item, newStatus)}
+                                    />
+                                  ) : (
+                                    <span className="text-xs text-[#a3a3a3] capitalize">
+                                      {item.status.replace('_', ' ')}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center">
+                                  <span
+                                    className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                                    style={{
+                                      backgroundColor: priorityStyle.hex + '33',
+                                      color: priorityStyle.hex,
+                                    }}
+                                  >
+                                    {item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center">
+                                  <span className="text-sm font-semibold text-[#E0B954]">
+                                    {item.story_points}
+                                  </span>
+                                </div>
+                                <div className="flex items-center">
+                                  <span className="text-xs text-[#737373] truncate">
+                                    {item.assignee}
+                                  </span>
+                                </div>
+                                <div className="flex items-center">
+                                  <span className="text-xs text-[#a3a3a3] truncate">
+                                    {item.due_date
+                                      ? parseLocalDate(item.due_date)?.toLocaleDateString()
+                                      : '—'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center">
+                                  <span className="text-xs text-[#a3a3a3] truncate">
+                                    {item.completed_at
+                                      ? new Date(item.completed_at).toLocaleDateString()
+                                      : '—'}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </>
+                      )}
+                    </div>
+                  );
+                })
+              )
+            ) : listGroupBy === 'week' ? (
               listViewWeekGroups.length === 0 ? (
                 <div className="py-16 text-center text-[#737373] text-sm">No items found</div>
               ) : (
@@ -2208,12 +2426,10 @@ const ProjectBoard = () => {
                             const priorityStyle =
                               PRIORITY_COLORS[item.priority] || PRIORITY_COLORS.medium;
                             const dueDate = item.due_date ? parseLocalDate(item.due_date) : null;
-                            const todayMidnight = new Date();
-                            todayMidnight.setHours(0, 0, 0, 0);
                             const isOverdue =
                               !!dueDate &&
                               !item.completed_at &&
-                              dueDate.getTime() < todayMidnight.getTime();
+                              dueDate.getTime() < todayMidnightMs;
                             return (
                               <div
                                 key={item.id}
@@ -2241,10 +2457,16 @@ const ProjectBoard = () => {
                                   </span>
                                 </div>
                                 <div className="flex items-center">
-                                  <StatusDotMenu
-                                    status={item.status}
-                                    onChange={(newStatus) => handleStatusChange(item, newStatus)}
-                                  />
+                                  {canWriteTracker ? (
+                                    <StatusDotMenu
+                                      status={item.status}
+                                      onChange={(newStatus) => handleStatusChange(item, newStatus)}
+                                    />
+                                  ) : (
+                                    <span className="text-xs text-[#a3a3a3] capitalize">
+                                      {item.status.replace('_', ' ')}
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="flex items-center">
                                   <span
@@ -2340,7 +2562,17 @@ const ProjectBoard = () => {
                         </span>
                       </button>
                       {group.key !== 'backlog' &&
-                        (isProjectManager(user) ||
+                        // Sprint complete/close is a managerial action. The
+                        // legacy gate was `isProjectManager(user)` (user.role
+                        // includes 'admin' or 'project_manager'). Capability
+                        // mapping: `project.pm` is granted to the admin role
+                        // (via `*`) and the project_manager role (via
+                        // `project.*`), but NOT to the developer role —
+                        // matching the original intent. Project-level path:
+                        // developers flagged is_admin on this project or
+                        // marked as "Project Creator" keep their existing
+                        // override even without the capability.
+                        (can('project.pm') ||
                           project?.developers?.some(
                             (d) =>
                               d.email === user?.email &&
@@ -2432,10 +2664,16 @@ const ProjectBoard = () => {
                                 </span>
                               </div>
                               <div className="flex items-center">
-                                <StatusDotMenu
-                                  status={item.status}
-                                  onChange={(newStatus) => handleStatusChange(item, newStatus)}
-                                />
+                                {canWriteTracker ? (
+                                  <StatusDotMenu
+                                    status={item.status}
+                                    onChange={(newStatus) => handleStatusChange(item, newStatus)}
+                                  />
+                                ) : (
+                                  <span className="text-xs text-[#a3a3a3] capitalize">
+                                    {item.status.replace('_', ' ')}
+                                  </span>
+                                )}
                               </div>
                               <div className="flex items-center">
                                 <span

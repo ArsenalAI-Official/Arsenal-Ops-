@@ -22,22 +22,23 @@ services:
         fromDatabase:
           name: productmind-db
           property: connectionString
-      - key: AZURE_OPENAI_API_KEY
+      - key: OPENAI_API_KEY
         sync: false # Set manually in Render dashboard
-      - key: AZURE_OPENAI_ENDPOINT
-        sync: false # Set manually in Render dashboard
-      - key: AZURE_OPENAI_DEPLOYMENT_NAME
-        value: gpt-4o
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
       - key: GITHUB_TOKEN
         sync: false # Set manually in Render dashboard (optional)
-      - key: SMTP_HOST
-        sync: false # Set manually for email notifications (optional)
-      - key: SMTP_PORT
-        value: "587"
-      - key: SMTP_USER
+      # Email notifications (Gmail API + OAuth2). Secrets set in the dashboard.
+      - key: GOOGLE_CLIENT_ID
         sync: false
-      - key: SMTP_PASSWORD
+      - key: GOOGLE_CLIENT_SECRET
         sync: false
+      - key: MAIL_REFRESH_TOKEN
+        sync: false # OAuth2 refresh token for the bot mailbox
+      - key: BOT_EMAIL
+        value: DoNotReply@arsenalai.com # sender + authorized account
+      - key: SMTP_FROM_NAME
+        value: Arsenal Ops # From display name
       - key: CORS_ORIGINS
         value: "https://your-app-name.vercel.app,https://your-custom-domain.com"
 

@@ -3,7 +3,6 @@ import {
   Pencil,
   Trash2,
   ChevronDown,
-  ChevronRight,
   ChevronUp,
   TrendingUp,
   Search,
@@ -41,6 +40,7 @@ interface CapacityTicket {
   completed_at: string | null;
   counted_hours: number;
   counted_basis: string;
+  your_logged_this_week?: number;
 }
 
 interface DeveloperCapacity {
@@ -57,6 +57,12 @@ interface DeveloperCapacity {
   week_start?: string;
   week_end?: string;
   tickets?: CapacityTicket[];
+  weekly_logged_history?: Array<{
+    week_start: string;
+    week_end: string;
+    hours: number;
+    projects: Array<{ project_id: number | null; project_name: string; hours: number }>;
+  }>;
   specialization: string | null;
 }
 
@@ -129,6 +135,7 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
   onDeleteEmployee,
 }) => {
   const [expandedCapacityDevId, setExpandedCapacityDevId] = useState<number | null>(null);
+  const [expandedView, setExpandedView] = useState<'capacity' | 'logged'>('capacity');
 
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [employeeStatusFilter, setEmployeeStatusFilter] = useState<
@@ -513,6 +520,7 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
                     projectName: string;
                     tickets: CapacityTicket[];
                     total: number;
+                    logged: number;
                   }
                 >
               >((acc, t) => {
@@ -523,9 +531,11 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
                     projectName: t.project_name || `Project ${pid}`,
                     tickets: [],
                     total: 0,
+                    logged: 0,
                   };
                 acc[pid].tickets.push(t);
                 acc[pid].total += t.counted_hours;
+                acc[pid].logged += t.your_logged_this_week ?? 0;
                 return acc;
               }, {});
               const projectsByHours = Object.values(projectGroupsMap).sort(
@@ -535,7 +545,12 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
               return (
                 <React.Fragment key={emp.id}>
                   <tr
-                    className={`border-b border-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.02)] ${isExpanded ? 'bg-[rgba(255,255,255,0.015)]' : ''}`}
+                    onClick={() => {
+                      setExpandedCapacityDevId(isExpanded ? null : emp.id);
+                      setExpandedView('capacity'); // every fresh expansion starts on capacity
+                    }}
+                    title="Click row to see breakdown"
+                    className={`border-b border-[rgba(255,255,255,0.03)] cursor-pointer hover:bg-[rgba(255,255,255,0.02)] ${isExpanded ? 'bg-[rgba(255,255,255,0.015)]' : ''}`}
                   >
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
@@ -558,17 +573,8 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
                     </td>
                     <td className="px-5 py-4 text-sm text-[#a3a3a3]">{emp.project_count}</td>
                     <td className="px-5 py-4 text-sm text-[#a3a3a3]">{emp.assigned_items_count}</td>
-                    <td
-                      className="px-5 py-4 cursor-pointer hover:bg-[rgba(255,255,255,0.02)] transition-colors"
-                      onClick={() => setExpandedCapacityDevId(isExpanded ? null : emp.id)}
-                      title="Click to see ticket-level breakdown"
-                    >
+                    <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
-                        {isExpanded ? (
-                          <ChevronDown className="w-3.5 h-3.5 text-[#737373] flex-shrink-0" />
-                        ) : (
-                          <ChevronRight className="w-3.5 h-3.5 text-[#737373] flex-shrink-0" />
-                        )}
                         <div className="flex-1 min-w-0 max-w-xs">
                           <div className="h-2 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden flex">
                             {projectsByHours.map((p) => (
@@ -633,12 +639,15 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
                         </span>
                       </div>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end gap-2">
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => onEditEmployee(emp)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditEmployee(emp);
+                          }}
                           className="text-[#737373] hover:text-white h-8 w-8 p-0"
                         >
                           <Pencil className="w-4 h-4" />
@@ -646,7 +655,10 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => onDeleteEmployee(emp.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteEmployee(emp.id);
+                          }}
                           className="text-red-400 hover:text-red-300 h-8 w-8 p-0"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -658,120 +670,286 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
                     <tr className="border-b border-[rgba(255,255,255,0.03)] bg-[rgba(0,0,0,0.25)]">
                       <td colSpan={7} className="px-5 py-5">
                         <div className="space-y-4">
-                          <div className="flex items-center justify-between gap-3 flex-wrap">
-                            <div className="text-xs text-[#737373]">
-                              Week:{' '}
-                              <span className="text-[#a3a3a3] font-mono">
-                                {devCapacity?.week_start
-                                  ? new Date(devCapacity.week_start).toLocaleDateString(undefined, {
-                                      month: 'short',
-                                      day: 'numeric',
-                                    })
-                                  : '—'}
-                                {' → '}
-                                {devCapacity?.week_end
-                                  ? new Date(devCapacity.week_end).toLocaleDateString(undefined, {
-                                      month: 'short',
-                                      day: 'numeric',
-                                    })
-                                  : '—'}
-                              </span>
-                              <span className="ml-2 text-[#737373]">(Sat → Fri, UTC)</span>
-                            </div>
-                            {tickets.length === 0 && (
-                              <span className="text-xs text-[#737373]">
-                                No tickets contributing this week.
-                              </span>
-                            )}
+                          {/* View toggle: Capacity (default) | Logged hours per week (all projects) */}
+                          <div className="flex items-center gap-2">
+                            {(
+                              [
+                                { id: 'capacity', label: 'Capacity (this week)' },
+                                { id: 'logged', label: 'Logged hours per week' },
+                              ] as const
+                            ).map((opt) => {
+                              const active = expandedView === opt.id;
+                              return (
+                                <button
+                                  key={opt.id}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedView(opt.id);
+                                  }}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                    active
+                                      ? 'bg-[#E0B954]/20 text-[#E0B954] border border-[#E0B954]/40'
+                                      : 'bg-[rgba(255,255,255,0.03)] text-[#a3a3a3] border border-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.06)]'
+                                  }`}
+                                >
+                                  {opt.label}
+                                </button>
+                              );
+                            })}
                           </div>
 
-                          {projectsByHours.length > 0 && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              {projectsByHours.map((p) => {
-                                const color = projectColor(p.projectId);
-                                const sortedTickets = [...p.tickets].sort(
-                                  (a, b) => b.counted_hours - a.counted_hours,
-                                );
+                          {expandedView === 'logged' &&
+                            (() => {
+                              const history = devCapacity?.weekly_logged_history ?? [];
+                              if (history.length === 0) {
                                 return (
-                                  <div
-                                    key={p.projectId}
-                                    className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-3"
-                                  >
-                                    <div className="flex items-center justify-between mb-2">
-                                      <div className="flex items-center gap-2 min-w-0">
-                                        <span
-                                          className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
-                                          style={{ backgroundColor: color }}
-                                        />
-                                        <span
-                                          className="text-xs font-semibold text-white truncate"
-                                          title={p.projectName}
-                                        >
-                                          {p.projectName}
-                                        </span>
-                                        <span className="text-[10px] text-[#737373] flex-shrink-0">
-                                          ({p.tickets.length})
-                                        </span>
-                                      </div>
-                                      <span
-                                        className="text-xs font-mono tabular-nums flex-shrink-0"
-                                        style={{ color }}
-                                      >
-                                        {p.total}h
-                                      </span>
-                                    </div>
-                                    <ul className="space-y-1.5">
-                                      {sortedTickets.map((t) => {
-                                        const sColor = statusBadgeColor(t.status);
-                                        return (
-                                          <li key={t.id} className="flex items-start gap-2 text-xs">
-                                            <span className="font-mono text-[#E0B954] mt-0.5 flex-shrink-0">
-                                              {t.key}
-                                            </span>
-                                            <div className="flex-1 min-w-0">
-                                              <div className="text-white truncate">{t.title}</div>
-                                              <div className="text-[10px] text-[#737373] mt-0.5 flex items-center gap-1.5 flex-wrap">
-                                                <span
-                                                  className="px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider"
-                                                  style={{
-                                                    backgroundColor: `${sColor}22`,
-                                                    color: sColor,
-                                                    fontSize: '9px',
-                                                  }}
-                                                >
-                                                  {t.status.replace('_', ' ')}
-                                                </span>
-                                                <span>est {t.estimated_hours}h</span>
-                                                <span className="text-[rgba(255,255,255,0.15)]">
-                                                  ·
-                                                </span>
-                                                <span>logged {t.logged_hours}h</span>
-                                                <span className="text-[rgba(255,255,255,0.15)]">
-                                                  ·
-                                                </span>
-                                                <span>remaining {t.remaining_hours}h</span>
-                                                {t.counted_basis === 'remaining (transferred)' && (
-                                                  <span className="px-1 py-0.5 rounded bg-[#FBBF24]/15 text-[#FBBF24] text-[9px] font-semibold uppercase tracking-wider">
-                                                    transferred
-                                                  </span>
-                                                )}
-                                              </div>
-                                            </div>
-                                            <span
-                                              className="font-mono tabular-nums flex-shrink-0"
-                                              style={{ color }}
-                                              title={`Counted as ${t.counted_basis}`}
-                                            >
-                                              +{t.counted_hours}h
-                                            </span>
-                                          </li>
-                                        );
-                                      })}
-                                    </ul>
+                                  <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-4 text-sm text-[#737373] text-center">
+                                    No logged hours yet across any project.
                                   </div>
                                 );
-                              })}
-                            </div>
+                              }
+                              const totalAllTime = history.reduce((s, w) => s + w.hours, 0);
+                              const maxHours = Math.max(...history.map((w) => w.hours), 1);
+                              return (
+                                <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-3">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <h4 className="text-xs font-semibold text-white">
+                                      Logged hours per week — all projects
+                                    </h4>
+                                    <span className="text-xs font-mono tabular-nums text-[#E0B954]">
+                                      {totalAllTime}h total · {history.length}{' '}
+                                      {history.length === 1 ? 'week' : 'weeks'}
+                                    </span>
+                                  </div>
+                                  <ul className="space-y-3">
+                                    {history.map((w) => {
+                                      // Backend buckets Sat→Fri; display as Mon→Fri.
+                                      const satStart = new Date(w.week_start);
+                                      const monStart = new Date(
+                                        satStart.getTime() + 2 * 24 * 60 * 60 * 1000,
+                                      );
+                                      const friEnd = new Date(w.week_end);
+                                      const widthPct = Math.round((w.hours / maxHours) * 100);
+                                      const projects = w.projects ?? [];
+                                      return (
+                                        <li key={w.week_start} className="space-y-1.5">
+                                          <div className="flex items-center justify-between text-xs">
+                                            <span className="text-[#a3a3a3] font-mono">
+                                              {monStart.toLocaleDateString(undefined, {
+                                                month: 'short',
+                                                day: 'numeric',
+                                              })}
+                                              {' → '}
+                                              {friEnd.toLocaleDateString(undefined, {
+                                                month: 'short',
+                                                day: 'numeric',
+                                              })}
+                                            </span>
+                                            <span className="text-[#E0B954] font-mono tabular-nums">
+                                              {w.hours}h
+                                            </span>
+                                          </div>
+                                          {/* Segmented bar — total width proportional to this week vs max week.
+                                              Within the bar, each project's slice is sized by its share of this week. */}
+                                          <div
+                                            className="h-1.5 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden flex"
+                                            style={{ width: `${widthPct}%` }}
+                                          >
+                                            {projects.map((p) => {
+                                              const innerPct =
+                                                w.hours > 0 ? (p.hours / w.hours) * 100 : 0;
+                                              return (
+                                                <div
+                                                  key={`${p.project_id ?? 'unknown'}`}
+                                                  className="h-full"
+                                                  style={{
+                                                    width: `${innerPct}%`,
+                                                    backgroundColor: projectColor(
+                                                      p.project_id ?? 0,
+                                                    ),
+                                                  }}
+                                                  title={`${p.project_name}: ${p.hours}h`}
+                                                />
+                                              );
+                                            })}
+                                          </div>
+                                          {projects.length > 0 && (
+                                            <div className="text-[10px] text-[#737373] flex items-center gap-x-3 gap-y-1 flex-wrap">
+                                              {projects.map((p) => (
+                                                <span
+                                                  key={`${p.project_id ?? 'unknown'}`}
+                                                  className="flex items-center gap-1"
+                                                >
+                                                  <span
+                                                    className="w-1.5 h-1.5 rounded-sm"
+                                                    style={{
+                                                      backgroundColor: projectColor(
+                                                        p.project_id ?? 0,
+                                                      ),
+                                                    }}
+                                                  />
+                                                  <span
+                                                    className="text-[#a3a3a3] truncate max-w-[140px]"
+                                                    title={p.project_name}
+                                                  >
+                                                    {p.project_name}
+                                                  </span>
+                                                  <span className="font-mono tabular-nums text-[#E0B954]">
+                                                    {p.hours}h
+                                                  </span>
+                                                </span>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                </div>
+                              );
+                            })()}
+
+                          {expandedView === 'capacity' && (
+                            <>
+                              <div className="flex items-center justify-between gap-3 flex-wrap">
+                                <div className="text-xs text-[#737373]">
+                                  Week:{' '}
+                                  <span className="text-[#a3a3a3] font-mono">
+                                    {devCapacity?.week_start
+                                      ? new Date(devCapacity.week_start).toLocaleDateString(
+                                          undefined,
+                                          {
+                                            month: 'short',
+                                            day: 'numeric',
+                                          },
+                                        )
+                                      : '—'}
+                                    {' → '}
+                                    {devCapacity?.week_end
+                                      ? new Date(devCapacity.week_end).toLocaleDateString(
+                                          undefined,
+                                          {
+                                            month: 'short',
+                                            day: 'numeric',
+                                          },
+                                        )
+                                      : '—'}
+                                  </span>
+                                  <span className="ml-2 text-[#737373]">(Sat → Fri, UTC)</span>
+                                </div>
+                                {tickets.length === 0 && (
+                                  <span className="text-xs text-[#737373]">
+                                    No tickets contributing this week.
+                                  </span>
+                                )}
+                              </div>
+
+                              {projectsByHours.length > 0 && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  {projectsByHours.map((p) => {
+                                    const color = projectColor(p.projectId);
+                                    const sortedTickets = [...p.tickets].sort(
+                                      (a, b) => b.counted_hours - a.counted_hours,
+                                    );
+                                    return (
+                                      <div
+                                        key={p.projectId}
+                                        className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-3"
+                                      >
+                                        <div className="flex items-center justify-between mb-2">
+                                          <div className="flex items-center gap-2 min-w-0">
+                                            <span
+                                              className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                                              style={{ backgroundColor: color }}
+                                            />
+                                            <span
+                                              className="text-xs font-semibold text-white truncate"
+                                              title={p.projectName}
+                                            >
+                                              {p.projectName}
+                                            </span>
+                                            <span className="text-[10px] text-[#737373] flex-shrink-0">
+                                              ({p.tickets.length})
+                                            </span>
+                                          </div>
+                                          <span className="text-xs font-mono tabular-nums flex-shrink-0 flex items-baseline gap-1.5">
+                                            {p.logged > 0 && (
+                                              <span
+                                                className="text-[10px] text-[#737373]"
+                                                title="Hours actually logged this week"
+                                              >
+                                                {p.logged}h logged
+                                              </span>
+                                            )}
+                                            <span
+                                              style={{ color }}
+                                              title="Counted against this week's capacity"
+                                            >
+                                              {p.total}h
+                                            </span>
+                                          </span>
+                                        </div>
+                                        <ul className="space-y-1.5">
+                                          {sortedTickets.map((t) => {
+                                            const sColor = statusBadgeColor(t.status);
+                                            return (
+                                              <li
+                                                key={t.id}
+                                                className="flex items-start gap-2 text-xs"
+                                              >
+                                                <span className="font-mono text-[#E0B954] mt-0.5 flex-shrink-0">
+                                                  {t.key}
+                                                </span>
+                                                <div className="flex-1 min-w-0">
+                                                  <div className="text-white truncate">
+                                                    {t.title}
+                                                  </div>
+                                                  <div className="text-[10px] text-[#737373] mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                                    <span
+                                                      className="px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider"
+                                                      style={{
+                                                        backgroundColor: `${sColor}22`,
+                                                        color: sColor,
+                                                        fontSize: '9px',
+                                                      }}
+                                                    >
+                                                      {t.status.replace('_', ' ')}
+                                                    </span>
+                                                    <span>est {t.estimated_hours}h</span>
+                                                    <span className="text-[rgba(255,255,255,0.15)]">
+                                                      ·
+                                                    </span>
+                                                    <span>logged {t.logged_hours}h</span>
+                                                    <span className="text-[rgba(255,255,255,0.15)]">
+                                                      ·
+                                                    </span>
+                                                    <span>remaining {t.remaining_hours}h</span>
+                                                    {t.counted_basis ===
+                                                      'remaining (transferred)' && (
+                                                      <span className="px-1 py-0.5 rounded bg-[#FBBF24]/15 text-[#FBBF24] text-[9px] font-semibold uppercase tracking-wider">
+                                                        transferred
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                                <span
+                                                  className="font-mono tabular-nums flex-shrink-0"
+                                                  style={{ color }}
+                                                  title={`Counted as ${t.counted_basis}`}
+                                                >
+                                                  +{t.counted_hours}h
+                                                </span>
+                                              </li>
+                                            );
+                                          })}
+                                        </ul>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                       </td>

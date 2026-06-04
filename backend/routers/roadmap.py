@@ -15,13 +15,14 @@ sys.path.append("..")
 
 from database import get_db
 from logging_config import setup_logger
+from models.activity_log import ActivityLog
 from models.developer import Developer
 from models.project import Project
 from models.sprint import Sprint
 from models.user import User
 from models.work_item import WorkItem, WorkItemType
 from parser import parse as parse_roadmap
-from routers.auth import get_current_user
+from routers.auth import require_capability
 from routers.workitems import update_epic_hours
 from services.roadmap_ai_parser import excel_to_readable_text, get_roadmap_ai_parser
 
@@ -119,11 +120,11 @@ async def parse_roadmap_file(
     file: UploadFile = File(...),
     sprint_weeks: int = Form(default=2),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_capability("project.ai.write")),
 ):
     """
-    Upload and parse a roadmap Excel file
-    Returns: Summary of epics, tasks, assignees, timeline, conflicts, warnings, and sprints
+    Upload and parse a roadmap Excel file (requires `project.ai.write`).
+    Returns: Summary of epics, tasks, assignees, timeline, conflicts, warnings, and sprints.
     """
     # Verify project exists
     project = db.query(Project).filter(Project.id == project_id).first()
@@ -252,12 +253,12 @@ async def parse_roadmap_file(
 def commit_roadmap_tickets(
     request: RoadmapCommitRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_capability("project.ai.write")),
 ):
     """
-    Create work items from parsed roadmap data
-    Creates epics first, then tasks linked to epics
-    Handles assignee lookup with fallback to current user
+    Create work items from parsed roadmap data (requires `project.ai.write`).
+    Creates epics first, then tasks linked to epics.
+    Handles assignee lookup with fallback to current user.
     """
     # Verify project exists
     project = db.query(Project).filter(Project.id == request.project_id).first()
@@ -453,6 +454,33 @@ def commit_roadmap_tickets(
             update_epic_hours(epic.id, db)
 
         # Final commit for epic hours
+        db.commit()
+
+        # Activity log entry — surfaces a single "Imported roadmap: …" event in
+        # the project's Activity tab. We deliberately don't log per-ticket
+        # creations from the bulk import (would drown out other activity); the
+        # summary line + the structured `details` payload preserve the counts.
+        db.add(
+            ActivityLog(
+                project_id=request.project_id,
+                user_id=current_user.id,
+                action="created",
+                entity_type="roadmap",
+                title=(
+                    f"Imported roadmap: {len(epic_map)} epic"
+                    f"{'s' if len(epic_map) != 1 else ''}, "
+                    f"{created_tasks} task{'s' if created_tasks != 1 else ''}, "
+                    f"{sprints_created} sprint{'s' if sprints_created != 1 else ''}"
+                ),
+                details={
+                    "epics_created": len(epic_map),
+                    "tasks_created": created_tasks,
+                    "sprints_created": sprints_created,
+                    "tasks_assigned_to_sprints": tasks_assigned_to_sprint,
+                    "assignees_not_found": assignee_not_found_count,
+                },
+            )
+        )
         db.commit()
 
         response_data = {

@@ -1,6 +1,7 @@
 import { Settings, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { hasAnyAdminCapability } from '@/lib/adminCaps';
 import arsenalOpsLogo from '@/assets/images/arsenal-ops-logo.webp';
 
 interface AppHeaderProps {
@@ -34,7 +35,10 @@ const AppHeader = ({ user, onAdminClick, onLogout }: AppHeaderProps) => {
               <span className="text-sm text-[#a3a3a3] hidden md:block">{user.name}</span>
             </div>
           )}
-          {can('admin.dashboard') && (
+          {/* Admin nav link visibility uses the same admin-cap set as the
+              /admin route guard (RequireAnyAdminCapability in App.tsx).
+              Keeps link + route in sync via lib/adminCaps.ts. */}
+          {hasAnyAdminCapability(can) && (
             <Button
               variant="ghost"
               onClick={onAdminClick}

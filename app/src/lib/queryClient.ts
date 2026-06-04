@@ -84,10 +84,21 @@ import { QueryClient } from '@tanstack/react-query';
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60_000,
+      // Liveness vs. cost balance (matches the doc above):
+      //  • staleTime 30s — within 30s repeated mounts use cache (instant
+      //    back/forward); after 30s data is considered stale and eligible to
+      //    refresh. Short enough that collaborative views (board) stay live.
+      //  • refetchOnMount false — a fresh-enough cached query doesn't refetch
+      //    on mount, so back-navigation stays instant.
+      //  • refetchOnWindowFocus true — tab-back refreshes only stale (>30s)
+      //    data, so teammates' changes appear without a manual reload. Safe to
+      //    enable now that the list/board/analytics endpoints are cheap
+      //    (backend N+1s collapsed) and writes are optimistic + prefix-invalidated.
+      //  • gcTime 5min — unused cache survives a quick out-and-back trip.
+      staleTime: 30_000,
       gcTime: 5 * 60_000,
       refetchOnMount: false,
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,
       retry: (failureCount, error) => {
         // Don't retry on 404 — the resource genuinely doesn't exist.
         // Matches `ApiError` shape from `@/lib/api`.

@@ -1,37 +1,77 @@
 """
 Email Service - Handle all email notifications
-Supports Gmail SMTP and generic SMTP configurations
+
+Sends mail through the Gmail API using OAuth2 with a refresh token bound to a
+single bot mailbox (BOT_EMAIL). The refresh token can only ever send as that
+one account - no service account key, no domain-wide delegation, no app
+password, and the gmail.send scope means send-only (no mailbox read access).
 """
 
+import base64
 import logging
 import os
-import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 logger = logging.getLogger(__name__)
 
+# Least-privilege: this scope can only send mail, not read or manage the mailbox.
+GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send"
+GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
+
 
 class EmailService:
-    """Service for sending email notifications"""
+    """Service for sending email notifications via the Gmail API (OAuth2)."""
 
     def __init__(self):
-        self.smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
-        self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
-        self.smtp_user = os.getenv("SMTP_USER", "")
-        self.smtp_password = os.getenv("SMTP_PASSWORD", "")
-        self.from_email = os.getenv("SMTP_FROM_EMAIL", self.smtp_user)
+        # OAuth2 credentials for the bot mailbox. The refresh token was issued
+        # by signing in as BOT_EMAIL and consenting to the gmail.send scope.
+        self.client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+        self.client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
+        self.refresh_token = os.getenv("MAIL_REFRESH_TOKEN", "")
+
+        # The bot mailbox: this is both the authorized account and the From
+        # address. Must match the account the refresh token was generated from
+        # (or a verified send-as alias of it).
+        self.from_email = os.getenv("BOT_EMAIL", "")
         self.from_name = os.getenv("SMTP_FROM_NAME", "Arsenal Ops")
 
+        # Built lazily and cached on first send.
+        self._gmail = None
+
     def is_configured(self) -> bool:
-        """Check if SMTP is properly configured"""
-        return bool(self.smtp_user and self.smtp_password)
+        """True if the OAuth2 credentials and sender address are all set."""
+        return bool(
+            self.client_id and self.client_secret and self.refresh_token and self.from_email
+        )
+
+    def _get_gmail_service(self):
+        """Build (and cache) an authorized Gmail API client for the bot mailbox.
+        The Google client libs are imported lazily so the rest of the app still
+        imports cleanly if they're absent."""
+        if self._gmail is not None:
+            return self._gmail
+
+        from google.oauth2.credentials import Credentials
+        from googleapiclient.discovery import build
+
+        credentials = Credentials(
+            token=None,
+            refresh_token=self.refresh_token,
+            client_id=self.client_id,
+            client_secret=self.client_secret,
+            token_uri=GOOGLE_TOKEN_URI,
+            scopes=[GMAIL_SEND_SCOPE],
+        )
+        # google-auth mints and refreshes short-lived access tokens as needed.
+        self._gmail = build("gmail", "v1", credentials=credentials, cache_discovery=False)
+        return self._gmail
 
     def send_email(
         self, to_email: str, subject: str, html_body: str, text_body: str | None = None
     ) -> bool:
         """
-        Send an email via SMTP
+        Send an email via the Gmail API.
 
         Args:
             to_email: Recipient email address
@@ -43,7 +83,7 @@ class EmailService:
             True if successful, False otherwise
         """
         if not self.is_configured():
-            logger.warning(f"SMTP not configured. Would send email to {to_email}")
+            logger.warning(f"Email (Gmail OAuth2) not configured. Would send email to {to_email}")
             return False
 
         try:
@@ -53,16 +93,14 @@ class EmailService:
             msg["To"] = to_email
 
             if text_body:
-                text_part = MIMEText(text_body, "plain")
-                msg.attach(text_part)
+                msg.attach(MIMEText(text_body, "plain"))
 
-            html_part = MIMEText(html_body, "html")
-            msg.attach(html_part)
+            msg.attach(MIMEText(html_body, "html"))
 
-            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
-                server.starttls()
-                server.login(self.smtp_user, self.smtp_password)
-                server.sendmail(self.from_email, to_email, msg.as_string())
+            raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+            service = self._get_gmail_service()
+            # userId="me" resolves to the authorized bot mailbox.
+            service.users().messages().send(userId="me", body={"raw": raw}).execute()
 
             logger.info(f"Email sent to {to_email} with subject: {subject}")
             return True

@@ -6,7 +6,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 sys.path.append("..")
 from database import get_db
@@ -90,6 +90,7 @@ def get_comments(
     """Get all comments for a work item (requires auth)"""
     comments = (
         db.query(Comment)
+        .options(selectinload(Comment.author))
         .filter(Comment.work_item_id == work_item_id)
         .order_by(Comment.created_at.desc())
         .all()
@@ -246,15 +247,25 @@ def get_business_review_comments(
     # Get all comments marked as business_review in this project
     comments = (
         db.query(Comment)
+        .options(selectinload(Comment.author))
         .join(WorkItem, Comment.work_item_id == WorkItem.id)
         .filter(WorkItem.project_id == project_id, Comment.comment_type == "business_review")
         .order_by(Comment.created_at.desc())
         .all()
     )
 
+    # Bulk-load the referenced work items in one query (was one WorkItem SELECT
+    # per comment inside the loop below — an N+1).
+    work_item_ids = {c.work_item_id for c in comments}
+    items_by_id = (
+        {w.id: w for w in db.query(WorkItem).filter(WorkItem.id.in_(work_item_ids)).all()}
+        if work_item_ids
+        else {}
+    )
+
     result = []
     for comment in comments:
-        work_item = db.query(WorkItem).filter(WorkItem.id == comment.work_item_id).first()
+        work_item = items_by_id.get(comment.work_item_id)
         author_name = "Unknown"
         if comment.author_id and comment.author:
             author_name = comment.author.name

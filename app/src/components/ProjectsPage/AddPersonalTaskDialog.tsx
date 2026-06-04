@@ -12,7 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useAuth } from '@/contexts/AuthContext';
 import type { Project, ProjectMember, NewPersonalTaskForm } from './types';
+import { clampNonNegInt, blockNegativeKey } from '@/lib/inputUtils';
 import { parseLocalDate, formatLocalDate } from './utils';
 import { CALENDAR_CLASS_NAMES } from './constants';
 
@@ -45,6 +47,11 @@ const AddPersonalTaskDialog = ({
   addingTask,
   onCreate,
 }: AddPersonalTaskDialogProps) => {
+  // Assigning a personal task to a project goes through convert-to-ticket on
+  // submit. Hide the project picker + dependent fields (assignee, est. hours)
+  // when the user lacks the cap — the dialog still creates a personal task.
+  const { can } = useAuth();
+  const canAssignToProject = can('project.assign_personal_task');
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-[#0d0d0d] border-[rgba(255,255,255,0.08)] text-white">
@@ -124,66 +131,81 @@ const AddPersonalTaskDialog = ({
               </Popover>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs text-[#737373] mb-1 block">
-                Project <span className="text-[#555]">(optional)</span>
-              </label>
-              <Select value={form.project_id} onValueChange={onProjectChange}>
-                <SelectTrigger className="bg-[#0A0A14] border-[rgba(255,255,255,0.08)] text-white">
-                  <SelectValue placeholder="Choose a project..." />
-                </SelectTrigger>
-                <SelectContent className="bg-[#0d0d0d] border-[rgba(255,255,255,0.08)]">
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id.toString()}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {form.project_id && (
+          {canAssignToProject && (
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-xs text-[#737373] mb-1 block">
-                  Assign To <span className="text-[#555]">(optional — defaults to you)</span>
+                  Project <span className="text-[#555]">(optional)</span>
                 </label>
-                <Select
-                  value={form.assignee_developer_id}
-                  onValueChange={(v) => setForm({ ...form, assignee_developer_id: v })}
-                >
+                <Select value={form.project_id} onValueChange={onProjectChange}>
                   <SelectTrigger className="bg-[#0A0A14] border-[rgba(255,255,255,0.08)] text-white">
-                    <SelectValue placeholder="Select team member..." />
+                    <SelectValue placeholder="Choose a project..." />
                   </SelectTrigger>
                   <SelectContent className="bg-[#0d0d0d] border-[rgba(255,255,255,0.08)]">
-                    {projectMembers.length === 0 ? (
-                      <div className="p-2 text-xs text-[#737373]">
-                        No team members in this project
-                      </div>
-                    ) : (
-                      projectMembers.map((member) => (
-                        <SelectItem key={member.id} value={member.id.toString()}>
-                          <div className="flex items-center gap-2">
-                            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#E0B954] to-[#C79E3B] flex items-center justify-center text-[#080808] text-xs font-bold">
-                              {member.name.charAt(0).toUpperCase()}
-                            </div>
-                            {member.name}
-                          </div>
+                    {[...projects]
+                      .sort((a, b) =>
+                        a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+                      )
+                      .map((project) => (
+                        <SelectItem key={project.id} value={project.id.toString()}>
+                          {project.name}
                         </SelectItem>
-                      ))
-                    )}
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
-            )}
-          </div>
-          {form.project_id && (
+              {form.project_id && (
+                <div>
+                  <label className="text-xs text-[#737373] mb-1 block">
+                    Assign To <span className="text-[#555]">(optional — defaults to you)</span>
+                  </label>
+                  <Select
+                    value={form.assignee_developer_id}
+                    onValueChange={(v) => setForm({ ...form, assignee_developer_id: v })}
+                  >
+                    <SelectTrigger className="bg-[#0A0A14] border-[rgba(255,255,255,0.08)] text-white">
+                      <SelectValue placeholder="Select team member..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#0d0d0d] border-[rgba(255,255,255,0.08)]">
+                      {projectMembers.length === 0 ? (
+                        <div className="p-2 text-xs text-[#737373]">
+                          No team members in this project
+                        </div>
+                      ) : (
+                        projectMembers.map((member) => (
+                          <SelectItem key={member.id} value={member.id.toString()}>
+                            <div className="flex items-center gap-2">
+                              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#E0B954] to-[#C79E3B] flex items-center justify-center text-[#080808] text-xs font-bold">
+                                {member.name.charAt(0).toUpperCase()}
+                              </div>
+                              {member.name}
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          )}
+          {canAssignToProject && form.project_id && (
             <div>
               <label className="text-xs text-[#737373] mb-1 block">
                 Estimated Hours <span className="text-[#555]">(optional)</span>
               </label>
               <Input
+                type="number"
+                min="0"
                 value={form.estimated_hours}
-                onChange={(e) => setForm({ ...form, estimated_hours: e.target.value })}
+                onKeyDown={blockNegativeKey}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    estimated_hours:
+                      e.target.value === '' ? '' : String(clampNonNegInt(e.target.value)),
+                  })
+                }
                 className="bg-[#0A0A14] border-[rgba(255,255,255,0.08)] text-white placeholder-[#444]"
               />
             </div>

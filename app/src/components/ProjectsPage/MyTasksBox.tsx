@@ -13,6 +13,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarIcon } from '@/components/ui/calendar';
+import { useAuth } from '@/contexts/AuthContext';
 import type { MyTask, PersonalTask } from './types';
 import { parseLocalDate } from './utils';
 import { STATUS_BARS } from './constants';
@@ -85,6 +86,12 @@ const MyTasksBox = ({
   onQuickDueDateChange,
 }: MyTasksBoxProps) => {
   const [openDateRowId, setOpenDateRowId] = useState<string | null>(null);
+  // "Tag to project" promotes a personal task into a project ticket via
+  // POST /api/personal-tasks/{id}/convert-to-ticket — gated server-side on
+  // `project.assign_personal_task`. Hide the per-task button when the user
+  // lacks the cap so they don't get a 403 toast.
+  const { can } = useAuth();
+  const canAssignToProject = can('project.assign_personal_task');
   const filteredMyTasks = myTasks.filter((t) => {
     if (myTaskTab === 'upcoming') return t.status !== 'done' && !t.is_overdue;
     if (myTaskTab === 'overdue') return t.is_overdue;
@@ -224,14 +231,16 @@ const MyTasksBox = ({
                       <Edit2 className="w-3.5 h-3.5" />
                       Edit
                     </button>
-                    <button
-                      onClick={() => onConvertPersonalTask(task)}
-                      className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs text-[#E0B954] hover:text-[#C79E3B] flex-shrink-0 transition-opacity"
-                      title="Convert to project ticket"
-                    >
-                      <ArrowRight className="w-3.5 h-3.5" />
-                      Tag to project
-                    </button>
+                    {canAssignToProject && (
+                      <button
+                        onClick={() => onConvertPersonalTask(task)}
+                        className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs text-[#E0B954] hover:text-[#C79E3B] flex-shrink-0 transition-opacity"
+                        title="Convert to project ticket"
+                      >
+                        <ArrowRight className="w-3.5 h-3.5" />
+                        Tag to project
+                      </button>
+                    )}
                     <button
                       onClick={() => onDeletePersonalTask(task.id)}
                       className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/10 text-[#737373] hover:text-red-400 transition-all"

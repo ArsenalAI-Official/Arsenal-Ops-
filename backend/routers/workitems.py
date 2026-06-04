@@ -17,7 +17,7 @@ from models.project import Project
 from models.sprint import Sprint, SprintStatus
 from models.user import User
 from models.work_item import WorkItem, WorkItemStatus, WorkItemType
-from routers.auth import get_current_user
+from routers.auth import get_current_user, require_capability
 from services.email_service import email_service
 from services.hierarchy import validate_hierarchy
 from services.llm_agent import llm_agent
@@ -617,7 +617,15 @@ def get_work_item(
     side panel can show "Created By" / "Assigned To" without a follow-up
     lookup. The model's column dict is returned as-is otherwise.
     """
-    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
+    item = (
+        db.query(WorkItem)
+        .options(
+            selectinload(WorkItem.assignee),
+            selectinload(WorkItem.reporter),
+        )
+        .filter(WorkItem.id == item_id)
+        .first()
+    )
     if not item:
         raise HTTPException(status_code=404, detail="Work item not found")
     # Column dict + relation-derived fields. SQLAlchemy auto-serialization via
@@ -633,9 +641,9 @@ def create_work_item(
     item: WorkItemCreate,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_capability("project.tracker_write")),
 ):
-    """Create a new work item"""
+    """Create a new work item (requires `project.tracker_write`)."""
     # Get project for key prefix
     project = db.query(Project).filter(Project.id == item.project_id).first()
     if not project:
@@ -728,8 +736,15 @@ def create_work_item(
         update_epic_hours(work_item.epic_id, db)
         db.commit()
 
-    # Send assignment notification if assignee is set (off the request thread)
-    if work_item.assignee_id and work_item.assignee:
+    # Send assignment notification if assignee is set (off the request thread).
+    # Skip when the creator self-assigned — emailing yourself about a ticket
+    # you just made is noise. Matches the same `assignee.email != current_user.email`
+    # guard already used on status-change notifications below.
+    if (
+        work_item.assignee_id
+        and work_item.assignee
+        and work_item.assignee.email != current_user.email
+    ):
         assignee = work_item.assignee
         background_tasks.add_task(
             email_service.send_task_assignment_notification,
@@ -782,7 +797,7 @@ def update_work_item(
     update: WorkItemUpdate,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_capability("project.tracker_write")),
 ):
     """Update an existing work item (requires auth)"""
     item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
@@ -994,10 +1009,13 @@ def update_work_item(
             )
             db.add(activity)
 
-            # Send assignment notification to new assignee if newly assigned (off the request thread)
+            # Send assignment notification to new assignee if newly assigned
+            # (off the request thread). Skip when reassigning to self —
+            # already what `current_user` knows about. Matches the create_work_item
+            # guard above and the status-change guard further down.
             if new_assignee_id and new_assignee_name != "Unassigned":
                 new_assignee = db.query(Developer).filter(Developer.id == new_assignee_id).first()
-                if new_assignee and new_assignee.email:
+                if new_assignee and new_assignee.email and new_assignee.email != current_user.email:
                     background_tasks.add_task(
                         email_service.send_task_assignment_notification,
                         to_email=new_assignee.email,
@@ -1283,9 +1301,11 @@ def batch_update_status(
 
 @router.delete("/{item_id}")
 def delete_work_item(
-    item_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_capability("project.tracker_write")),
 ):
-    """Delete a work item (requires auth)"""
+    """Delete a work item (requires `project.tracker_write`)."""
     item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Work item not found")
@@ -1511,6 +1531,15 @@ def get_work_item_time_entries(
     # Get all time entries for this work item
     time_entries = db.query(TimeEntry).filter(TimeEntry.work_item_id == item_id).all()
 
+    # Batch-fetch the developers referenced by these entries in one query, so the
+    # per-entry loop below doesn't issue a Developer SELECT per time entry (N+1).
+    dev_ids = {te.developer_id for te in time_entries if te.developer_id}
+    devs_by_id = (
+        {d.id: d for d in db.query(Developer).filter(Developer.id.in_(dev_ids)).all()}
+        if dev_ids
+        else {}
+    )
+
     # Calculate week boundaries if filtering by this week
     week_start = None
     week_end = None
@@ -1528,11 +1557,7 @@ def get_work_item_time_entries(
         if this_week_only and te.logged_at and not (week_start <= te.logged_at <= week_end):
             continue
 
-        developer = (
-            db.query(Developer).filter(Developer.id == te.developer_id).first()
-            if te.developer_id
-            else None
-        )
+        developer = devs_by_id.get(te.developer_id) if te.developer_id else None
 
         result.append(
             {
@@ -1705,9 +1730,9 @@ async def generate_work_items(
 def create_sprint(
     sprint: SprintCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_capability("project.tracker_write")),
 ):
-    """Create a new sprint (requires auth)"""
+    """Create a new sprint (requires `project.tracker_write`)."""
     # Verify project exists
     project = db.query(Project).filter(Project.id == sprint.project_id).first()
     if not project:
@@ -2043,8 +2068,15 @@ def get_project_analytics(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Get all work items for the project
-    items = db.query(WorkItem).filter(WorkItem.project_id == project_id).all()
+    # Get all work items for the project. Eager-load assignee so the
+    # team-performance loop below (item.assignee.name) doesn't lazy-load a
+    # Developer per distinct assignee (N+1).
+    items = (
+        db.query(WorkItem)
+        .options(selectinload(WorkItem.assignee))
+        .filter(WorkItem.project_id == project_id)
+        .all()
+    )
 
     # Status distribution
     status_counts = {}
@@ -2154,8 +2186,16 @@ def get_hours_analytics(
     Authorized for users with the project.pm capability OR project-level admin
     membership on this specific project (matches frontend canSeePMTab logic).
     """
+    from models.developer import Developer
+
+    # Load the project once and reuse it for both the auth check and the body
+    # (previously queried twice on the non-PM path). Auth-check ordering is
+    # preserved exactly: a non-PM/non-admin caller still gets 403 (the
+    # `project and ...` guard yields is_project_admin=False for a missing
+    # project), and the 404 is raised afterwards only for PM/admin callers.
+    project = db.query(Project).filter(Project.id == project_id).first()
+
     if not current_user.has_capability("project.pm"):
-        project = db.query(Project).filter(Project.id == project_id).first()
         is_project_admin = bool(
             project
             and any(d.email == current_user.email and d.is_admin for d in project.developers)
@@ -2163,12 +2203,10 @@ def get_hours_analytics(
         if not is_project_admin:
             raise HTTPException(
                 status_code=403,
-                detail="Missing required capability: project.pm or project-level admin",
+                detail="Do not have permission",
             )
-    from models.developer import Developer
 
     # Verify project exists
-    project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -2248,15 +2286,15 @@ def get_hours_analytics(
     developer_ids_from_entries = {te.developer_id for te in all_time_entries if te.developer_id}
     existing_ids = {d.id for d in developers}
 
-    for dev_id in developer_ids_from_entries:
-        if dev_id not in existing_ids:
-            dev = db.query(Developer).filter(Developer.id == dev_id).first()
-            if dev:
-                developers.append(dev)
-                existing_ids.add(dev_id)
+    # Batch-load the contributors who logged time but aren't formal project
+    # members in a single query (was one Developer SELECT per missing id).
+    missing_ids = developer_ids_from_entries - existing_ids
+    if missing_ids:
+        for dev in db.query(Developer).filter(Developer.id.in_(missing_ids)).all():
+            developers.append(dev)
+            existing_ids.add(dev.id)
 
     # Build maps for quick lookup
-    work_item_assignee_map = {item.id: item.assignee_id for item in items}
     work_item_map = {item.id: item for item in items}
     dev_map = {d.id: d for d in developers}
 
@@ -2268,14 +2306,11 @@ def get_hours_analytics(
             if item.assignee_id == dev.id and item.type != WorkItemType.EPIC.value
         ]
 
-        # Hours logged BY this developer (their own time entries where developer_id = dev.id)
-        # OR if developer_id is NULL, fall back to ticket assignee attribution
-        dev_time_entries = [
-            te
-            for te in all_time_entries
-            if te.developer_id == dev.id
-            or (te.developer_id is None and work_item_assignee_map.get(te.work_item_id) == dev.id)
-        ]
+        # Hours logged BY this developer — only entries with an explicit
+        # developer_id. Kept consistent with /api/admin/developers/capacity so
+        # both views report the same numbers. Legacy NULL-developer rows are
+        # ignored everywhere (run a one-off backfill if you want them counted).
+        dev_time_entries = [te for te in all_time_entries if te.developer_id == dev.id]
         logged = sum(te.hours for te in dev_time_entries)
 
         # Allocated = estimated hours on currently-assigned tickets, minus hours
@@ -2329,6 +2364,31 @@ def get_hours_analytics(
             for te in dev_time_entries
             if te.logged_at and current_week_start <= te.logged_at <= current_week_end
         )
+
+        # Weekly logged history — aggregate this developer's time entries by
+        # Sat→Fri UTC week so the PM tab can drill into "Total Logged" and see
+        # the full breakdown going back to the earliest available entry.
+        from collections import defaultdict as _dd
+        from datetime import timedelta as _td
+
+        _weekly_bucket: dict = _dd(int)
+        for te in dev_time_entries:
+            if not te.logged_at:
+                continue
+            _days_back = (te.logged_at.weekday() + 2) % 7  # Sat=5 → 0
+            _ws = (te.logged_at - _td(days=_days_back)).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            _weekly_bucket[_ws] += te.hours or 0
+
+        weekly_logged_history = [
+            {
+                "week_start": _ws.isoformat(),
+                "week_end": (_ws + _td(days=6, hours=23, minutes=59, seconds=59)).isoformat(),
+                "hours": _hrs,
+            }
+            for _ws, _hrs in sorted(_weekly_bucket.items(), reverse=True)
+        ]
 
         # Status-based weekly capacity breakdown for THIS developer scoped to THIS project.
         # Mirrors /api/admin/developers/capacity but filtered to the current project.
@@ -2396,6 +2456,7 @@ def get_hours_analytics(
                 "logged_hours": logged,
                 "remaining_hours": remaining,
                 "current_week_logged": current_week_logged,
+                "weekly_logged_history": weekly_logged_history,
                 "in_progress_remaining": in_progress_remaining,
                 "total_items": len(dev_items),
                 "completed_items": len(completed_items),
@@ -2418,13 +2479,11 @@ def get_hours_analytics(
     # Weekly breakdown - based on calendar weeks (Monday to Sunday)
     from datetime import timedelta
 
-    from models.time_entry import TimeEntry
-
     weekly_hours = []
 
-    # Get all time entries for this project's work items
-    work_item_ids = [item.id for item in items]
-    time_entries = db.query(TimeEntry).filter(TimeEntry.work_item_id.in_(work_item_ids)).all()
+    # Reuse the time entries already loaded above (all_time_entries) instead of
+    # re-running the identical query — same project work items, same transaction.
+    time_entries = all_time_entries
 
     # Calculate weeks from first sprint start (or project start if no sprints) to now
     today = datetime.utcnow()

@@ -1,6 +1,6 @@
 """
 LLM Agent Service - Core AI capabilities for Arsenal Ops
-Uses Azure OpenAI API with structured outputs for agentic tasks
+Uses the OpenAI API with structured outputs for agentic tasks
 """
 
 import asyncio
@@ -10,31 +10,29 @@ from typing import Any
 
 from pydantic import BaseModel
 
-# Lazy initialization of Azure OpenAI client
+# Lazy initialization of the OpenAI client
 _client = None
 
 
 def get_openai_client():
-    """Get or create the Azure OpenAI client"""
+    """Get or create the OpenAI client"""
     global _client
     if _client is None:
         try:
-            from openai import AzureOpenAI
+            from openai import OpenAI
 
-            _client = AzureOpenAI(
-                azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
-                api_key=os.getenv("AZURE_OPENAI_API_KEY", ""),
-                api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview"),
+            _client = OpenAI(
+                api_key=os.getenv("OPENAI_API_KEY", ""),
                 timeout=90.0,
             )
         except Exception as e:
-            print(f"[WARNING] Failed to initialize Azure OpenAI client: {e}")
+            print(f"[WARNING] Failed to initialize OpenAI client: {e}")
             _client = None
     return _client
 
 
-# Default deployment name
-DEPLOYMENT_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini")
+# Default model name
+MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 
 # Pydantic models for structured outputs
@@ -90,10 +88,10 @@ class MarketAnalysis(BaseModel):
 
 
 class LLMAgent:
-    """Agentic LLM service for PM tasks using Azure OpenAI"""
+    """Agentic LLM service for PM tasks using the OpenAI API"""
 
-    def __init__(self, deployment: str = None):
-        self.deployment = deployment or DEPLOYMENT_NAME
+    def __init__(self, model: str = None):
+        self.model = model or MODEL_NAME
 
     @property
     def client(self):
@@ -117,10 +115,10 @@ Create a structured project plan with:
 Return as JSON with keys: milestones, tasks, user_stories"""
 
         client = self.client
-        deployment = self.deployment
+        model = self.model
         response = await asyncio.to_thread(
             lambda: client.chat.completions.create(
-                model=deployment,
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 temperature=1,
@@ -149,10 +147,10 @@ Create 5-8 Jira tickets with:
 Return as JSON with key: tickets"""
 
         client = self.client
-        deployment = self.deployment
+        model = self.model
         response = await asyncio.to_thread(
             lambda: client.chat.completions.create(
-                model=deployment,
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 temperature=1,
@@ -176,10 +174,10 @@ Create a timeline with:
 Return as JSON with keys: phases, total_weeks, critical_path, risks"""
 
         client = self.client
-        deployment = self.deployment
+        model = self.model
         response = await asyncio.to_thread(
             lambda: client.chat.completions.create(
-                model=deployment,
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 temperature=1,
@@ -209,10 +207,10 @@ Provide comprehensive analysis:
 Return as JSON with keys: market_size, competitors, swot, trends, opportunities, threats"""
 
         client = self.client
-        deployment = self.deployment
+        model = self.model
         response = await asyncio.to_thread(
             lambda: client.chat.completions.create(
-                model=deployment,
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 temperature=1,
@@ -245,10 +243,10 @@ For each persona include:
 Return as JSON with key: personas"""
 
         client = self.client
-        deployment = self.deployment
+        model = self.model
         response = await asyncio.to_thread(
             lambda: client.chat.completions.create(
-                model=deployment,
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 temperature=1,
@@ -278,10 +276,10 @@ Create release notes with:
 Return as JSON"""
 
         client = self.client
-        deployment = self.deployment
+        model = self.model
         response = await asyncio.to_thread(
             lambda: client.chat.completions.create(
-                model=deployment,
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 temperature=1,
@@ -311,10 +309,10 @@ Create a brief with:
 Return as JSON"""
 
         client = self.client
-        deployment = self.deployment
+        model = self.model
         response = await asyncio.to_thread(
             lambda: client.chat.completions.create(
-                model=deployment,
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 temperature=1,
@@ -340,10 +338,10 @@ Generate:
 Return as JSON with keys: ideas, scenarios, quick_wins, moonshots, differentiators"""
 
         client = self.client
-        deployment = self.deployment
+        model = self.model
         response = await asyncio.to_thread(
             lambda: client.chat.completions.create(
-                model=deployment,
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 temperature=1,
@@ -366,10 +364,10 @@ TARGET MARKET: {target_market}
 Return as JSON with keys: ideas_grouped (list of {{category, ideas}}), concepts (list of {{name, description, user_value, complexity, risk, why_now, tradeoffs}})"""
 
         client = self.client
-        deployment = self.deployment
+        model = self.model
         response = await asyncio.to_thread(
             lambda: client.chat.completions.create(
-                model=deployment,
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 temperature=1,
@@ -392,10 +390,10 @@ Provide TAM, SAM, SOM with reasoning and assumptions.
 Return as JSON with keys: tam (value + reasoning), sam (value + reasoning), som (value + reasoning), assumptions (list)"""
 
         client = self.client
-        deployment = self.deployment
+        model = self.model
         response = await asyncio.to_thread(
             lambda: client.chat.completions.create(
-                model=deployment,
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 temperature=1,
@@ -414,10 +412,10 @@ Create 3 scenarios (Best, Base, Worst) with probability, impact, and mitigation 
 Return as JSON with keys: scenarios (list of {{name, probability, description, impact, mitigation}})"""
 
         client = self.client
-        deployment = self.deployment
+        model = self.model
         response = await asyncio.to_thread(
             lambda: client.chat.completions.create(
-                model=deployment,
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 temperature=1,

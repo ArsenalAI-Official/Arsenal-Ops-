@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
+import { hasAnyAdminCapability } from '@/lib/adminCaps';
 import { apiFetch } from '@/lib/api';
 import { invalidateProjectScope } from '@/lib/invalidations';
 
@@ -71,7 +72,7 @@ interface ProjectDetailResponse {
 
 const PersonalTasksPage = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, can } = useAuth();
   const queryClient = useQueryClient();
 
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -399,7 +400,10 @@ const PersonalTasksPage = () => {
                 <span className="text-sm text-[#a3a3a3] hidden md:block">{user.name}</span>
               </div>
             )}
-            {user?.role.includes('admin') && (
+            {/* Admin nav link visibility uses the same admin-cap set as the
+                /admin route guard (RequireAnyAdminCapability in App.tsx).
+                Keeps link + route in sync via lib/adminCaps.ts. */}
+            {hasAnyAdminCapability(can) && (
               <Button
                 variant="ghost"
                 onClick={() => navigate('/admin')}
@@ -583,19 +587,21 @@ const PersonalTasksPage = () => {
                   {/* Actions */}
                   {!task.is_converted && (
                     <div className="flex-shrink-0 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => {
-                          setConvertingTask(task);
-                          setConvertProjectId('');
-                          setConvertAssigneeId('');
-                          setMemberLookupProjectId('');
-                          setShowConvertDialog(true);
-                        }}
-                        className="p-2 rounded-lg hover:bg-[rgba(224,185,84,0.1)] text-[#737373] hover:text-[#E0B954] transition-colors"
-                        title="Tag to project"
-                      >
-                        <Tag className="w-4 h-4" />
-                      </button>
+                      {can('project.assign_personal_task') && (
+                        <button
+                          onClick={() => {
+                            setConvertingTask(task);
+                            setConvertProjectId('');
+                            setConvertAssigneeId('');
+                            setMemberLookupProjectId('');
+                            setShowConvertDialog(true);
+                          }}
+                          className="p-2 rounded-lg hover:bg-[rgba(224,185,84,0.1)] text-[#737373] hover:text-[#E0B954] transition-colors"
+                          title="Tag to project"
+                        >
+                          <Tag className="w-4 h-4" />
+                        </button>
+                      )}
                       <button
                         onClick={() => startEdit(task)}
                         className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.08)] text-[#737373] hover:text-[#E0B954] transition-colors"

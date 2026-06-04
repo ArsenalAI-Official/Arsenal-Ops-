@@ -20,7 +20,7 @@ interface DashboardStats {
   tickets_by_priority: Record<string, number>;
 }
 
-type AdminTab = 'dashboard' | 'employees' | 'projects' | 'users' | 'developers-capacity' | 'roles';
+type AdminTab = 'dashboard' | 'employees' | 'projects' | 'users' | 'roles';
 
 interface DashboardTabProps {
   stats: DashboardStats;

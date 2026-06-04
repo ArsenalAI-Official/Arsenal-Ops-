@@ -38,12 +38,6 @@ interface Milestone {
   is_completed: boolean;
 }
 
-interface ProjectDeveloperLite {
-  id: number;
-  name: string;
-  email: string;
-}
-
 interface TimelineTabProps {
   hubLoading: boolean;
   hubWorkItems: HubWorkItem[];
@@ -51,11 +45,8 @@ interface TimelineTabProps {
   goals: Goal[];
   projectStartDate: string;
   projectId: number;
-  developers: ProjectDeveloperLite[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onTaskUpdate: (itemId: string, updates: any) => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onTaskCreate: (taskData: any) => void;
 }
 
 const TimelineTab = ({
@@ -65,9 +56,7 @@ const TimelineTab = ({
   goals,
   projectStartDate,
   projectId,
-  developers,
   onTaskUpdate,
-  onTaskCreate,
 }: TimelineTabProps) => {
   if (hubLoading) {
     return (
@@ -103,9 +92,7 @@ const TimelineTab = ({
         goals={goals}
         projectStartDate={projectStartDate}
         projectId={projectId}
-        developers={developers}
         onTaskUpdate={onTaskUpdate}
-        onTaskCreate={onTaskCreate}
       />
       <CalendarView workItems={hubWorkItems} milestones={milestones} goals={goals} />
     </div>

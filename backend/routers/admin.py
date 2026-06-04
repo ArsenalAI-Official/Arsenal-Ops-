@@ -6,7 +6,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 sys.path.append("..")
 from database import get_db
@@ -129,7 +129,18 @@ def list_employees(db: Session = Depends(get_db)):
     """Get all internal employees/developers. External users (created via
     Admin → Users → Add User) are intentionally excluded — they live in the
     Users tab, not the Employees tab."""
-    developers = db.query(Developer).filter(Developer.is_external.is_(False)).all()
+    # selectinload (NOT joinedload) both collections: joinedload-ing two
+    # collections would produce a projects × work_items cartesian product.
+    # selectinload issues 2 extra batched queries → 3 total regardless of count.
+    developers = (
+        db.query(Developer)
+        .options(
+            selectinload(Developer.projects),
+            selectinload(Developer.assigned_work_items),
+        )
+        .filter(Developer.is_external.is_(False))
+        .all()
+    )
 
     result = []
     for dev in developers:
@@ -156,7 +167,10 @@ def list_employees(db: Session = Depends(get_db)):
 
 @router.get(
     "/developers/capacity",
-    dependencies=[Depends(require_capability("admin.developers_capacity"))],
+    # Re-gated on `admin.employees` after `admin.developers_capacity` was
+    # retired. The capacity payload feeds the Employees tab's per-developer
+    # row, so the right cap is the one that gates that tab.
+    dependencies=[Depends(require_capability("admin.employees"))],
 )
 def get_developers_capacity(db: Session = Depends(get_db)):
     """Get weekly capacity for all developers across all projects.
@@ -165,6 +179,11 @@ def get_developers_capacity(db: Session = Depends(get_db)):
     Response embeds a per-ticket breakdown so the UI can drill down without a
     second round-trip.
     """
+    from collections import defaultdict
+    from datetime import timedelta
+
+    from models.project import Project
+    from models.time_entry import TimeEntry
     from services.capacity_service import compute_capacity_breakdown, week_boundaries
 
     week_start, week_end = week_boundaries()
@@ -179,6 +198,78 @@ def get_developers_capacity(db: Session = Depends(get_db)):
         )
         .all()
     )
+
+    # Pull every time entry for every developer in a single query — used below
+    # to build a per-dev weekly-logged-hours history across ALL projects, split
+    # by project per week.
+    all_entries = (
+        db.query(TimeEntry)
+        .filter(TimeEntry.developer_id.isnot(None))
+        .filter(TimeEntry.logged_at.isnot(None))
+        .all()
+    )
+    entries_by_dev: dict[int, list[TimeEntry]] = defaultdict(list)
+    for te in all_entries:
+        entries_by_dev[te.developer_id].append(te)
+
+    # Resolve work_item → project_id and project_id → project_name in two cheap lookups.
+    wi_ids = {te.work_item_id for te in all_entries}
+    wi_to_project = (
+        dict(db.query(WorkItem.id, WorkItem.project_id).filter(WorkItem.id.in_(wi_ids)).all())
+        if wi_ids
+        else {}
+    )
+    project_ids = {pid for pid in wi_to_project.values() if pid is not None}
+    project_names = (
+        dict(db.query(Project.id, Project.name).filter(Project.id.in_(project_ids)).all())
+        if project_ids
+        else {}
+    )
+
+    def _weekly_history_for(dev_id: int) -> list[dict]:
+        """Bucket this dev's time entries into Sat→Fri UTC weeks across all projects,
+        with a per-project split per week."""
+        # (week_start, project_id) → hours
+        proj_bucket: dict = defaultdict(int)
+        week_totals: dict = defaultdict(int)
+        weeks: set = set()
+        for te in entries_by_dev.get(dev_id, []):
+            if not te.logged_at:
+                continue
+            days_back = (te.logged_at.weekday() + 2) % 7  # Sat=5 → 0
+            ws = (te.logged_at - timedelta(days=days_back)).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            pid = wi_to_project.get(te.work_item_id)
+            proj_bucket[(ws, pid)] += te.hours or 0
+            week_totals[ws] += te.hours or 0
+            weeks.add(ws)
+
+        out = []
+        for ws in sorted(weeks, reverse=True):
+            projects_in_week = [
+                {
+                    "project_id": pid,
+                    "project_name": project_names.get(pid, "Unknown")
+                    if pid is not None
+                    else "Unknown",
+                    "hours": hrs,
+                }
+                for (w, pid), hrs in proj_bucket.items()
+                if w == ws
+            ]
+            projects_in_week.sort(key=lambda p: -p["hours"])
+            out.append(
+                {
+                    "week_start": ws.isoformat(),
+                    "week_end": (
+                        ws + timedelta(days=6, hours=23, minutes=59, seconds=59)
+                    ).isoformat(),
+                    "hours": week_totals[ws],
+                    "projects": projects_in_week,
+                }
+            )
+        return out
 
     result = []
     for dev in developers:
@@ -198,6 +289,7 @@ def get_developers_capacity(db: Session = Depends(get_db)):
                 "week_start": week_start.isoformat(),
                 "week_end": week_end.isoformat(),
                 "specialization": getattr(dev, "specialization", None),
+                "weekly_logged_history": _weekly_history_for(dev.id),
                 **breakdown,
             }
         )
@@ -456,6 +548,10 @@ class ProjectResponse(BaseModel):
     github_repo_url: str | None
     github_repo_name: str | None
     has_github_token: bool
+    # Category surface — flat fields so the admin UI can render badges and
+    # filter without a second round trip.
+    category_id: int | None = None
+    category_name: str | None = None
 
     class Config:
         from_attributes = True
@@ -468,7 +564,17 @@ class ProjectResponse(BaseModel):
 )
 def list_all_projects(db: Session = Depends(get_db)):
     """Get all projects with stats for admin"""
-    projects = db.query(Project).all()
+    # selectinload (NOT joinedload) both collections to avoid a
+    # work_items × developers cartesian product; 3 queries total regardless
+    # of project count (was 1 + 2N from per-project lazy loads).
+    projects = (
+        db.query(Project)
+        .options(
+            selectinload(Project.work_items),
+            selectinload(Project.developers),
+        )
+        .all()
+    )
 
     result = []
     for project in projects:
@@ -489,10 +595,256 @@ def list_all_projects(db: Session = Depends(get_db)):
                 github_repo_url=project.github_repo_url,
                 github_repo_name=project.github_repo_name,
                 has_github_token=bool(project.github_token),
+                category_id=project.category_id,
+                category_name=project.category.name if project.category else None,
             )
         )
 
     return result
+
+
+class ProjectWeeklyReportRow(BaseModel):
+    """One row of the admin Projects → Weekly Report table.
+
+    Counts are work-item totals (not hours). "Done this week" uses
+    ``WorkItem.completed_at`` against the week window returned by
+    ``capacity_service.week_boundaries()`` so it matches the rest of the app's
+    weekly accounting (Sat 00:00 → Fri 23:59 UTC).
+    """
+
+    project_id: int
+    project_name: str
+    category_id: int | None
+    category_name: str | None
+    todo_backlog: int  # backlog + todo collapsed into one bucket
+    in_progress: int
+    in_review: int
+    done_this_week: int
+
+
+class ProjectWeeklyReportResponse(BaseModel):
+    week_start: str  # ISO datetime
+    week_end: str  # ISO datetime
+    rows: list[ProjectWeeklyReportRow]
+
+
+@router.get(
+    "/projects/weekly-report",
+    response_model=ProjectWeeklyReportResponse,
+    dependencies=[Depends(require_capability("admin.projects"))],
+)
+def projects_weekly_report(
+    category_id: int | None = None,
+    uncategorized: bool = False,
+    db: Session = Depends(get_db),
+):
+    """Per-project counts of in-progress / in-review / done-this-week.
+
+    Filters
+    -------
+    - ``?category_id=5`` → only projects in category 5
+    - ``?uncategorized=true`` → only projects with no category
+    - both omitted → every project
+
+    Query strategy: one query for the project rows themselves, then two
+    aggregate GROUP BY queries (active statuses + done-this-week). Three
+    round trips total regardless of project count.
+    """
+    from services.capacity_service import week_boundaries
+
+    week_start, week_end = week_boundaries()
+
+    # 1. Project list, filtered by category if requested.
+    projects_query = db.query(Project)
+    if uncategorized:
+        projects_query = projects_query.filter(Project.category_id.is_(None))
+    elif category_id is not None:
+        projects_query = projects_query.filter(Project.category_id == category_id)
+    projects = projects_query.order_by(Project.name).all()
+    if not projects:
+        return ProjectWeeklyReportResponse(
+            week_start=week_start.isoformat(),
+            week_end=week_end.isoformat(),
+            rows=[],
+        )
+
+    project_ids = [p.id for p in projects]
+
+    # 2. Snapshot counts for the in-flight buckets (no time filter — these
+    # are "what's in flight right now", not weekly events). `backlog` and
+    # `todo` are SQL-distinct but we collapse them client-side into a single
+    # `todo_backlog` bucket since the UI shows them as one.
+    active_rows = (
+        db.query(WorkItem.project_id, WorkItem.status, func.count().label("n"))
+        .filter(
+            WorkItem.project_id.in_(project_ids),
+            WorkItem.status.in_(["backlog", "todo", "in_progress", "in_review"]),
+        )
+        .group_by(WorkItem.project_id, WorkItem.status)
+        .all()
+    )
+
+    # All four snapshot buckets default to 0 for projects with no matching
+    # items so every row in the response is well-formed.
+    todo_backlog_by_project: dict[int, int] = {pid: 0 for pid in project_ids}
+    in_progress_by_project: dict[int, int] = {pid: 0 for pid in project_ids}
+    in_review_by_project: dict[int, int] = {pid: 0 for pid in project_ids}
+    for row in active_rows:
+        if row.status in ("backlog", "todo"):
+            todo_backlog_by_project[row.project_id] += row.n
+        elif row.status == "in_progress":
+            in_progress_by_project[row.project_id] = row.n
+        elif row.status == "in_review":
+            in_review_by_project[row.project_id] = row.n
+
+    # 3. "Done this week" — items currently status=done whose completed_at
+    # falls inside the current week window. Matches capacity_service's
+    # convention so this surface and the existing dev-capacity view agree on
+    # "done this week".
+    done_rows = (
+        db.query(WorkItem.project_id, func.count().label("n"))
+        .filter(
+            WorkItem.project_id.in_(project_ids),
+            WorkItem.status == "done",
+            WorkItem.completed_at.isnot(None),
+            WorkItem.completed_at >= week_start,
+            WorkItem.completed_at <= week_end,
+        )
+        .group_by(WorkItem.project_id)
+        .all()
+    )
+    done_by_project: dict[int, int] = {pid: 0 for pid in project_ids}
+    for row in done_rows:
+        done_by_project[row.project_id] = row.n
+
+    rows = [
+        ProjectWeeklyReportRow(
+            project_id=p.id,
+            project_name=p.name,
+            category_id=p.category_id,
+            category_name=p.category.name if p.category else None,
+            todo_backlog=todo_backlog_by_project.get(p.id, 0),
+            in_progress=in_progress_by_project.get(p.id, 0),
+            in_review=in_review_by_project.get(p.id, 0),
+            done_this_week=done_by_project.get(p.id, 0),
+        )
+        for p in projects
+    ]
+
+    return ProjectWeeklyReportResponse(
+        week_start=week_start.isoformat(),
+        week_end=week_end.isoformat(),
+        rows=rows,
+    )
+
+
+class WeeklyTicket(BaseModel):
+    """Compact ticket shape for the Projects → Reports drill-down.
+
+    Designed to keep the response small: only the fields the table needs to
+    render. Full ticket detail (description, comments, etc.) lives behind the
+    project board.
+    """
+
+    id: int
+    key: str | None
+    title: str
+    type: str
+    priority: str
+    assignee_name: str | None
+    estimated_hours: int | None
+    logged_hours: int | None
+    completed_at: str | None  # ISO datetime, only set for the `done_this_week` bucket
+
+
+class ProjectWeeklyTicketsResponse(BaseModel):
+    todo_backlog: list[WeeklyTicket]
+    in_progress: list[WeeklyTicket]
+    in_review: list[WeeklyTicket]
+    done_this_week: list[WeeklyTicket]
+
+
+def _serialize_weekly_ticket(item: WorkItem) -> WeeklyTicket:
+    """WorkItem → WeeklyTicket, robust against missing assignee/optional fields."""
+    return WeeklyTicket(
+        id=item.id,
+        key=item.key,
+        title=item.title,
+        type=item.type,
+        priority=item.priority,
+        assignee_name=item.assignee.name if item.assignee else None,
+        estimated_hours=item.estimated_hours,
+        logged_hours=item.logged_hours,
+        completed_at=item.completed_at.isoformat() if item.completed_at else None,
+    )
+
+
+@router.get(
+    "/projects/{project_id}/weekly-tickets",
+    response_model=ProjectWeeklyTicketsResponse,
+    dependencies=[Depends(require_capability("admin.projects"))],
+)
+def project_weekly_tickets(project_id: int, db: Session = Depends(get_db)):
+    """Tickets bucketed by status for the Reports → expanded-row drill-down.
+
+    All three buckets returned in a single payload so flipping between the
+    In progress / In review / Done buttons in the UI is a pure client switch
+    — no extra round trip per click.
+
+    Bucket definitions match the report endpoint:
+      - in_progress / in_review: snapshot of items in that status right now
+      - done_this_week:          status='done' AND completed_at in current week
+    """
+    from services.capacity_service import week_boundaries
+
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    week_start, week_end = week_boundaries()
+
+    # Eager-load the assignee relationship so the per-item to_dict serialization
+    # doesn't trigger an N+1 lazy fetch for each ticket.
+    base = (
+        db.query(WorkItem)
+        .options(joinedload(WorkItem.assignee))
+        .filter(WorkItem.project_id == project_id)
+    )
+
+    # `backlog` and `todo` collapse into one UI bucket. Order them by
+    # updated_at (latest activity first) so stale items don't dominate.
+    todo_backlog = (
+        base.filter(WorkItem.status.in_(["backlog", "todo"]))
+        .order_by(WorkItem.updated_at.desc().nullslast())
+        .all()
+    )
+    in_progress = (
+        base.filter(WorkItem.status == "in_progress")
+        .order_by(WorkItem.updated_at.desc().nullslast())
+        .all()
+    )
+    in_review = (
+        base.filter(WorkItem.status == "in_review")
+        .order_by(WorkItem.updated_at.desc().nullslast())
+        .all()
+    )
+    done_this_week = (
+        base.filter(
+            WorkItem.status == "done",
+            WorkItem.completed_at.isnot(None),
+            WorkItem.completed_at >= week_start,
+            WorkItem.completed_at <= week_end,
+        )
+        .order_by(WorkItem.completed_at.desc())
+        .all()
+    )
+
+    return ProjectWeeklyTicketsResponse(
+        todo_backlog=[_serialize_weekly_ticket(i) for i in todo_backlog],
+        in_progress=[_serialize_weekly_ticket(i) for i in in_progress],
+        in_review=[_serialize_weekly_ticket(i) for i in in_review],
+        done_this_week=[_serialize_weekly_ticket(i) for i in done_this_week],
+    )
 
 
 @router.put(

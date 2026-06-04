@@ -75,27 +75,35 @@ const TeamSection = ({
               <p className="text-xs text-[#737373]">{developers.length} developers assigned</p>
             </div>
           </div>
-          <Button
-            onClick={() => setShowAddDeveloper(true)}
-            disabled={availableDevelopers.length === 0}
-            className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] hover:from-[#C79E3B] hover:to-[#B8872A] text-white font-medium shadow-lg shadow-[#B8872A]/20 disabled:opacity-50 rounded-xl"
-            size="sm"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Developer
-          </Button>
+          {/* Add Developer — restricted to project admins + system admins.
+              Mirrors the row-level controls (promote/demote/remove) below
+              which already gate on `isCurrentUserAdmin`. Backend gate lives
+              on POST /{project_id}/developers via `require_project_admin`. */}
+          {isCurrentUserAdmin && (
+            <Button
+              onClick={() => setShowAddDeveloper(true)}
+              disabled={availableDevelopers.length === 0}
+              className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] hover:from-[#C79E3B] hover:to-[#B8872A] text-white font-medium shadow-lg shadow-[#B8872A]/20 disabled:opacity-50 rounded-xl"
+              size="sm"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Developer
+            </Button>
+          )}
         </div>
         {developers.length === 0 ? (
           <div className="text-center py-10 bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl">
             <Users className="w-10 h-10 text-[#334155] mx-auto mb-3" />
             <p className="text-[#737373]">No developers assigned yet</p>
-            <Button
-              onClick={() => setShowAddDeveloper(true)}
-              variant="ghost"
-              className="text-[#E0B954] mt-2"
-            >
-              Add your first developer
-            </Button>
+            {isCurrentUserAdmin && (
+              <Button
+                onClick={() => setShowAddDeveloper(true)}
+                variant="ghost"
+                className="text-[#E0B954] mt-2"
+              >
+                Add your first developer
+              </Button>
+            )}
           </div>
         ) : (
           <div className="space-y-3">

@@ -145,11 +145,16 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return user
 
 
-def get_current_admin(current_user: User = Depends(get_current_user)):
-    # Check if user has admin role (roles are comma-separated)
-    if "admin" not in current_user.role:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-    return current_user
+def _has_admin_role(user: User) -> bool:
+    """Does this user hold the system 'admin' Role?
+
+    Reads the many-to-many `user.roles` relationship instead of the legacy
+    comma-separated `user.role` string. Used for last-admin-protection
+    business rules below — not for permission decisions. Real permission
+    checks go through `require_capability()` which inspects effective
+    capabilities, not role names.
+    """
+    return any(r.name == "admin" for r in user.roles)
 
 
 def require_capability(cap: str):
@@ -173,7 +178,7 @@ def require_capability(cap: str):
         if not current_user.has_capability(cap):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Missing required capability: {cap}",
+                detail="Do not have permission",
             )
         return current_user
 
@@ -452,11 +457,14 @@ def update_user_role(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    # Prevent removing the last admin
-    if "admin" in user.role and "admin" not in role_data.role:
-        # Count users with admin role (roles are comma-separated)
-        all_users = db.query(User).all()
-        admin_count = sum(1 for u in all_users if "admin" in u.role)
+    # Prevent removing the last admin. Read the many-to-many `user.roles`
+    # relationship rather than the legacy comma-string column so this stays
+    # correct even when the column drifts. The legacy string sync still runs
+    # via _sync_legacy_role_string() but is no longer authoritative.
+    is_demoting_admin = _has_admin_role(user) and "admin" not in role_data.role
+    if is_demoting_admin:
+        all_users = db.query(User).options(selectinload(User.roles)).all()
+        admin_count = sum(1 for u in all_users if _has_admin_role(u))
         if admin_count <= 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove the last admin"
@@ -491,11 +499,12 @@ def delete_user(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete your own account"
         )
 
-    # Prevent deleting the last admin
-    if "admin" in user.role:
-        # Count users with admin role (roles are comma-separated)
-        all_users = db.query(User).all()
-        admin_count = sum(1 for u in all_users if "admin" in u.role)
+    # Prevent deleting the last admin. Counts users whose `roles`
+    # relationship includes the system 'admin' role, not the legacy
+    # comma-separated `user.role` column.
+    if _has_admin_role(user):
+        all_users = db.query(User).options(selectinload(User.roles)).all()
+        admin_count = sum(1 for u in all_users if _has_admin_role(u))
         if admin_count <= 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete the last admin"

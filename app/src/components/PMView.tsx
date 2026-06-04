@@ -35,7 +35,6 @@ interface Sprint {
 interface PMViewProps {
   projectId: string;
   token: string;
-  isAdmin?: boolean;
   sprints?: Sprint[];
 }
 
@@ -116,6 +115,7 @@ interface DeveloperHours {
   total_items: number;
   completed_items: number;
   done_logged_hours?: number;
+  weekly_logged_history?: Array<{ week_start: string; week_end: string; hours: number }>;
   my_tickets: TicketBreakdown[];
   hours_logged_on_others_tickets: HoursOnOthersTicket[];
   attribution_note: string;
@@ -139,13 +139,14 @@ interface WeeklyHours {
   items_completed: number;
 }
 
-export default function PMView({ projectId, token, isAdmin = false, sprints = [] }: PMViewProps) {
+export default function PMView({ projectId, token, sprints = [] }: PMViewProps) {
   const { can } = useAuth();
   const [analytics, setAnalytics] = useState<HoursAnalytics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedDeveloper, setExpandedDeveloper] = useState<number | null>(null);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [progressExpanded, setProgressExpanded] = useState(false);
+  const [expandedView, setExpandedView] = useState<'capacity' | 'logged'>('capacity');
 
   useEffect(() => {
     fetchAnalytics();
@@ -153,6 +154,7 @@ export default function PMView({ projectId, token, isAdmin = false, sprints = []
 
   const toggleDeveloperExpand = (devId: number) => {
     setExpandedDeveloper(expandedDeveloper === devId ? null : devId);
+    setExpandedView('capacity'); // every fresh expansion starts on the capacity view
   };
 
   const fetchAnalytics = async () => {
@@ -589,8 +591,11 @@ export default function PMView({ projectId, token, isAdmin = false, sprints = []
                     <th className="text-right py-3 px-4 text-xs font-medium text-[#737373] uppercase">
                       Allocated
                     </th>
-                    <th className="text-right py-3 px-4 text-xs font-medium text-[#737373] uppercase">
-                      Logged
+                    <th
+                      className="text-right py-3 px-4 text-xs font-medium text-[#737373] uppercase"
+                      title="All-time hours logged on this project. Click any cell to see the weekly breakdown."
+                    >
+                      Total Logged
                     </th>
                     <th className="text-right py-3 px-4 text-xs font-medium text-[#C79E3B] uppercase">
                       This Week
@@ -734,200 +739,227 @@ export default function PMView({ projectId, token, isAdmin = false, sprints = []
                             <tr className="bg-[rgba(255,255,255,0.01)]">
                               <td colSpan={7} className="py-4 px-4">
                                 <div className="space-y-4">
-                                  {/* This Week — by status breakdown (Sat-Fri) */}
-                                  {dev.this_week_tickets && dev.this_week_tickets.length > 0 && (
-                                    <div>
-                                      <div className="flex items-center justify-between mb-2">
-                                        <h4 className="text-xs font-medium text-[#C79E3B] uppercase">
-                                          This Week — by status
-                                        </h4>
-                                        {dev.week_start && dev.week_end && (
-                                          <span className="text-[10px] text-[#737373] font-mono">
-                                            {new Date(dev.week_start).toLocaleDateString(
-                                              undefined,
-                                              { month: 'short', day: 'numeric' },
-                                            )}
-                                            {' → '}
-                                            {new Date(dev.week_end).toLocaleDateString(undefined, {
-                                              month: 'short',
-                                              day: 'numeric',
-                                            })}
-                                            {' (Sat → Fri, UTC)'}
-                                          </span>
-                                        )}
-                                      </div>
-                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                        {(
-                                          [
-                                            {
-                                              key: 'in_progress',
-                                              label: 'In progress',
-                                              color: '#E0B954',
-                                              total: dev.this_week_in_progress_hours ?? 0,
-                                            },
-                                            {
-                                              key: 'in_review',
-                                              label: 'In review',
-                                              color: '#A78BFA',
-                                              total: dev.this_week_in_review_hours ?? 0,
-                                            },
-                                            {
-                                              key: 'done',
-                                              label: 'Done this week',
-                                              color: '#34D399',
-                                              total: dev.this_week_done_hours ?? 0,
-                                            },
-                                          ] as const
-                                        ).map((group) => {
-                                          const groupTickets = (dev.this_week_tickets ?? []).filter(
-                                            (t) => t.status === group.key,
-                                          );
-                                          return (
-                                            <div
-                                              key={group.key}
-                                              className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-3"
-                                            >
-                                              <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center gap-2">
-                                                  <span
-                                                    className="w-2 h-2 rounded-sm"
-                                                    style={{ background: group.color }}
-                                                  />
-                                                  <span className="text-xs font-semibold text-white">
-                                                    {group.label}
-                                                  </span>
-                                                  <span className="text-[10px] text-[#737373]">
-                                                    ({groupTickets.length})
-                                                  </span>
-                                                </div>
-                                                <span
-                                                  className="text-xs font-mono tabular-nums"
-                                                  style={{ color: group.color }}
-                                                >
-                                                  {group.total}h
-                                                </span>
-                                              </div>
-                                              {groupTickets.length === 0 ? (
-                                                <div className="text-[11px] text-[#737373] py-1">
-                                                  No tickets
-                                                </div>
-                                              ) : (
-                                                <ul className="space-y-1.5">
-                                                  {groupTickets.map((t) => (
-                                                    <li
-                                                      key={t.id}
-                                                      className="flex items-start gap-2 text-xs"
-                                                    >
-                                                      <span className="font-mono text-[#E0B954] mt-0.5 flex-shrink-0">
-                                                        {t.key}
-                                                      </span>
-                                                      <div className="flex-1 min-w-0">
-                                                        <div className="text-white truncate">
-                                                          {t.title}
-                                                        </div>
-                                                        <div className="text-[10px] text-[#737373] mt-0.5 flex items-center gap-1.5 flex-wrap">
-                                                          <span>est {t.estimated_hours}h</span>
-                                                          <span className="text-[rgba(255,255,255,0.15)]">
-                                                            ·
-                                                          </span>
-                                                          <span>logged {t.logged_hours}h</span>
-                                                          {t.counted_basis ===
-                                                            'remaining (transferred)' && (
-                                                            <span className="px-1 py-0.5 rounded bg-[#FBBF24]/15 text-[#FBBF24] text-[9px] font-semibold uppercase tracking-wider">
-                                                              transferred
-                                                            </span>
-                                                          )}
-                                                        </div>
-                                                      </div>
-                                                      <span
-                                                        className="font-mono tabular-nums flex-shrink-0"
-                                                        style={{ color: group.color }}
-                                                        title={`Counted as ${t.counted_basis}`}
-                                                      >
-                                                        +{t.counted_hours}h
-                                                      </span>
-                                                    </li>
-                                                  ))}
-                                                </ul>
-                                              )}
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {/* My Tickets Section */}
-                                  <div>
-                                    <h4 className="text-xs font-medium text-[#737373] uppercase mb-2">
-                                      My Assigned Tickets
-                                    </h4>
-                                    {dev.my_tickets && dev.my_tickets.length > 0 ? (
-                                      <div className="space-y-2">
-                                        {dev.my_tickets.map((ticket) => (
-                                          <div
-                                            key={ticket.ticket_id}
-                                            className="flex items-center justify-between py-2 px-3 bg-[rgba(255,255,255,0.03)] rounded"
-                                          >
-                                            <div className="flex items-center gap-3">
-                                              <Badge
-                                                variant="outline"
-                                                className={`
-                                                                                                text-xs border-0
-                                                                                                ${ticket.status === 'done' ? 'bg-green-500/20 text-green-400' : ''}
-                                                                                                ${ticket.status === 'in_progress' ? 'bg-[#F59E0B]/20 text-[#F59E0B]' : ''}
-                                                                                                ${ticket.status === 'in_review' ? 'bg-blue-500/20 text-blue-400' : ''}
-                                                                                                ${ticket.status === 'todo' ? 'bg-[#737373]/20 text-[#737373]' : ''}
-                                                                                            `}
-                                              >
-                                                {ticket.status}
-                                              </Badge>
-                                              <span className="text-sm text-white">
-                                                {ticket.key}
-                                              </span>
-                                              <span className="text-sm text-[#a3a3a3] truncate max-w-[200px]">
-                                                {ticket.title}
-                                              </span>
-                                            </div>
-                                            <div className="flex items-center gap-4 text-xs">
-                                              <span className="text-[#737373]">
-                                                Est:{' '}
-                                                <span className="text-white">
-                                                  {ticket.estimated_hours}h
-                                                </span>
-                                              </span>
-                                              <span className="text-[#737373]">
-                                                Total Logged:{' '}
-                                                <span className="text-[#E0B954]">
-                                                  {ticket.total_logged_on_ticket}h
-                                                </span>
-                                              </span>
-                                              <span className="text-[#737373]">
-                                                My Hours:{' '}
-                                                <span
-                                                  className={
-                                                    ticket.my_logged_hours > 0
-                                                      ? 'text-[#C79E3B]'
-                                                      : 'text-[#737373]'
-                                                  }
-                                                >
-                                                  {ticket.my_logged_hours}h
-                                                </span>
-                                              </span>
-                                              <span className="text-[#737373]">
-                                                Remaining:{' '}
-                                                <span className="text-[#F59E0B]">
-                                                  {ticket.remaining_hours}h
-                                                </span>
-                                              </span>
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <p className="text-xs text-[#737373]">No assigned tickets</p>
-                                    )}
+                                  {/* View toggle: Capacity (default) | Logged hours per week */}
+                                  <div className="flex items-center gap-2">
+                                    {(
+                                      [
+                                        { id: 'capacity', label: 'Capacity (this week)' },
+                                        { id: 'logged', label: 'Logged hours per week' },
+                                      ] as const
+                                    ).map((opt) => {
+                                      const active = expandedView === opt.id;
+                                      return (
+                                        <button
+                                          key={opt.id}
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setExpandedView(opt.id);
+                                          }}
+                                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                            active
+                                              ? 'bg-[#E0B954]/20 text-[#E0B954] border border-[#E0B954]/40'
+                                              : 'bg-[rgba(255,255,255,0.03)] text-[#a3a3a3] border border-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.06)]'
+                                          }`}
+                                        >
+                                          {opt.label}
+                                        </button>
+                                      );
+                                    })}
                                   </div>
+
+                                  {/* Logged hours per week view */}
+                                  {expandedView === 'logged' &&
+                                    (() => {
+                                      const history = dev.weekly_logged_history ?? [];
+                                      if (history.length === 0) {
+                                        return (
+                                          <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-4 text-sm text-[#737373] text-center">
+                                            No logged hours yet on this project.
+                                          </div>
+                                        );
+                                      }
+                                      const maxHours = Math.max(...history.map((w) => w.hours), 1);
+                                      return (
+                                        <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-3">
+                                          <div className="flex items-center justify-between mb-3">
+                                            <h4 className="text-xs font-semibold text-white">
+                                              Logged hours per week
+                                            </h4>
+                                            <span className="text-xs font-mono tabular-nums text-[#E0B954]">
+                                              {dev.logged_hours}h total · {history.length}{' '}
+                                              {history.length === 1 ? 'week' : 'weeks'}
+                                            </span>
+                                          </div>
+                                          <ul className="space-y-2">
+                                            {history.map((w) => {
+                                              // Backend buckets Sat→Fri; for display we show Mon→Fri
+                                              // (skip the weekend, same underlying bucket).
+                                              const satStart = new Date(w.week_start);
+                                              const monStart = new Date(
+                                                satStart.getTime() + 2 * 24 * 60 * 60 * 1000,
+                                              );
+                                              const friEnd = new Date(w.week_end);
+                                              const pct = Math.round((w.hours / maxHours) * 100);
+                                              return (
+                                                <li key={w.week_start} className="space-y-1">
+                                                  <div className="flex items-center justify-between text-xs">
+                                                    <span className="text-[#a3a3a3] font-mono">
+                                                      {monStart.toLocaleDateString(undefined, {
+                                                        month: 'short',
+                                                        day: 'numeric',
+                                                      })}
+                                                      {' → '}
+                                                      {friEnd.toLocaleDateString(undefined, {
+                                                        month: 'short',
+                                                        day: 'numeric',
+                                                      })}
+                                                    </span>
+                                                    <span className="text-[#E0B954] font-mono tabular-nums">
+                                                      {w.hours}h
+                                                    </span>
+                                                  </div>
+                                                  <div className="h-1.5 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden">
+                                                    <div
+                                                      className="h-full bg-[#E0B954] rounded-full"
+                                                      style={{ width: `${pct}%` }}
+                                                    />
+                                                  </div>
+                                                </li>
+                                              );
+                                            })}
+                                          </ul>
+                                        </div>
+                                      );
+                                    })()}
+
+                                  {/* This Week — by status breakdown (Sat-Fri) */}
+                                  {expandedView === 'capacity' &&
+                                    dev.this_week_tickets &&
+                                    dev.this_week_tickets.length > 0 && (
+                                      <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                          <h4 className="text-xs font-medium text-[#C79E3B] uppercase">
+                                            This Week — by status
+                                          </h4>
+                                          {dev.week_start && dev.week_end && (
+                                            <span className="text-[10px] text-[#737373] font-mono">
+                                              {new Date(dev.week_start).toLocaleDateString(
+                                                undefined,
+                                                { month: 'short', day: 'numeric' },
+                                              )}
+                                              {' → '}
+                                              {new Date(dev.week_end).toLocaleDateString(
+                                                undefined,
+                                                {
+                                                  month: 'short',
+                                                  day: 'numeric',
+                                                },
+                                              )}
+                                              {' (Sat → Fri, UTC)'}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                          {(
+                                            [
+                                              {
+                                                key: 'in_progress',
+                                                label: 'In progress',
+                                                color: '#E0B954',
+                                                total: dev.this_week_in_progress_hours ?? 0,
+                                              },
+                                              {
+                                                key: 'in_review',
+                                                label: 'In review',
+                                                color: '#A78BFA',
+                                                total: dev.this_week_in_review_hours ?? 0,
+                                              },
+                                              {
+                                                key: 'done',
+                                                label: 'Done this week',
+                                                color: '#34D399',
+                                                total: dev.this_week_done_hours ?? 0,
+                                              },
+                                            ] as const
+                                          ).map((group) => {
+                                            const groupTickets = (
+                                              dev.this_week_tickets ?? []
+                                            ).filter((t) => t.status === group.key);
+                                            return (
+                                              <div
+                                                key={group.key}
+                                                className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-3"
+                                              >
+                                                <div className="flex items-center justify-between mb-2">
+                                                  <div className="flex items-center gap-2">
+                                                    <span
+                                                      className="w-2 h-2 rounded-sm"
+                                                      style={{ background: group.color }}
+                                                    />
+                                                    <span className="text-xs font-semibold text-white">
+                                                      {group.label}
+                                                    </span>
+                                                    <span className="text-[10px] text-[#737373]">
+                                                      ({groupTickets.length})
+                                                    </span>
+                                                  </div>
+                                                  <span
+                                                    className="text-xs font-mono tabular-nums"
+                                                    style={{ color: group.color }}
+                                                  >
+                                                    {group.total}h
+                                                  </span>
+                                                </div>
+                                                {groupTickets.length === 0 ? (
+                                                  <div className="text-[11px] text-[#737373] py-1">
+                                                    No tickets
+                                                  </div>
+                                                ) : (
+                                                  <ul className="space-y-1.5">
+                                                    {groupTickets.map((t) => (
+                                                      <li
+                                                        key={t.id}
+                                                        className="flex items-start gap-2 text-xs"
+                                                      >
+                                                        <span className="font-mono text-[#E0B954] mt-0.5 flex-shrink-0">
+                                                          {t.key}
+                                                        </span>
+                                                        <div className="flex-1 min-w-0">
+                                                          <div className="text-white truncate">
+                                                            {t.title}
+                                                          </div>
+                                                          <div className="text-[10px] text-[#737373] mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                                            <span>est {t.estimated_hours}h</span>
+                                                            <span className="text-[rgba(255,255,255,0.15)]">
+                                                              ·
+                                                            </span>
+                                                            <span>logged {t.logged_hours}h</span>
+                                                            {t.counted_basis ===
+                                                              'remaining (transferred)' && (
+                                                              <span className="px-1 py-0.5 rounded bg-[#FBBF24]/15 text-[#FBBF24] text-[9px] font-semibold uppercase tracking-wider">
+                                                                transferred
+                                                              </span>
+                                                            )}
+                                                          </div>
+                                                        </div>
+                                                        <span
+                                                          className="font-mono tabular-nums flex-shrink-0"
+                                                          style={{ color: group.color }}
+                                                          title={`Counted as ${t.counted_basis}`}
+                                                        >
+                                                          +{t.counted_hours}h
+                                                        </span>
+                                                      </li>
+                                                    ))}
+                                                  </ul>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
 
                                   <p className="text-xs text-[#737373] italic">
                                     {dev.attribution_note}
@@ -959,8 +991,9 @@ export default function PMView({ projectId, token, isAdmin = false, sprints = []
         </Button>
       </div>
 
-      {/* Debug Panel */}
-      {showDebugPanel && <HoursDebugPanel projectId={projectId} token={token} isAdmin={isAdmin} />}
+      {/* Debug Panel. HoursDebugPanel reads its own capability internally via
+          `can('admin.projects')` — no isAdmin prop chain needed. */}
+      {showDebugPanel && <HoursDebugPanel projectId={projectId} token={token} />}
     </div>
   );
 }
