@@ -39,6 +39,7 @@ import {
   ChevronsUpDown,
   ListFilter,
   Check,
+  Repeat2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -283,12 +284,21 @@ const ProjectBoard = () => {
   // the user navigates to a different ticket.
   const [isGenerating, setIsGenerating] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
-  const [listGroupBy, setListGroupBy] = useState<'sprint' | 'epic' | 'week'>(() => {
+  const [createFormType, setCreateFormType] = useState<string>('user_story');
+  const [viewMode, setViewMode] = useState<'board' | 'list' | 'epic'>('board');
+  const [listGroupBy, setListGroupBy] = useState<'sprint' | 'week'>(() => {
     if (typeof window === 'undefined') return 'sprint';
     try {
       const stored = window.localStorage.getItem(`projectBoard.listGroupBy.${id ?? ''}`);
-      if (stored === 'epic' || stored === 'week') return stored;
+      if (stored === 'week') return stored;
+      // 'epic' was a valid list grouping before Epic became a top-level view — clear it.
+      if (stored === 'epic') {
+        try {
+          window.localStorage.removeItem(`projectBoard.listGroupBy.${id ?? ''}`);
+        } catch {
+          /* ignore */
+        }
+      }
       return 'sprint';
     } catch {
       return 'sprint';
@@ -386,6 +396,33 @@ const ProjectBoard = () => {
       </button>
     );
   };
+
+  const VIEW_TABS = [
+    { mode: 'board' as const, icon: LayoutGrid, label: 'Board', tabId: 'tab-board' },
+    { mode: 'list' as const, icon: List, label: 'List', tabId: 'tab-list' },
+    { mode: 'epic' as const, icon: Target, label: 'Epic', tabId: 'tab-epic' },
+  ];
+
+  const handleViewTabKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      const modes = ['board', 'list', 'epic'] as const;
+      const currentIndex = modes.indexOf(viewMode);
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setViewMode(modes[(currentIndex + 1) % modes.length]);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setViewMode(modes[(currentIndex - 1 + modes.length) % modes.length]);
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        setViewMode('board');
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        setViewMode('epic');
+      }
+    },
+    [viewMode],
+  );
 
   // AI Planning flow — only the top-level open + architectures (shared with
   // ArchitectureEditor wrapper) stay at the parent. Multi-step + PRD/Roadmap
@@ -1793,40 +1830,52 @@ const ProjectBoard = () => {
               />
             </div>
 
-            {/* View Toggle */}
-            <div className="flex bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)] rounded-lg p-0.5">
-              <button
-                onClick={() => setViewMode('board')}
-                className={`p-1.5 rounded-md transition-colors ${viewMode === 'board' ? 'bg-[#E0B954] text-[#080808]' : 'text-[#737373] hover:text-white'}`}
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-[#E0B954] text-[#080808]' : 'text-[#737373] hover:text-white'}`}
-              >
-                <List className="w-3.5 h-3.5" />
-              </button>
+            {/* View Tab Bar */}
+            <div
+              role="tablist"
+              aria-label="Project view"
+              className="flex items-center gap-0"
+              onKeyDown={handleViewTabKeyDown}
+            >
+              {VIEW_TABS.map(({ mode, icon: Icon, label, tabId }) => (
+                <button
+                  key={mode}
+                  role="tab"
+                  id={tabId}
+                  aria-selected={viewMode === mode}
+                  aria-controls={`tabpanel-${mode}`}
+                  tabIndex={viewMode === mode ? 0 : -1}
+                  onClick={() => setViewMode(mode)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${
+                    viewMode === mode
+                      ? 'border-[#E0B954] text-[#E0B954]'
+                      : 'border-transparent text-[#737373] hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" aria-hidden="true" />
+                  {label}
+                </button>
+              ))}
             </div>
 
-            {/* "+" menu — gated on `project.tracker_write`. The whole button
-                is hidden when the user can't create either kind of item, so
-                we don't render an empty dropdown. */}
+            {/* "+" menu — gated on `project.tracker_write`. */}
             {can('project.tracker_write') && (
               <div className="relative">
                 <Button
                   onClick={() => setShowAddMenu((prev) => !prev)}
                   size="sm"
-                  className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-lg font-medium h-8 px-3 text-xs transition-opacity"
+                  className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-lg font-medium h-8 px-3 text-xs transition-opacity flex items-center gap-1.5"
                 >
                   <Plus className="w-3 h-3" />
+                  Add
                 </Button>
                 {showAddMenu && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setShowAddMenu(false)} />
-                    <div className="absolute right-0 top-full mt-1 z-20 bg-[#1a1a1a] border border-[rgba(255,255,255,0.08)] rounded-lg shadow-xl overflow-hidden min-w-[130px]">
+                    <div className="absolute right-0 top-full mt-1 z-20 bg-[#1a1a1a] border border-[rgba(255,255,255,0.08)] rounded-lg shadow-xl overflow-hidden min-w-[140px]">
                       <button
                         onClick={() => {
+                          setCreateFormType('user_story');
                           setShowCreateForm(true);
                           setShowAddMenu(false);
                         }}
@@ -1837,12 +1886,23 @@ const ProjectBoard = () => {
                       </button>
                       <button
                         onClick={() => {
+                          setCreateFormType('epic');
+                          setShowCreateForm(true);
+                          setShowAddMenu(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
+                      >
+                        <Target className="w-3.5 h-3.5 text-[#A78BFA]" />
+                        New Epic
+                      </button>
+                      <button
+                        onClick={() => {
                           setShowCreateSprintModal(true);
                           setShowAddMenu(false);
                         }}
                         className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
                       >
-                        <Plus className="w-3.5 h-3.5 text-[#E0B954]" />
+                        <Repeat2 className="w-3.5 h-3.5 text-[#E0B954]" />
                         New Sprint
                       </button>
                     </div>
@@ -1858,7 +1918,12 @@ const ProjectBoard = () => {
       <div className="flex-1 overflow-x-auto">
         {viewMode === 'board' ? (
           /* KANBAN BOARD VIEW */
-          <div className="flex gap-4 p-6 min-h-[calc(100vh-140px)]">
+          <div
+            role="tabpanel"
+            id="tabpanel-board"
+            aria-labelledby="tab-board"
+            className="flex gap-4 p-6 min-h-[calc(100vh-140px)]"
+          >
             {(Object.keys(STATUS_CONFIG) as Array<keyof typeof STATUS_CONFIG>).map((status) => {
               const config = STATUS_CONFIG[status];
               const columnItems = columnItemsByStatus[status] ?? [];
@@ -1885,9 +1950,208 @@ const ProjectBoard = () => {
               );
             })}
           </div>
+        ) : viewMode === 'epic' ? (
+          /* EPIC VIEW */
+          <div
+            role="tabpanel"
+            id="tabpanel-epic"
+            aria-labelledby="tab-epic"
+            className="p-6 space-y-3"
+          >
+            {listViewEpicGroups.length === 0 ? (
+              <div className="py-16 text-center text-[#737373] text-sm">No items found</div>
+            ) : (
+              listViewEpicGroups.map((group) => {
+                const isCollapsed = collapsedSprints.has(group.key);
+                const isUnparented = group.key === 'unparented';
+                const epicKey = group.epic?.key as string | undefined;
+                return (
+                  <div
+                    key={group.key}
+                    className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl overflow-hidden"
+                  >
+                    {/* Epic group header */}
+                    <div className="flex items-center gap-2.5 px-5 py-3.5 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
+                      <button
+                        onClick={() => toggleSprintCollapse(group.key)}
+                        className="flex items-center gap-2.5 flex-1 text-left min-w-0"
+                      >
+                        {isCollapsed ? (
+                          <ChevronRight className="w-3.5 h-3.5 text-[#737373] shrink-0" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5 text-[#737373] shrink-0" />
+                        )}
+                        {isUnparented ? (
+                          <span className="text-sm font-semibold text-[#737373] italic">
+                            No epic
+                          </span>
+                        ) : (
+                          <>
+                            <Target className="w-3.5 h-3.5 text-[#A78BFA] shrink-0" />
+                            {epicKey && (
+                              <span className="text-[11px] font-mono text-[#A78BFA] shrink-0">
+                                {epicKey}
+                              </span>
+                            )}
+                            <span className="text-sm font-semibold text-[#f5f5f5] truncate">
+                              {group.label}
+                            </span>
+                          </>
+                        )}
+                        <span className="text-xs text-[#737373] shrink-0">
+                          {group.count} item{group.count !== 1 ? 's' : ''}
+                        </span>
+                      </button>
+                      {!isUnparented && group.epic && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/project/${id}/board/${group.epic!.id}`);
+                          }}
+                          className="text-[10px] text-[#737373] hover:text-[#A78BFA] transition-colors shrink-0"
+                          title="Open epic"
+                        >
+                          Open epic →
+                        </button>
+                      )}
+                    </div>
+
+                    {!isCollapsed && (
+                      <>
+                        {/* Table header */}
+                        <div className="grid grid-cols-[120px_1fr_120px_100px_80px_120px_110px_110px] gap-4 px-5 py-3 border-t border-[rgba(255,255,255,0.05)] text-xs text-[#737373] font-semibold uppercase tracking-wider">
+                          {renderListSortHeader('Type', 'type')}
+                          <span>Title</span>
+                          {renderListSortHeader('Status', 'status')}
+                          {renderListSortHeader('Priority', 'priority')}
+                          <span>Points</span>
+                          {renderListSortHeader('Assignee', 'assignee')}
+                          {renderListSortHeader('Due Date', 'due_date')}
+                          {renderListSortHeader('Completed', 'completed_at')}
+                        </div>
+                        {/* Table rows. Default: hierarchy-aware (parent → child with
+                            indent). When sorted, render flat at depth=0 since
+                            cross-hierarchy ordering breaks the parent/child grouping. */}
+                        {(listItemComparator
+                          ? [...group.rows]
+                              .sort((a, b) => listItemComparator(a.item, b.item))
+                              .map((r) => ({ item: r.item, depth: 0 }))
+                          : group.rows
+                        ).map(({ item, depth }) => {
+                          const typeInfo = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
+                          const TypeIcon = typeInfo.icon;
+                          const priorityStyle =
+                            PRIORITY_COLORS[item.priority] || PRIORITY_COLORS.medium;
+                          return (
+                            <div
+                              key={item.id}
+                              onMouseEnter={() => prefetchComments(item.id)}
+                              onClick={() => {
+                                navigate(`/project/${id}/board/${item.id}`);
+                              }}
+                              className="grid grid-cols-[120px_1fr_120px_100px_80px_120px_110px_110px] gap-4 px-5 py-3.5 border-t border-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.025)] cursor-pointer transition-colors group"
+                            >
+                              <div className="flex items-center">
+                                <div
+                                  className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs"
+                                  style={{ backgroundColor: typeInfo.bg, color: typeInfo.color }}
+                                >
+                                  <TypeIcon className="w-3 h-3" />
+                                  {typeInfo.label}
+                                </div>
+                              </div>
+                              <div
+                                className="flex items-center gap-3 min-w-0"
+                                style={{ paddingLeft: depth === 1 ? 24 : 0 }}
+                              >
+                                {depth === 1 && (
+                                  <span
+                                    className="text-[#444] font-mono text-xs shrink-0"
+                                    aria-hidden
+                                  >
+                                    └─
+                                  </span>
+                                )}
+                                <span className="text-[10px] text-[#E0B954] font-mono font-medium shrink-0">
+                                  {item.key}
+                                </span>
+                                <span className="text-sm text-[#f5f5f5] truncate group-hover:text-white transition-colors">
+                                  {item.title}
+                                </span>
+                              </div>
+                              <div className="flex items-center">
+                                <StatusDotMenu
+                                  status={item.status}
+                                  onChange={(newStatus) => handleStatusChange(item, newStatus)}
+                                />
+                              </div>
+                              <div className="flex items-center">
+                                <span
+                                  className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                                  style={{
+                                    backgroundColor: priorityStyle.hex + '33',
+                                    color: priorityStyle.hex,
+                                  }}
+                                >
+                                  {item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}
+                                </span>
+                              </div>
+                              <div className="flex items-center">
+                                <span className="text-sm font-semibold text-[#E0B954]">
+                                  {item.story_points}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                {item.assignee && item.assignee !== 'Unassigned' ? (
+                                  <>
+                                    <div
+                                      className="w-5 h-5 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center shrink-0"
+                                      title={item.assignee}
+                                    >
+                                      <span className="text-[9px] font-semibold text-white">
+                                        {item.assignee.charAt(0).toUpperCase()}
+                                      </span>
+                                    </div>
+                                    <span className="text-xs text-[#a3a3a3] truncate">
+                                      {item.assignee}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span className="text-xs text-[#555] truncate">—</span>
+                                )}
+                              </div>
+                              <div className="flex items-center">
+                                <span className="text-xs text-[#a3a3a3] truncate">
+                                  {item.due_date
+                                    ? parseLocalDate(item.due_date)?.toLocaleDateString()
+                                    : '—'}
+                                </span>
+                              </div>
+                              <div className="flex items-center">
+                                <span className="text-xs text-[#a3a3a3] truncate">
+                                  {item.completed_at
+                                    ? new Date(item.completed_at).toLocaleDateString()
+                                    : '—'}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
         ) : (
           /* LIST VIEW */
-          <div className="p-6 space-y-3">
+          <div
+            role="tabpanel"
+            id="tabpanel-list"
+            aria-labelledby="tab-list"
+            className="p-6 space-y-3"
+          >
             {/* List view header: Group by toggle + completed-sprints toggle */}
             <div className="flex items-center justify-between gap-3">
               <div
@@ -1903,15 +2167,6 @@ const ProjectBoard = () => {
                   className={`px-2.5 h-6 text-[11px] rounded-md transition-colors ${listGroupBy === 'sprint' ? 'bg-[#E0B954] text-[#080808] font-medium' : 'text-[#737373] hover:text-white'}`}
                 >
                   By Sprint
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={listGroupBy === 'epic'}
-                  onClick={() => setListGroupBy('epic')}
-                  className={`px-2.5 h-6 text-[11px] rounded-md transition-colors ${listGroupBy === 'epic' ? 'bg-[#E0B954] text-[#080808] font-medium' : 'text-[#737373] hover:text-white'}`}
-                >
-                  By Epic
                 </button>
                 <button
                   type="button"
@@ -1938,185 +2193,7 @@ const ProjectBoard = () => {
               )}
             </div>
 
-            {listGroupBy === 'epic' ? (
-              listViewEpicGroups.length === 0 ? (
-                <div className="py-16 text-center text-[#737373] text-sm">No items found</div>
-              ) : (
-                listViewEpicGroups.map((group) => {
-                  const isCollapsed = collapsedSprints.has(group.key);
-                  const isUnparented = group.key === 'unparented';
-                  const epicKey = group.epic?.key as string | undefined;
-                  return (
-                    <div
-                      key={group.key}
-                      className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl overflow-hidden"
-                    >
-                      {/* Epic group header */}
-                      <div className="flex items-center gap-2.5 px-5 py-3.5 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
-                        <button
-                          onClick={() => toggleSprintCollapse(group.key)}
-                          className="flex items-center gap-2.5 flex-1 text-left min-w-0"
-                        >
-                          {isCollapsed ? (
-                            <ChevronRight className="w-3.5 h-3.5 text-[#737373] shrink-0" />
-                          ) : (
-                            <ChevronDown className="w-3.5 h-3.5 text-[#737373] shrink-0" />
-                          )}
-                          {isUnparented ? (
-                            <span className="text-sm font-semibold text-[#737373] italic">
-                              No epic
-                            </span>
-                          ) : (
-                            <>
-                              <Target className="w-3.5 h-3.5 text-[#A78BFA] shrink-0" />
-                              {epicKey && (
-                                <span className="text-[11px] font-mono text-[#A78BFA] shrink-0">
-                                  {epicKey}
-                                </span>
-                              )}
-                              <span className="text-sm font-semibold text-[#f5f5f5] truncate">
-                                {group.label}
-                              </span>
-                            </>
-                          )}
-                          <span className="text-xs text-[#737373] shrink-0">
-                            {group.count} item{group.count !== 1 ? 's' : ''}
-                          </span>
-                        </button>
-                        {!isUnparented && group.epic && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/project/${id}/board/${group.epic!.id}`);
-                            }}
-                            className="text-[10px] text-[#737373] hover:text-[#A78BFA] transition-colors shrink-0"
-                            title="Open epic"
-                          >
-                            Open epic →
-                          </button>
-                        )}
-                      </div>
-
-                      {!isCollapsed && (
-                        <>
-                          {/* Table header */}
-                          <div className="grid grid-cols-[120px_1fr_120px_100px_80px_120px_110px_110px] gap-4 px-5 py-3 border-t border-[rgba(255,255,255,0.05)] text-xs text-[#737373] font-semibold uppercase tracking-wider">
-                            {renderListSortHeader('Type', 'type')}
-                            <span>Title</span>
-                            {renderListSortHeader('Status', 'status')}
-                            {renderListSortHeader('Priority', 'priority')}
-                            <span>Points</span>
-                            {renderListSortHeader('Assignee', 'assignee')}
-                            {renderListSortHeader('Due Date', 'due_date')}
-                            {renderListSortHeader('Completed', 'completed_at')}
-                          </div>
-                          {/* Table rows. Default: hierarchy-aware (parent → child with
-                              indent). When sorted, render flat at depth=0 since
-                              cross-hierarchy ordering breaks the parent/child grouping. */}
-                          {(listItemComparator
-                            ? [...group.rows]
-                                .sort((a, b) => listItemComparator(a.item, b.item))
-                                .map((r) => ({ item: r.item, depth: 0 }))
-                            : group.rows
-                          ).map(({ item, depth }) => {
-                            const typeInfo = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
-                            const TypeIcon = typeInfo.icon;
-                            const priorityStyle =
-                              PRIORITY_COLORS[item.priority] || PRIORITY_COLORS.medium;
-                            return (
-                              <div
-                                key={item.id}
-                                onMouseEnter={() => prefetchComments(item.id)}
-                                onClick={() => {
-                                  navigate(`/project/${id}/board/${item.id}`);
-                                }}
-                                className="grid grid-cols-[120px_1fr_120px_100px_80px_120px_110px_110px] gap-4 px-5 py-3.5 border-t border-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.025)] cursor-pointer transition-colors group"
-                              >
-                                <div className="flex items-center">
-                                  <div
-                                    className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs"
-                                    style={{ backgroundColor: typeInfo.bg, color: typeInfo.color }}
-                                  >
-                                    <TypeIcon className="w-3 h-3" />
-                                    {typeInfo.label}
-                                  </div>
-                                </div>
-                                <div
-                                  className="flex items-center gap-3 min-w-0"
-                                  style={{ paddingLeft: depth === 1 ? 24 : 0 }}
-                                >
-                                  {depth === 1 && (
-                                    <span
-                                      className="text-[#444] font-mono text-xs shrink-0"
-                                      aria-hidden
-                                    >
-                                      └─
-                                    </span>
-                                  )}
-                                  <span className="text-[10px] text-[#E0B954] font-mono font-medium shrink-0">
-                                    {item.key}
-                                  </span>
-                                  <span className="text-sm text-[#f5f5f5] truncate group-hover:text-white transition-colors">
-                                    {item.title}
-                                  </span>
-                                </div>
-                                <div className="flex items-center">
-                                  {canWriteTracker ? (
-                                    <StatusDotMenu
-                                      status={item.status}
-                                      onChange={(newStatus) => handleStatusChange(item, newStatus)}
-                                    />
-                                  ) : (
-                                    <span className="text-xs text-[#a3a3a3] capitalize">
-                                      {item.status.replace('_', ' ')}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center">
-                                  <span
-                                    className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                                    style={{
-                                      backgroundColor: priorityStyle.hex + '33',
-                                      color: priorityStyle.hex,
-                                    }}
-                                  >
-                                    {item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}
-                                  </span>
-                                </div>
-                                <div className="flex items-center">
-                                  <span className="text-sm font-semibold text-[#E0B954]">
-                                    {item.story_points}
-                                  </span>
-                                </div>
-                                <div className="flex items-center">
-                                  <span className="text-xs text-[#737373] truncate">
-                                    {item.assignee}
-                                  </span>
-                                </div>
-                                <div className="flex items-center">
-                                  <span className="text-xs text-[#a3a3a3] truncate">
-                                    {item.due_date
-                                      ? parseLocalDate(item.due_date)?.toLocaleDateString()
-                                      : '—'}
-                                  </span>
-                                </div>
-                                <div className="flex items-center">
-                                  <span className="text-xs text-[#a3a3a3] truncate">
-                                    {item.completed_at
-                                      ? new Date(item.completed_at).toLocaleDateString()
-                                      : '—'}
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </>
-                      )}
-                    </div>
-                  );
-                })
-              )
-            ) : listGroupBy === 'week' ? (
+            {listGroupBy === 'week' ? (
               listViewWeekGroups.length === 0 ? (
                 <div className="py-16 text-center text-[#737373] text-sm">No items found</div>
               ) : (
@@ -2238,10 +2315,24 @@ const ProjectBoard = () => {
                                     {item.story_points}
                                   </span>
                                 </div>
-                                <div className="flex items-center">
-                                  <span className="text-xs text-[#737373] truncate">
-                                    {item.assignee}
-                                  </span>
+                                <div className="flex items-center gap-1.5">
+                                  {item.assignee && item.assignee !== 'Unassigned' ? (
+                                    <>
+                                      <div
+                                        className="w-5 h-5 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center shrink-0"
+                                        title={item.assignee}
+                                      >
+                                        <span className="text-[9px] font-semibold text-white">
+                                          {item.assignee.charAt(0).toUpperCase()}
+                                        </span>
+                                      </div>
+                                      <span className="text-xs text-[#a3a3a3] truncate">
+                                        {item.assignee}
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <span className="text-xs text-[#555] truncate">—</span>
+                                  )}
                                 </div>
                                 <div className="flex items-center">
                                   <span
@@ -2433,10 +2524,24 @@ const ProjectBoard = () => {
                                   {item.story_points}
                                 </span>
                               </div>
-                              <div className="flex items-center">
-                                <span className="text-xs text-[#737373] truncate">
-                                  {item.assignee}
-                                </span>
+                              <div className="flex items-center gap-1.5">
+                                {item.assignee && item.assignee !== 'Unassigned' ? (
+                                  <>
+                                    <div
+                                      className="w-5 h-5 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center shrink-0"
+                                      title={item.assignee}
+                                    >
+                                      <span className="text-[9px] font-semibold text-white">
+                                        {item.assignee.charAt(0).toUpperCase()}
+                                      </span>
+                                    </div>
+                                    <span className="text-xs text-[#a3a3a3] truncate">
+                                      {item.assignee}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span className="text-xs text-[#555] truncate">—</span>
+                                )}
                               </div>
                               <div className="flex items-center">
                                 <span className="text-xs text-[#a3a3a3] truncate">
@@ -2501,6 +2606,7 @@ const ProjectBoard = () => {
             existingTags={existingTags}
             parseLocalDate={parseLocalDate}
             isCreatingItem={isCreatingItem}
+            initialType={createFormType}
             onClose={() => setShowCreateForm(false)}
             onSubmit={(form) => createItemMutation.mutate(form)}
           />

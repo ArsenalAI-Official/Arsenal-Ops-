@@ -73,4 +73,17 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* ── Number input spinners ────────────────────────────────────────────────
+     Suppress the native OS stepper globally. Custom chevron controls are
+     provided by the <NumberInput> component (components/ui/number-input.tsx).  */
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
 }

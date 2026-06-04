@@ -51,16 +51,21 @@ export function buildEpicGroups<T extends HierarchyItem & { key?: string; title?
 
   const groups: EpicGroup<T>[] = [];
 
-  const epicEntries = Array.from(byEpicId.entries())
-    .map(([epicId, groupItems]) => ({
-      epic: epicById.get(epicId)!,
-      groupItems,
-    }))
-    .filter((e) => Boolean(e.epic));
+  const epicIdsWithItems = new Set(byEpicId.keys());
 
-  epicEntries.sort((a, b) => (a.epic.key ?? '').localeCompare(b.epic.key ?? ''));
+  const allEpicEntries = [
+    ...Array.from(byEpicId.entries())
+      .map(([epicId, groupItems]) => ({ epic: epicById.get(epicId)!, groupItems }))
+      .filter((e) => Boolean(e.epic)),
+    // Include epics that have no items in the current filtered set.
+    ...Array.from(epicById.values())
+      .filter((e) => !epicIdsWithItems.has(Number(e.id)))
+      .map((epic) => ({ epic, groupItems: [] as T[] })),
+  ];
 
-  for (const { epic, groupItems } of epicEntries) {
+  allEpicEntries.sort((a, b) => (a.epic.key ?? '').localeCompare(b.epic.key ?? ''));
+
+  for (const { epic, groupItems } of allEpicEntries) {
     const rows = orderWithSubtasks(groupItems);
     groups.push({
       key: `epic-${epic.id}`,
