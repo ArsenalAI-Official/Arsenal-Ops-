@@ -259,7 +259,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
 
   const saveEditCompact = useMutation({
     mutationFn: (edits: Partial<WorkItem>) =>
-      apiFetch(`/api/workitems/${item.id}`, {
+      apiFetch<WorkItem>(`/api/workitems/${item.id}`, {
         method: 'PUT',
         body: JSON.stringify(edits),
       }),
@@ -276,7 +276,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
 
   const statusChangeCompact = useMutation({
     mutationFn: (newStatus: string) =>
-      apiFetch(`/api/workitems/${item.id}`, {
+      apiFetch<WorkItem>(`/api/workitems/${item.id}`, {
         method: 'PUT',
         body: JSON.stringify({ status: newStatus }),
       }),
@@ -291,7 +291,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
 
   const logHoursCompact = useMutation({
     mutationFn: (hours: number) =>
-      apiFetch(`/api/workitems/${item.id}/log-hours`, {
+      apiFetch<{ logged_hours: number; remaining_hours: number }>(`/api/workitems/${item.id}/log-hours`, {
         method: 'POST',
         body: JSON.stringify({ hours }),
       }),
