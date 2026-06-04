@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { apiFetch } from '@/lib/api';
+import { TASK_TYPE_CONFIG } from '@/components/ProjectsPage/constants';
 import type { ProjectCategory } from '../modals/CategoryManagerModal';
 
 /** One ticket row in the per-project drill-down. Mirrors the backend's
@@ -142,6 +143,29 @@ function formatWeekRange(startISO: string, endISO: string): string {
 // silent "Select.Item must have a value prop that is not an empty string"
 // runtime error.
 const UNCATEGORIZED_OPTION = '__uncategorized__';
+
+// Status-accent palette for the Reports view. Matches the canonical
+// home-page palette in `components/ProjectsPage/constants.ts` (STATUS_COLOR /
+// STATUS_CONFIG) so the status colors stay consistent across the app —
+// kanban dropdown, MyTasks/Upcoming list, and this admin Reports view all
+// share the same visual vocabulary. Tints (`bg`) are the hex `color` at ~12%
+// alpha for use as soft tile backgrounds.
+const STATUS_ACCENTS: Record<StatusBucket, { color: string; bg: string; label: string }> = {
+  todo_backlog: { color: '#60A5FA', bg: 'rgba(96,165,250,0.12)', label: 'ToDo / Backlog' },
+  in_progress: { color: '#E0B954', bg: 'rgba(224,185,84,0.12)', label: 'In progress' },
+  in_review: { color: '#A78BFA', bg: 'rgba(167,139,250,0.12)', label: 'In review' },
+  done_this_week: { color: '#34D399', bg: 'rgba(52,211,153,0.14)', label: 'Done' },
+};
+
+// Priority-accent palette for ticket rows in the expanded drill-down. Same
+// scale used by the kanban card / item detail drawer so the dot encodes a
+// familiar urgency signal at a glance.
+const PRIORITY_COLOR: Record<string, string> = {
+  critical: '#EF4444',
+  high: '#F97316',
+  medium: '#F59E0B',
+  low: '#737373',
+};
 
 const ProjectsTab = ({
   projects,
@@ -274,82 +298,169 @@ const ProjectsTab = ({
           the EmployeesTab capacity drill-down pattern. */}
       {view === 'reports' && (
         <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.05)] rounded-xl overflow-hidden">
-          {/* Legend — replaces the old "Weekly report" header. Clarifies that
-              only the Done column is week-windowed; the other columns are
-              current-state snapshots across the entire project. */}
+          {/* Header strip — gives the report a clear identity vs the bare
+              table it used to be. Icon tile + title + pill-style date range
+              + helper text explaining which column is week-windowed. */}
           {reportRows.length > 0 && (
-            <div className="px-4 py-2.5 border-b border-[rgba(255,255,255,0.05)] flex items-center gap-2 text-xs text-[#737373]">
-              <CalendarRange className="w-3.5 h-3.5 text-[#E0B954] shrink-0" />
-              <span>
-                <span className="text-[#a3a3a3]">Done</span> shows tickets marked done this week
-                {reportRange && <span className="text-[#525252]"> · {reportRange}</span>}
-              </span>
-              {weeklyReportLoading && (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#737373] ml-auto" />
-              )}
+            <div className="px-5 py-4 border-b border-[rgba(255,255,255,0.05)] bg-[rgba(255,255,255,0.015)]">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-[rgba(224,185,84,0.1)] flex items-center justify-center border border-[rgba(224,185,84,0.15)]">
+                    <CalendarRange className="w-4 h-4 text-[#E0B954]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-white leading-tight">
+                      Weekly Status Snapshot
+                    </p>
+                    {reportRange && (
+                      <p className="text-[11px] text-[#737373] mt-0.5">
+                        <span className="font-mono text-[#a3a3a3]">{reportRange}</span>
+                        <span className="text-[rgba(255,255,255,0.15)] mx-1.5">·</span>
+                        <span>Sat → Fri, UTC</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {weeklyReportLoading && (
+                  <div className="flex items-center gap-1.5 text-[11px] text-[#737373]">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Refreshing
+                  </div>
+                )}
+              </div>
+              <p className="text-[11px] text-[#737373] mt-2.5 leading-relaxed">
+                <span className="text-[#a3a3a3] font-medium">Done</span> shows tickets marked done
+                this week. The other columns are current-state snapshots across the project.
+              </p>
             </div>
           )}
 
           {weeklyReportLoading && reportRows.length === 0 ? (
-            <div className="flex items-center justify-center gap-2 py-8 text-xs text-[#737373]">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              Loading report…
+            <div className="flex flex-col items-center justify-center gap-2 py-12 text-xs text-[#737373]">
+              <Loader2 className="w-4 h-4 animate-spin text-[#E0B954]" />
+              <span>Loading report…</span>
             </div>
           ) : reportRows.length === 0 ? (
-            <div className="py-6 text-center text-xs text-[#737373]">
-              No report data for the current filter.
+            <div className="py-12 text-center">
+              <TableProperties className="w-7 h-7 text-[#525252] mx-auto mb-2" />
+              <p className="text-sm text-[#a3a3a3] font-medium">No report data</p>
+              <p className="text-xs text-[#525252] mt-1">
+                Nothing matches the current category filter.
+              </p>
             </div>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-xs text-[#737373] bg-[rgba(255,255,255,0.02)]">
-                  <th className="text-left font-medium px-4 py-2 w-8"></th>
-                  <th className="text-left font-medium px-4 py-2">Project</th>
-                  <th className="text-right font-medium px-4 py-2 w-32">ToDo / Backlog</th>
-                  <th className="text-right font-medium px-4 py-2 w-28">In progress</th>
-                  <th className="text-right font-medium px-4 py-2 w-28">In review</th>
-                  <th className="text-right font-medium px-4 py-2 w-24">Done</th>
+                <tr className="text-[10px] uppercase tracking-wider text-[#737373] font-semibold bg-[rgba(255,255,255,0.02)] border-b border-[rgba(255,255,255,0.05)]">
+                  <th className="text-left font-semibold px-4 py-2.5 w-8"></th>
+                  <th className="text-left font-semibold px-4 py-2.5">Project</th>
+                  <th className="text-right font-semibold px-4 py-2.5 w-32">
+                    <span style={{ color: STATUS_ACCENTS.todo_backlog.color }}>ToDo / Backlog</span>
+                  </th>
+                  <th className="text-right font-semibold px-4 py-2.5 w-28">
+                    <span style={{ color: STATUS_ACCENTS.in_progress.color }}>In progress</span>
+                  </th>
+                  <th className="text-right font-semibold px-4 py-2.5 w-28">
+                    <span style={{ color: STATUS_ACCENTS.in_review.color }}>In review</span>
+                  </th>
+                  <th className="text-right font-semibold px-4 py-2.5 w-24">
+                    <span style={{ color: STATUS_ACCENTS.done_this_week.color }}>Done</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {reportRows.map((row) => {
                   const isExpanded = expandedProjectId === row.project_id;
+                  // Distribution bar: 4 segments sized by share of the row's
+                  // total ticket count. When `rowTotal` is 0 we hide the bar
+                  // rather than render an empty track — cleaner for projects
+                  // with no work this week.
+                  const rowTotal =
+                    row.todo_backlog + row.in_progress + row.in_review + row.done_this_week;
+                  const segments: { key: StatusBucket; value: number }[] = [
+                    { key: 'todo_backlog', value: row.todo_backlog },
+                    { key: 'in_progress', value: row.in_progress },
+                    { key: 'in_review', value: row.in_review },
+                    { key: 'done_this_week', value: row.done_this_week },
+                  ];
+                  // Numeric cell colors — full accent when there's a value,
+                  // a muted "no signal" gray when the count is zero so the
+                  // eye skips empty cells.
+                  const cellColor = (bucket: StatusBucket, value: number) =>
+                    value > 0 ? STATUS_ACCENTS[bucket].color : '#525252';
                   return (
                     <React.Fragment key={row.project_id}>
                       <tr
                         title="Click row to see tickets"
                         onClick={() => setExpandedProjectId(isExpanded ? null : row.project_id)}
-                        className={`border-t border-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.02)] cursor-pointer ${
-                          isExpanded ? 'bg-[rgba(255,255,255,0.015)]' : ''
+                        className={`border-t border-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.025)] cursor-pointer transition-colors ${
+                          isExpanded ? 'bg-[rgba(255,255,255,0.02)]' : ''
                         }`}
                       >
-                        <td className="px-4 py-2 text-[#737373]">
+                        <td className="px-4 py-3 text-[#737373] align-top">
                           {isExpanded ? (
                             <ChevronDown className="w-4 h-4" />
                           ) : (
                             <ChevronRight className="w-4 h-4" />
                           )}
                         </td>
-                        <td className="px-4 py-2 text-white">
-                          <div className="flex items-center gap-2">
-                            <span>{row.project_name}</span>
+                        <td className="px-4 py-3 align-top">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-sm font-medium text-white">
+                              {row.project_name}
+                            </span>
                             {row.category_name && (
-                              <span className="text-[10px] text-[#E0B954] bg-[rgba(224,185,84,0.08)] px-1.5 py-0.5 rounded">
+                              <span className="text-[10px] text-[#E0B954] bg-[rgba(224,185,84,0.08)] border border-[rgba(224,185,84,0.15)] px-1.5 py-0.5 rounded">
                                 {row.category_name}
                               </span>
                             )}
                           </div>
+                          {/* Per-row distribution bar — burndown-style shape
+                              of the project at a glance. Hidden when the row
+                              has no tickets so the table doesn't carry empty
+                              bars. */}
+                          {rowTotal > 0 && (
+                            <div
+                              className="h-1.5 bg-[rgba(255,255,255,0.04)] rounded-full overflow-hidden flex max-w-[280px]"
+                              title={`${rowTotal} ticket${rowTotal === 1 ? '' : 's'} across statuses`}
+                            >
+                              {segments.map((s) =>
+                                s.value > 0 ? (
+                                  <div
+                                    key={s.key}
+                                    className="h-full"
+                                    style={{
+                                      width: `${(s.value / rowTotal) * 100}%`,
+                                      backgroundColor: STATUS_ACCENTS[s.key].color,
+                                    }}
+                                  />
+                                ) : null,
+                              )}
+                            </div>
+                          )}
                         </td>
-                        <td className="px-4 py-2 text-right text-[#a3a3a3] tabular-nums">
+                        <td
+                          className="px-4 py-3 text-right tabular-nums align-top"
+                          style={{ color: cellColor('todo_backlog', row.todo_backlog) }}
+                        >
                           {row.todo_backlog}
                         </td>
-                        <td className="px-4 py-2 text-right text-[#a3a3a3] tabular-nums">
+                        <td
+                          className="px-4 py-3 text-right tabular-nums align-top"
+                          style={{ color: cellColor('in_progress', row.in_progress) }}
+                        >
                           {row.in_progress}
                         </td>
-                        <td className="px-4 py-2 text-right text-[#a3a3a3] tabular-nums">
+                        <td
+                          className="px-4 py-3 text-right tabular-nums align-top"
+                          style={{ color: cellColor('in_review', row.in_review) }}
+                        >
                           {row.in_review}
                         </td>
-                        <td className="px-4 py-2 text-right text-[#E0B954] tabular-nums font-medium">
+                        <td
+                          className="px-4 py-3 text-right tabular-nums align-top font-medium"
+                          style={{ color: cellColor('done_this_week', row.done_this_week) }}
+                        >
                           {row.done_this_week}
                         </td>
                       </tr>
@@ -369,19 +480,33 @@ const ProjectsTab = ({
                   footer would just duplicate them. */}
               {reportRows.length > 1 && (
                 <tfoot>
-                  <tr className="border-t border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)]">
-                    <td className="px-4 py-2"></td>
-                    <td className="px-4 py-2 text-xs font-medium text-[#737373]">Total</td>
-                    <td className="px-4 py-2 text-right text-white tabular-nums font-medium">
+                  <tr className="border-t-2 border-[rgba(224,185,84,0.2)] bg-[rgba(255,255,255,0.025)]">
+                    <td className="px-4 py-3"></td>
+                    <td className="px-4 py-3 text-[11px] uppercase tracking-wider font-semibold text-[#a3a3a3]">
+                      Total · {reportRows.length} projects
+                    </td>
+                    <td
+                      className="px-4 py-3 text-right tabular-nums font-semibold"
+                      style={{ color: STATUS_ACCENTS.todo_backlog.color }}
+                    >
                       {totals.todo_backlog}
                     </td>
-                    <td className="px-4 py-2 text-right text-white tabular-nums font-medium">
+                    <td
+                      className="px-4 py-3 text-right tabular-nums font-semibold"
+                      style={{ color: STATUS_ACCENTS.in_progress.color }}
+                    >
                       {totals.in_progress}
                     </td>
-                    <td className="px-4 py-2 text-right text-white tabular-nums font-medium">
+                    <td
+                      className="px-4 py-3 text-right tabular-nums font-semibold"
+                      style={{ color: STATUS_ACCENTS.in_review.color }}
+                    >
                       {totals.in_review}
                     </td>
-                    <td className="px-4 py-2 text-right text-[#E0B954] tabular-nums font-semibold">
+                    <td
+                      className="px-4 py-3 text-right tabular-nums font-bold"
+                      style={{ color: STATUS_ACCENTS.done_this_week.color }}
+                    >
                       {totals.done_this_week}
                     </td>
                   </tr>
@@ -621,30 +746,53 @@ const ExpandedProjectRow = ({ project }: ExpandedProjectRowProps) => {
 
   return (
     <div className="space-y-3">
-      {/* Status pill toggle — Active uses the gold-tinted treatment from
-          EmployeesTab's expanded-row view toggle so the visual vocabulary
-          is consistent across admin drill-downs. */}
-      <div className="flex items-center gap-2">
+      {/* Status pill toggle — each button takes its own status accent color
+          when active, matching the column headers above and the canonical
+          home-page palette (blue / gold / violet / green). This gives the
+          buttons a meaningful visual connection to "which status am I
+          looking at right now". */}
+      <div className="flex items-center gap-2 flex-wrap">
         {STATUS_BUTTONS.map((opt) => {
           const active = selectedStatus === opt.id;
+          const accent = STATUS_ACCENTS[opt.id];
           return (
             <button
               key={opt.id}
               type="button"
               onClick={() => setSelectedStatus(opt.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 border ${
                 active
-                  ? 'bg-[#E0B954]/20 text-[#E0B954] border border-[#E0B954]/40'
-                  : 'bg-[rgba(255,255,255,0.03)] text-[#a3a3a3] border border-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.06)]'
+                  ? ''
+                  : 'bg-[rgba(255,255,255,0.03)] text-[#a3a3a3] border-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.06)]'
               }`}
+              style={
+                active
+                  ? {
+                      backgroundColor: accent.bg,
+                      color: accent.color,
+                      borderColor: `${accent.color}55`,
+                    }
+                  : undefined
+              }
             >
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ backgroundColor: active ? accent.color : 'rgba(255,255,255,0.2)' }}
+              />
               {opt.label}
               <span
-                className={`tabular-nums text-[10px] px-1.5 py-0.5 rounded ${
+                className="tabular-nums text-[10px] px-1.5 py-0.5 rounded"
+                style={
                   active
-                    ? 'bg-[#E0B954]/15 text-[#E0B954]'
-                    : 'bg-[rgba(255,255,255,0.04)] text-[#737373]'
-                }`}
+                    ? {
+                        backgroundColor: `${accent.color}26`,
+                        color: accent.color,
+                      }
+                    : {
+                        backgroundColor: 'rgba(255,255,255,0.04)',
+                        color: '#737373',
+                      }
+                }
               >
                 {counts[opt.id]}
               </span>
@@ -673,38 +821,93 @@ const ExpandedProjectRow = ({ project }: ExpandedProjectRowProps) => {
               : `No tickets ${selectedStatus === 'in_progress' ? 'in progress' : 'in review'}.`}
         </div>
       ) : (
-        <ul className="divide-y divide-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.05)] rounded-lg overflow-hidden">
-          {tickets.map((t) => (
-            // Each ticket row is rendered as a real <a> so middle-click and
-            // Cmd/Ctrl+click open in a new tab natively. `target="_blank"`
-            // covers the plain-left-click case. The <li> just provides list
-            // semantics — the click area belongs to the anchor.
-            <li key={t.id}>
-              <a
-                href={`/project/${project.project_id}/board/${t.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3 py-2.5 hover:bg-[rgba(255,255,255,0.02)] flex items-center gap-3 text-sm"
-                title="Open ticket in new tab"
-              >
-                {t.key && (
-                  <span className="font-mono text-xs text-[#737373] shrink-0 w-20 truncate">
-                    {t.key}
+        // Ticket rows as "chip cards" rather than a flat divided list.
+        // Each row anchors the type (colored icon tile) and key on the left,
+        // truncatable title in the middle, then assignee + hours on the
+        // right. The hours mini-bar gives an at-a-glance progress read
+        // without sacrificing the numeric breakdown.
+        <ul className="space-y-1.5">
+          {tickets.map((t) => {
+            const typeConfig = TASK_TYPE_CONFIG[t.type] || TASK_TYPE_CONFIG.task;
+            const TypeIcon = typeConfig.icon;
+            const priorityColor =
+              PRIORITY_COLOR[t.priority?.toLowerCase?.()] || PRIORITY_COLOR.medium;
+            const logged = t.logged_hours ?? 0;
+            const estimated = t.estimated_hours ?? 0;
+            const progress = estimated > 0 ? Math.min(100, (logged / estimated) * 100) : 0;
+            const isComplete = estimated > 0 && logged >= estimated;
+            return (
+              <li key={t.id}>
+                <a
+                  href={`/project/${project.project_id}/board/${t.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-center gap-3 px-3 py-2.5 bg-[rgba(255,255,255,0.025)] hover:bg-[rgba(255,255,255,0.045)] border border-[rgba(255,255,255,0.05)] hover:border-[rgba(224,185,84,0.25)] rounded-lg transition-colors"
+                  title="Open ticket in new tab"
+                >
+                  {/* Type icon tile */}
+                  <div
+                    className="w-7 h-7 rounded-md flex items-center justify-center shrink-0"
+                    style={{ backgroundColor: typeConfig.bg }}
+                    title={typeConfig.label}
+                  >
+                    <TypeIcon className="w-3.5 h-3.5" style={{ color: typeConfig.color }} />
+                  </div>
+                  {/* Key */}
+                  {t.key && (
+                    <span className="font-mono text-[11px] font-semibold text-[#E0B954] tabular-nums shrink-0">
+                      {t.key}
+                    </span>
+                  )}
+                  {/* Priority dot — small but legible (P at-a-glance) */}
+                  <span
+                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{ backgroundColor: priorityColor }}
+                    title={`${t.priority} priority`}
+                  />
+                  {/* Title */}
+                  <span className="text-sm text-white flex-1 min-w-0 truncate group-hover:text-[#fff8ec] transition-colors">
+                    {t.title}
                   </span>
-                )}
-                <span className="text-white flex-1 min-w-0 truncate">{t.title}</span>
-                {t.assignee_name && (
-                  <span className="text-[#a3a3a3] shrink-0 max-w-[140px] truncate">
-                    {t.assignee_name}
-                  </span>
-                )}
-                <span className="text-[#737373] tabular-nums shrink-0 w-20 text-right">
-                  {t.logged_hours ?? 0}h
-                  <span className="text-[#525252]">/{t.estimated_hours ?? 0}h</span>
-                </span>
-              </a>
-            </li>
-          ))}
+                  {/* Assignee — avatar + name to match the visual treatment
+                      used in MyCapacityCard / the kanban side panel */}
+                  {t.assignee_name && (
+                    <div
+                      className="flex items-center gap-1.5 shrink-0"
+                      title={`Assignee: ${t.assignee_name}`}
+                    >
+                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center shrink-0">
+                        <span className="text-[10px] font-semibold text-white">
+                          {t.assignee_name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <span className="text-xs text-[#a3a3a3] max-w-[110px] truncate">
+                        {t.assignee_name}
+                      </span>
+                    </div>
+                  )}
+                  {/* Hours + progress */}
+                  <div className="text-right shrink-0 tabular-nums">
+                    <div className="text-xs">
+                      <span className="text-white font-medium">{logged}h</span>
+                      <span className="text-[#525252]"> / {estimated}h</span>
+                    </div>
+                    {estimated > 0 && (
+                      <div className="h-0.5 w-16 mt-1 bg-[rgba(255,255,255,0.06)] rounded-full overflow-hidden ml-auto">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${progress}%`,
+                            backgroundColor: isComplete ? '#34D399' : '#E0B954',
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </a>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
