@@ -37,6 +37,7 @@ import { apiFetch } from '@/lib/api';
 import { invalidateProjectScope } from '@/lib/invalidations';
 import { parseLocalDate } from '@/lib/dateUtils';
 import { toastErrorHandler } from '@/lib/mutationToast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 
 interface PersonalTask {
   id: number;
@@ -69,6 +70,7 @@ const PersonalTasksPage = () => {
   const navigate = useNavigate();
   const { user, logout, can } = useAuth();
   const queryClient = useQueryClient();
+  const { confirm, confirmDialog } = useConfirm();
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -279,8 +281,16 @@ const PersonalTasksPage = () => {
     updateMutation.mutate(editingTask.id);
   };
 
-  const deleteTask = (taskId: number) => {
-    if (!confirm('Delete this task?')) return;
+  const deleteTask = async (taskId: number) => {
+    if (
+      !(await confirm({
+        title: 'Delete task?',
+        description: 'Delete this task?',
+        destructive: true,
+        confirmText: 'Delete',
+      }))
+    )
+      return;
     deleteMutation.mutate(taskId);
   };
 
@@ -370,6 +380,7 @@ const PersonalTasksPage = () => {
   return (
     <div className="min-h-screen bg-[#080808] text-[#F4F6FF]">
       <Toaster position="top-right" theme="dark" richColors />
+      {confirmDialog}
 
       {/* Header */}
       <header className="border-b border-[rgba(255,255,255,0.05)] bg-[#080808]/90 backdrop-blur-xl sticky top-0 z-50">

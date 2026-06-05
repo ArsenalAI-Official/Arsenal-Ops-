@@ -5,6 +5,7 @@ import { apiFetch, ApiError } from '@/lib/api';
 import { useAllDevelopers } from '@/hooks/useAllDevelopers';
 import { Spinner } from '@/components/ui/spinner';
 import { toastErrorHandler } from '@/lib/mutationToast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import {
   invalidateProjectScope,
   invalidateWorkItemScope,
@@ -258,6 +259,7 @@ const ProjectDetail = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, can } = useAuth();
   const queryClient = useQueryClient();
+  const { confirm, confirmDialog } = useConfirm();
 
   // Initial tab respects ?tab= URL param so external links (e.g. admin "Pulse Settings"
   // button) can deep-link to a specific tab on this project.
@@ -595,9 +597,17 @@ const ProjectDetail = () => {
   });
 
   // Remove developer from project
-  const handleRemoveDeveloper = (developerId: number) => {
+  const handleRemoveDeveloper = async (developerId: number) => {
     if (!project) return;
-    if (!confirm('Remove this developer from the project?')) return;
+    if (
+      !(await confirm({
+        title: 'Remove developer?',
+        description: 'Remove this developer from the project?',
+        destructive: true,
+        confirmText: 'Remove',
+      }))
+    )
+      return;
     removeDeveloperMutation.mutate(developerId);
   };
 
@@ -839,6 +849,7 @@ const ProjectDetail = () => {
   return (
     <div className="min-h-screen bg-[#080808] text-[#F4F6FF]">
       <Toaster position="top-right" theme="dark" richColors />
+      {confirmDialog}
 
       {/* Header */}
       <header className="border-b border-[rgba(224,185,84,0.15)] bg-[#080808]/95 backdrop-blur-xl sticky top-0 z-40 shadow-[0_1px_0_0_rgba(224,185,84,0.08)]">

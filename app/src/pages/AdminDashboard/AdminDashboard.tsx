@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, FolderKanban, X, ArrowLeft, BarChart3, Shield, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import {
   Empty,
   EmptyHeader,
@@ -118,6 +119,7 @@ const VALID_ADMIN_TABS: AdminTab[] = ['dashboard', 'employees', 'projects', 'use
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  const { confirm, confirmDialog } = useConfirm();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get('tab');
   const initialTab: AdminTab =
@@ -524,8 +526,16 @@ const AdminDashboard = () => {
     },
   });
 
-  const handleDeleteEmployee = (id: number) => {
-    if (!confirm('Are you sure you want to delete this employee?')) return;
+  const handleDeleteEmployee = async (id: number) => {
+    if (
+      !(await confirm({
+        title: 'Delete employee?',
+        description: 'Are you sure you want to delete this employee?',
+        destructive: true,
+        confirmText: 'Delete',
+      }))
+    )
+      return;
     deleteEmployeeMutation.mutate(id);
   };
 
@@ -666,10 +676,16 @@ const AdminDashboard = () => {
     },
   });
 
-  const handleRemoveProjectMember = (developerId: number) => {
+  const handleRemoveProjectMember = async (developerId: number) => {
     if (!selectedProjectForMembers) return;
     if (
-      !confirm('Remove this member from the project? Their assigned work items will be unassigned.')
+      !(await confirm({
+        title: 'Remove member?',
+        description:
+          'Remove this member from the project? Their assigned work items will be unassigned.',
+        destructive: true,
+        confirmText: 'Remove',
+      }))
     )
       return;
     removeMemberMutation.mutate({ projectId: selectedProjectForMembers.id, developerId });
@@ -736,11 +752,14 @@ const AdminDashboard = () => {
     },
   });
 
-  const handleDeleteUser = (user: User) => {
+  const handleDeleteUser = async (user: User) => {
     if (
-      !confirm(
-        `Delete user "${user.name}" (${user.email})? They'll lose access immediately. This cannot be undone.`,
-      )
+      !(await confirm({
+        title: 'Delete user?',
+        description: `Delete user "${user.name}" (${user.email})? They'll lose access immediately. This cannot be undone.`,
+        destructive: true,
+        confirmText: 'Delete',
+      }))
     )
       return;
     deleteUserMutation.mutate(user.id);
@@ -952,15 +971,18 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleDeleteRole = (role: Role) => {
+  const handleDeleteRole = async (role: Role) => {
     if (role.is_system) {
       toast.error('Cannot delete a system role');
       return;
     }
     if (
-      !confirm(
-        `Delete role "${role.name}"? Users assigned to this role will lose its capabilities.`,
-      )
+      !(await confirm({
+        title: 'Delete role?',
+        description: `Delete role "${role.name}"? Users assigned to this role will lose its capabilities.`,
+        destructive: true,
+        confirmText: 'Delete',
+      }))
     )
       return;
     deleteRoleMutation.mutate(role.id);
@@ -1195,6 +1217,7 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-[#080808] text-white">
+      {confirmDialog}
       <Toaster position="top-right" theme="dark" />
 
       {/* Header */}

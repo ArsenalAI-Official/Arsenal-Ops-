@@ -40,6 +40,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { Empty, EmptyTitle } from '@/components/ui/empty';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { toast, Toaster } from 'sonner';
 import StatusDotMenu from '@/components/ProjectsPage/StatusDotMenu';
 import { useAuth } from '@/contexts/AuthContext';
@@ -219,6 +220,7 @@ const ProjectBoard = () => {
   // PUT /api/workitems/{id} and DELETE /api/workitems/{id}.
   const canWriteTracker = can('project.tracker_write');
   const queryClient = useQueryClient();
+  const { confirm, confirmDialog } = useConfirm();
   const [showReviewer, setShowReviewer] = useState(false);
   // isEditing + editForm + drawer comment state moved into ItemDetailDrawer
   // (PR 9). The drawer keys on selectedItem.id so state resets cleanly when
@@ -1196,8 +1198,16 @@ const ProjectBoard = () => {
     },
   });
 
-  const handleDeleteItem = (itemId: string) => {
-    if (!confirm('Delete this work item?')) return;
+  const handleDeleteItem = async (itemId: string) => {
+    if (
+      !(await confirm({
+        title: 'Delete work item?',
+        description: 'Delete this work item?',
+        destructive: true,
+        confirmText: 'Delete',
+      }))
+    )
+      return;
     deleteItemMutation.mutate(itemId);
   };
 
@@ -1385,6 +1395,7 @@ const ProjectBoard = () => {
   return (
     <div className="min-h-screen bg-[#080808] text-[#F4F6FF] flex flex-col">
       <Toaster position="top-right" theme="dark" richColors />
+      {confirmDialog}
 
       {/* Top Header */}
       <header className="border-b border-[rgba(255,255,255,0.05)] bg-[#080808]/90 backdrop-blur-xl sticky top-0 z-40">
