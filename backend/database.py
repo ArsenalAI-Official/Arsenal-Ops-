@@ -720,21 +720,14 @@ SYSTEM_ROLES: list[tuple[str, str, list[str]]] = [
 
 def seed_rbac():
     """Idempotent seed of system roles and backfill of user_roles from legacy users.role."""
-    from sqlalchemy import text
+    from sqlalchemy import inspect, text
 
     with engine.connect() as conn:
-        # Skip silently if the RBAC tables aren't there yet (e.g. SQLite without create_all)
-        try:
-            probe = conn.execute(
-                text("""
-                SELECT table_name FROM information_schema.tables WHERE table_name = 'roles'
-            """)
-            )
-            if not probe.fetchone():
-                return
-        except Exception:
-            # information_schema isn't available (SQLite) — let create_all build the tables and
-            # come back next startup, or rely on a Postgres-only deployment.
+        # Skip silently if the RBAC tables aren't there yet. Use the dialect-agnostic
+        # inspector rather than information_schema so this also runs on SQLite (local
+        # dev + the Playwright E2E backend), not just Postgres — otherwise capability
+        # gates 403 everything because no roles/capabilities ever get seeded.
+        if not inspect(engine).has_table("roles"):
             return
 
         # Seed system roles
