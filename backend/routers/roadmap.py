@@ -79,11 +79,18 @@ def create_work_item(
     epic_id: int | None = None,
     acceptance_criteria: list[str] | None = None,
     reporter_id: int | None = None,
+    story_points: int = 0,
 ) -> WorkItem:
     """Helper to create a work item with auto-generated key.
 
     reporter_id stamps the creator so the side panel can show "Created By".
     Pass the uploader's developer_id for roadmap imports.
+
+    story_points defaults to 0 (matches the DB column default — appropriate
+    for epics, which aggregate from children). Callers creating tasks/stories
+    should pass an explicit value; the commit endpoint uses 3 as a placeholder
+    until the team estimates during refinement (interim — will move to a
+    Fibonacci/T-shirt picker once that work lands).
     """
 
     # Generate key
@@ -107,6 +114,7 @@ def create_work_item(
         epic_id=epic_id,
         reporter_id=reporter_id,
         acceptance_criteria=acceptance_criteria or [],
+        story_points=story_points,
     )
 
     db.add(work_item)
@@ -342,7 +350,10 @@ def commit_roadmap_tickets(
             if epic_name and epic_name in epic_map:
                 epic_id = epic_map[epic_name].id
 
-            # Create task
+            # Create task. story_points=3 is a placeholder; teams refine the
+            # value in-app post-import. Once the Fibonacci / T-shirt picker
+            # ships, this default will go away and the spreadsheet will
+            # control story-point values directly (or leave them null).
             task = create_work_item(
                 db=db,
                 project=project,
@@ -355,6 +366,7 @@ def commit_roadmap_tickets(
                 epic_id=epic_id,
                 acceptance_criteria=[],
                 reporter_id=current_dev.id,
+                story_points=3,
             )
 
             created_tasks += 1

@@ -89,6 +89,38 @@ const PRIORITY_COLORS = {
   low: { hex: '#737373' },
 };
 
+/**
+ * Format two ISO date strings (sprint start Monday → sprint end Friday) into
+ * a compact readable range, e.g.
+ *   "Jan 5 – 16, 2026"             (same month)
+ *   "Jan 26 – Feb 6, 2026"          (cross month, same year)
+ *   "Dec 28, 2025 – Jan 9, 2026"    (cross year)
+ *
+ * Uses UTC methods because backend emits dates as midnight UTC and we want the
+ * calendar dates the user sees in the spreadsheet — same pattern as
+ * `formatWeekRange` in AdminDashboard/tabs/ProjectsTab.
+ */
+function formatSprintRange(startISO: string, endISO: string): string {
+  const start = new Date(startISO);
+  const end = new Date(endISO);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return `${startISO} → ${endISO}`;
+  }
+  const monthOpts: Intl.DateTimeFormatOptions = { month: 'short', timeZone: 'UTC' };
+  const sameMonth =
+    start.getUTCFullYear() === end.getUTCFullYear() && start.getUTCMonth() === end.getUTCMonth();
+  const sameYear = start.getUTCFullYear() === end.getUTCFullYear();
+  const startMonth = start.toLocaleDateString('en-US', monthOpts);
+  const endMonth = end.toLocaleDateString('en-US', monthOpts);
+  if (sameMonth) {
+    return `${startMonth} ${start.getUTCDate()} – ${end.getUTCDate()}, ${end.getUTCFullYear()}`;
+  }
+  if (sameYear) {
+    return `${startMonth} ${start.getUTCDate()} – ${endMonth} ${end.getUTCDate()}, ${end.getUTCFullYear()}`;
+  }
+  return `${startMonth} ${start.getUTCDate()}, ${start.getUTCFullYear()} – ${endMonth} ${end.getUTCDate()}, ${end.getUTCFullYear()}`;
+}
+
 export interface AIPlanningModalProps {
   project: Project | null;
   architectures: Architecture[];
@@ -809,6 +841,68 @@ const AIPlanningModal = ({
                       {roadmapSummary.timeline.start} → {roadmapSummary.timeline.end}
                     </p>
                   </div>
+
+                  {/* Sprints — per-sprint date list that will be committed.
+                      Reads from `roadmapParsedData.sprints` (passed verbatim
+                      from the parser; no extra API surface). When milestone
+                      date ranges have calendar gaps, the parser splits sprints
+                      at the gap so each sprint stays calendar-continuous —
+                      the gap weeks surface as a callout below the list. */}
+                  {roadmapParsedData?.sprints && roadmapParsedData.sprints.length > 0 && (
+                    <div className="mb-4 pb-4 border-b border-[rgba(255,255,255,0.07)]">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-medium text-[#737373]">
+                          Sprints ({roadmapParsedData.sprints.length})
+                        </p>
+                        <span className="text-[10px] text-[#525252]">Created on confirm</span>
+                      </div>
+                      <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
+                        {roadmapParsedData.sprints.map((sprint: any) => (
+                          <div
+                            key={sprint.number}
+                            className="flex items-center justify-between gap-3 text-xs bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] rounded-lg px-3 py-2"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <span className="font-semibold text-[#E0B954] tabular-nums shrink-0">
+                                Sprint {sprint.number}
+                              </span>
+                              <span className="text-[#a3a3a3] truncate">
+                                {formatSprintRange(sprint.start_week, sprint.end_week)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-[10px] text-[#737373] shrink-0 tabular-nums">
+                              <span>{sprint.duration_weeks}w</span>
+                              <span>
+                                {sprint.task_count ?? sprint.tasks?.length ?? 0} task
+                                {(sprint.task_count ?? sprint.tasks?.length ?? 0) === 1 ? '' : 's'}
+                              </span>
+                              {typeof sprint.total_hours === 'number' && sprint.total_hours > 0 && (
+                                <span>{Math.round(sprint.total_hours)}h</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Calendar-gap callout — sprints intentionally don't bridge
+                          uncovered weeks (would produce calendar-discontinuous
+                          ranges in burndowns). The detailed `uncovered_week`
+                          entries are also surfaced in the Warnings list below;
+                          this is a one-liner pointer up here so the user spots
+                          gaps without scrolling. */}
+                      {roadmapParsedData?.meta?.missing_weeks &&
+                        roadmapParsedData.meta.missing_weeks.length > 0 && (
+                          <p className="mt-2 text-[10px] text-[#f59e0b]">
+                            {roadmapParsedData.meta.missing_weeks.length} calendar week
+                            {roadmapParsedData.meta.missing_weeks.length === 1 ? '' : 's'} not
+                            covered by any milestone — no sprint for{' '}
+                            {roadmapParsedData.meta.missing_weeks.length === 1
+                              ? 'that week'
+                              : 'those weeks'}
+                            . See warnings below.
+                          </p>
+                        )}
+                    </div>
+                  )}
 
                   {/* Team Members */}
                   {roadmapSummary.assignees && roadmapSummary.assignees.length > 0 && (

@@ -55,49 +55,107 @@ def date_key(dt):
     return str(dt)
 
 
+def _compute_missing_weeks(union_weeks: list) -> list:
+    """Return Mondays inside `[min, max]` of `union_weeks` that aren't covered.
+
+    A "covered" week is one that appears in some milestone's date columns;
+    a "missing" week is a calendar Monday that falls between covered weeks
+    but isn't covered by any milestone. The parser uses this to:
+        1. Surface "no sprint will be created for week X" warnings.
+        2. Keep sprints calendar-continuous — `calculate_sprints` splits the
+           union at every gap so a sprint never spans an uncovered week.
+
+    Returns [] when `union_weeks` has fewer than 2 entries (a single-week
+    project cannot have a gap).
+    """
+    if len(union_weeks) < 2:
+        return []
+    start = datetime.date.fromisoformat(union_weeks[0])
+    end = datetime.date.fromisoformat(union_weeks[-1])
+    covered = set(union_weeks)
+    missing = []
+    cur = start
+    while cur <= end:
+        iso = cur.isoformat()
+        if iso not in covered:
+            missing.append(iso)
+        cur += datetime.timedelta(days=7)
+    return missing
+
+
 def calculate_sprints(week_dates: list, sprint_weeks: int, tickets: list) -> dict:
     """
     Calculate sprint boundaries and assign tasks to sprints.
 
+    `week_dates` is the sorted UNION of every milestone's week dates
+    (built by ``parse()`` as ``sorted({wk for ws in milestone_weeks.values()
+    for wk in ws})``). To keep sprints calendar-continuous when milestones
+    cover disjoint ranges, the function splits the union into contiguous
+    runs at every gap larger than 7 days, chunks each run independently
+    by ``sprint_weeks``, and numbers sprints globally (Sprint 1, 2, 3 …
+    across runs). Sprints never bridge an uncovered week — use
+    ``_compute_missing_weeks`` upstream to warn the user about gaps.
+
     Args:
-        week_dates: list of 'YYYY-MM-DD' strings (all weeks)
-        sprint_weeks: number of weeks per sprint (e.g., 2, 3, 4)
-        tickets: list of task dicts with 'active_weeks' field
+        week_dates: list of 'YYYY-MM-DD' Monday strings, pre-sorted; may
+            contain calendar gaps (detected internally).
+        sprint_weeks: number of weeks per sprint (e.g., 2, 3, 4).
+        tickets: list of task dicts with 'active_weeks' field.
 
     Returns:
         {
-            'sprints': [{sprint_num, start_week, end_week, duration_weeks, task_count, total_hours}, ...],
+            'sprints': [{number, start_week, end_week, duration_weeks,
+                         week_dates, tasks, total_hours, task_count}, ...],
             'unscheduled_tasks': [{name, reason}, ...],
-            'total_sprints': int
+            'total_sprints': int,
         }
     """
     if not week_dates or sprint_weeks < 1:
         return {"sprints": [], "unscheduled_tasks": [], "total_sprints": 0}
 
-    # Build sprints based on week boundaries
+    # Split the union into contiguous runs. Each run is a maximal sublist
+    # whose consecutive Mondays differ by exactly 7 days. Anything else is
+    # a calendar gap — a run boundary — and produces a fresh starting
+    # sprint instead of letting a chunk span the gap.
+    runs: list = []
+    current_run: list = [week_dates[0]]
+    for prev, nxt in zip(week_dates, week_dates[1:], strict=False):
+        prev_date = datetime.date.fromisoformat(prev)
+        next_date = datetime.date.fromisoformat(nxt)
+        if (next_date - prev_date).days == 7:
+            current_run.append(nxt)
+        else:
+            runs.append(current_run)
+            current_run = [nxt]
+    runs.append(current_run)
+
+    # Chunk each run independently; number sprints globally across runs so
+    # the user sees "Sprint 1, 2, 3" rather than per-run resets.
     sprints = []
-    for sprint_idx in range(0, len(week_dates), sprint_weeks):
-        sprint_week_range = week_dates[sprint_idx : sprint_idx + sprint_weeks]
-        sprint_num = (sprint_idx // sprint_weeks) + 1
+    sprint_num = 1
+    for run in runs:
+        for sprint_idx in range(0, len(run), sprint_weeks):
+            sprint_week_range = run[sprint_idx : sprint_idx + sprint_weeks]
 
-        # Convert Monday (start_week) to Friday (end_week: Monday + 4 days)
-        # Since week_dates contains Mondays, the last Monday needs to be converted to Friday
-        last_monday = sprint_week_range[-1]
-        last_friday = (
-            datetime.date.fromisoformat(last_monday) + datetime.timedelta(days=4)
-        ).isoformat()
+            # week_dates entries are Mondays; the sprint ends on the Friday
+            # of the last covered week (Monday + 4 days).
+            last_monday = sprint_week_range[-1]
+            last_friday = (
+                datetime.date.fromisoformat(last_monday) + datetime.timedelta(days=4)
+            ).isoformat()
 
-        sprints.append(
-            {
-                "number": sprint_num,
-                "start_week": sprint_week_range[0],
-                "end_week": last_friday,
-                "duration_weeks": len(sprint_week_range),
-                "week_dates": sprint_week_range,
-                "tasks": [],
-                "total_hours": 0.0,
-            }
-        )
+            sprints.append(
+                {
+                    "number": sprint_num,
+                    "start_week": sprint_week_range[0],
+                    "end_week": last_friday,
+                    "duration_weeks": len(sprint_week_range),
+                    "week_dates": sprint_week_range,
+                    "tasks": [],
+                    "total_hours": 0.0,
+                }
+            )
+            sprint_num += 1
 
     # Assign tasks to sprints
     unscheduled = []
@@ -302,9 +360,38 @@ def parse(filepath: str, sprint_weeks: int = 2) -> dict:
             f"Check that columns starting from column {col_index_to_letter(week_col_start + 1)} contain dates."
         )
 
+    # ── Step 1b: union of all milestone weeks ─────────────────────────────────
+    # The project's sprint generation and `week_range` derive from this
+    # union, not from any single milestone's date sequence. When milestones
+    # cover disjoint date ranges, the union exposes the full timeline and
+    # `missing_weeks` catches calendar gaps in the middle so we can:
+    #   - warn the user (sprints won't be created for uncovered weeks), and
+    #   - keep sprints calendar-continuous (calculate_sprints splits the
+    #     union into contiguous runs at each gap).
+    # When every milestone shares the same date sequence (the common case),
+    # the union equals that sequence and there are no missing weeks — so
+    # behaviour matches the single-milestone era exactly.
+    union_weeks = sorted({wk for weeks in milestone_weeks.values() for wk in weeks})
+    missing_weeks = _compute_missing_weeks(union_weeks)
+
+    # Hoisted up so the gap warnings appear before the row-level warnings
+    # emitted in step 2 — structural concerns first, per-row second.
+    warnings = []
+    for wk in missing_weeks:
+        warnings.append(
+            {
+                "row": None,
+                "task": None,
+                "issue": "uncovered_week",
+                "detail": (
+                    f"Week of {wk} is not covered by any milestone. "
+                    "No sprint will be created for that week."
+                ),
+            }
+        )
+
     # ── Step 2: walk every row ────────────────────────────────────────────────
     tickets = []
-    warnings = []
     epics = {}  # name → milestone
     milestones = []
     current_milestone_weeks = []  # week dates of the milestone currently in scope
@@ -350,11 +437,11 @@ def parse(filepath: str, sprint_weeks: int = 2) -> dict:
         effort_hrs = parse_effort(effort_raw)
         assignee = assignee.strip() if assignee else None
 
-        # Use the week dates belonging to this task's milestone.
-        # current_milestone_weeks is already set to the right milestone
-        # because we process rows top-to-bottom and update on every MILESTONE row.
-        week_dates = current_milestone_weeks
-        week_col_count = len(week_dates)
+        # `current_milestone_weeks` is the week sequence of the milestone
+        # this task lives under (updated on every MILESTONE row above).
+        # Used here to limit how many columns of hours we read and to map
+        # each column index back to its calendar date.
+        week_col_count = len(current_milestone_weeks)
 
         # ── Extract week hours (cols from week_col_start onward) ────────────────
         week_hours = {}  # { 'YYYY-MM-DD': hours_float }
@@ -366,7 +453,7 @@ def parse(filepath: str, sprint_weeks: int = 2) -> dict:
                 try:
                     hrs = float(val)
                     if hrs > 0:
-                        week_hours[week_dates[i]] = hrs
+                        week_hours[current_milestone_weeks[i]] = hrs
                         planned_total += hrs
                 except (ValueError, TypeError):
                     pass
@@ -530,15 +617,25 @@ def parse(filepath: str, sprint_weeks: int = 2) -> dict:
         }
 
     # ── Step 7: calculate sprints ────────────────────────────────────────────
-    sprint_data = calculate_sprints(week_dates, sprint_weeks, tickets)
+    # Pass the union of every milestone's weeks (not the leaked per-task
+    # `week_dates` variable that used to bleed out of the loop). When
+    # milestones share dates the union equals their shared sequence; when
+    # they diverge, calculate_sprints handles the runs internally.
+    sprint_data = calculate_sprints(union_weeks, sprint_weeks, tickets)
 
     # ── Step 8: assemble output ───────────────────────────────────────────────
+    # `week_range` and `total_weeks` derive from the union, so they reflect
+    # the full project timeline across all milestones — not just the last
+    # milestone seen during row iteration (which was the pre-union bug).
     return {
         "meta": {
             "file": filepath,
             "parsed_at": datetime.datetime.now().isoformat(),
-            "week_range": {"start": week_dates[0], "end": week_dates[-1]},
-            "total_weeks": len(week_dates),
+            "week_range": (
+                {"start": union_weeks[0], "end": union_weeks[-1]} if union_weeks else None
+            ),
+            "total_weeks": len(union_weeks),
+            "missing_weeks": missing_weeks,
             "total_tasks": len(tickets),
             "total_assignees": len(schedule),
             "sprint_weeks": sprint_weeks,

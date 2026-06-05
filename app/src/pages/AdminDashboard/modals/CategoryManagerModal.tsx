@@ -4,7 +4,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -231,7 +230,7 @@ const CategoryManagerModal = ({
                               size="sm"
                               onClick={cancelEdit}
                               disabled={isMutating}
-                              className="bg-transparent border-[rgba(255,255,255,0.08)] text-white hover:bg-[rgba(255,255,255,0.04)]"
+                              className="bg-transparent border-[rgba(255,255,255,0.08)] text-white hover:bg-[#E0B954] hover:border-[#E0B954] hover:text-black"
                             >
                               <X className="w-3.5 h-3.5 mr-1" />
                               Cancel
@@ -288,16 +287,6 @@ const CategoryManagerModal = ({
               </ul>
             )}
           </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              className="bg-transparent border-[rgba(255,255,255,0.08)] text-white hover:bg-[rgba(255,255,255,0.04)]"
-            >
-              Done
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -332,7 +321,7 @@ const CategoryManagerModal = ({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-transparent border-[rgba(255,255,255,0.08)] text-white hover:bg-[rgba(255,255,255,0.04)]">
+            <AlertDialogCancel className="bg-transparent border-[rgba(255,255,255,0.08)] text-white hover:bg-[#E0B954] hover:border-[#E0B954] hover:text-black">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction

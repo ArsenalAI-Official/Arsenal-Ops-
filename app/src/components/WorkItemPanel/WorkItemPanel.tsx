@@ -415,6 +415,31 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
     }
   };
 
+  // "Assign to me" quick-action — visible in view mode when the ticket has
+  // no assignee, is not an epic (epics aggregate; never directly assigned),
+  // and the current user is mapped to a Developer row on this project
+  // (`currentUserId` is the resolved Developer.id — the prop is misnamed but
+  // semantically that's what it carries). Routes through the same save path
+  // as the inline Edit form so cache, toast, and invalidation are consistent.
+  //
+  // The "unassigned" predicate matches the display logic right below: we
+  // base it on `item.assignee` (the name string) — the same field the avatar
+  // + label fall back on — because `assignee_id` and `assignee` can diverge
+  // in optimistic cache patches (e.g. status drag-and-drop) where only the
+  // name string is updated.
+  const isUnassigned = !item.assignee || item.assignee === 'Unassigned';
+  const canAssignToMe =
+    isUnassigned && item.type !== 'epic' && currentUserId != null && !isSavingEdit;
+  const handleAssignToMe = () => {
+    if (!canAssignToMe || currentUserId == null) return;
+    const edits = { assignee_id: currentUserId } as Partial<WorkItem>;
+    if (props.variant === 'full') {
+      props.onSaveEdit(edits);
+    } else {
+      saveEditCompact.mutate(edits);
+    }
+  };
+
   // ─── Edit form start ───────────────────────────────────────────────────────
   const startEditing = async () => {
     if (props.variant === 'compact') {
@@ -920,6 +945,20 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
             {item.assignee ? item.assignee.charAt(0).toUpperCase() : '—'}
           </div>
           <span className="text-sm text-[#a3a3a3]">{item.assignee || 'Unassigned'}</span>
+          {/* Assign-to-me quick action — surfaces only when the ticket has
+              no assignee (and isn't an epic, and the viewer has a Developer
+              row). Routes through the same save path as the inline Edit
+              form, so cache / toast / invalidation behave identically. */}
+          {canAssignToMe && (
+            <button
+              type="button"
+              onClick={handleAssignToMe}
+              disabled={isSavingEdit}
+              className="text-xs font-medium px-2.5 py-1 rounded-md bg-[rgba(224,185,84,0.12)] text-[#E0B954] hover:bg-[rgba(224,185,84,0.2)] disabled:opacity-50 transition-colors"
+            >
+              Assign to me
+            </button>
+          )}
         </div>
         <p className="text-sm leading-relaxed whitespace-pre-wrap">
           {itemDetail.description ? (
@@ -1339,10 +1378,38 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
     const hasAnyAction = item.sprint_id || !item.sprint_id;
     if (!hasAnyAction) return null;
 
+    // Resolve the current sprint name for display. Falls back to a numeric
+    // placeholder if the ticket's sprint isn't in the local sprints array
+    // (rare — could happen if the sprint list is stale relative to the item).
+    const currentSprint = item.sprint_id
+      ? (sprints.find((s) => s.id === item.sprint_id) ?? null)
+      : null;
+    const currentSprintLabel = currentSprint
+      ? currentSprint.name
+      : item.sprint_id
+        ? `Sprint #${item.sprint_id}`
+        : 'Backlog';
+
     return (
       <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
         <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">
           Sprint
+        </div>
+        {/* "Currently in" indicator — shows the sprint the ticket belongs to
+            (or "Backlog" when unassigned to a sprint). Gold-tinted when in a
+            sprint so it visually anchors the action buttons below; muted gray
+            for backlog. */}
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs text-[#737373]">Currently in</span>
+          {item.sprint_id ? (
+            <span className="text-xs font-medium px-2 py-0.5 rounded bg-[rgba(224,185,84,0.1)] border border-[rgba(224,185,84,0.2)] text-[#E0B954]">
+              {currentSprintLabel}
+            </span>
+          ) : (
+            <span className="text-xs font-medium px-2 py-0.5 rounded bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[#a3a3a3]">
+              Backlog
+            </span>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           {item.sprint_id && nextSprintId && item.status !== 'done' && (
