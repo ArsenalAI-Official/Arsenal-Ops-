@@ -13,8 +13,6 @@ import {
   Calendar,
   BarChart3,
   ClipboardList,
-  BookOpen,
-  Bug,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +25,9 @@ import { apiFetch } from '@/lib/api';
 import { invalidateProjectScope } from '@/lib/invalidations';
 import GenerateRoadmapModal from '@/pages/ProjectDetail/modals/GenerateRoadmapModal';
 import { Download } from 'lucide-react';
+import { TYPE_CONFIG, PRIORITY_COLOR } from '@/lib/workItemConfig';
+import { Spinner } from '@/components/ui/spinner';
+import { Empty, EmptyDescription } from '@/components/ui/empty';
 
 interface Architecture {
   id: number;
@@ -74,20 +75,6 @@ interface Project {
 }
 
 type AIStep = 'upload' | 'analyzing' | 'architectures' | 'preview' | 'committing' | 'done';
-
-const TYPE_CONFIG = {
-  user_story: { icon: BookOpen, color: '#E0B954', label: 'Story', bg: 'rgba(224,185,84,0.15)' },
-  task: { icon: ClipboardList, color: '#F59E0B', label: 'Task', bg: 'rgba(245,158,11,0.15)' },
-  bug: { icon: Bug, color: '#EF4444', label: 'Bug', bg: 'rgba(239,68,68,0.15)' },
-  epic: { icon: Target, color: '#A78BFA', label: 'Epic', bg: 'rgba(167,139,250,0.15)' },
-};
-
-const PRIORITY_COLORS = {
-  critical: { hex: '#EF4444' },
-  high: { hex: '#F97316' },
-  medium: { hex: '#F59E0B' },
-  low: { hex: '#737373' },
-};
 
 /**
  * Format two ISO date strings (sprint start Monday → sprint end Friday) into
@@ -740,7 +727,7 @@ const AIPlanningModal = ({
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center mb-6 animate-pulse">
                 <Sparkles className="w-8 h-8 text-white" />
               </div>
-              <div className="w-12 h-12 border-3 border-[#E0B954]/30 border-t-[#E0B954] rounded-full animate-spin mb-6" />
+              <Spinner size="xl" className="mb-6" />
               <h3 className="text-xl font-semibold text-white mb-2">
                 AI is analyzing your project
               </h3>
@@ -1086,9 +1073,11 @@ const AIPlanningModal = ({
                   </h3>
                   <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
                     {generatedTickets.length === 0 ? (
-                      <div className="text-center py-8 text-[#737373]">
-                        <p>No tickets generated. Please try again.</p>
-                      </div>
+                      <Empty className="py-8">
+                        <EmptyDescription className="text-[#737373]">
+                          No tickets generated. Please try again.
+                        </EmptyDescription>
+                      </Empty>
                     ) : (
                       generatedTickets.map((ticket, index) => {
                         const typeInfo =
@@ -1116,16 +1105,9 @@ const AIPlanningModal = ({
                                     className="text-[10px] px-1.5 py-0.5 rounded font-medium"
                                     style={{
                                       backgroundColor:
-                                        (
-                                          PRIORITY_COLORS[
-                                            ticket.priority as keyof typeof PRIORITY_COLORS
-                                          ] || PRIORITY_COLORS.low
-                                        ).hex + '33',
-                                      color: (
-                                        PRIORITY_COLORS[
-                                          ticket.priority as keyof typeof PRIORITY_COLORS
-                                        ] || PRIORITY_COLORS.low
-                                      ).hex,
+                                        (PRIORITY_COLOR[ticket.priority] ?? PRIORITY_COLOR.low) +
+                                        '33',
+                                      color: PRIORITY_COLOR[ticket.priority] ?? PRIORITY_COLOR.low,
                                     }}
                                   >
                                     {ticket.priority.charAt(0).toUpperCase() +
@@ -1192,9 +1174,11 @@ const AIPlanningModal = ({
                   </h3>
                   <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
                     {!roadmapParsedData.tickets || roadmapParsedData.tickets.length === 0 ? (
-                      <div className="text-center py-8 text-[#737373]">
-                        <p>No tickets found in roadmap.</p>
-                      </div>
+                      <Empty className="py-8">
+                        <EmptyDescription className="text-[#737373]">
+                          No tickets found in roadmap.
+                        </EmptyDescription>
+                      </Empty>
                     ) : (
                       roadmapParsedData.tickets.map((ticket: any, index: number) => (
                         <div
@@ -1248,7 +1232,7 @@ const AIPlanningModal = ({
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center mb-6">
                 <GitCommit className="w-8 h-8 text-white" />
               </div>
-              <div className="w-12 h-12 border-3 border-[#E0B954]/30 border-t-[#E0B954] rounded-full animate-spin mb-6" />
+              <Spinner size="xl" className="mb-6" />
               <h3 className="text-xl font-semibold text-white mb-2">Creating Tickets</h3>
               <p className="text-[#737373] text-center max-w-md">
                 Adding tickets to your board and assigning to team members...

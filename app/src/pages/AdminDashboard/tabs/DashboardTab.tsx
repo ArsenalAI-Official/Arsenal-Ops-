@@ -10,6 +10,7 @@ import {
   Pie,
 } from 'recharts';
 import { Users, FolderKanban, Ticket, Calendar, ChevronRight } from 'lucide-react';
+import { Empty, EmptyDescription } from '@/components/ui/empty';
 
 interface DashboardStats {
   total_employees: number;
@@ -150,7 +151,9 @@ const DashboardTab = ({ stats, setActiveTab }: DashboardTabProps) => {
         <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.05)] rounded-xl p-5">
           <h3 className="text-lg font-semibold text-white mb-4">Tickets by Status</h3>
           {statusData.length === 0 || stats.total_tickets === 0 ? (
-            <div className="text-sm text-[#737373] py-10 text-center">No ticket data yet.</div>
+            <Empty>
+              <EmptyDescription>No ticket data yet.</EmptyDescription>
+            </Empty>
           ) : (
             <div className="flex items-center gap-5">
               <div className="relative flex-shrink-0" style={{ width: 180, height: 180 }}>
@@ -217,7 +220,9 @@ const DashboardTab = ({ stats, setActiveTab }: DashboardTabProps) => {
         <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.05)] rounded-xl p-5">
           <h3 className="text-lg font-semibold text-white mb-4">Tickets by Priority</h3>
           {priorityData.length === 0 || stats.total_tickets === 0 ? (
-            <div className="text-sm text-[#737373] py-10 text-center">No ticket data yet.</div>
+            <Empty>
+              <EmptyDescription>No ticket data yet.</EmptyDescription>
+            </Empty>
           ) : (
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={priorityData} margin={{ top: 8, right: 8, bottom: 0, left: -8 }}>

@@ -34,6 +34,8 @@ import {
   fieldSupportsType,
 } from '@/lib/hierarchy/validateReparent';
 import { apiFetch } from '@/lib/api';
+import { useAllDevelopers } from '@/hooks/useAllDevelopers';
+import { toastErrorHandler } from '@/lib/mutationToast';
 import { parseLocalDate, formatLocalDate } from '@/components/ProjectsPage/utils';
 import { TYPE_CONFIG, STATUS_CONFIG, PRIORITY_COLOR, CALENDAR_CLASS_NAMES } from './constants';
 import type {
@@ -192,10 +194,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
   });
   const comments = useMemo(() => commentsQuery.data ?? [], [commentsQuery.data]);
 
-  const developersQuery = useQuery<AllDeveloper[]>({
-    queryKey: ['developers'],
-    queryFn: () => apiFetch('/api/developers/'),
-  });
+  const developersQuery = useAllDevelopers<AllDeveloper>();
   const allDevelopers = useMemo(() => developersQuery.data ?? [], [developersQuery.data]);
   const devMap = useMemo(() => new Map(allDevelopers.map((d) => [d.id, d.name])), [allDevelopers]);
 
@@ -287,7 +286,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       setEditForm({});
       toast.success('Task updated');
     },
-    onError: () => toast.error('Failed to update task'),
+    onError: toastErrorHandler('update task'),
   });
 
   const statusChangeCompact = useMutation({
@@ -302,7 +301,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       queryClient.invalidateQueries({ queryKey: ['workItem', item.id, 'detail'] });
       queryClient.invalidateQueries({ queryKey: ['workItem', item.id, 'comments'] });
     },
-    onError: () => toast.error('Failed to update status'),
+    onError: toastErrorHandler('update status'),
   });
 
   const logHoursCompact = useMutation({
@@ -322,7 +321,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       toast.success(`Logged hours!`);
       if (logHoursRef.current) logHoursRef.current.value = '';
     },
-    onError: () => toast.error('Failed to log hours'),
+    onError: toastErrorHandler('log hours'),
   });
 
   // ─── Full-variant subtask mutation ─────────────────────────────────────────
@@ -356,9 +355,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       queryClient.invalidateQueries({ queryKey: ['workItems'] });
       queryClient.invalidateQueries({ queryKey: ['workItem', item.id, 'detail'] });
     },
-    onError: (err: unknown) => {
-      toast.error(err instanceof Error ? err.message : 'Failed to create subtask');
-    },
+    onError: toastErrorHandler('create subtask'),
   });
 
   // ─── Comment mutation (both variants) ─────────────────────────────────────
@@ -377,7 +374,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       queryClient.invalidateQueries({ queryKey: ['workItem', item.id, 'comments'] });
       setNewComment('');
     },
-    onError: () => toast.error('Failed to add comment'),
+    onError: toastErrorHandler('add comment'),
   });
 
   // ─── Action wrappers (route to full callbacks or compact mutations) ─────────

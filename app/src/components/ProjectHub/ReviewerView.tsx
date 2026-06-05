@@ -17,6 +17,15 @@ import {
 import { toast } from 'sonner';
 import { API_BASE_URL } from '@/config/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { PRIORITY_COLOR } from '@/lib/workItemConfig';
+import { Spinner } from '@/components/ui/spinner';
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+} from '@/components/ui/empty';
 
 interface WorkItem {
   id: string;
@@ -45,15 +54,6 @@ interface ReviewerViewProps {
   token: string;
   onTaskUpdate?: (itemId: string, updates: any) => void;
 }
-
-// STATUS_COLOR available for future use if needed
-
-const PRIORITY_COLOR: Record<string, string> = {
-  high: '#EF4444',
-  medium: '#F59E0B',
-  low: '#E0B954',
-  critical: '#DC2626',
-};
 
 const ReviewerView: React.FC<ReviewerViewProps> = ({
   workItems,
@@ -212,9 +212,16 @@ const ReviewerView: React.FC<ReviewerViewProps> = ({
             Review Queue
           </CardTitle>
         </CardHeader>
-        <CardContent className="text-center py-12">
-          <p className="text-[#737373]">No items in review</p>
-          <p className="text-[#737373] text-sm mt-2">Items marked "In Review" will appear here</p>
+        <CardContent>
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Eye className="text-[#737373]" />
+              </EmptyMedia>
+              <EmptyTitle className="text-[#737373]">No items in review</EmptyTitle>
+              <EmptyDescription>Items marked "In Review" will appear here</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         </CardContent>
       </Card>
     );
@@ -276,7 +283,7 @@ const ReviewerView: React.FC<ReviewerViewProps> = ({
                   className="bg-[#E0B954] hover:bg-[#C79E3B] text-white"
                 >
                   {loading[`done-${item.id}`] ? (
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <Spinner size="xs" tone="white" className="w-4 h-4" />
                   ) : (
                     <CheckCircle2 className="w-4 h-4 mr-1" />
                   )}
@@ -322,7 +329,7 @@ const ReviewerView: React.FC<ReviewerViewProps> = ({
                   className="bg-[#F59E0B] hover:bg-[#D97706] text-white"
                 >
                   {loading[`log-${item.id}`] ? (
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <Spinner size="xs" tone="white" className="w-4 h-4" />
                   ) : (
                     'Log'
                   )}
@@ -380,7 +387,7 @@ const ReviewerView: React.FC<ReviewerViewProps> = ({
                   className="bg-[#E0B954] hover:bg-[#B8872A] text-white h-[60px]"
                 >
                   {loading[`comment-${item.id}`] ? (
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <Spinner size="xs" tone="white" className="w-4 h-4" />
                   ) : (
                     <Send className="w-4 h-4" />
                   )}

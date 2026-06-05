@@ -2,6 +2,9 @@ import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@/lib/api';
+import { useAllDevelopers } from '@/hooks/useAllDevelopers';
+import { Spinner } from '@/components/ui/spinner';
+import { toastErrorHandler } from '@/lib/mutationToast';
 import {
   invalidateProjectScope,
   invalidateWorkItemScope,
@@ -340,10 +343,7 @@ const ProjectDetail = () => {
   }, [accessDenied]);
 
   // ── react-query: developers ─────────────────────────────────────────────
-  const developersQuery = useQuery<Developer[]>({
-    queryKey: ['developers'],
-    queryFn: () => apiFetch<Developer[]>('/api/developers/'),
-  });
+  const developersQuery = useAllDevelopers<Developer>();
   const allDevelopers = developersQuery.data ?? [];
 
   // ── react-query: sprints ────────────────────────────────────────────────
@@ -456,7 +456,7 @@ const ProjectDetail = () => {
     onSettled: () => {
       invalidateProjectScope(queryClient, id);
     },
-    onError: () => toast.error('Failed to add link'),
+    onError: toastErrorHandler('add link'),
   });
 
   const deleteLinkMutation = useMutation({
@@ -487,7 +487,7 @@ const ProjectDetail = () => {
         method: 'PUT',
         body: JSON.stringify(updates),
       }),
-    onError: () => toast.error('Failed to update task'),
+    onError: toastErrorHandler('update task'),
     onSettled: () => {
       invalidateWorkItemScope(queryClient, id);
       invalidateProjectScope(queryClient, id);
@@ -557,7 +557,7 @@ const ProjectDetail = () => {
     onSuccess: () => {
       toast.success('Developer added!');
     },
-    onError: () => toast.error('Failed to add developer'),
+    onError: toastErrorHandler('add developer'),
     onSettled: () => {
       invalidateProjectScope(queryClient, id);
       // Cascade-affects work-item assignments on the backend — capacity needs invalidation.
@@ -586,7 +586,7 @@ const ProjectDetail = () => {
     onSuccess: () => {
       toast.success('Developer removed!');
     },
-    onError: () => toast.error('Failed to remove developer'),
+    onError: toastErrorHandler('remove developer'),
     onSettled: () => {
       invalidateProjectScope(queryClient, id);
       // Cascade-affects work-item assignments on the backend — capacity needs invalidation.
@@ -612,7 +612,7 @@ const ProjectDetail = () => {
     onSuccess: () => {
       toast.success('Developer promoted to project admin!');
     },
-    onError: (err: any) => toast.error(err?.message || 'Failed to promote developer'),
+    onError: toastErrorHandler('promote developer'),
     onSettled: () => {
       invalidateProjectScope(queryClient, id);
     },
@@ -628,7 +628,7 @@ const ProjectDetail = () => {
     onSuccess: () => {
       toast.success('Developer demoted from project admin!');
     },
-    onError: (err: any) => toast.error(err?.message || 'Failed to demote developer'),
+    onError: toastErrorHandler('demote developer'),
     onSettled: () => {
       invalidateProjectScope(queryClient, id);
     },
@@ -679,7 +679,7 @@ const ProjectDetail = () => {
       toast.success('Architecture updated!');
       setEditingArchitecture(null);
     },
-    onError: () => toast.error('Failed to update architecture'),
+    onError: toastErrorHandler('update architecture'),
     onSettled: () => {
       invalidateProjectScope(queryClient, id);
     },
@@ -1104,7 +1104,7 @@ const ProjectDetail = () => {
         <Suspense
           fallback={
             <div className="flex items-center justify-center p-8">
-              <div className="w-8 h-8 border-2 border-[#E0B954]/30 border-t-[#E0B954] rounded-full animate-spin" />
+              <Spinner size="md" tone="gold" />
             </div>
           }
         >

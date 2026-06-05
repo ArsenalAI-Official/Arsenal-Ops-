@@ -25,13 +25,8 @@ const ProjectBoard = lazy(() => import('./pages/ProjectBoard'));
 const ProjectDetail = lazy(() => import('./pages/ProjectDetail'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 
-const RouteSpinner = () => (
-  <div className="min-h-screen bg-[#080808] flex items-center justify-center">
-    <div className="w-10 h-10 border-2 border-[#E0B954]/30 border-t-[#E0B954] rounded-full animate-spin" />
-  </div>
-);
-
 import { hasAnyAdminCapability } from '@/lib/adminCaps';
+import { RouteSpinner } from '@/components/ui/spinner';
 
 /**
  * Route guard for /admin. Renders children only when the user holds at least
@@ -151,11 +146,7 @@ function AuthenticatedRoutes() {
   }, [showWarning, logout]);
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#080808] flex items-center justify-center">
-        <div className="w-10 h-10 border-2 border-[#E0B954]/30 border-t-[#E0B954] rounded-full animate-spin" />
-      </div>
-    );
+    return <RouteSpinner />;
   }
 
   if (!isAuthenticated) {

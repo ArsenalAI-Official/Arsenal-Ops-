@@ -1,8 +1,9 @@
 import React from 'react';
-import { BookOpen, ClipboardList, Bug, Target, Clock } from 'lucide-react';
+import { Clock } from 'lucide-react';
 import TimeEntriesTable from '@/components/TimeEntriesTable';
 import { EpicChip } from '@/components/board/EpicChip';
 import { ParentChip } from '@/components/board/ParentChip';
+import { TYPE_CONFIG, PRIORITY_COLOR } from '@/lib/workItemConfig';
 
 interface WorkItem {
   id: string;
@@ -26,26 +27,6 @@ interface WorkItem {
 interface StatusConfig {
   color: string;
 }
-
-const TYPE_CONFIG = {
-  user_story: { icon: BookOpen, color: '#E0B954', label: 'Story', bg: 'rgba(224,185,84,0.15)' },
-  task: { icon: ClipboardList, color: '#F59E0B', label: 'Task', bg: 'rgba(245,158,11,0.15)' },
-  bug: { icon: Bug, color: '#EF4444', label: 'Bug', bg: 'rgba(239,68,68,0.15)' },
-  epic: { icon: Target, color: '#A78BFA', label: 'Epic', bg: 'rgba(167,139,250,0.15)' },
-  subtask: {
-    icon: ClipboardList,
-    color: '#FBBF24',
-    label: 'Subtask',
-    bg: 'rgba(251,191,36,0.15)',
-  },
-};
-
-const PRIORITY_COLORS = {
-  critical: { hex: '#EF4444' },
-  high: { hex: '#F97316' },
-  medium: { hex: '#F59E0B' },
-  low: { hex: '#737373' },
-};
 
 export interface KanbanCardProps {
   item: WorkItem;
@@ -72,7 +53,7 @@ const KanbanCard = ({
 }: KanbanCardProps) => {
   const typeInfo = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
   const TypeIcon = typeInfo.icon;
-  const priorityStyle = PRIORITY_COLORS[item.priority] || PRIORITY_COLORS.medium;
+  const priorityHex = PRIORITY_COLOR[item.priority] ?? PRIORITY_COLOR.medium;
   const hoursProgress =
     item.assigned_hours > 0
       ? ((item.assigned_hours - item.remaining_hours) / item.assigned_hours) * 100
@@ -157,8 +138,8 @@ const KanbanCard = ({
           <span
             className="text-[10px] px-1.5 py-0.5 rounded font-medium"
             style={{
-              backgroundColor: priorityStyle.hex + '33',
-              color: priorityStyle.hex,
+              backgroundColor: priorityHex + '33',
+              color: priorityHex,
             }}
           >
             {item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}

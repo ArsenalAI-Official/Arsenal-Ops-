@@ -5,6 +5,7 @@ import { apiFetch, ApiError } from '@/lib/api';
 import { toast, Toaster } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { invalidateAdminWorkItemImpact, invalidateProjectScope } from '@/lib/invalidations';
+import { toastErrorHandler } from '@/lib/mutationToast';
 import {
   AppHeader,
   DashboardStats,
@@ -219,7 +220,7 @@ const ProjectsPage = () => {
         invalidateProjectScope(queryClient, parseInt(createdProjectId));
       }
     },
-    onError: () => toast.error('Failed to create task'),
+    onError: toastErrorHandler('create task'),
   });
 
   const convertToTicketMutation = useMutation({
@@ -259,7 +260,7 @@ const ProjectsPage = () => {
         invalidateProjectScope(queryClient, parseInt(convertProjectId));
       }
     },
-    onError: () => toast.error('Failed to convert'),
+    onError: toastErrorHandler('convert'),
   });
 
   const deletePersonalTaskMutation = useMutation({
@@ -269,7 +270,7 @@ const ProjectsPage = () => {
       toast.success('Task deleted');
       invalidatePersonalTasks();
     },
-    onError: () => toast.error('Failed to delete task'),
+    onError: toastErrorHandler('delete task'),
   });
 
   const updatePersonalTaskMutation = useMutation({
@@ -290,7 +291,7 @@ const ProjectsPage = () => {
       setEditPersonalTaskForm({ title: '', description: '', priority: 'medium', due_date: '' });
       invalidatePersonalTasks();
     },
-    onError: () => toast.error('Failed to update task'),
+    onError: toastErrorHandler('update task'),
   });
 
   // Wrapper functions (call sites in JSX unchanged)
@@ -543,7 +544,7 @@ const ProjectsPage = () => {
       setSelectedDevelopers([]);
       toast.success('Project created successfully!');
     },
-    onError: () => toast.error('Failed to create project'),
+    onError: toastErrorHandler('create project'),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] });
@@ -557,7 +558,7 @@ const ProjectsPage = () => {
     onSuccess: () => {
       toast.success('Project deleted');
     },
-    onError: () => toast.error('Failed to delete project'),
+    onError: toastErrorHandler('delete project'),
     onSettled: (_data, _err, projectId) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] });

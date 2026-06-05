@@ -5,6 +5,13 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Target, Plus, CheckCircle2, Calendar, Trash2 } from 'lucide-react';
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+} from '@/components/ui/empty';
 
 interface Goal {
   id: number;
@@ -140,11 +147,15 @@ const GoalsView: React.FC<GoalsViewProps> = ({
           )}
 
           {goals.length === 0 ? (
-            <div className="text-center py-8">
-              <Target className="w-12 h-12 text-[#737373] mx-auto mb-2" />
-              <p className="text-[#737373]">No goals yet</p>
-              <p className="text-[#737373] text-sm">Create goals to track project objectives</p>
-            </div>
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <Target className="text-[#737373]" />
+                </EmptyMedia>
+                <EmptyTitle className="text-[#737373]">No goals yet</EmptyTitle>
+                <EmptyDescription>Create goals to track project objectives</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : (
             <div className="space-y-4">
               {goals.map((goal) => (
@@ -262,11 +273,15 @@ const GoalsView: React.FC<GoalsViewProps> = ({
           )}
 
           {milestones.length === 0 ? (
-            <div className="text-center py-8">
-              <CheckCircle2 className="w-12 h-12 text-[#737373] mx-auto mb-2" />
-              <p className="text-[#737373]">No milestones yet</p>
-              <p className="text-[#737373] text-sm">Create milestones to track key dates</p>
-            </div>
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <CheckCircle2 className="text-[#737373]" />
+                </EmptyMedia>
+                <EmptyTitle className="text-[#737373]">No milestones yet</EmptyTitle>
+                <EmptyDescription>Create milestones to track key dates</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : (
             <div className="relative">
               {/* Timeline line */}

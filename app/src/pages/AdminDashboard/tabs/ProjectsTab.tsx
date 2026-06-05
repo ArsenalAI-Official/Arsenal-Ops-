@@ -13,7 +13,6 @@ import {
   TrendingUp,
   Tag,
   Filter,
-  Loader2,
   CalendarRange,
   LayoutGrid,
   TableProperties,
@@ -21,6 +20,15 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+} from '@/components/ui/empty';
+import { PRIORITY_COLOR } from '@/lib/workItemConfig';
 import {
   Select,
   SelectContent,
@@ -155,16 +163,6 @@ const STATUS_ACCENTS: Record<StatusBucket, { color: string; bg: string; label: s
   in_progress: { color: '#E0B954', bg: 'rgba(224,185,84,0.12)', label: 'In progress' },
   in_review: { color: '#A78BFA', bg: 'rgba(167,139,250,0.12)', label: 'In review' },
   done_this_week: { color: '#34D399', bg: 'rgba(52,211,153,0.14)', label: 'Done' },
-};
-
-// Priority-accent palette for ticket rows in the expanded drill-down. Same
-// scale used by the kanban card / item detail drawer so the dot encodes a
-// familiar urgency signal at a glance.
-const PRIORITY_COLOR: Record<string, string> = {
-  critical: '#EF4444',
-  high: '#F97316',
-  medium: '#F59E0B',
-  low: '#737373',
 };
 
 const ProjectsTab = ({
@@ -323,7 +321,7 @@ const ProjectsTab = ({
                 </div>
                 {weeklyReportLoading && (
                   <div className="flex items-center gap-1.5 text-[11px] text-[#737373]">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <Spinner size="xs" tone="muted" />
                     Refreshing
                   </div>
                 )}
@@ -337,17 +335,19 @@ const ProjectsTab = ({
 
           {weeklyReportLoading && reportRows.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 py-12 text-xs text-[#737373]">
-              <Loader2 className="w-4 h-4 animate-spin text-[#E0B954]" />
+              <Spinner size="xs" tone="gold" />
               <span>Loading report…</span>
             </div>
           ) : reportRows.length === 0 ? (
-            <div className="py-12 text-center">
-              <TableProperties className="w-7 h-7 text-[#525252] mx-auto mb-2" />
-              <p className="text-sm text-[#a3a3a3] font-medium">No report data</p>
-              <p className="text-xs text-[#525252] mt-1">
-                Nothing matches the current category filter.
-              </p>
-            </div>
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <TableProperties />
+                </EmptyMedia>
+                <EmptyTitle>No report data</EmptyTitle>
+                <EmptyDescription>Nothing matches the current category filter.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : (
             <table className="w-full text-sm">
               <thead>
@@ -521,11 +521,13 @@ const ProjectsTab = ({
           active so the page doesn't double-scroll. */}
       {view === 'cards' &&
         (projects.length === 0 ? (
-          <div className="border border-dashed border-[rgba(255,255,255,0.08)] rounded-xl p-10 text-center text-sm text-[#737373]">
-            {categoryFilter === 'all'
-              ? 'No projects yet.'
-              : 'No projects match this category filter.'}
-          </div>
+          <Empty>
+            <EmptyDescription>
+              {categoryFilter === 'all'
+                ? 'No projects yet.'
+                : 'No projects match this category filter.'}
+            </EmptyDescription>
+          </Empty>
         ) : (
           <div className="grid grid-cols-3 gap-4">
             {[...projects]
@@ -630,7 +632,7 @@ const ProjectsTab = ({
                       >
                         {invitingProjectId === project.id ? (
                           <>
-                            <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin mr-1" />
+                            <Spinner size="xs" tone="white" className="mr-1" />
                             Sending...
                           </>
                         ) : (
@@ -805,7 +807,7 @@ const ExpandedProjectRow = ({ project }: ExpandedProjectRowProps) => {
           layout stable so toggling buttons doesn't make the row jump. */}
       {ticketsQuery.isLoading ? (
         <div className="flex items-center gap-2 py-3 text-xs text-[#737373]">
-          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          <Spinner size="xs" tone="muted" />
           Loading tickets…
         </div>
       ) : ticketsQuery.isError ? (

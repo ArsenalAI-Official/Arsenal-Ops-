@@ -1,6 +1,8 @@
 import React from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
+import { Empty, EmptyDescription } from '@/components/ui/empty';
 
 interface ProjectLike {
   id: number;
@@ -90,12 +92,12 @@ const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
             </div>
             {projectMembersLoading ? (
               <div className="flex items-center justify-center py-8">
-                <div className="animate-spin w-6 h-6 border-2 border-[#E0B954] border-t-transparent rounded-full" />
+                <Spinner size="sm" tone="gold" />
               </div>
             ) : projectMembers.length === 0 ? (
-              <div className="text-center py-8 text-sm text-[#737373] bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl">
-                No members assigned yet.
-              </div>
+              <Empty>
+                <EmptyDescription>No members assigned yet.</EmptyDescription>
+              </Empty>
             ) : (
               <ul className="space-y-2">
                 {projectMembers.map((m) => (
@@ -131,7 +133,7 @@ const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
                       title="Remove from project"
                     >
                       {removeMemberPending ? (
-                        <div className="w-3.5 h-3.5 border border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+                        <Spinner size="xs" tone="red" />
                       ) : (
                         <Trash2 className="w-4 h-4" />
                       )}
@@ -204,7 +206,7 @@ const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
                       >
                         {addMemberPending ? (
                           <>
-                            <div className="w-3.5 h-3.5 border border-white/30 border-t-white rounded-full animate-spin mr-2" />
+                            <Spinner size="xs" tone="white" className="mr-2" />
                             Adding...
                           </>
                         ) : (

@@ -35,13 +35,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { hasAnyAdminCapability } from '@/lib/adminCaps';
 import { apiFetch } from '@/lib/api';
 import { invalidateProjectScope } from '@/lib/invalidations';
-
-// Helper function to parse YYYY-MM-DD string to local Date object (avoids UTC timezone issues)
-const parseLocalDate = (dateString: string | undefined): Date | undefined => {
-  if (!dateString) return undefined;
-  const [year, month, day] = dateString.split('-');
-  return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-};
+import { parseLocalDate } from '@/lib/dateUtils';
+import { toastErrorHandler } from '@/lib/mutationToast';
 
 interface PersonalTask {
   id: number;
@@ -185,7 +180,7 @@ const PersonalTasksPage = () => {
       setShowAddDialog(false);
       toast.success('Task created!');
     },
-    onError: () => toast.error('Failed to create task'),
+    onError: toastErrorHandler('create task'),
     onSettled: () => invalidateTasks(),
   });
 
@@ -204,7 +199,7 @@ const PersonalTasksPage = () => {
       resetForm();
       toast.success('Task updated!');
     },
-    onError: () => toast.error('Failed to update task'),
+    onError: toastErrorHandler('update task'),
     onSettled: () => invalidateTasks(),
   });
 
@@ -214,7 +209,7 @@ const PersonalTasksPage = () => {
     onSuccess: () => {
       toast.success('Task deleted');
     },
-    onError: () => toast.error('Failed to delete task'),
+    onError: toastErrorHandler('delete task'),
     onSettled: () => invalidateTasks(),
   });
 
@@ -248,7 +243,7 @@ const PersonalTasksPage = () => {
       setConvertEstimatedHours('');
       setMemberLookupProjectId('');
     },
-    onError: () => toast.error('Failed to convert'),
+    onError: toastErrorHandler('convert'),
     onSettled: () => {
       invalidateTasks();
       queryClient.invalidateQueries({ queryKey: ['myTasks'] });

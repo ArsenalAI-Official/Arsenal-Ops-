@@ -3,10 +3,21 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, FolderKanban, X, ArrowLeft, BarChart3, Shield, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+} from '@/components/ui/empty';
 import { toast, Toaster } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
 import { PROJECT_TABS } from '@/lib/projectTabs';
+import { toPascalCase } from '@/lib/stringUtils';
+import { matchesCapability } from '@/lib/capabilities';
+import { toastErrorHandler } from '@/lib/mutationToast';
 import {
   invalidateProjectScope,
   invalidateAdminMembershipImpact,
@@ -315,15 +326,6 @@ const AdminDashboard = () => {
   // Role dropdown state (per-user role-edit modal trigger; modal lives at parent)
   const [openRoleDropdown, setOpenRoleDropdown] = useState<number | null>(null);
 
-  // Helper function to convert role to Pascal Case (still used by the parent's
-  // role-dropdown modal below)
-  const toPascalCase = (str: string): string => {
-    return str
-      .split('_')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join('');
-  };
-
   // RBAC role create/edit modal state
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
@@ -425,7 +427,7 @@ const AdminDashboard = () => {
     onSuccess: () => {
       invalidateCategoryScope();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to create category'),
+    onError: toastErrorHandler('create category'),
   });
 
   const updateCategoryMutation = useMutation({
@@ -437,7 +439,7 @@ const AdminDashboard = () => {
     onSuccess: () => {
       invalidateCategoryScope();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to update category'),
+    onError: toastErrorHandler('update category'),
   });
 
   const deleteCategoryMutation = useMutation({
@@ -450,7 +452,7 @@ const AdminDashboard = () => {
       setCategoryFilter((current) => (current === String(deletedId) ? 'all' : current));
       invalidateCategoryScope();
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to delete category'),
+    onError: toastErrorHandler('delete category'),
   });
 
   // Assigning a category to a single project. Uses the existing
@@ -465,8 +467,7 @@ const AdminDashboard = () => {
     onSuccess: () => {
       invalidateCategoryScope();
     },
-    onError: (err) =>
-      toast.error(err instanceof Error ? err.message : 'Failed to update project category'),
+    onError: toastErrorHandler('update project category'),
   });
 
   const handleEditEmployee = (employee: Employee) => {
@@ -492,7 +493,7 @@ const AdminDashboard = () => {
       toast.success(editingEmployee ? 'Employee updated!' : 'Employee created!');
       setShowEmployeeModal(false);
     },
-    onError: (err: any) => toast.error(err?.message || 'Failed to save employee'),
+    onError: toastErrorHandler('save employee'),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'employees'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] });
@@ -627,7 +628,7 @@ const AdminDashboard = () => {
       toast.success('Member added');
       setAddMemberForm({ developer_id: '', role: 'developer' });
     },
-    onError: (err: any) => toast.error(err?.message || 'Failed to add member'),
+    onError: toastErrorHandler('add member'),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
@@ -656,7 +657,7 @@ const AdminDashboard = () => {
     onSuccess: () => {
       toast.success('Member removed');
     },
-    onError: (err: any) => toast.error(err?.message || 'Failed to remove member'),
+    onError: toastErrorHandler('remove member'),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
@@ -700,7 +701,7 @@ const AdminDashboard = () => {
       setShowUserModal(false);
       setUserForm({ email: '', name: '', roles: ['developer'] });
     },
-    onError: (err: any) => toast.error(err?.message || 'Failed to create user'),
+    onError: toastErrorHandler('create user'),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       // Developer-role users also surface in the Employees tab — keep both
@@ -724,7 +725,7 @@ const AdminDashboard = () => {
   const deleteUserMutation = useMutation({
     mutationFn: (id: number) => apiFetch<void>(`/api/auth/admin/users/${id}`, { method: 'DELETE' }),
     onSuccess: () => toast.success('User deleted'),
-    onError: (err: any) => toast.error(err?.message || 'Failed to delete user'),
+    onError: toastErrorHandler('delete user'),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       // Deleting a user cascades to their developer record (if any), so refresh
@@ -768,7 +769,7 @@ const AdminDashboard = () => {
       toast.success('User updated');
       setEditingUser(null);
     },
-    onError: (err: any) => toast.error(err?.message || 'Failed to update user'),
+    onError: toastErrorHandler('update user'),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       // Name/email/github changes flow through to Developer rows too.
@@ -818,10 +819,7 @@ const AdminDashboard = () => {
       toast.success(`Role '${vars.name}' created`);
       setShowRoleModal(false);
     },
-    onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : 'Failed to create role';
-      toast.error(msg);
-    },
+    onError: toastErrorHandler('create role'),
     onSettled: () => {
       invalidateRoles();
       // Any role the current user holds could now have different caps.
@@ -858,10 +856,7 @@ const AdminDashboard = () => {
     onSuccess: (_data, _id) => {
       toast.success('Role deleted');
     },
-    onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : 'Failed to delete role';
-      toast.error(msg);
-    },
+    onError: toastErrorHandler('delete role'),
     onSettled: () => {
       invalidateRoles();
       refreshCapsTwice();
@@ -873,10 +868,7 @@ const AdminDashboard = () => {
       apiFetch<void>(`/api/auth/admin/users/${vars.userId}/roles/${vars.roleId}`, {
         method: 'POST',
       }),
-    onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : 'Failed to assign role';
-      toast.error(msg);
-    },
+    onError: toastErrorHandler('assign role'),
     onSettled: (_data, _err, vars) => {
       invalidateRoles();
       invalidateAdminUserRoleImpact(queryClient);
@@ -891,10 +883,7 @@ const AdminDashboard = () => {
       apiFetch<void>(`/api/auth/admin/users/${vars.userId}/roles/${vars.roleId}`, {
         method: 'DELETE',
       }),
-    onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : 'Failed to remove role';
-      toast.error(msg);
-    },
+    onError: toastErrorHandler('remove role'),
     onSettled: (_data, _err, vars) => {
       invalidateRoles();
       invalidateAdminUserRoleImpact(queryClient);
@@ -1138,19 +1127,8 @@ const AdminDashboard = () => {
    *  use `isItemEffectivelyChecked` below which also returns true when
    *  every child is effectively checked.
    */
-  const isItemChecked = (grant: string, grants: string[]): boolean => {
-    if (grants.includes('*')) return true;
-    if (grants.includes(grant)) return true;
-    for (const g of grants) {
-      if (!g.endsWith('.*')) continue;
-      const prefix = g.slice(0, -2);
-      // grant is covered when it equals the wildcard's prefix or is a
-      // descendant. e.g. grant='project.pm.*' is covered by g='project.*'
-      // because 'project.pm.*' starts with 'project.'.
-      if (grant === prefix || grant.startsWith(prefix + '.')) return true;
-    }
-    return false;
-  };
+  const isItemChecked = (grant: string, grants: string[]): boolean =>
+    matchesCapability(grant, grants);
 
   /** Recursive "effectively checked" — used for the display state of any
    *  catalog node (group wildcard, top-level item, or child item).
@@ -1275,7 +1253,7 @@ const AdminDashboard = () => {
       <div className="max-w-7xl mx-auto px-6 py-6">
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin w-8 h-8 border-2 border-[#E0B954] border-t-transparent rounded-full" />
+            <Spinner size="md" tone="gold" />
           </div>
         ) : (
           <>
@@ -1444,13 +1422,17 @@ const AdminDashboard = () => {
                 </div>
                 <div className="p-4 space-y-1.5 overflow-y-auto">
                   {roles.length === 0 ? (
-                    <div className="py-10 text-center">
-                      <KeyRound className="w-7 h-7 text-[#525252] mx-auto mb-2" />
-                      <p className="text-sm text-[#a3a3a3] font-medium">No roles defined yet</p>
-                      <p className="text-xs text-[#525252] mt-1">
-                        Create roles in the Roles tab to assign them here.
-                      </p>
-                    </div>
+                    <Empty>
+                      <EmptyHeader>
+                        <EmptyMedia variant="icon">
+                          <KeyRound />
+                        </EmptyMedia>
+                        <EmptyTitle>No roles defined yet</EmptyTitle>
+                        <EmptyDescription>
+                          Create roles in the Roles tab to assign them here.
+                        </EmptyDescription>
+                      </EmptyHeader>
+                    </Empty>
                   ) : (
                     roles.map((role) => {
                       const isChecked = userRoleNames.has(role.name);

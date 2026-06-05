@@ -50,6 +50,20 @@ export default {
                     DEFAULT: "hsl(var(--card))",
                     foreground: "hsl(var(--card-foreground))",
                 },
+                // Brand/surface tokens for values that were hardcoded as raw hex
+                // across hundreds of call sites. Exact-match the old values so
+                // `bg-gold` / `from-gold` / `to-gold-dark` / `bg-surface` are
+                // pixel-identical drop-ins.
+                gold: {
+                    DEFAULT: "#E0B954",
+                    dark: "#B8872A",
+                },
+                surface: {
+                    DEFAULT: "#0d0d0d",
+                    dark: "#080808",
+                    darker: "#0a0a0a",
+                },
+                hairline: "rgba(255,255,255,0.07)",
             },
             borderRadius: {
                 lg: "var(--radius)",

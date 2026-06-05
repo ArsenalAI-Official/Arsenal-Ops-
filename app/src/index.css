@@ -87,3 +87,12 @@
     -moz-appearance: textfield;
   }
 }
+
+@layer components {
+  /* The brand gold gradient button surface, hand-written as
+     `bg-gradient-to-r from-[#E0B954] to-[#B8872A]` in ~90 places. Use
+     `className="btn-gold"` for new/consolidated call sites. */
+  .btn-gold {
+    @apply bg-gradient-to-r from-gold to-gold-dark text-white;
+  }
+}

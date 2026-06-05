@@ -12,6 +12,8 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
+import { getInitials } from '@/lib/stringUtils';
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 
 interface WorkloadData {
   developer_id: number | string;
@@ -51,15 +53,6 @@ const WorkloadView: React.FC<WorkloadViewProps> = ({ workloadData, onDeveloperCl
     return 'bg-green-500';
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
   // Sort by weekly capacity used (highest first)
   const sortedData = [...workloadData].sort(
     (a, b) => (b.this_week_capacity_used ?? 0) - (a.this_week_capacity_used ?? 0),
@@ -76,9 +69,14 @@ const WorkloadView: React.FC<WorkloadViewProps> = ({ workloadData, onDeveloperCl
       </CardHeader>
       <CardContent>
         {sortedData.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-[#737373]">No workload data available</p>
-          </div>
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Users className="text-[#737373]" />
+              </EmptyMedia>
+              <EmptyTitle className="text-[#737373]">No workload data available</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {visibleData.map((developer) => {

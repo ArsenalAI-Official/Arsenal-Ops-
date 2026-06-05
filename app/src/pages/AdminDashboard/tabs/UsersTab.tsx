@@ -10,6 +10,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toPascalCase } from '@/lib/stringUtils';
+import { Empty, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 
 interface User {
   id: number;
@@ -31,14 +33,6 @@ interface UsersTabProps {
   onDeleteUser: (user: User) => void;
   onEditUser: (user: User) => void;
 }
-
-// Helper function to convert role to Pascal Case
-const toPascalCase = (str: string): string => {
-  return str
-    .split('_')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join('');
-};
 
 const UsersTab = ({
   users,
@@ -305,14 +299,15 @@ const UsersTab = ({
           </tbody>
         </table>
         {users.length === 0 && (
-          <div className="text-center py-12 text-[#737373]">
-            No users yet. Click "Add User" to create one.
-          </div>
+          <Empty>
+            <EmptyTitle>No users yet</EmptyTitle>
+            <EmptyDescription>Click "Add User" to create one.</EmptyDescription>
+          </Empty>
         )}
         {users.length > 0 && visibleUsers.length === 0 && (
-          <div className="text-center py-12 text-sm text-[#737373]">
-            No users match the current filter.
-          </div>
+          <Empty>
+            <EmptyDescription>No users match the current filter.</EmptyDescription>
+          </Empty>
         )}
       </div>
     </div>
