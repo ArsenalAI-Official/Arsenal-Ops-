@@ -1,0 +1,4 @@
+
+# Playwright / test output (never commit)
+playwright-report/
+test-results/
