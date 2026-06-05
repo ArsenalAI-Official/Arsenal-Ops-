@@ -21,8 +21,10 @@ export interface ModalProps {
 /**
  * The app's canonical modal scaffold, extracted from ~19 hand-rolled copies of
  * the same `fixed inset-0 bg-black/60 backdrop-blur-sm … rounded-2xl` overlay +
- * panel + close button. Markup is identical to those copies, so adoption is
- * visually and behaviorally a no-op — just deduplication.
+ * panel + close button. For the `z-50` family of those copies adoption is a
+ * visual/behavioral no-op. Note the overlay z-index is hardcoded to `z-50`:
+ * nested modals that stack above another modal (e.g. AddSubtaskModal's `z-[60]`,
+ * the idle-warning's `z-[100]`) must NOT use this component as-is.
  */
 export function Modal({
   open,

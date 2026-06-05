@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Briefcase, AlertTriangle, CheckCircle2, Calendar } from 'lucide-react';
 import { getStatusColor } from '@/lib/workItemConfig';
+import { parseLocalDate } from '@/lib/dateUtils';
 import {
   Empty,
   EmptyHeader,
@@ -45,13 +46,13 @@ const MyTasksView: React.FC<MyTasksViewProps> = ({ tasks, onTaskClick }) => {
       case 'today':
         return tasks.filter((task) => {
           if (!task.due_date) return false;
-          const dueDate = new Date(task.due_date);
+          const dueDate = parseLocalDate(task.due_date)!;
           return dueDate >= today && dueDate < new Date(today.getTime() + 24 * 60 * 60 * 1000);
         });
       case 'week':
         return tasks.filter((task) => {
           if (!task.due_date) return false;
-          const dueDate = new Date(task.due_date);
+          const dueDate = parseLocalDate(task.due_date)!;
           return dueDate >= today && dueDate <= weekEnd;
         });
       case 'overdue':

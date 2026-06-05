@@ -145,7 +145,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
     // Check if overdue
     const isOverdue =
-      item.due_date && new Date(item.due_date) < new Date() && item.status !== 'done';
+      item.due_date && parseLocalDate(item.due_date)! < new Date() && item.status !== 'done';
     if (isOverdue) {
       backgroundColor = '#EF4444';
     }
