@@ -117,7 +117,9 @@ const CreateItemModal = ({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)] flex-shrink-0">
-          <h2 className="text-lg font-bold text-white">Create Work Item</h2>
+          <h2 className="text-lg font-bold text-white">
+            {createForm.type === 'epic' ? 'Create Epic' : 'Create Work Item'}
+          </h2>
           <button
             onClick={onClose}
             className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white"
@@ -126,29 +128,37 @@ const CreateItemModal = ({
           </button>
         </div>
         <div className="p-5 space-y-4 flex-1 overflow-y-auto">
-          <div>
-            <label className="text-xs font-medium text-[#737373] block mb-1.5">Type</label>
-            <select
-              value={createForm.type}
-              onChange={(e) => {
-                const newType = e.target.value as WorkItemType;
-                setCreateForm((f) => ({
-                  ...f,
-                  type: newType,
-                  epic_id: fieldSupportsType(newType, 'epic_id') ? f.epic_id : null,
-                  parent_id: fieldSupportsType(newType, 'parent_id') ? f.parent_id : null,
-                  // Epics aggregate hours from descendants — don't carry over a
-                  // value the user typed for a different type.
-                  estimated_hours: newType === 'epic' ? '' : f.estimated_hours,
-                }));
-              }}
-              className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
-            >
-              <option value="user_story">User Story</option>
-              <option value="task">Task</option>
-              <option value="bug">Bug</option>
-            </select>
-          </div>
+          {/* Type selector — hidden when the parent opens this modal with
+              initialType='epic' (the "New Epic" menu item). Epics are
+              structurally different from stories/tasks/bugs (no parent_id,
+              no estimated_hours, etc.); allowing the user to flip the type
+              mid-flow would surface the wrong fields and break the user's
+              intent from the menu they clicked. */}
+          {createForm.type !== 'epic' && (
+            <div>
+              <label className="text-xs font-medium text-[#737373] block mb-1.5">Type</label>
+              <select
+                value={createForm.type}
+                onChange={(e) => {
+                  const newType = e.target.value as WorkItemType;
+                  setCreateForm((f) => ({
+                    ...f,
+                    type: newType,
+                    epic_id: fieldSupportsType(newType, 'epic_id') ? f.epic_id : null,
+                    parent_id: fieldSupportsType(newType, 'parent_id') ? f.parent_id : null,
+                    // Epics aggregate hours from descendants — don't carry over a
+                    // value the user typed for a different type.
+                    estimated_hours: newType === 'epic' ? '' : f.estimated_hours,
+                  }));
+                }}
+                className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
+              >
+                <option value="user_story">User Story</option>
+                <option value="task">Task</option>
+                <option value="bug">Bug</option>
+              </select>
+            </div>
+          )}
           <div>
             <label className="text-xs font-medium text-[#737373] block mb-1.5">Title *</label>
             <Input

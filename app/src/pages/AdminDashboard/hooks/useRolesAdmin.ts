@@ -153,7 +153,6 @@ export function useRolesAdmin() {
           id: editingRole.id,
           capability_keys: roleForm.capability_keys,
         });
-        toast.success(`Role '${name}' updated`);
         setShowRoleModal(false);
         invalidateRoles();
       } catch (err) {

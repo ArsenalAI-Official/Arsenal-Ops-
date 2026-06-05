@@ -3,7 +3,7 @@
 // + useUserRoleAssignment) for the inline "Edit Roles" modal, and the
 // open-role-dropdown UI state. Renders the Users tab plus its three modals.
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { Shield, KeyRound, X } from 'lucide-react';
 import { AdminSpinner } from '../components/AdminSpinner';
 import { useUsersAdmin } from '../hooks/useUsersAdmin';
 import { useRolesList } from '../hooks/useRolesList';
@@ -73,28 +73,75 @@ export default function UsersContainer() {
                 className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-md shadow-2xl max-h-[80vh] flex flex-col"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
-                  <div>
-                    <h2 className="text-lg font-bold text-white">Edit Roles</h2>
-                    <p className="text-xs text-[#737373] mt-0.5">{targetUser.name}</p>
+                {/* Header — Shield icon tile + title + user avatar/name +
+                    assignment counter pill. The counter gives instant
+                    feedback as roles are toggled (no save button needed —
+                    changes auto-persist via handleToggleUserRoleById). */}
+                <div className="flex items-center justify-between gap-3 p-5 border-b border-[rgba(255,255,255,0.05)]">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E0B954]/15 to-[#B8872A]/10 border border-[#E0B954]/20 flex items-center justify-center shrink-0">
+                      <Shield className="w-5 h-5 text-[#E0B954]" />
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="text-lg font-bold text-white leading-tight">Edit Roles</h2>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <div className="w-4 h-4 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center shrink-0">
+                          <span className="text-[8px] font-semibold text-white">
+                            {targetUser.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <span className="text-xs text-[#a3a3a3] truncate">{targetUser.name}</span>
+                      </div>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => setOpenRoleDropdown(null)}
-                    className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {roles.length > 0 && (
+                      <span
+                        className="text-[10px] tabular-nums px-2 py-1 rounded-md border font-medium"
+                        style={{
+                          color: userRoleNames.size > 0 ? '#E0B954' : '#737373',
+                          backgroundColor:
+                            userRoleNames.size > 0
+                              ? 'rgba(224,185,84,0.1)'
+                              : 'rgba(255,255,255,0.04)',
+                          borderColor:
+                            userRoleNames.size > 0
+                              ? 'rgba(224,185,84,0.25)'
+                              : 'rgba(255,255,255,0.06)',
+                        }}
+                        title={`${userRoleNames.size} of ${roles.length} roles assigned`}
+                      >
+                        {userRoleNames.size} / {roles.length}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => setOpenRoleDropdown(null)}
+                      className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
-                <div className="p-5 space-y-2 overflow-y-auto">
+                <div className="p-4 space-y-1.5 overflow-y-auto">
                   {roles.length === 0 ? (
-                    <p className="text-sm text-[#737373] text-center py-6">No roles defined yet.</p>
+                    <div className="py-10 text-center">
+                      <KeyRound className="w-7 h-7 text-[#525252] mx-auto mb-2" />
+                      <p className="text-sm text-[#a3a3a3] font-medium">No roles defined yet</p>
+                      <p className="text-xs text-[#525252] mt-1">
+                        Create roles in the Roles tab to assign them here.
+                      </p>
+                    </div>
                   ) : (
                     roles.map((role) => {
                       const isChecked = userRoleNames.has(role.name);
                       return (
                         <label
                           key={role.id}
-                          className="flex items-center gap-3 p-3 rounded-lg hover:bg-[rgba(255,255,255,0.02)] cursor-pointer transition border border-transparent hover:border-[rgba(255,255,255,0.04)]"
+                          className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors border ${
+                            isChecked
+                              ? 'bg-[rgba(224,185,84,0.06)] border-[rgba(224,185,84,0.2)] hover:bg-[rgba(224,185,84,0.09)]'
+                              : 'bg-transparent border-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.025)] hover:border-[rgba(255,255,255,0.08)]'
+                          }`}
                         >
                           <input
                             type="checkbox"
@@ -102,21 +149,31 @@ export default function UsersContainer() {
                             onChange={(e) =>
                               handleToggleUserRoleById(targetUser, role, e.target.checked)
                             }
-                            className="w-5 h-5 rounded cursor-pointer"
+                            className="w-4 h-4 rounded cursor-pointer mt-0.5 shrink-0"
                           />
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-white font-medium">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {/* Role chip — same KeyRound + Pascal-case
+                                  treatment used in the Roles tab table so the
+                                  same role reads identically across screens. */}
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                                  isChecked
+                                    ? 'bg-[#E0B954]/20 text-[#E0B954]'
+                                    : 'bg-[rgba(255,255,255,0.04)] text-[#a3a3a3]'
+                                }`}
+                              >
+                                <KeyRound className="w-3 h-3" />
                                 {toPascalCase(role.name)}
                               </span>
                               {role.is_system && (
-                                <span className="text-[9px] uppercase tracking-wide text-[#737373] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.04)]">
+                                <span className="text-[9px] uppercase tracking-wider text-[#737373] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)]">
                                   System
                                 </span>
                               )}
                             </div>
                             {role.description && (
-                              <p className="text-xs text-[#737373] mt-0.5 truncate">
+                              <p className="text-xs text-[#a3a3a3] mt-1.5 leading-relaxed">
                                 {role.description}
                               </p>
                             )}
@@ -125,14 +182,6 @@ export default function UsersContainer() {
                       );
                     })
                   )}
-                </div>
-                <div className="flex justify-end gap-2 p-5 border-t border-[rgba(255,255,255,0.05)]">
-                  <button
-                    onClick={() => setOpenRoleDropdown(null)}
-                    className="px-4 py-2 rounded-lg text-[#737373] hover:bg-[rgba(255,255,255,0.05)] transition"
-                  >
-                    Done
-                  </button>
                 </div>
               </div>
             </div>

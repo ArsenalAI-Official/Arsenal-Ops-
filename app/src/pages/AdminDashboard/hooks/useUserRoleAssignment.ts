@@ -61,20 +61,13 @@ export function useUserRoleAssignment() {
   });
 
   const handleToggleUserRoleById = (targetUser: User, role: Role, isChecked: boolean) => {
+    // No per-toggle success toast: the Edit-Roles modal shows a live assigned
+    // counter (n/total), so the toggle is its own feedback. Errors still toast
+    // via the mutations' onError.
     if (isChecked) {
-      assignUserRoleMutation.mutate(
-        { userId: targetUser.id, roleId: role.id },
-        {
-          onSuccess: () => toast.success(`Assigned '${role.name}'`),
-        },
-      );
+      assignUserRoleMutation.mutate({ userId: targetUser.id, roleId: role.id });
     } else {
-      removeUserRoleMutation.mutate(
-        { userId: targetUser.id, roleId: role.id },
-        {
-          onSuccess: () => toast.success(`Removed '${role.name}'`),
-        },
-      );
+      removeUserRoleMutation.mutate({ userId: targetUser.id, roleId: role.id });
     }
   };
 

@@ -86,7 +86,6 @@ export function useProjectsAdmin() {
         body: JSON.stringify(payload),
       }),
     onSuccess: () => {
-      toast.success('Category created');
       invalidateCategoryScope();
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to create category'),
@@ -99,7 +98,6 @@ export function useProjectsAdmin() {
         body: JSON.stringify(payload),
       }),
     onSuccess: () => {
-      toast.success('Category updated');
       invalidateCategoryScope();
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to update category'),
@@ -109,7 +107,6 @@ export function useProjectsAdmin() {
     mutationFn: (id: number) =>
       apiFetch<void>(`/api/admin/project-categories/${id}`, { method: 'DELETE' }),
     onSuccess: (_data, deletedId) => {
-      toast.success('Category deleted');
       // Reset the filter to 'all' ONLY if the active filter was on the category
       // we just deleted — otherwise a delete of an unrelated category would
       // silently change the user's filter.

@@ -559,16 +559,19 @@ def update_project(
 
 @router.delete("/{project_id}")
 def delete_project(
-    project_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_capability("admin.projects")),
 ):
-    """Delete a project and its work items (requires project admin or system admin access)"""
-    # Check if user is system admin or project admin
-    if not is_project_admin(project_id, current_user, db):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only project admins or system admins can delete projects",
-        )
+    """Delete a project and its work items.
 
+    Restricted to tool-level admins via the `admin.projects` capability —
+    project-level admins (developers with `is_admin=True` on the project's
+    membership row) cannot delete the project itself. Deleting a project is
+    a tool-administration action, not a per-project workflow action. The
+    capability is held by the `admin` system role (`*`) and any custom role
+    that explicitly grants `admin.projects`.
+    """
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
