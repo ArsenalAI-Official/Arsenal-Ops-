@@ -585,7 +585,9 @@ def get_my_tasks(db: Session = Depends(get_db), current_user: User = Depends(get
                 "logged_hours": item.logged_hours,
                 "remaining_hours": item.remaining_hours,
                 "is_overdue": bool(
-                    item.due_date and item.due_date < datetime.utcnow() and item.status != "done"
+                    item.due_date
+                    and item.due_date.date() < datetime.utcnow().date()
+                    and item.status != "done"
                 ),
                 "completed_at": item.completed_at.isoformat() if item.completed_at else None,
                 "story_points": item.story_points or 0,
@@ -1201,7 +1203,9 @@ def update_work_item(
         "due_date": item.due_date.isoformat() if item.due_date else None,
         "start_date": item.start_date.isoformat() if item.start_date else None,
         "is_overdue": bool(
-            item.due_date and item.due_date < datetime.utcnow() and item.status != "done"
+            item.due_date
+            and item.due_date.date() < datetime.utcnow().date()
+            and item.status != "done"
         ),
         "started_at": item.started_at.isoformat() if item.started_at else None,
         "completed_at": item.completed_at.isoformat() if item.completed_at else None,

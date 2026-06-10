@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@/lib/api';
@@ -16,6 +16,7 @@ import {
   ConvertToTicketDialog,
   EditPersonalTaskDialog,
   CreateProjectDialog,
+  isPastDue,
 } from '@/components/ProjectsPage';
 import type {
   Project,
@@ -130,7 +131,21 @@ const ProjectsPage = () => {
     queryFn: () => apiFetch<MyTask[]>('/api/workitems/my-tasks'),
   });
   const myTasksLoading = myTasksQuery.isLoading;
-  const myTasks = myTasksQuery.data ?? [];
+  // Recompute `is_overdue` in the viewer's LOCAL timezone. The backend flag is
+  // computed in UTC and so can't be right for every viewer (Eastern, Pacific,
+  // etc.) — a task due "today" must not show as overdue, and must flip exactly
+  // at the viewer's local midnight. This override is the single source the
+  // dashboard widgets (MyTasksBox tabs/counts, DashboardStats, OverviewBox)
+  // read from. `new Date()` is intentionally inside useMemo (not the render
+  // body) per app/CLAUDE.md's react-hooks/purity guidance.
+  const myTasks = useMemo<MyTask[]>(
+    () =>
+      (myTasksQuery.data ?? []).map((t) => ({
+        ...t,
+        is_overdue: isPastDue(t.due_date, t.status),
+      })),
+    [myTasksQuery.data],
+  );
 
   // Apply an optimistic update directly inside the ['myTasks'] cache.
   const patchMyTasksCache = (updater: (old: MyTask[]) => MyTask[]) =>
