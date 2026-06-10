@@ -279,6 +279,15 @@ const ProjectBoard = () => {
   const canWriteTracker = can('project.tracker_write');
   const queryClient = useQueryClient();
   const [showReviewer, setShowReviewer] = useState(false);
+  // Defense-in-depth gate for the slide-in Reviewer panel. The Reviewer
+  // entry takes the user into a queue where they can mark items as done
+  // and write reviews — all backed by mutations that require
+  // `project.tracker_write`. Gating both the button (below) AND the
+  // panel render (further down) on this derived value means a mid-session
+  // cap revocation immediately closes the panel even though
+  // `showReviewer` is still true in state. Backend independently gates
+  // every Reviewer write via `require_capability("project.tracker_write")`.
+  const effectiveShowReviewer = showReviewer && canWriteTracker;
   // isEditing + editForm + drawer comment state moved into ItemDetailDrawer
   // (PR 9). The drawer keys on selectedItem.id so state resets cleanly when
   // the user navigates to a different ticket.
@@ -1473,16 +1482,23 @@ const ProjectBoard = () => {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowReviewer((v) => !v)}
-              className={`text-[#737373] hover:text-white hover:bg-[rgba(244,246,255,0.05)] rounded-lg gap-2 h-9 px-3 ${showReviewer ? 'bg-[rgba(224,185,84,0.1)] text-[#E0B954]' : ''}`}
-              title="Review Mode"
-            >
-              <Eye className="w-3.5 h-3.5" />
-              Reviewer
-            </Button>
+            {/* Reviewer entry — gated on `project.tracker_write`. The
+                review queue's purpose is approving / closing in-review
+                tickets, which requires the same write cap as edit/delete.
+                Hidden entirely (not disabled) to avoid showing an entry
+                that would lead to a dead-end queue. */}
+            {canWriteTracker && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowReviewer((v) => !v)}
+                className={`text-[#737373] hover:text-white hover:bg-[rgba(244,246,255,0.05)] rounded-lg gap-2 h-9 px-3 ${effectiveShowReviewer ? 'bg-[rgba(224,185,84,0.1)] text-[#E0B954]' : ''}`}
+                title="Review Mode"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                Reviewer
+              </Button>
+            )}
             {/* AI Generate — gated on `project.ai.write`. Hidden entirely
                 when missing so the modal (which would 403 on submit) can't
                 be opened. */}
@@ -2679,8 +2695,10 @@ const ProjectBoard = () => {
         />
       )}
 
-      {/* Reviewer Panel - slide in from right */}
-      {showReviewer && (
+      {/* Reviewer Panel - slide in from right. Gated on the derived
+          `effectiveShowReviewer` so a mid-session cap revocation closes
+          the panel even when local `showReviewer` state is still true. */}
+      {effectiveShowReviewer && (
         <ReviewerPanel
           workItems={workItems}
           projectId={id!}
