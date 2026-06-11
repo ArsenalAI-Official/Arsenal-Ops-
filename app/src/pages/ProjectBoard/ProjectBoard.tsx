@@ -68,36 +68,15 @@ const ItemDetailDrawer = lazy(() => import('./ItemDetailDrawer'));
 import BoardColumn from './components/BoardColumn';
 import ReviewerPanel from './ReviewerPanel';
 import ArchitectureEditorWrapper from './ArchitectureEditorWrapper';
-
-// Helper function to parse YYYY-MM-DD string to local Date object (avoids UTC timezone issues)
-const parseLocalDate = (dateString: string | undefined): Date | undefined => {
-  if (!dateString) return undefined;
-  const [year, month, day] = dateString.split('-');
-  return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-};
-
-// Returns YYYY-MM-DD for the Monday of the week containing `d`, in local time.
-const getWeekStart = (d: Date): string => {
-  const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const day = date.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-  date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dd}`;
-};
-
-const formatWeekRange = (weekStart: string): string => {
-  const start = parseLocalDate(weekStart);
-  if (!start) return weekStart;
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  const sameMonth = start.getMonth() === end.getMonth();
-  if (sameMonth) {
-    return `${start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${end.getDate()}`;
-  }
-  return `${start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
-};
+import { parseLocalDate, getWeekStart, formatWeekRange } from './lib/listGrouping';
+import { makeListItemComparator, type ListSortKey } from './lib/listSort';
+import {
+  isSprintCompleted as isSprintCompletedPure,
+  isSprintActive as isSprintActivePure,
+} from './lib/sprintStatus';
+import { validateSprintForm } from './lib/sprintValidation';
+import { getNextSprint as getNextSprintPure } from './lib/sprintNav';
+import { applyStatusChange } from './lib/optimisticStatus';
 
 interface Developer {
   id: number;
@@ -198,29 +177,6 @@ const PRIORITY_COLORS = {
   },
 };
 
-// Canonical orderings for the sortable list-view columns.
-const LIST_SORT_TYPE_ORDER: Record<string, number> = {
-  epic: 0,
-  user_story: 1,
-  task: 2,
-  bug: 3,
-};
-const LIST_SORT_STATUS_ORDER: Record<string, number> = {
-  backlog: 0,
-  todo: 1,
-  in_progress: 2,
-  in_review: 3,
-  done: 4,
-};
-const LIST_SORT_PRIORITY_ORDER: Record<string, number> = {
-  critical: 0,
-  high: 1,
-  medium: 2,
-  low: 3,
-};
-
-type ListSortKey = 'type' | 'status' | 'priority' | 'assignee' | 'due_date' | 'completed_at';
-
 const ProjectBoard = () => {
   const { id, ticketId } = useParams<{ id: string; ticketId?: string }>();
   const navigate = useNavigate();
@@ -301,46 +257,10 @@ const ProjectBoard = () => {
       setListSortDir('asc');
     }
   };
-  const listItemComparator = useMemo(() => {
-    if (!listSortKey) return null;
-    const dir = listSortDir === 'asc' ? 1 : -1;
-    return (a: WorkItem, b: WorkItem) => {
-      let cmp = 0;
-      switch (listSortKey) {
-        case 'type':
-          cmp = (LIST_SORT_TYPE_ORDER[a.type] ?? 99) - (LIST_SORT_TYPE_ORDER[b.type] ?? 99);
-          break;
-        case 'status':
-          cmp = (LIST_SORT_STATUS_ORDER[a.status] ?? 99) - (LIST_SORT_STATUS_ORDER[b.status] ?? 99);
-          break;
-        case 'priority':
-          cmp =
-            (LIST_SORT_PRIORITY_ORDER[a.priority] ?? 99) -
-            (LIST_SORT_PRIORITY_ORDER[b.priority] ?? 99);
-          break;
-        case 'assignee': {
-          const aa = a.assignee_id ? (a.assignee || '').toLowerCase() : '￿';
-          const bb = b.assignee_id ? (b.assignee || '').toLowerCase() : '￿';
-          cmp = aa.localeCompare(bb);
-          break;
-        }
-        case 'due_date':
-        case 'completed_at': {
-          // Null/missing values always sort to the bottom, regardless of dir,
-          // so toggling asc/desc reorders the populated rows without flipping
-          // the empty ones to the top.
-          const av = a[listSortKey] ? new Date(a[listSortKey] as string).getTime() : null;
-          const bv = b[listSortKey] ? new Date(b[listSortKey] as string).getTime() : null;
-          if (av === null && bv === null) return 0;
-          if (av === null) return 1;
-          if (bv === null) return -1;
-          cmp = av - bv;
-          break;
-        }
-      }
-      return cmp * dir;
-    };
-  }, [listSortKey, listSortDir]);
+  const listItemComparator = useMemo(
+    () => makeListItemComparator(listSortKey, listSortDir),
+    [listSortKey, listSortDir],
+  );
   const renderListSortHeader = (label: string, key: ListSortKey) => {
     const active = listSortKey === key;
     const Icon = active ? (listSortDir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown;
@@ -609,16 +529,11 @@ const ProjectBoard = () => {
     return d.getTime();
   }, []);
   const isSprintCompleted = useCallback(
-    (s: Sprint) => s.status === 'completed' || (s.end_date != null && s.end_date < listViewToday),
+    (s: Sprint) => isSprintCompletedPure(s, listViewToday),
     [listViewToday],
   );
   const isSprintActive = useCallback(
-    (s: Sprint) =>
-      s.status === 'active' ||
-      (s.start_date != null &&
-        s.start_date <= listViewToday &&
-        s.end_date != null &&
-        s.end_date >= listViewToday),
+    (s: Sprint) => isSprintActivePure(s, listViewToday),
     [listViewToday],
   );
 
@@ -772,9 +687,7 @@ const ProjectBoard = () => {
         'board',
       ]);
       queryClient.setQueryData<WorkItem[]>(['workItems', workItemFilters, 'board'], (old) =>
-        (old ?? []).map((t) =>
-          t.id === itemId ? { ...t, status: newStatus as WorkItem['status'] } : t,
-        ),
+        applyStatusChange(old, itemId, newStatus),
       );
       return { previous };
     },
@@ -878,14 +791,8 @@ const ProjectBoard = () => {
   };
 
   // Get next sprint
-  const getNextSprint = (currentSprintId: number | null): number | null => {
-    if (!currentSprintId || sprints.length === 0) return null;
-    const currentIndex = sprints.findIndex((s) => s.id === currentSprintId);
-    if (currentIndex >= 0 && currentIndex < sprints.length - 1) {
-      return sprints[currentIndex + 1].id;
-    }
-    return null;
-  };
+  const getNextSprint = (currentSprintId: number | null): number | null =>
+    getNextSprintPure(currentSprintId, sprints);
 
   // Create sprint
   // Create sprint mutation
@@ -927,40 +834,14 @@ const ProjectBoard = () => {
       toast.error('Sprint name is required');
       return;
     }
-    // Check for duplicate sprint names
-    const duplicateName = sprints.some(
-      (s) => s.name.trim().toLowerCase() === form.name.trim().toLowerCase(),
-    );
-    if (duplicateName) {
-      toast.error('A sprint with this name already exists');
+    const validationError = validateSprintForm({
+      form,
+      sprints,
+      overlapMessage: 'Sprint dates overlap with an existing sprint. Sprints cannot overlap.',
+    });
+    if (validationError) {
+      toast.error(validationError);
       return;
-    }
-    if (!form.start_date) {
-      toast.error('Start date is required');
-      return;
-    }
-    if (!form.end_date) {
-      toast.error('End date is required');
-      return;
-    }
-    const startDate = parseLocalDate(form.start_date);
-    const endDate = parseLocalDate(form.end_date);
-    if (startDate && endDate && endDate < startDate) {
-      toast.error('End date must be equal to or after start date');
-      return;
-    }
-    // Check for overlaps with existing sprints
-    if (startDate && endDate && sprints.length > 0) {
-      const hasOverlap = sprints.some((existingSprint) => {
-        if (!existingSprint.start_date || !existingSprint.end_date) return false;
-        const existingStart = new Date(existingSprint.start_date);
-        const existingEnd = new Date(existingSprint.end_date);
-        return startDate <= existingEnd && endDate >= existingStart;
-      });
-      if (hasOverlap) {
-        toast.error('Sprint dates overlap with an existing sprint. Sprints cannot overlap.');
-        return;
-      }
     }
     createSprintMutation.mutate({
       name: form.name,
@@ -1014,37 +895,15 @@ const ProjectBoard = () => {
       toast.error('Sprint name is required');
       return;
     }
-    const duplicateName = sprints.some(
-      (s) =>
-        s.id !== editingSprint.id && s.name.trim().toLowerCase() === form.name.trim().toLowerCase(),
-    );
-    if (duplicateName) {
-      toast.error('A sprint with this name already exists');
+    const validationError = validateSprintForm({
+      form,
+      sprints,
+      excludeSprintId: editingSprint.id,
+      overlapMessage: 'Sprint dates overlap with an existing sprint.',
+    });
+    if (validationError) {
+      toast.error(validationError);
       return;
-    }
-    if (!form.start_date) {
-      toast.error('Start date is required');
-      return;
-    }
-    if (!form.end_date) {
-      toast.error('End date is required');
-      return;
-    }
-    const startDate = parseLocalDate(form.start_date);
-    const endDate = parseLocalDate(form.end_date);
-    if (startDate && endDate && endDate < startDate) {
-      toast.error('End date must be equal to or after start date');
-      return;
-    }
-    if (startDate && endDate) {
-      const hasOverlap = sprints.some((s) => {
-        if (s.id === editingSprint.id || !s.start_date || !s.end_date) return false;
-        return startDate <= new Date(s.end_date) && endDate >= new Date(s.start_date);
-      });
-      if (hasOverlap) {
-        toast.error('Sprint dates overlap with an existing sprint.');
-        return;
-      }
     }
     editSprintMutation.mutate({
       sprintId: editingSprint.id,
@@ -1307,9 +1166,7 @@ const ProjectBoard = () => {
         'board',
       ]);
       queryClient.setQueryData<WorkItem[]>(['workItems', workItemFilters, 'board'], (old) =>
-        (old ?? []).map((t) =>
-          t.id === itemId ? { ...t, status: newStatus as WorkItem['status'] } : t,
-        ),
+        applyStatusChange(old, itemId, newStatus),
       );
       return { previous };
     },
