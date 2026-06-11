@@ -75,3 +75,11 @@ export function invalidateAdminUserRoleImpact(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: ['admin', 'employees'] });
   queryClient.invalidateQueries({ queryKey: ['admin', 'developers-capacity'] });
 }
+
+export function invalidateAdminRoles(queryClient: QueryClient) {
+  // role CRUD or per-user role assignment — users carry their role list, so both
+  // the roles registry and the users list go stale together. Shared by
+  // useRolesAdmin and useUserRoleAssignment so the pair can't drift.
+  queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
+  queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+}

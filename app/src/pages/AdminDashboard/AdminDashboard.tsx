@@ -75,9 +75,13 @@ const AdminDashboard = () => {
     }
   };
 
-  // Sync state with URL on browser back/forward navigation. Pre-existing
-  // pattern; deliberately reads activeTab without listing it as a dep so
-  // the effect only runs when the URL changes, not when state changes back.
+  // Sync state with URL on browser back/forward navigation, and re-resolve the
+  // fallback tab if capabilities arrive after mount. `firstVisibleTab` is in the
+  // deps so that, when there is no `?tab=` in the URL, a late `can()` resolution
+  // moves the user off the stale fallback (e.g. they'd otherwise be parked on the
+  // restricted Dashboard pane until they click a tab). `activeTab` is
+  // deliberately omitted so the effect runs on URL/caps change, not when state
+  // changes back.
   useEffect(() => {
     const urlTab = searchParams.get('tab');
     const resolved: AdminTab =
@@ -88,7 +92,7 @@ const AdminDashboard = () => {
       setActiveTabState(resolved);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [searchParams, firstVisibleTab]);
 
   const restricted = (
     <div className="text-center py-12 text-[#737373]">This section is restricted.</div>

@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { invalidateAdminUserRoleImpact } from '@/lib/invalidations';
+import { invalidateAdminRoles, invalidateAdminUserRoleImpact } from '@/lib/invalidations';
 import type { Role, User } from '../types';
 import { useRefreshCapsTwice } from './useRefreshCapsTwice';
 
@@ -19,10 +19,7 @@ export function useUserRoleAssignment() {
   const { user } = useAuth();
   const refreshCapsTwice = useRefreshCapsTwice();
 
-  const invalidateRoles = () => {
-    queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
-    queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
-  };
+  const invalidateRoles = () => invalidateAdminRoles(queryClient);
 
   const assignUserRoleMutation = useMutation({
     mutationFn: (vars: { userId: number; roleId: number }) =>

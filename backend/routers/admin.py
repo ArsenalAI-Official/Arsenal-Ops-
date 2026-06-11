@@ -278,7 +278,11 @@ def get_developers_capacity(db: Session = Depends(get_db)):
 
     result = []
     for dev in developers:
-        breakdown = breakdowns.get(dev.id, {})
+        # Index, don't `.get(..., {})`: the batch returns an entry for every dev,
+        # so a miss is a regression in that invariant. Fail loud with a 500 rather
+        # than silently shipping a row missing every capacity field the frontend
+        # types expect.
+        breakdown = breakdowns[dev.id]
         result.append(
             {
                 "developer_id": dev.id,

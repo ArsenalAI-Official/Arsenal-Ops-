@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
+import { invalidateAdminRoles } from '@/lib/invalidations';
 import type { Capability, Role } from '../types';
 import {
   type CatalogNode,
@@ -44,10 +45,7 @@ export function useRolesAdmin() {
   }>({ name: '', description: '', capability_keys: [] });
 
   // RBAC: role create/update/delete mutations
-  const invalidateRoles = () => {
-    queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
-    queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
-  };
+  const invalidateRoles = () => invalidateAdminRoles(queryClient);
 
   const createRoleMutation = useMutation({
     mutationFn: (vars: { name: string; description: string | null; capability_keys: string[] }) =>

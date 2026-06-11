@@ -62,11 +62,11 @@ jobs:
           cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
-        # Runtime deps + pytest. Tests are self-contained (in-memory SQLite,
-        # no external services), so no DB/service setup is needed.
-        run: |
-          pip install -r requirements.txt
-          pip install pytest
+        # Runtime deps + pytest, both from requirements.txt (pytest is pinned
+        # there so CI and local runs stay in sync). Tests are self-contained
+        # (in-memory SQLite, no external services), so no DB/service setup is
+        # needed.
+        run: pip install -r requirements.txt
 
       - name: pytest
         # The 4 deselected tests in test_pulse_overrides.py are PRE-EXISTING
@@ -107,7 +107,10 @@ jobs:
         run: npm run format:check
 
       - name: Typecheck
-        run: npx tsc --noEmit
+        # `tsc -b --noEmit` mirrors the build's `tsc -b` (package.json) so CI
+        # checks the same project-reference program graph the build does, while
+        # `--noEmit` keeps it a pure typecheck with no build artifacts.
+        run: npx tsc -b --noEmit
 
       - name: Unit tests
         run: npm test

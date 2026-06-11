@@ -25,3 +25,8 @@ cachetools>=5.3
 # Lint / formatting — pinned because CI runs `ruff check` + `ruff format
 # --check` and version drift would cause spurious failures.
 ruff==0.15.12
+
+# Testing — pinned for the same reason: the `Backend (pytest)` CI job installs
+# from this file, so a floating pytest could fail CI on a release the author
+# never ran locally.
+pytest==8.3.4
