@@ -76,6 +76,7 @@ import { getNextSprint as getNextSprintPure } from './lib/sprintNav';
 import { useBoardData } from './hooks/useBoardData';
 import { useBoardInvalidations } from './hooks/useBoardInvalidations';
 import { useWorkItemMutations } from './hooks/useWorkItemMutations';
+import { useBoardDnd } from './hooks/useBoardDnd';
 import { useSprintMutations } from './hooks/useSprintMutations';
 import { useCommentMutation } from './hooks/useCommentMutation';
 
@@ -214,8 +215,6 @@ const ProjectBoard = () => {
   const [assigneeSearchFilter, setAssigneeSearchFilter] = useState('');
   const filterMenuRef = useRef<HTMLDivElement>(null);
   const sprintMenuRef = useRef<HTMLDivElement>(null);
-  const [draggedItem, setDraggedItem] = useState<string | null>(null);
-  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
 
   // Shared sort state for the By Sprint / By Epic list views. Applies within
   // each group; doesn't reorder groups themselves. Null = group's natural
@@ -583,21 +582,6 @@ const ProjectBoard = () => {
     });
   };
 
-  // Drag and drop handlers — useCallback so they're stable across renders.
-  // setState setters are stable, so deps stay empty.
-  const handleDragStart = useCallback((itemId: string) => {
-    setDraggedItem(itemId);
-  }, []);
-
-  const handleDragOver = useCallback((e: React.DragEvent, status: string) => {
-    e.preventDefault();
-    setDragOverColumn(status);
-  }, []);
-
-  const handleDragLeave = useCallback(() => {
-    setDragOverColumn(null);
-  }, []);
-
   // ── Mutations ─────────────────────────────────────────────────────────────
   // The 12 work-item / sprint / comment mutations + their handlers live in three
   // hooks under `hooks/`. They're called ONCE here and receive what they need as
@@ -624,16 +608,18 @@ const ProjectBoard = () => {
     onCreateSuccess: () => setShowCreateForm(false),
   });
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent, newStatus: string) => {
-      e.preventDefault();
-      setDragOverColumn(null);
-      if (!draggedItem) return;
-      moveMutation.mutate({ itemId: draggedItem, newStatus });
-      setDraggedItem(null);
-    },
-    [draggedItem, moveMutation],
-  );
+  // Drag-and-drop state + handlers live in useBoardDnd, which owns both the
+  // state and the handlers together so handleDrop never reads a stale
+  // draggedItem (R3). onMove is wired to the work-item move mutation — the
+  // same call handleDrop made inline before. handleDrop only changes STATUS.
+  const {
+    draggedItem,
+    dragOverColumn,
+    onDragStart: handleDragStart,
+    onDragOver: handleDragOver,
+    onDragLeave: handleDragLeave,
+    onDrop: handleDrop,
+  } = useBoardDnd({ onMove: moveMutation.mutate });
 
   // Get next sprint
   const getNextSprint = (currentSprintId: number | null): number | null =>
