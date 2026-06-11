@@ -12,8 +12,6 @@ import {
   Clock,
   CheckCircle2,
   X,
-  Trash2,
-  Pencil,
   Search,
   LayoutGrid,
   List,
@@ -22,11 +20,6 @@ import {
   AlertCircle,
   Inbox,
   Eye,
-  EyeOff,
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
-  ChevronsUpDown,
   ListFilter,
   Check,
   Repeat2,
@@ -34,7 +27,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast, Toaster } from 'sonner';
-import StatusDotMenu from '@/components/ProjectsPage/StatusDotMenu';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
 import type { WorkItem, Sprint } from '@/types/workItems';
@@ -53,10 +45,11 @@ const CreateItemModal = lazy(() => import('./modals/CreateItemModal'));
 const CreateSprintModal = lazy(() => import('./modals/CreateSprintModal'));
 const ItemDetailDrawer = lazy(() => import('./ItemDetailDrawer'));
 import BoardView from './views/BoardView';
+import ListView from './views/ListView';
+import EpicView from './views/EpicView';
 import ReviewerPanel from './ReviewerPanel';
 import ArchitectureEditorWrapper from './ArchitectureEditorWrapper';
-import { parseLocalDate, formatWeekRange } from './lib/listGrouping';
-import { type ListSortKey } from './lib/listSort';
+import { parseLocalDate } from './lib/listGrouping';
 import { getNextSprint as getNextSprintPure } from './lib/sprintNav';
 import { useBoardData } from './hooks/useBoardData';
 import { useBoardInvalidations } from './hooks/useBoardInvalidations';
@@ -169,26 +162,9 @@ const ProjectBoard = () => {
   const [viewMode, setViewMode] = useState<'board' | 'list' | 'epic'>('board');
 
   // Shared list-view sort state + comparator (handleListSort cycles asc → desc
-  // → off). The JSX-returning header-cell helper stays here for now (commit 9
-  // owns the list view).
+  // → off). The sortable header cell now lives in `views/components/
+  // ListSortHeader`, rendered inside ListView/EpicView.
   const { listSortKey, listSortDir, handleListSort, listItemComparator } = useListSort();
-  const renderListSortHeader = (label: string, key: ListSortKey) => {
-    const active = listSortKey === key;
-    const Icon = active ? (listSortDir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown;
-    return (
-      <button
-        type="button"
-        onClick={() => handleListSort(key)}
-        className={`flex items-center gap-1 text-left uppercase tracking-wider hover:text-white transition-colors ${
-          active ? 'text-[#E0B954]' : ''
-        }`}
-        aria-sort={active ? (listSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-      >
-        {label}
-        <Icon className="w-3 h-3 shrink-0" aria-hidden />
-      </button>
-    );
-  };
 
   const VIEW_TABS = [
     { mode: 'board' as const, icon: LayoutGrid, label: 'Board', tabId: 'tab-board' },
@@ -402,6 +378,19 @@ const ProjectBoard = () => {
     if (!sprint) return;
     setEditingSprint(sprint);
   };
+
+  // Sprint complete/edit/delete is a managerial action. The legacy gate was
+  // `isProjectManager(user)` (role includes 'admin' or 'project_manager').
+  // Capability mapping: `project.pm` is granted to admin (via `*`) and
+  // project_manager (via `project.*`), but NOT developer. Project-level path:
+  // developers flagged is_admin on this project or marked "Project Creator"
+  // keep their existing override even without the capability. Computed here so
+  // ListView stays props-down.
+  const canManageSprints =
+    can('project.pm') ||
+    !!project?.developers?.some(
+      (d) => d.email === user?.email && (d.is_admin || d.role === 'Project Creator'),
+    );
 
   // Submit-comment mutation + handler.
   const { handleSubmitComment } = useCommentMutation({ selectedItem, project });
@@ -1039,621 +1028,48 @@ const ProjectBoard = () => {
           />
         ) : viewMode === 'epic' ? (
           /* EPIC VIEW */
-          <div
-            role="tabpanel"
-            id="tabpanel-epic"
-            aria-labelledby="tab-epic"
-            className="p-6 space-y-3"
-          >
-            {listViewEpicGroups.length === 0 ? (
-              <div className="py-16 text-center text-[#737373] text-sm">No items found</div>
-            ) : (
-              listViewEpicGroups.map((group) => {
-                const isCollapsed = collapsedSprints.has(group.key);
-                const isUnparented = group.key === 'unparented';
-                const epicKey = group.epic?.key as string | undefined;
-                return (
-                  <div
-                    key={group.key}
-                    className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl overflow-hidden"
-                  >
-                    {/* Epic group header */}
-                    <div className="flex items-center gap-2.5 px-5 py-3.5 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
-                      <button
-                        onClick={() => toggleSprintCollapse(group.key)}
-                        className="flex items-center gap-2.5 flex-1 text-left min-w-0"
-                      >
-                        {isCollapsed ? (
-                          <ChevronRight className="w-3.5 h-3.5 text-[#737373] shrink-0" />
-                        ) : (
-                          <ChevronDown className="w-3.5 h-3.5 text-[#737373] shrink-0" />
-                        )}
-                        {isUnparented ? (
-                          <span className="text-sm font-semibold text-[#737373] italic">
-                            No epic
-                          </span>
-                        ) : (
-                          <>
-                            <Target className="w-3.5 h-3.5 text-[#A78BFA] shrink-0" />
-                            {epicKey && (
-                              <span className="text-[11px] font-mono text-[#A78BFA] shrink-0">
-                                {epicKey}
-                              </span>
-                            )}
-                            <span className="text-sm font-semibold text-[#f5f5f5] truncate">
-                              {group.label}
-                            </span>
-                          </>
-                        )}
-                        <span className="text-xs text-[#737373] shrink-0">
-                          {group.count} item{group.count !== 1 ? 's' : ''}
-                        </span>
-                      </button>
-                      {!isUnparented && group.epic && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/project/${id}/board/${group.epic!.id}`);
-                          }}
-                          className="text-[10px] text-[#737373] hover:text-[#A78BFA] transition-colors shrink-0"
-                          title="Open epic"
-                        >
-                          Open epic →
-                        </button>
-                      )}
-                    </div>
-
-                    {!isCollapsed && (
-                      <>
-                        {/* Table header */}
-                        <div className="grid grid-cols-[120px_1fr_120px_100px_80px_120px_110px_110px] gap-4 px-5 py-3 border-t border-[rgba(255,255,255,0.05)] text-xs text-[#737373] font-semibold uppercase tracking-wider">
-                          {renderListSortHeader('Type', 'type')}
-                          <span>Title</span>
-                          {renderListSortHeader('Status', 'status')}
-                          {renderListSortHeader('Priority', 'priority')}
-                          <span>Points</span>
-                          {renderListSortHeader('Assignee', 'assignee')}
-                          {renderListSortHeader('Due Date', 'due_date')}
-                          {renderListSortHeader('Completed', 'completed_at')}
-                        </div>
-                        {/* Table rows. Default: hierarchy-aware (parent → child with
-                            indent). When sorted, render flat at depth=0 since
-                            cross-hierarchy ordering breaks the parent/child grouping. */}
-                        {(listItemComparator
-                          ? [...group.rows]
-                              .sort((a, b) => listItemComparator(a.item, b.item))
-                              .map((r) => ({ item: r.item, depth: 0 }))
-                          : group.rows
-                        ).map(({ item, depth }) => {
-                          const typeInfo = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
-                          const TypeIcon = typeInfo.icon;
-                          const priorityStyle =
-                            PRIORITY_COLORS[item.priority] || PRIORITY_COLORS.medium;
-                          return (
-                            <div
-                              key={item.id}
-                              onMouseEnter={() => prefetchComments(item.id)}
-                              onClick={() => {
-                                navigate(`/project/${id}/board/${item.id}`);
-                              }}
-                              className="grid grid-cols-[120px_1fr_120px_100px_80px_120px_110px_110px] gap-4 px-5 py-3.5 border-t border-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.025)] cursor-pointer transition-colors group"
-                            >
-                              <div className="flex items-center">
-                                <div
-                                  className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs"
-                                  style={{ backgroundColor: typeInfo.bg, color: typeInfo.color }}
-                                >
-                                  <TypeIcon className="w-3 h-3" />
-                                  {typeInfo.label}
-                                </div>
-                              </div>
-                              <div
-                                className="flex items-center gap-3 min-w-0"
-                                style={{ paddingLeft: depth === 1 ? 24 : 0 }}
-                              >
-                                {depth === 1 && (
-                                  <span
-                                    className="text-[#444] font-mono text-xs shrink-0"
-                                    aria-hidden
-                                  >
-                                    └─
-                                  </span>
-                                )}
-                                <span className="text-[10px] text-[#E0B954] font-mono font-medium shrink-0">
-                                  {item.key}
-                                </span>
-                                <span className="text-sm text-[#f5f5f5] truncate group-hover:text-white transition-colors">
-                                  {item.title}
-                                </span>
-                              </div>
-                              <div className="flex items-center">
-                                <StatusDotMenu
-                                  status={item.status}
-                                  onChange={(newStatus) => handleStatusChange(item, newStatus)}
-                                />
-                              </div>
-                              <div className="flex items-center">
-                                <span
-                                  className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                                  style={{
-                                    backgroundColor: priorityStyle.hex + '33',
-                                    color: priorityStyle.hex,
-                                  }}
-                                >
-                                  {item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}
-                                </span>
-                              </div>
-                              <div className="flex items-center">
-                                <span className="text-sm font-semibold text-[#E0B954]">
-                                  {item.story_points}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                {item.assignee && item.assignee !== 'Unassigned' ? (
-                                  <>
-                                    <div
-                                      className="w-5 h-5 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center shrink-0"
-                                      title={item.assignee}
-                                    >
-                                      <span className="text-[9px] font-semibold text-white">
-                                        {item.assignee.charAt(0).toUpperCase()}
-                                      </span>
-                                    </div>
-                                    <span className="text-xs text-[#a3a3a3] truncate">
-                                      {item.assignee}
-                                    </span>
-                                  </>
-                                ) : (
-                                  <span className="text-xs text-[#555] truncate">—</span>
-                                )}
-                              </div>
-                              <div className="flex items-center">
-                                <span className="text-xs text-[#a3a3a3] truncate">
-                                  {item.due_date
-                                    ? parseLocalDate(item.due_date)?.toLocaleDateString()
-                                    : '—'}
-                                </span>
-                              </div>
-                              <div className="flex items-center">
-                                <span className="text-xs text-[#a3a3a3] truncate">
-                                  {item.completed_at
-                                    ? new Date(item.completed_at).toLocaleDateString()
-                                    : '—'}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
+          <EpicView
+            listViewEpicGroups={listViewEpicGroups}
+            collapsedSprints={collapsedSprints}
+            toggleSprintCollapse={toggleSprintCollapse}
+            listSortKey={listSortKey}
+            listSortDir={listSortDir}
+            handleListSort={handleListSort}
+            listItemComparator={listItemComparator}
+            typeConfig={TYPE_CONFIG}
+            priorityColors={PRIORITY_COLORS}
+            onStatusChange={handleStatusChange}
+            onPrefetchComments={prefetchComments}
+            onOpenItem={handleCardOpen}
+            onOpenEpic={(epicId) => navigate(`/project/${id}/board/${epicId}`)}
+          />
         ) : (
           /* LIST VIEW */
-          <div
-            role="tabpanel"
-            id="tabpanel-list"
-            aria-labelledby="tab-list"
-            className="p-6 space-y-3"
-          >
-            {/* List view header: Group by toggle + completed-sprints toggle */}
-            <div className="flex items-center justify-between gap-3">
-              <div
-                role="radiogroup"
-                aria-label="Group list by"
-                className="flex items-center bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)] rounded-lg p-0.5"
-              >
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={listGroupBy === 'sprint'}
-                  onClick={() => setListGroupBy('sprint')}
-                  className={`px-2.5 h-6 text-[11px] rounded-md transition-colors ${listGroupBy === 'sprint' ? 'bg-[#E0B954] text-[#080808] font-medium' : 'text-[#737373] hover:text-white'}`}
-                >
-                  By Sprint
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={listGroupBy === 'week'}
-                  onClick={() => setListGroupBy('week')}
-                  className={`px-2.5 h-6 text-[11px] rounded-md transition-colors ${listGroupBy === 'week' ? 'bg-[#E0B954] text-[#080808] font-medium' : 'text-[#737373] hover:text-white'}`}
-                >
-                  By Week
-                </button>
-              </div>
-              {listGroupBy === 'sprint' && (
-                <button
-                  onClick={() => setShowCompletedSprints((v) => !v)}
-                  className="flex items-center gap-1.5 px-3 h-7 text-xs border border-[rgba(255,255,255,0.1)] rounded-lg text-[#737373] hover:text-white hover:border-[rgba(255,255,255,0.2)] transition-colors"
-                >
-                  {showCompletedSprints ? (
-                    <EyeOff className="w-3 h-3" />
-                  ) : (
-                    <Eye className="w-3 h-3" />
-                  )}
-                  {showCompletedSprints ? 'Hide Completed Sprints' : 'Show Completed Sprints'}
-                </button>
-              )}
-            </div>
-
-            {listGroupBy === 'week' ? (
-              listViewWeekGroups.length === 0 ? (
-                <div className="py-16 text-center text-[#737373] text-sm">No items found</div>
-              ) : (
-                listViewWeekGroups.map((group) => {
-                  const isCollapsed = collapsedSprints.has(group.key);
-                  return (
-                    <div
-                      key={group.key}
-                      className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl overflow-hidden"
-                    >
-                      {/* Week group header */}
-                      <div className="flex items-center gap-2.5 px-5 py-3.5 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
-                        <button
-                          onClick={() => toggleSprintCollapse(group.key)}
-                          className="flex items-center gap-2.5 flex-1 text-left min-w-0"
-                        >
-                          {isCollapsed ? (
-                            <ChevronRight className="w-3.5 h-3.5 text-[#737373] shrink-0" />
-                          ) : (
-                            <ChevronDown className="w-3.5 h-3.5 text-[#737373] shrink-0" />
-                          )}
-                          <span className="text-sm font-semibold text-[#f5f5f5]">
-                            {group.label}
-                          </span>
-                          {group.weekStart && group.label !== formatWeekRange(group.weekStart) && (
-                            <span className="text-[10px] text-[#555555]">
-                              {formatWeekRange(group.weekStart)}
-                            </span>
-                          )}
-                          {group.isCurrent && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[rgba(224,185,84,0.12)] text-[#E0B954]">
-                              Current
-                            </span>
-                          )}
-                          <span className="text-xs text-[#737373]">
-                            {group.items.length} item{group.items.length !== 1 ? 's' : ''}
-                          </span>
-                        </button>
-                      </div>
-
-                      {!isCollapsed && (
-                        <>
-                          {/* Table header */}
-                          <div className="grid grid-cols-[120px_1fr_120px_100px_80px_120px_110px_110px] gap-4 px-5 py-3 border-t border-[rgba(255,255,255,0.05)] text-xs text-[#737373] font-semibold uppercase tracking-wider">
-                            {renderListSortHeader('Type', 'type')}
-                            <span>Title</span>
-                            {renderListSortHeader('Status', 'status')}
-                            {renderListSortHeader('Priority', 'priority')}
-                            <span>Points</span>
-                            {renderListSortHeader('Assignee', 'assignee')}
-                            {renderListSortHeader('Due Date', 'due_date')}
-                            {renderListSortHeader('Completed', 'completed_at')}
-                          </div>
-                          {/* Table rows */}
-                          {(listItemComparator
-                            ? [...group.items].sort(listItemComparator)
-                            : group.items
-                          ).map((item) => {
-                            const typeInfo = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
-                            const TypeIcon = typeInfo.icon;
-                            const priorityStyle =
-                              PRIORITY_COLORS[item.priority] || PRIORITY_COLORS.medium;
-                            const dueDate = item.due_date ? parseLocalDate(item.due_date) : null;
-                            const isOverdue =
-                              !!dueDate &&
-                              !item.completed_at &&
-                              dueDate.getTime() < todayMidnightMs;
-                            return (
-                              <div
-                                key={item.id}
-                                onMouseEnter={() => prefetchComments(item.id)}
-                                onClick={() => {
-                                  navigate(`/project/${id}/board/${item.id}`);
-                                }}
-                                className="grid grid-cols-[120px_1fr_120px_100px_80px_120px_110px_110px] gap-4 px-5 py-3.5 border-t border-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.025)] cursor-pointer transition-colors group"
-                              >
-                                <div className="flex items-center">
-                                  <div
-                                    className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs"
-                                    style={{ backgroundColor: typeInfo.bg, color: typeInfo.color }}
-                                  >
-                                    <TypeIcon className="w-3 h-3" />
-                                    {typeInfo.label}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-3 min-w-0">
-                                  <span className="text-[10px] text-[#E0B954] font-mono font-medium shrink-0">
-                                    {item.key}
-                                  </span>
-                                  <span className="text-sm text-[#f5f5f5] truncate group-hover:text-white transition-colors">
-                                    {item.title}
-                                  </span>
-                                </div>
-                                <div className="flex items-center">
-                                  {canWriteTracker ? (
-                                    <StatusDotMenu
-                                      status={item.status}
-                                      onChange={(newStatus) => handleStatusChange(item, newStatus)}
-                                    />
-                                  ) : (
-                                    <span className="text-xs text-[#a3a3a3] capitalize">
-                                      {item.status.replace('_', ' ')}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center">
-                                  <span
-                                    className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                                    style={{
-                                      backgroundColor: priorityStyle.hex + '33',
-                                      color: priorityStyle.hex,
-                                    }}
-                                  >
-                                    {item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}
-                                  </span>
-                                </div>
-                                <div className="flex items-center">
-                                  <span className="text-sm font-semibold text-[#E0B954]">
-                                    {item.story_points}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                  {item.assignee && item.assignee !== 'Unassigned' ? (
-                                    <>
-                                      <div
-                                        className="w-5 h-5 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center shrink-0"
-                                        title={item.assignee}
-                                      >
-                                        <span className="text-[9px] font-semibold text-white">
-                                          {item.assignee.charAt(0).toUpperCase()}
-                                        </span>
-                                      </div>
-                                      <span className="text-xs text-[#a3a3a3] truncate">
-                                        {item.assignee}
-                                      </span>
-                                    </>
-                                  ) : (
-                                    <span className="text-xs text-[#555] truncate">—</span>
-                                  )}
-                                </div>
-                                <div className="flex items-center">
-                                  <span
-                                    className={`text-xs truncate ${
-                                      isOverdue ? 'text-[#EF4444]' : 'text-[#a3a3a3]'
-                                    }`}
-                                  >
-                                    {dueDate ? dueDate.toLocaleDateString() : '—'}
-                                  </span>
-                                </div>
-                                <div className="flex items-center">
-                                  <span
-                                    className={`text-xs truncate ${
-                                      item.completed_at ? 'text-[#E0B954]' : 'text-[#a3a3a3]'
-                                    }`}
-                                  >
-                                    {item.completed_at
-                                      ? new Date(item.completed_at).toLocaleDateString()
-                                      : '—'}
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </>
-                      )}
-                    </div>
-                  );
-                })
-              )
-            ) : listViewGroups.length === 0 ? (
-              <div className="py-16 text-center text-[#737373] text-sm">No items found</div>
-            ) : (
-              listViewGroups.map((group) => {
-                const isCollapsed = collapsedSprints.has(group.key);
-                return (
-                  <div
-                    key={group.key}
-                    className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl overflow-hidden"
-                  >
-                    {/* Sprint group header */}
-                    <div className="flex items-center gap-2.5 px-5 py-3.5 hover:bg-[rgba(255,255,255,0.02)] transition-colors group/sprint-hdr">
-                      <button
-                        onClick={() => toggleSprintCollapse(group.key)}
-                        className="flex items-center gap-2.5 flex-1 text-left min-w-0"
-                      >
-                        {isCollapsed ? (
-                          <ChevronRight className="w-3.5 h-3.5 text-[#737373] shrink-0" />
-                        ) : (
-                          <ChevronDown className="w-3.5 h-3.5 text-[#737373] shrink-0" />
-                        )}
-                        <span className="text-sm font-semibold text-[#f5f5f5]">{group.label}</span>
-                        {group.isCompleted && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.05)] text-[#555555]">
-                            Completed
-                          </span>
-                        )}
-                        <span className="text-xs text-[#737373]">
-                          {group.items.length} item{group.items.length !== 1 ? 's' : ''}
-                        </span>
-                      </button>
-                      {group.key !== 'backlog' &&
-                        // Sprint complete/close is a managerial action. The
-                        // legacy gate was `isProjectManager(user)` (user.role
-                        // includes 'admin' or 'project_manager'). Capability
-                        // mapping: `project.pm` is granted to the admin role
-                        // (via `*`) and the project_manager role (via
-                        // `project.*`), but NOT to the developer role —
-                        // matching the original intent. Project-level path:
-                        // developers flagged is_admin on this project or
-                        // marked as "Project Creator" keep their existing
-                        // override even without the capability.
-                        (can('project.pm') ||
-                          project?.developers?.some(
-                            (d) =>
-                              d.email === user?.email &&
-                              (d.is_admin || d.role === 'Project Creator'),
-                          )) && (
-                          <div className="flex items-center gap-0.5 shrink-0">
-                            {!group.isCompleted && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setCompletingSprintId(parseInt(group.key));
-                                }}
-                                className="p-1.5 rounded-md hover:bg-[rgba(224,185,84,0.1)] text-[#737373] hover:text-[#E0B954] transition-colors"
-                                title="Complete sprint"
-                              >
-                                <CheckCircle2 className="w-4 h-4" />
-                              </button>
-                            )}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openEditSprintModal(group.key);
-                              }}
-                              className="p-1.5 rounded-md hover:bg-[rgba(255,255,255,0.06)] text-[#737373] hover:text-white transition-colors"
-                              title="Edit sprint"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeletingSprintId(parseInt(group.key));
-                              }}
-                              className="p-1.5 rounded-md hover:bg-[rgba(239,68,68,0.08)] text-[#737373] hover:text-[#EF4444] transition-colors"
-                              title="Delete sprint"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        )}
-                    </div>
-
-                    {!isCollapsed && (
-                      <>
-                        {/* Table header */}
-                        <div className="grid grid-cols-[120px_1fr_120px_100px_80px_120px_110px_110px] gap-4 px-5 py-3 border-t border-[rgba(255,255,255,0.05)] text-xs text-[#737373] font-semibold uppercase tracking-wider">
-                          {renderListSortHeader('Type', 'type')}
-                          <span>Title</span>
-                          {renderListSortHeader('Status', 'status')}
-                          {renderListSortHeader('Priority', 'priority')}
-                          <span>Points</span>
-                          {renderListSortHeader('Assignee', 'assignee')}
-                          {renderListSortHeader('Due Date', 'due_date')}
-                          {renderListSortHeader('Completed', 'completed_at')}
-                        </div>
-                        {/* Table rows */}
-                        {(listItemComparator
-                          ? [...group.items].sort(listItemComparator)
-                          : group.items
-                        ).map((item) => {
-                          const typeInfo = TYPE_CONFIG[item.type] || TYPE_CONFIG.task;
-                          const TypeIcon = typeInfo.icon;
-                          const priorityStyle =
-                            PRIORITY_COLORS[item.priority] || PRIORITY_COLORS.medium;
-                          return (
-                            <div
-                              key={item.id}
-                              onMouseEnter={() => prefetchComments(item.id)}
-                              onClick={() => {
-                                navigate(`/project/${id}/board/${item.id}`);
-                              }}
-                              className="grid grid-cols-[120px_1fr_120px_100px_80px_120px_110px_110px] gap-4 px-5 py-3.5 border-t border-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.025)] cursor-pointer transition-colors group"
-                            >
-                              <div className="flex items-center">
-                                <div
-                                  className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs"
-                                  style={{ backgroundColor: typeInfo.bg, color: typeInfo.color }}
-                                >
-                                  <TypeIcon className="w-3 h-3" />
-                                  {typeInfo.label}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-3 min-w-0">
-                                <span className="text-[10px] text-[#E0B954] font-mono font-medium shrink-0">
-                                  {item.key}
-                                </span>
-                                <span className="text-sm text-[#f5f5f5] truncate group-hover:text-white transition-colors">
-                                  {item.title}
-                                </span>
-                              </div>
-                              <div className="flex items-center">
-                                {canWriteTracker ? (
-                                  <StatusDotMenu
-                                    status={item.status}
-                                    onChange={(newStatus) => handleStatusChange(item, newStatus)}
-                                  />
-                                ) : (
-                                  <span className="text-xs text-[#a3a3a3] capitalize">
-                                    {item.status.replace('_', ' ')}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center">
-                                <span
-                                  className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                                  style={{
-                                    backgroundColor: priorityStyle.hex + '33',
-                                    color: priorityStyle.hex,
-                                  }}
-                                >
-                                  {item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}
-                                </span>
-                              </div>
-                              <div className="flex items-center">
-                                <span className="text-sm font-semibold text-[#E0B954]">
-                                  {item.story_points}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                {item.assignee && item.assignee !== 'Unassigned' ? (
-                                  <>
-                                    <div
-                                      className="w-5 h-5 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center shrink-0"
-                                      title={item.assignee}
-                                    >
-                                      <span className="text-[9px] font-semibold text-white">
-                                        {item.assignee.charAt(0).toUpperCase()}
-                                      </span>
-                                    </div>
-                                    <span className="text-xs text-[#a3a3a3] truncate">
-                                      {item.assignee}
-                                    </span>
-                                  </>
-                                ) : (
-                                  <span className="text-xs text-[#555] truncate">—</span>
-                                )}
-                              </div>
-                              <div className="flex items-center">
-                                <span className="text-xs text-[#a3a3a3] truncate">
-                                  {item.due_date
-                                    ? parseLocalDate(item.due_date)?.toLocaleDateString()
-                                    : '—'}
-                                </span>
-                              </div>
-                              <div className="flex items-center">
-                                <span className="text-xs text-[#a3a3a3] truncate">
-                                  {item.completed_at
-                                    ? new Date(item.completed_at).toLocaleDateString()
-                                    : '—'}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
+          <ListView
+            listViewGroups={listViewGroups}
+            listViewWeekGroups={listViewWeekGroups}
+            listGroupBy={listGroupBy}
+            setListGroupBy={setListGroupBy}
+            collapsedSprints={collapsedSprints}
+            toggleSprintCollapse={toggleSprintCollapse}
+            showCompletedSprints={showCompletedSprints}
+            setShowCompletedSprints={setShowCompletedSprints}
+            todayMidnightMs={todayMidnightMs}
+            listSortKey={listSortKey}
+            listSortDir={listSortDir}
+            handleListSort={handleListSort}
+            listItemComparator={listItemComparator}
+            typeConfig={TYPE_CONFIG}
+            priorityColors={PRIORITY_COLORS}
+            canWriteTracker={canWriteTracker}
+            canManageSprints={canManageSprints}
+            onStatusChange={handleStatusChange}
+            onPrefetchComments={prefetchComments}
+            onOpenItem={handleCardOpen}
+            onCompleteSprint={(sprintId) => setCompletingSprintId(sprintId)}
+            onEditSprint={openEditSprintModal}
+            onDeleteSprint={(sprintId) => setDeletingSprintId(sprintId)}
+          />
         )}
       </div>
 
