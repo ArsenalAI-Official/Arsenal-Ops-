@@ -1,14 +1,4 @@
-import {
-  useState,
-  useEffect,
-  useMemo,
-  useCallback,
-  useRef,
-  Dispatch,
-  SetStateAction,
-  lazy,
-  Suspense,
-} from 'react';
+import { useState, useCallback, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -46,7 +36,6 @@ import { Input } from '@/components/ui/input';
 import { toast, Toaster } from 'sonner';
 import StatusDotMenu from '@/components/ProjectsPage/StatusDotMenu';
 import { useAuth } from '@/contexts/AuthContext';
-import { buildEpicGroups } from '@/lib/hierarchy/buildEpicGroups';
 import { apiFetch } from '@/lib/api';
 import type { WorkItem, Sprint } from '@/types/workItems';
 // EditSprintModal's file also exports the CompleteSprintConfirm /
@@ -66,12 +55,8 @@ const ItemDetailDrawer = lazy(() => import('./ItemDetailDrawer'));
 import BoardColumn from './components/BoardColumn';
 import ReviewerPanel from './ReviewerPanel';
 import ArchitectureEditorWrapper from './ArchitectureEditorWrapper';
-import { parseLocalDate, getWeekStart, formatWeekRange } from './lib/listGrouping';
-import { makeListItemComparator, type ListSortKey } from './lib/listSort';
-import {
-  isSprintCompleted as isSprintCompletedPure,
-  isSprintActive as isSprintActivePure,
-} from './lib/sprintStatus';
+import { parseLocalDate, formatWeekRange } from './lib/listGrouping';
+import { type ListSortKey } from './lib/listSort';
 import { getNextSprint as getNextSprintPure } from './lib/sprintNav';
 import { useBoardData } from './hooks/useBoardData';
 import { useBoardInvalidations } from './hooks/useBoardInvalidations';
@@ -79,6 +64,9 @@ import { useWorkItemMutations } from './hooks/useWorkItemMutations';
 import { useBoardDnd } from './hooks/useBoardDnd';
 import { useSprintMutations } from './hooks/useSprintMutations';
 import { useCommentMutation } from './hooks/useCommentMutation';
+import { useBoardFilters } from './hooks/useBoardFilters';
+import { useListSort } from './hooks/useListSort';
+import { useListGrouping } from './hooks/useListGrouping';
 
 interface Architecture {
   id: number;
@@ -179,61 +167,11 @@ const ProjectBoard = () => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createFormType, setCreateFormType] = useState<string>('user_story');
   const [viewMode, setViewMode] = useState<'board' | 'list' | 'epic'>('board');
-  const [listGroupBy, setListGroupBy] = useState<'sprint' | 'week'>(() => {
-    if (typeof window === 'undefined') return 'sprint';
-    try {
-      const stored = window.localStorage.getItem(`projectBoard.listGroupBy.${id ?? ''}`);
-      if (stored === 'week') return stored;
-      // 'epic' was a valid list grouping before Epic became a top-level view — clear it.
-      if (stored === 'epic') {
-        try {
-          window.localStorage.removeItem(`projectBoard.listGroupBy.${id ?? ''}`);
-        } catch {
-          /* ignore */
-        }
-      }
-      return 'sprint';
-    } catch {
-      return 'sprint';
-    }
-  });
-  useEffect(() => {
-    if (typeof window === 'undefined' || !id) return;
-    try {
-      window.localStorage.setItem(`projectBoard.listGroupBy.${id}`, listGroupBy);
-    } catch {
-      /* ignore quota errors */
-    }
-  }, [listGroupBy, id]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterTypes, setFilterTypes] = useState<string[]>([]);
-  const [filterPriorities, setFilterPriorities] = useState<string[]>([]);
-  const [filterAssignees, setFilterAssignees] = useState<string[]>([]);
-  const [filterTags, setFilterTags] = useState<string[]>([]);
-  const [showFilterMenu, setShowFilterMenu] = useState(false);
-  const [showSprintMenu, setShowSprintMenu] = useState(false);
-  const [assigneeSearchFilter, setAssigneeSearchFilter] = useState('');
-  const filterMenuRef = useRef<HTMLDivElement>(null);
-  const sprintMenuRef = useRef<HTMLDivElement>(null);
 
-  // Shared sort state for the By Sprint / By Epic list views. Applies within
-  // each group; doesn't reorder groups themselves. Null = group's natural
-  // order (preserves the parent→child clustering in the By Epic view).
-  const [listSortKey, setListSortKey] = useState<ListSortKey | null>(null);
-  const [listSortDir, setListSortDir] = useState<'asc' | 'desc'>('asc');
-  const handleListSort = (key: ListSortKey) => {
-    if (listSortKey === key) {
-      if (listSortDir === 'asc') setListSortDir('desc');
-      else setListSortKey(null);
-    } else {
-      setListSortKey(key);
-      setListSortDir('asc');
-    }
-  };
-  const listItemComparator = useMemo(
-    () => makeListItemComparator(listSortKey, listSortDir),
-    [listSortKey, listSortDir],
-  );
+  // Shared list-view sort state + comparator (handleListSort cycles asc → desc
+  // → off). The JSX-returning header-cell helper stays here for now (commit 9
+  // owns the list view).
+  const { listSortKey, listSortDir, handleListSort, listItemComparator } = useListSort();
   const renderListSortHeader = (label: string, key: ListSortKey) => {
     const active = listSortKey === key;
     const Icon = active ? (listSortDir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown;
@@ -293,7 +231,6 @@ const ProjectBoard = () => {
   const [showCreateSprintModal, setShowCreateSprintModal] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showCompletedSprints, setShowCompletedSprints] = useState(false);
-  const [collapsedSprints, setCollapsedSprints] = useState<Set<string>>(new Set());
   const [editingSprint, setEditingSprint] = useState<Sprint | null>(null);
   const [deletingSprintId, setDeletingSprintId] = useState<number | null>(null);
   const [completingSprintId, setCompletingSprintId] = useState<number | null>(null);
@@ -332,38 +269,60 @@ const ProjectBoard = () => {
   // prefetchComments remains in useBoardData because the kanban cards (parent
   // JSX) call it on hover.
 
-  // Single outside-click listener for both the filter and sprint menus. We
-  // only attach it when at least one menu is open so we don't pay for the
-  // global event handler in the common case where everything is closed.
-  useEffect(() => {
-    if (!showFilterMenu && !showSprintMenu) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (showFilterMenu && filterMenuRef.current && !filterMenuRef.current.contains(target)) {
-        setShowFilterMenu(false);
-        setAssigneeSearchFilter('');
-      }
-      if (showSprintMenu && sprintMenuRef.current && !sprintMenuRef.current.contains(target)) {
-        setShowSprintMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showFilterMenu, showSprintMenu]);
+  // Filter layer: search/type/priority/assignee/tag state, the filter + sprint
+  // menu-open flags and their outside-click refs + effect, and the derived
+  // `existingTags` / `filteredItems` / `columnItemsByStatus` memos (kept stable
+  // so the React.memo'd BoardColumn/KanbanCard can skip re-renders). Called once
+  // here; `selectedSprintId` is threaded in so the sprint filter participates in
+  // the same memoized chain.
+  const {
+    searchQuery,
+    setSearchQuery,
+    filterTypes,
+    setFilterTypes,
+    filterPriorities,
+    setFilterPriorities,
+    filterAssignees,
+    setFilterAssignees,
+    filterTags,
+    setFilterTags,
+    showFilterMenu,
+    setShowFilterMenu,
+    showSprintMenu,
+    setShowSprintMenu,
+    assigneeSearchFilter,
+    setAssigneeSearchFilter,
+    filterMenuRef,
+    sprintMenuRef,
+    existingTags,
+    filteredItems,
+    columnItemsByStatus,
+    activeFilterCount,
+    hasActiveFilters,
+    clearAllFilters,
+    toggleArrayFilter,
+  } = useBoardFilters(workItems, selectedSprintId);
 
-  // Derived: unique tags computed from cached workItems — no useEffect needed
-  const existingTags = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          workItems
-            .filter((item) => item.type === 'task')
-            .flatMap((item) => (item.tags ?? []).map((t: string) => String(t).trim().toLowerCase()))
-            .filter(Boolean),
-        ),
-      ).sort(),
-    [workItems],
-  );
+  // List-view grouping: the `listGroupBy` toggle (localStorage-persisted), the
+  // per-group collapse set, the today memos, and the sprint/epic/week group
+  // memos. Fed the memo-stable filteredItems/sprints/workItems so the group
+  // memos hold; `showCompletedSprints` stays an orchestrator UI toggle.
+  const {
+    listGroupBy,
+    setListGroupBy,
+    collapsedSprints,
+    toggleSprintCollapse,
+    todayMidnightMs,
+    listViewGroups,
+    listViewEpicGroups,
+    listViewWeekGroups,
+  } = useListGrouping({
+    filteredItems,
+    workItems,
+    sprints,
+    id,
+    showCompletedSprints,
+  });
 
   // Work-item / project invalidation closures. Called every render with the
   // current `selectedItem` so `invalidateWorkItems` reads it fresh (no stale
@@ -374,214 +333,6 @@ const ProjectBoard = () => {
 
   // Filtered items — memoized so KanbanCard React.memo + BoardColumn React.memo
   // can rely on stable array references when filters don't change.
-  const filteredItems = useMemo(
-    () =>
-      workItems.filter((item) => {
-        if (searchQuery) {
-          const searchLower = searchQuery.toLowerCase();
-          const titleMatch = item.title.toLowerCase().includes(searchLower);
-          const keyMatch = item.key.toLowerCase().includes(searchLower);
-          if (!titleMatch && !keyMatch) return false;
-        }
-        if (filterTypes.length > 0 && !filterTypes.includes(item.type)) return false;
-        if (filterPriorities.length > 0 && !filterPriorities.includes(item.priority)) return false;
-        if (filterAssignees.length > 0) {
-          const isUnassigned = item.assignee_id === null || item.assignee_id === undefined;
-          const matchesUnassigned = filterAssignees.includes('unassigned') && isUnassigned;
-          const matchesAssignee = filterAssignees.some(
-            (id) => id !== 'unassigned' && String(item.assignee_id) === id,
-          );
-          if (!matchesUnassigned && !matchesAssignee) return false;
-        }
-        // Tags filter - if any tags are selected, item must have at least one of them
-        if (filterTags.length > 0) {
-          const hasMatchingTag = filterTags.some((tag) => item.tags?.includes(tag));
-          if (!hasMatchingTag) return false;
-        }
-        // Sprint filter
-        if (selectedSprintId === 'unassigned' && item.sprint_id !== null) return false;
-        if (typeof selectedSprintId === 'number' && item.sprint_id !== selectedSprintId)
-          return false;
-        return true;
-      }),
-    [
-      workItems,
-      searchQuery,
-      filterTypes,
-      filterPriorities,
-      filterAssignees,
-      filterTags,
-      selectedSprintId,
-    ],
-  );
-
-  // Precompute per-status column buckets once per filter change so each
-  // BoardColumn receives a stable items reference — required for the
-  // React.memo equality check on BoardColumn to skip re-renders.
-  const columnItemsByStatus = useMemo(() => {
-    const buckets: Record<string, WorkItem[]> = {
-      backlog: [],
-      todo: [],
-      in_progress: [],
-      in_review: [],
-      done: [],
-    };
-    for (const item of filteredItems) {
-      const bucket = buckets[item.status];
-      if (bucket) bucket.push(item);
-    }
-    return buckets;
-  }, [filteredItems]);
-
-  const activeFilterCount =
-    filterTypes.length + filterPriorities.length + filterAssignees.length + filterTags.length;
-  const hasActiveFilters = activeFilterCount > 0;
-  const clearAllFilters = () => {
-    setFilterTypes([]);
-    setFilterPriorities([]);
-    setFilterAssignees([]);
-    setFilterTags([]);
-  };
-  const toggleArrayFilter = (setter: Dispatch<SetStateAction<string[]>>, value: string) => {
-    setter((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]));
-  };
-
-  // Sprint grouping for list view. `listViewToday` only needs day granularity,
-  // so compute it once per mount (also satisfies react-hooks/purity, which
-  // forbids a bare new Date() in the render body).
-  const listViewToday = useMemo(() => new Date().toISOString().split('T')[0], []);
-  // Hoisted out of the per-row list map below (was a `new Date()` allocated for
-  // every row + a react-hooks/purity violation). Day granularity is enough.
-  const todayMidnightMs = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d.getTime();
-  }, []);
-  const isSprintCompleted = useCallback(
-    (s: Sprint) => isSprintCompletedPure(s, listViewToday),
-    [listViewToday],
-  );
-  const isSprintActive = useCallback(
-    (s: Sprint) => isSprintActivePure(s, listViewToday),
-    [listViewToday],
-  );
-
-  // Memoized so these filter+sort chains don't re-run on every render (e.g. on
-  // every keystroke/drag) regardless of which view is active.
-  const orderedListSprints = useMemo(
-    () => [
-      ...sprints
-        .filter((s) => !isSprintCompleted(s) && isSprintActive(s))
-        .sort(
-          (a, b) => new Date(b.start_date ?? 0).getTime() - new Date(a.start_date ?? 0).getTime(),
-        ),
-      ...sprints
-        .filter((s) => !isSprintCompleted(s) && !isSprintActive(s))
-        .sort(
-          (a, b) => new Date(a.start_date ?? 0).getTime() - new Date(b.start_date ?? 0).getTime(),
-        ),
-      ...(showCompletedSprints
-        ? sprints
-            .filter(isSprintCompleted)
-            .sort(
-              (a, b) => new Date(b.end_date ?? 0).getTime() - new Date(a.end_date ?? 0).getTime(),
-            )
-        : []),
-    ],
-    [sprints, isSprintCompleted, isSprintActive, showCompletedSprints],
-  );
-
-  const listViewGroups = useMemo(
-    () =>
-      [
-        ...orderedListSprints.map((sprint) => ({
-          key: String(sprint.id),
-          label: sprint.name,
-          isCompleted: isSprintCompleted(sprint),
-          items: filteredItems.filter((item) => item.sprint_id === sprint.id),
-        })),
-        {
-          key: 'backlog',
-          label: 'Backlog',
-          isCompleted: false,
-          items: filteredItems.filter((item) => !item.sprint_id),
-        },
-      ].filter((g) => g.items.length > 0),
-    [orderedListSprints, filteredItems, isSprintCompleted],
-  );
-
-  const listViewEpicGroups = useMemo(
-    () => buildEpicGroups(filteredItems, workItems).groups,
-    [filteredItems, workItems],
-  );
-
-  // Group items into ISO weeks by their "relevant date":
-  //   completed → completed_at (the week the work actually finished)
-  //   not completed + due_date → due_date (lands in past weeks when overdue,
-  //                                        future weeks when upcoming)
-  //   neither → Unscheduled bucket
-  // Result: past weeks read as "what got done + what slipped", current/future
-  // weeks read as "what's coming due".
-  const listViewWeekGroups = useMemo(() => {
-    const todayWeekStart = getWeekStart(new Date());
-    const buckets = new Map<string, WorkItem[]>();
-    for (const item of filteredItems) {
-      let weekKey: string | null = null;
-      if (item.completed_at) {
-        weekKey = getWeekStart(new Date(item.completed_at));
-      } else if (item.due_date) {
-        const d = parseLocalDate(item.due_date);
-        if (d) weekKey = getWeekStart(d);
-      }
-      const key = weekKey ?? '__unscheduled__';
-      const existing = buckets.get(key);
-      if (existing) existing.push(item);
-      else buckets.set(key, [item]);
-    }
-    const dated = [...buckets.keys()].filter((k) => k !== '__unscheduled__').sort();
-    const todayMs = parseLocalDate(todayWeekStart)?.getTime() ?? 0;
-    const groups = dated.map((weekStart) => {
-      let label: string;
-      if (weekStart === todayWeekStart) {
-        label = 'This Week';
-      } else {
-        const ws = parseLocalDate(weekStart)?.getTime() ?? 0;
-        const weeksAway = Math.round((ws - todayMs) / (7 * 86400000));
-        if (weeksAway === -1) label = 'Last Week';
-        else if (weeksAway === 1) label = 'Next Week';
-        else label = formatWeekRange(weekStart);
-      }
-      return {
-        key: `week:${weekStart}`,
-        weekStart,
-        label,
-        isCurrent: weekStart === todayWeekStart,
-        isPast: weekStart < todayWeekStart,
-        items: buckets.get(weekStart) ?? [],
-      };
-    });
-    if (buckets.has('__unscheduled__')) {
-      groups.push({
-        key: 'week:unscheduled',
-        weekStart: '',
-        label: 'Unscheduled',
-        isCurrent: false,
-        isPast: false,
-        items: buckets.get('__unscheduled__') ?? [],
-      });
-    }
-    return groups;
-  }, [filteredItems]);
-
-  const toggleSprintCollapse = (key: string) => {
-    setCollapsedSprints((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-
   // ── Mutations ─────────────────────────────────────────────────────────────
   // The 12 work-item / sprint / comment mutations + their handlers live in three
   // hooks under `hooks/`. They're called ONCE here and receive what they need as
