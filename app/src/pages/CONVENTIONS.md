@@ -42,9 +42,11 @@ generic `index.tsx`.
    that component. Handlers that touch multiple sub-trees stay at the parent.
 
 5. **Shared work-item types live in `@/types/workItems`.** The canonical
-   `WorkItem` / `Sprint` (plus the supporting `Developer` / `Project` shapes)
-   are defined in `src/types/workItems.ts`; the ProjectBoard family imports
-   from there rather than re-declaring inline interfaces. The full repo-wide
+   `WorkItem` / `Sprint` are defined in `src/types/workItems.ts`; the
+   ProjectBoard family imports from there rather than re-declaring inline
+   interfaces. (The supporting `Developer` / `Project` shapes still live in
+   `ProjectBoard/hooks/useBoardData.ts` — relocating them into the canonical
+   module is part of the deferred F-T1 codemod below.) The full repo-wide
    migration of the other ~17 `WorkItem` / `Sprint` declaration sites onto
    this module is still deferred (audit F-T1 codemod) — those sites read
    through a re-export shim until then. New ProjectBoard-family code MUST use

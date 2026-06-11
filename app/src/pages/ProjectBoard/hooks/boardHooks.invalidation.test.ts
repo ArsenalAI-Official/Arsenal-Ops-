@@ -14,13 +14,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// apiFetch is the only network surface these hooks touch — resolve it so the
-// mutations reach their onSettled/onSuccess invalidation. Resolve `[]` (not
-// `{}`): the optimistic onSuccess handlers map over their data, so an array
-// keeps an incidental re-render from throwing before invalidation is asserted.
+// apiFetch is the only network surface these hooks touch. A hoisted mock lets
+// the optimistic tests make a PUT hang (observe the optimistic write) or reject
+// (observe rollback); every test's beforeEach resets it to resolve `[]` (an
+// array, not `{}`, so any incidental list re-render doesn't throw before the
+// assertion).
+const { apiFetchMock } = vi.hoisted(() => ({ apiFetchMock: vi.fn() }));
 vi.mock('@/lib/api', async (orig) => {
   const actual = await orig<typeof import('@/lib/api')>();
-  return { ...actual, apiFetch: vi.fn().mockResolvedValue([]) };
+  return { ...actual, apiFetch: apiFetchMock };
 });
 
 // sonner toast + react-router navigate are fired by the mutation success/error
@@ -30,6 +32,8 @@ vi.mock('sonner', () => ({
 }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
 
+import { ApiError } from '@/lib/api';
+import { toast } from 'sonner';
 import { invalidateProjectScope, invalidateWorkItemScope } from '@/lib/invalidations';
 import { useWorkItemMutations } from './useWorkItemMutations';
 import { useSprintMutations } from './useSprintMutations';
@@ -86,7 +90,10 @@ function sprintArgs(queryClient: QueryClient) {
 }
 
 describe('board hook cache invalidation', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    apiFetchMock.mockResolvedValue([]);
+  });
 
   it('status change invalidates work-item scope + the item comments cache (R10)', async () => {
     const { queryClient, wrapper, spy } = makeHarness();
@@ -225,5 +232,83 @@ describe('board hook cache invalidation', () => {
 
     const keys = invalidatedKeys(spy);
     expect(keys).toContainEqual(['workItem', 'w1', 'comments']); // R10
+  });
+});
+
+// Pins R2: the optimistic mutations (drag `move` + StatusDotMenu `statusChange`)
+// must read/write/rollback the cache at the EXACT key shape
+// ['workItems', { project_id }, 'board']. The DOM characterization test covers
+// the statusChange path black-box; this covers BOTH paths at the cache level —
+// notably `move`, which has no DOM coverage (jsdom can't drive HTML5 drag). A
+// regression that targeted a wrong key shape, or dropped the optimistic
+// flip/rollback, would be caught here. (Query keys match structurally, so this
+// pins the key SHAPE + the flip/rollback logic — the real failure modes.)
+describe('board optimistic status cache (R2)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    apiFetchMock.mockResolvedValue([]);
+  });
+
+  const FILTERS = { project_id: ID };
+  const BOARD_KEY = ['workItems', FILTERS, 'board'];
+  const seed = (qc: QueryClient) =>
+    qc.setQueryData(BOARD_KEY, [
+      { id: 'w1', status: 'todo' },
+      { id: 'w2', status: 'in_progress' },
+    ]);
+  const statusOf = (qc: QueryClient, itemId: string) =>
+    (qc.getQueryData(BOARD_KEY) as Array<{ id: string; status: string }> | undefined)?.find(
+      (t) => t.id === itemId,
+    )?.status;
+
+  it('move: optimistic write flips the item at the exact board key', async () => {
+    const { queryClient, wrapper } = makeHarness();
+    seed(queryClient);
+    apiFetchMock.mockReturnValue(new Promise(() => {})); // never settles → stays optimistic
+    const { result } = renderHook(
+      () => useWorkItemMutations(ID, { ...workItemArgs(queryClient), workItemFilters: FILTERS }),
+      { wrapper },
+    );
+
+    await act(async () => {
+      result.current.moveMutation.mutate({ itemId: 'w1', newStatus: 'done' });
+    });
+
+    // If onMutate targeted a different key shape, w1 would still read 'todo'.
+    await waitFor(() => expect(statusOf(queryClient, 'w1')).toBe('done'));
+    expect(statusOf(queryClient, 'w2')).toBe('in_progress'); // untouched
+  });
+
+  it('move: rejected PUT rolls the exact board key back + toasts the error', async () => {
+    const { queryClient, wrapper } = makeHarness();
+    seed(queryClient);
+    apiFetchMock.mockRejectedValueOnce(new ApiError(400, 'Subtask still open'));
+    const { result } = renderHook(
+      () => useWorkItemMutations(ID, { ...workItemArgs(queryClient), workItemFilters: FILTERS }),
+      { wrapper },
+    );
+
+    await act(async () => {
+      result.current.moveMutation.mutate({ itemId: 'w1', newStatus: 'done' });
+    });
+
+    await waitFor(() => expect(statusOf(queryClient, 'w1')).toBe('todo')); // rolled back
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Subtask still open');
+  });
+
+  it('status change: rejected PUT rolls the exact board key back', async () => {
+    const { queryClient, wrapper } = makeHarness();
+    seed(queryClient);
+    apiFetchMock.mockRejectedValueOnce(new ApiError(400, 'nope'));
+    const { result } = renderHook(
+      () => useWorkItemMutations(ID, { ...workItemArgs(queryClient), workItemFilters: FILTERS }),
+      { wrapper },
+    );
+
+    await act(async () => {
+      result.current.handleStatusChange({ id: 'w1' } as never, 'done');
+    });
+
+    await waitFor(() => expect(statusOf(queryClient, 'w1')).toBe('todo'));
   });
 });
