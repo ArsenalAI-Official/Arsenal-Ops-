@@ -1,5 +1,6 @@
 import { Plus, X, Search, FolderKanban, ArrowRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Project } from './types';
 
@@ -74,7 +75,7 @@ const ProjectsBox = ({
       <div className="flex-1 overflow-y-auto p-3">
         {isLoading ? (
           <div className="flex items-center justify-center py-10">
-            <div className="w-5 h-5 border-2 border-[#E0B954]/30 border-t-[#E0B954] rounded-full animate-spin" />
+            <Spinner size="sm" tone="gold" />
           </div>
         ) : filteredProjects.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">

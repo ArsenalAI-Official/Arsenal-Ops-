@@ -1,17 +1,10 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import {
-  ChevronLeft,
-  ChevronRight,
-  ZoomIn,
-  ZoomOut,
-  X,
-  BookOpen,
-  ClipboardList,
-  Bug,
-  Target,
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, X } from 'lucide-react';
+import { parseLocalDate } from '@/lib/dateUtils';
+import { isPastDue } from '@/components/ProjectsPage/utils';
+import { TYPE_CONFIG, getStatusColor } from '@/lib/workItemConfig';
 
 interface WorkItem {
   id: string;
@@ -69,14 +62,6 @@ interface TimelineViewProps {
 
 type ZoomLevel = 'day' | 'week' | 'month';
 
-/** Parse a date string into local midnight — timezone-safe */
-function parseLocalDate(str: string): Date {
-  const clean = str.endsWith('Z') ? str.slice(0, -1) : str;
-  const datePart = clean.includes('T') ? clean.split('T')[0] : clean;
-  const [year, month, day] = datePart.split('-').map(Number);
-  return new Date(year, month - 1, day, 0, 0, 0, 0);
-}
-
 /** Add days to a date, returns new Date */
 function addDays(date: Date, days: number): Date {
   const d = new Date(date);
@@ -125,27 +110,10 @@ interface GanttRow {
   progress: number;
 }
 
-const TYPE_CONFIG: Record<
-  string,
-  { icon: React.ElementType; color: string; label: string; bg: string }
-> = {
-  user_story: { icon: BookOpen, color: '#E0B954', label: 'Story', bg: 'rgba(224,185,84,0.15)' },
-  task: { icon: ClipboardList, color: '#F59E0B', label: 'Task', bg: 'rgba(245,158,11,0.15)' },
-  bug: { icon: Bug, color: '#EF4444', label: 'Bug', bg: 'rgba(239,68,68,0.15)' },
-  epic: { icon: Target, color: '#C79E3B', label: 'Epic', bg: 'rgba(199,158,59,0.15)' },
-};
-
 const getPriorityColor = (priority?: string) => {
   if (priority === 'high' || priority === 'critical') return 'border-[#EF4444]/50 text-[#EF4444]';
   if (priority === 'medium') return 'border-[#F59E0B]/50 text-[#F59E0B]';
   return 'border-[#737373]/50 text-[#737373]';
-};
-
-const STATUS_COLOR: Record<string, string> = {
-  done: '#E0B954',
-  in_progress: '#F59E0B',
-  in_review: '#C79E3B',
-  todo: '#737373',
 };
 
 const TimelineView: React.FC<TimelineViewProps> = ({
@@ -173,11 +141,10 @@ const TimelineView: React.FC<TimelineViewProps> = ({
     const taskRows: GanttRow[] = workItems
       .filter((item) => item.start_date || item.due_date)
       .map((item) => {
-        const start = parseLocalDate((item.start_date || item.due_date)!);
-        const end = parseLocalDate((item.due_date || item.start_date)!);
-        const isOverdue =
-          item.due_date && parseLocalDate(item.due_date) < new Date() && item.status !== 'done';
-        const color = isOverdue ? '#EF4444' : STATUS_COLOR[item.status] || '#E0B954';
+        const start = parseLocalDate((item.start_date || item.due_date)!)!;
+        const end = parseLocalDate((item.due_date || item.start_date)!)!;
+        const isOverdue = isPastDue(item.due_date, item.status);
+        const color = isOverdue ? '#EF4444' : getStatusColor(item.status);
         return {
           id: item.id,
           label: `${item.key}: ${item.title}`,
@@ -192,7 +159,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({
     const milestoneRows: GanttRow[] = milestones
       .filter((m) => m.due_date)
       .map((m) => {
-        const due = parseLocalDate(m.due_date!);
+        const due = parseLocalDate(m.due_date!)!;
         return {
           id: `milestone-${m.id}`,
           label: `🎯 ${m.title}`,
@@ -207,7 +174,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({
     const goalRows: GanttRow[] = goals
       .filter((g) => g.due_date)
       .map((g) => {
-        const due = parseLocalDate(g.due_date!);
+        const due = parseLocalDate(g.due_date!)!;
         return {
           id: `goal-${g.id}`,
           label: `⭐ ${g.title}`,
@@ -471,8 +438,8 @@ const TimelineView: React.FC<TimelineViewProps> = ({
                   {sprints
                     .filter((s) => s.start_date && s.end_date)
                     .map((sprint) => {
-                      const bandStart = parseLocalDate(sprint.start_date!);
-                      const bandEnd = parseLocalDate(sprint.end_date!);
+                      const bandStart = parseLocalDate(sprint.start_date!)!;
+                      const bandEnd = parseLocalDate(sprint.end_date!)!;
                       const x1 = dateToX(bandStart);
                       const x2 = dateToX(addDays(bandEnd, 1));
                       const bandWidth = x2 - x1;
@@ -645,10 +612,10 @@ const TimelineView: React.FC<TimelineViewProps> = ({
           {/* Legend */}
           <div className="flex items-center gap-4 px-4 py-3 border-t border-[rgba(255,255,255,0.05)] text-xs flex-wrap">
             {[
-              { color: '#E0B954', label: 'Done' },
-              { color: '#F59E0B', label: 'In Progress' },
-              { color: '#C79E3B', label: 'In Review' },
-              { color: '#737373', label: 'To Do' },
+              { color: getStatusColor('done'), label: 'Done' },
+              { color: getStatusColor('in_progress'), label: 'In Progress' },
+              { color: getStatusColor('in_review'), label: 'In Review' },
+              { color: getStatusColor('todo'), label: 'To Do' },
               { color: '#EF4444', label: 'Overdue' },
               { color: '#EC4899', label: 'Milestone' },
               { color: '#F59E0B', label: 'Goal' },
@@ -681,7 +648,9 @@ const TimelineView: React.FC<TimelineViewProps> = ({
             <div className="flex items-start justify-between p-5 border-b border-[rgba(255,255,255,0.05)] sticky top-0 bg-[#080808]">
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 {(() => {
-                  const ti = TYPE_CONFIG[selectedItem.type || 'task'] || TYPE_CONFIG.task;
+                  const ti =
+                    TYPE_CONFIG[(selectedItem.type || 'task') as keyof typeof TYPE_CONFIG] ||
+                    TYPE_CONFIG.task;
                   return (
                     <div
                       className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-sm font-medium flex-shrink-0"

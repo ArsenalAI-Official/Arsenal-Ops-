@@ -5,6 +5,8 @@ import { apiFetch, ApiError } from '@/lib/api';
 import { toast, Toaster } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { invalidateAdminWorkItemImpact, invalidateProjectScope } from '@/lib/invalidations';
+import { toastErrorHandler } from '@/lib/mutationToast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import {
   AppHeader,
   DashboardStats,
@@ -34,6 +36,7 @@ const ProjectsPage = () => {
   const navigate = useNavigate();
   const { user, token, logout } = useAuth();
   const queryClient = useQueryClient();
+  const { confirm, confirmDialog } = useConfirm();
 
   // Projects state
   const [searchQuery, setSearchQuery] = useState('');
@@ -247,7 +250,7 @@ const ProjectsPage = () => {
         invalidateProjectScope(queryClient, parseInt(createdProjectId));
       }
     },
-    onError: () => toast.error('Failed to create task'),
+    onError: toastErrorHandler('create task'),
   });
 
   const convertToTicketMutation = useMutation({
@@ -287,7 +290,7 @@ const ProjectsPage = () => {
         invalidateProjectScope(queryClient, parseInt(convertProjectId));
       }
     },
-    onError: () => toast.error('Failed to convert'),
+    onError: toastErrorHandler('convert'),
   });
 
   const deletePersonalTaskMutation = useMutation({
@@ -297,7 +300,7 @@ const ProjectsPage = () => {
       toast.success('Task deleted');
       invalidatePersonalTasks();
     },
-    onError: () => toast.error('Failed to delete task'),
+    onError: toastErrorHandler('delete task'),
   });
 
   const updatePersonalTaskMutation = useMutation({
@@ -318,7 +321,7 @@ const ProjectsPage = () => {
       setEditPersonalTaskForm({ title: '', description: '', priority: 'medium', due_date: '' });
       invalidatePersonalTasks();
     },
-    onError: () => toast.error('Failed to update task'),
+    onError: toastErrorHandler('update task'),
   });
 
   // Wrapper functions (call sites in JSX unchanged)
@@ -340,8 +343,16 @@ const ProjectsPage = () => {
     if (!convertingTask || !convertProjectId) return;
     convertToTicketMutation.mutate();
   };
-  const deletePersonalTask = (taskId: number) => {
-    if (!confirm('Delete this task?')) return;
+  const deletePersonalTask = async (taskId: number) => {
+    if (
+      !(await confirm({
+        title: 'Delete task?',
+        description: 'Delete this task?',
+        destructive: true,
+        confirmText: 'Delete',
+      }))
+    )
+      return;
     deletePersonalTaskMutation.mutate(taskId);
   };
   const updatePersonalTask = () => {
@@ -575,7 +586,7 @@ const ProjectsPage = () => {
       setSelectedDevelopers([]);
       toast.success('Project created successfully!');
     },
-    onError: () => toast.error('Failed to create project'),
+    onError: toastErrorHandler('create project'),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] });
@@ -589,7 +600,7 @@ const ProjectsPage = () => {
     onSuccess: () => {
       toast.success('Project deleted');
     },
-    onError: () => toast.error('Failed to delete project'),
+    onError: toastErrorHandler('delete project'),
     onSettled: (_data, _err, projectId) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] });
@@ -615,15 +626,24 @@ const ProjectsPage = () => {
   };
   const isCreating = createProjectMutation.isPending;
 
-  const handleDeleteProject = (e: React.MouseEvent, projectId: number) => {
+  const handleDeleteProject = async (e: React.MouseEvent, projectId: number) => {
     e.stopPropagation();
-    if (!confirm('Delete this project and all its work items?')) return;
+    if (
+      !(await confirm({
+        title: 'Delete project?',
+        description: 'Delete this project and all its work items?',
+        destructive: true,
+        confirmText: 'Delete',
+      }))
+    )
+      return;
     deleteProjectMutation.mutate(projectId);
   };
 
   return (
     <div className="h-screen flex flex-col bg-[#080808] text-[#F4F6FF]">
       <Toaster position="top-right" theme="dark" richColors />
+      {confirmDialog}
 
       <AppHeader user={user} onAdminClick={() => navigate('/admin')} onLogout={logout} />
 

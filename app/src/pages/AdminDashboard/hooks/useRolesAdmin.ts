@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import { invalidateAdminRoles } from '@/lib/invalidations';
+import type { ConfirmFn } from '@/components/ui/confirm-dialog';
 import type { Capability, Role } from '../types';
 import {
   type PickerChild,
@@ -25,7 +26,7 @@ import { useRefreshCapsTwice } from './useRefreshCapsTwice';
  * the current user's caps after role-cap changes. No `enabled` flag — the
  * RolesContainer only mounts when the Roles tab is active.
  */
-export function useRolesAdmin() {
+export function useRolesAdmin(confirm: ConfirmFn) {
   const queryClient = useQueryClient();
   const refreshCapsTwice = useRefreshCapsTwice();
 
@@ -169,15 +170,18 @@ export function useRolesAdmin() {
     }
   };
 
-  const handleDeleteRole = (role: Role) => {
+  const handleDeleteRole = async (role: Role) => {
     if (role.is_system) {
       toast.error('Cannot delete a system role');
       return;
     }
     if (
-      !confirm(
-        `Delete role "${role.name}"? Users assigned to this role will lose its capabilities.`,
-      )
+      !(await confirm({
+        title: 'Delete role?',
+        description: `Delete role "${role.name}"? Users assigned to this role will lose its capabilities.`,
+        confirmText: 'Delete',
+        destructive: true,
+      }))
     )
       return;
     deleteRoleMutation.mutate(role.id);

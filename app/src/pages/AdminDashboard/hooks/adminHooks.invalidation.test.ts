@@ -52,7 +52,7 @@ describe('admin hook cache invalidation', () => {
 
   it('category create invalidates the full category scope', async () => {
     const { wrapper, spy } = makeHarness();
-    const { result } = renderHook(() => useProjectsAdmin(), { wrapper });
+    const { result } = renderHook(() => useProjectsAdmin(async () => true), { wrapper });
 
     await act(async () => {
       result.current.createCategoryMutation.mutate({ name: 'X', description: null });
@@ -67,7 +67,7 @@ describe('admin hook cache invalidation', () => {
 
   it('user create invalidates users + employees + stats + developers (cross-cutting)', async () => {
     const { wrapper, spy } = makeHarness();
-    const { result } = renderHook(() => useUsersAdmin(), { wrapper });
+    const { result } = renderHook(() => useUsersAdmin(async () => true), { wrapper });
 
     // handleSaveUser validates name/email, so seed a valid form first.
     act(() => result.current.setUserForm({ email: 'a@b.com', name: 'Test', roles: ['developer'] }));
@@ -85,7 +85,7 @@ describe('admin hook cache invalidation', () => {
 
   it('employee save invalidates employees + stats + capacity + developers', async () => {
     const { wrapper, spy } = makeHarness();
-    const { result } = renderHook(() => useEmployeesAdmin(), { wrapper });
+    const { result } = renderHook(() => useEmployeesAdmin(async () => true), { wrapper });
 
     // handleSaveEmployee guards on name+email, so seed a valid form first.
     act(() =>
@@ -110,11 +110,10 @@ describe('admin hook cache invalidation', () => {
 
   it('employee delete invalidates employees + stats + capacity + developers', async () => {
     const { wrapper, spy } = makeHarness();
-    const { result } = renderHook(() => useEmployeesAdmin(), { wrapper });
+    const { result } = renderHook(() => useEmployeesAdmin(async () => true), { wrapper });
 
-    vi.spyOn(window, 'confirm').mockReturnValue(true); // handleDeleteEmployee guards on confirm()
     await act(async () => {
-      result.current.handleDeleteEmployee(42);
+      await result.current.handleDeleteEmployee(42);
     });
     await waitFor(() => expect(spy).toHaveBeenCalled());
 

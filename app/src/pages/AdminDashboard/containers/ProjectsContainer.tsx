@@ -2,6 +2,7 @@
 // state via useProjectsAdmin (plus the employees list for the add-member
 // dropdown), then renders the tab and its three modals.
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { AdminSpinner } from '../components/AdminSpinner';
 import { useProjectsAdmin } from '../hooks/useProjectsAdmin';
 import { useEmployeesList } from '../hooks/useEmployeesList';
@@ -11,6 +12,7 @@ import ProjectMembersModal from '../modals/ProjectMembersModal';
 import CategoryManagerModal from '../modals/CategoryManagerModal';
 
 export default function ProjectsContainer() {
+  const { confirm, confirmDialog } = useConfirm();
   const {
     categories,
     filteredProjects,
@@ -46,7 +48,7 @@ export default function ProjectsContainer() {
     handleRemoveProjectMember,
     addMemberMutation,
     removeMemberMutation,
-  } = useProjectsAdmin();
+  } = useProjectsAdmin(confirm);
 
   const { employees } = useEmployeesList();
   const { can } = useAuth();
@@ -113,6 +115,7 @@ export default function ProjectsContainer() {
         }
         onDelete={(id) => deleteCategoryMutation.mutateAsync(id).then(() => undefined)}
       />
+      {confirmDialog}
     </>
   );
 }

@@ -23,6 +23,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarIcon } from '@/components/ui/calendar';
+import { Spinner } from '@/components/ui/spinner';
 import { toast, Toaster } from 'sonner';
 import {
   Select,
@@ -35,13 +36,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { hasAnyAdminCapability } from '@/lib/adminCaps';
 import { apiFetch } from '@/lib/api';
 import { invalidateProjectScope } from '@/lib/invalidations';
-
-// Helper function to parse YYYY-MM-DD string to local Date object (avoids UTC timezone issues)
-const parseLocalDate = (dateString: string | undefined): Date | undefined => {
-  if (!dateString) return undefined;
-  const [year, month, day] = dateString.split('-');
-  return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-};
+import { parseLocalDate } from '@/lib/dateUtils';
+import { toastErrorHandler } from '@/lib/mutationToast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 
 interface PersonalTask {
   id: number;
@@ -74,6 +71,7 @@ const PersonalTasksPage = () => {
   const navigate = useNavigate();
   const { user, logout, can } = useAuth();
   const queryClient = useQueryClient();
+  const { confirm, confirmDialog } = useConfirm();
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -185,7 +183,7 @@ const PersonalTasksPage = () => {
       setShowAddDialog(false);
       toast.success('Task created!');
     },
-    onError: () => toast.error('Failed to create task'),
+    onError: toastErrorHandler('create task'),
     onSettled: () => invalidateTasks(),
   });
 
@@ -204,7 +202,7 @@ const PersonalTasksPage = () => {
       resetForm();
       toast.success('Task updated!');
     },
-    onError: () => toast.error('Failed to update task'),
+    onError: toastErrorHandler('update task'),
     onSettled: () => invalidateTasks(),
   });
 
@@ -214,7 +212,7 @@ const PersonalTasksPage = () => {
     onSuccess: () => {
       toast.success('Task deleted');
     },
-    onError: () => toast.error('Failed to delete task'),
+    onError: toastErrorHandler('delete task'),
     onSettled: () => invalidateTasks(),
   });
 
@@ -248,7 +246,7 @@ const PersonalTasksPage = () => {
       setConvertEstimatedHours('');
       setMemberLookupProjectId('');
     },
-    onError: () => toast.error('Failed to convert'),
+    onError: toastErrorHandler('convert'),
     onSettled: () => {
       invalidateTasks();
       queryClient.invalidateQueries({ queryKey: ['myTasks'] });
@@ -284,8 +282,16 @@ const PersonalTasksPage = () => {
     updateMutation.mutate(editingTask.id);
   };
 
-  const deleteTask = (taskId: number) => {
-    if (!confirm('Delete this task?')) return;
+  const deleteTask = async (taskId: number) => {
+    if (
+      !(await confirm({
+        title: 'Delete task?',
+        description: 'Delete this task?',
+        destructive: true,
+        confirmText: 'Delete',
+      }))
+    )
+      return;
     deleteMutation.mutate(taskId);
   };
 
@@ -375,6 +381,7 @@ const PersonalTasksPage = () => {
   return (
     <div className="min-h-screen bg-[#080808] text-[#F4F6FF]">
       <Toaster position="top-right" theme="dark" richColors />
+      {confirmDialog}
 
       {/* Header */}
       <header className="border-b border-[rgba(255,255,255,0.05)] bg-[#080808]/90 backdrop-blur-xl sticky top-0 z-50">
@@ -502,7 +509,7 @@ const PersonalTasksPage = () => {
         {/* Task List */}
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
-            <div className="w-6 h-6 border-2 border-[#E0B954]/30 border-t-[#E0B954] rounded-full animate-spin" />
+            <Spinner size="sm" className="w-6 h-6" />
           </div>
         ) : filteredTasks.length === 0 ? (
           <div className="text-center py-20">

@@ -15,6 +15,14 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { formatTimeAgo } from '@/lib/relativeTime';
+import { getInitials } from '@/lib/stringUtils';
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+} from '@/components/ui/empty';
 
 interface ActivityItem {
   id: number;
@@ -77,15 +85,6 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities }) => {
     }
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
   const filtered = searchQuery.trim()
     ? activities.filter(
         (a) =>
@@ -126,17 +125,21 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities }) => {
       </CardHeader>
       <CardContent>
         {displayedActivities.length === 0 ? (
-          <div className="text-center py-12">
-            <Activity className="w-12 h-12 text-[#737373] mx-auto mb-2" />
-            <p className="text-[#737373]">
-              {searchQuery ? 'No matching activity' : 'No activity yet'}
-            </p>
-            <p className="text-[#737373] text-sm">
-              {searchQuery
-                ? 'Try a different search term'
-                : 'Activity will appear here as the project progresses'}
-            </p>
-          </div>
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Activity className="text-[#737373]" />
+              </EmptyMedia>
+              <EmptyTitle className="text-[#737373]">
+                {searchQuery ? 'No matching activity' : 'No activity yet'}
+              </EmptyTitle>
+              <EmptyDescription>
+                {searchQuery
+                  ? 'Try a different search term'
+                  : 'Activity will appear here as the project progresses'}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
           <div className="relative">
             <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-[rgba(255,255,255,0.05)]" />

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Empty, EmptyDescription } from '@/components/ui/empty';
 
 interface Employee {
   id: number;
@@ -815,12 +816,14 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
           </tbody>
         </table>
         {employees.length === 0 && (
-          <div className="text-center py-12 text-[#737373]">No employees yet.</div>
+          <Empty>
+            <EmptyDescription>No employees yet.</EmptyDescription>
+          </Empty>
         )}
         {employees.length > 0 && filteredEmployeeRows.length === 0 && (
-          <div className="text-center py-12 text-sm text-[#737373]">
-            No employees match the current filters.
-          </div>
+          <Empty>
+            <EmptyDescription>No employees match the current filters.</EmptyDescription>
+          </Empty>
         )}
       </div>
     </div>

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { apiFetch, ApiError, permissionAwareError } from '@/lib/api';
 import { invalidateProjectScope } from '@/lib/invalidations';
+import type { ConfirmFn } from '@/components/ui/confirm-dialog';
 import type { WorkItem } from '@/types/workItems';
 import type { CreateItemFormValues } from '../modals/CreateItemModal';
 import { applyStatusChange } from '../lib/optimisticStatus';
@@ -20,6 +21,9 @@ interface UseWorkItemMutationsArgs {
   // UI callback: close the create-item modal on a successful create. Mirrors
   // the orchestrator's original `setShowCreateForm(false)`.
   onCreateSuccess: () => void;
+  // Themed confirmation dialog (from the orchestrator's useConfirm) — gates the
+  // destructive delete-item action in place of the native window.confirm.
+  confirm: ConfirmFn;
 }
 
 /**
@@ -42,6 +46,7 @@ export function useWorkItemMutations(
     invalidateProject,
     selectedItem,
     onCreateSuccess,
+    confirm,
   }: UseWorkItemMutationsArgs,
 ) {
   const queryClient = useQueryClient();
@@ -201,8 +206,16 @@ export function useWorkItemMutations(
     },
   });
 
-  const handleDeleteItem = (itemId: string) => {
-    if (!confirm('Delete this work item?')) return;
+  const handleDeleteItem = async (itemId: string) => {
+    if (
+      !(await confirm({
+        title: 'Delete work item?',
+        description: 'Delete this work item?',
+        destructive: true,
+        confirmText: 'Delete',
+      }))
+    )
+      return;
     deleteItemMutation.mutate(itemId);
   };
 

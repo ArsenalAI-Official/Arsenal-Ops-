@@ -1,5 +1,7 @@
 import { Plus, Pencil, Trash2, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toPascalCase } from '@/lib/stringUtils';
+import { Empty, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 
 interface Role {
   id: number;
@@ -22,14 +24,6 @@ interface RolesTabProps {
    *  users with `admin.roles` can still see what each role grants. */
   canWriteRoles: boolean;
 }
-
-// Helper function to convert role to Pascal Case
-const toPascalCase = (str: string): string => {
-  return str
-    .split('_')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join('');
-};
 
 const RolesTab = ({
   roles,
@@ -130,9 +124,10 @@ const RolesTab = ({
           </tbody>
         </table>
         {roles.length === 0 && (
-          <div className="text-center py-12 text-[#737373]">
-            No roles yet. Click "Add Role" to create one.
-          </div>
+          <Empty>
+            <EmptyTitle>No roles yet</EmptyTitle>
+            <EmptyDescription>Click "Add Role" to create one.</EmptyDescription>
+          </Empty>
         )}
       </div>
     </div>

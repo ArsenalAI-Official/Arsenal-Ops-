@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import { invalidateProjectScope, invalidateAdminMembershipImpact } from '@/lib/invalidations';
+import type { ConfirmFn } from '@/components/ui/confirm-dialog';
 import type { CategoryFormPayload, Project, ProjectCategory, ProjectWeeklyReport } from '../types';
 import { ADMIN_REFETCH } from './adminRefetch';
 
@@ -14,7 +15,7 @@ import { ADMIN_REFETCH } from './adminRefetch';
  * passes it in. Category-scope invalidation (categories + projects + weekly
  * report) preserved from the original component.
  */
-export function useProjectsAdmin() {
+export function useProjectsAdmin(confirm: ConfirmFn) {
   const queryClient = useQueryClient();
 
   const projectsQuery = useQuery<Project[]>({
@@ -289,10 +290,16 @@ export function useProjectsAdmin() {
     },
   });
 
-  const handleRemoveProjectMember = (developerId: number) => {
+  const handleRemoveProjectMember = async (developerId: number) => {
     if (!selectedProjectForMembers) return;
     if (
-      !confirm('Remove this member from the project? Their assigned work items will be unassigned.')
+      !(await confirm({
+        title: 'Remove member?',
+        description:
+          'Remove this member from the project? Their assigned work items will be unassigned.',
+        confirmText: 'Remove',
+        destructive: true,
+      }))
     )
       return;
     removeMemberMutation.mutate({ projectId: selectedProjectForMembers.id, developerId });

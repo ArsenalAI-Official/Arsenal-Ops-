@@ -1,6 +1,7 @@
 // Thin per-tab container for the Roles tab. Owns role-editor state via
 // useRolesAdmin and renders the Roles tab plus the role create/edit modal.
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { AdminSpinner } from '../components/AdminSpinner';
 import { useRolesAdmin } from '../hooks/useRolesAdmin';
 import {
@@ -14,6 +15,7 @@ import RoleModal from '../modals/RoleModal';
 
 export default function RolesContainer() {
   const { can } = useAuth();
+  const { confirm, confirmDialog } = useConfirm();
   const {
     roles,
     isLoading,
@@ -32,7 +34,7 @@ export default function RolesContainer() {
     handleSaveRole,
     handleDeleteRole,
     deleteRoleMutation,
-  } = useRolesAdmin();
+  } = useRolesAdmin(confirm);
 
   // Gate create/edit/delete affordances on roles-write (backend enforces the
   // same cap on the role-mutation endpoints).
@@ -68,6 +70,7 @@ export default function RolesContainer() {
         toPascalCase={toPascalCase}
         handleSaveRole={handleSaveRole}
       />
+      {confirmDialog}
     </>
   );
 }

@@ -3,6 +3,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Briefcase, AlertTriangle, CheckCircle2, Calendar } from 'lucide-react';
+import { getStatusColor } from '@/lib/workItemConfig';
+import { parseLocalDate } from '@/lib/dateUtils';
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+} from '@/components/ui/empty';
 
 interface Task {
   id: string;
@@ -37,13 +46,13 @@ const MyTasksView: React.FC<MyTasksViewProps> = ({ tasks, onTaskClick }) => {
       case 'today':
         return tasks.filter((task) => {
           if (!task.due_date) return false;
-          const dueDate = new Date(task.due_date);
+          const dueDate = parseLocalDate(task.due_date)!;
           return dueDate >= today && dueDate < new Date(today.getTime() + 24 * 60 * 60 * 1000);
         });
       case 'week':
         return tasks.filter((task) => {
           if (!task.due_date) return false;
-          const dueDate = new Date(task.due_date);
+          const dueDate = parseLocalDate(task.due_date)!;
           return dueDate >= today && dueDate <= weekEnd;
         });
       case 'overdue':
@@ -67,17 +76,10 @@ const MyTasksView: React.FC<MyTasksViewProps> = ({ tasks, onTaskClick }) => {
     );
   }, [filteredTasks]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'done':
-        return 'bg-[#E0B954]/15 text-[#E0B954] border-[#E0B954]/30';
-      case 'in_progress':
-        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-      case 'in_review':
-        return 'bg-[#E0B954]/15 text-[#E0B954] border-[#E0B954]/30';
-      default:
-        return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
-    }
+  // Badge style derived from the canonical status colour (translucent bg/border).
+  const getStatusStyle = (status: string): React.CSSProperties => {
+    const color = getStatusColor(status);
+    return { backgroundColor: `${color}26`, color, borderColor: `${color}4d` };
   };
 
   const getPriorityColor = (priority: string) => {
@@ -151,13 +153,17 @@ const MyTasksView: React.FC<MyTasksViewProps> = ({ tasks, onTaskClick }) => {
 
         {/* Tasks by Project */}
         {Object.keys(groupedTasks).length === 0 ? (
-          <div className="text-center py-12">
-            <CheckCircle2 className="w-12 h-12 text-[#E0B954] mx-auto mb-2" />
-            <p className="text-[#737373]">No tasks found</p>
-            <p className="text-[#737373] text-sm">
-              {filter === 'all' ? 'You have no assigned tasks' : `No ${filter} tasks`}
-            </p>
-          </div>
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <CheckCircle2 className="text-[#E0B954]" />
+              </EmptyMedia>
+              <EmptyTitle className="text-[#737373]">No tasks found</EmptyTitle>
+              <EmptyDescription>
+                {filter === 'all' ? 'You have no assigned tasks' : `No ${filter} tasks`}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
           <div className="space-y-6">
             {Object.entries(groupedTasks).map(([projectName, projectTasks]) => (
@@ -183,7 +189,7 @@ const MyTasksView: React.FC<MyTasksViewProps> = ({ tasks, onTaskClick }) => {
                             <span className="text-white">{task.title}</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline" className={getStatusColor(task.status)}>
+                            <Badge variant="outline" style={getStatusStyle(task.status)}>
                               {task.status.replace('_', ' ')}
                             </Badge>
                             <Badge variant="outline" className={getPriorityColor(task.priority)}>

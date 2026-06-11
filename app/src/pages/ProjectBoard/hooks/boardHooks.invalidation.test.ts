@@ -72,6 +72,7 @@ function workItemArgs(queryClient: QueryClient) {
     invalidateProject: () => invalidateProjectScope(queryClient, ID),
     selectedItem: { id: 'w1' } as never,
     onCreateSuccess: vi.fn(),
+    confirm: vi.fn().mockResolvedValue(true),
   };
 }
 

@@ -12,6 +12,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 
 // MermaidRenderer is heavy; lazy-load only when this section renders.
 // ArchitectureEditor (the modal) stays lazy at the parent, since edit state lives there.
@@ -112,7 +113,7 @@ const ArchitectureSection = ({
           <Suspense
             fallback={
               <div className="flex items-center justify-center p-8">
-                <div className="w-8 h-8 border-2 border-[#E0B954]/30 border-t-[#E0B954] rounded-full animate-spin" />
+                <Spinner size="md" tone="gold" />
               </div>
             }
           >

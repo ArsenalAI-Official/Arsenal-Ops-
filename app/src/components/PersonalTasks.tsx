@@ -32,13 +32,8 @@ import {
   Edit2,
 } from 'lucide-react';
 import { toast } from 'sonner';
-
-// Helper function to parse YYYY-MM-DD string to local Date object (avoids UTC timezone issues)
-const parseLocalDate = (dateString: string | undefined): Date | undefined => {
-  if (!dateString) return undefined;
-  const [year, month, day] = dateString.split('-');
-  return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-};
+import { parseLocalDate } from '@/lib/dateUtils';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 
 interface PersonalTask {
   id: number;
@@ -66,6 +61,7 @@ interface PersonalTasksProps {
 }
 
 export default function PersonalTasks({ token }: PersonalTasksProps) {
+  const { confirm, confirmDialog } = useConfirm();
   const [tasks, setTasks] = useState<PersonalTask[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
@@ -229,7 +225,15 @@ export default function PersonalTasks({ token }: PersonalTasksProps) {
   };
 
   const deleteTask = async (taskId: number) => {
-    if (!confirm('Are you sure you want to delete this task?')) return;
+    if (
+      !(await confirm({
+        title: 'Delete task?',
+        description: 'Are you sure you want to delete this task?',
+        destructive: true,
+        confirmText: 'Delete',
+      }))
+    )
+      return;
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/personal-tasks/${taskId}`, {
@@ -331,6 +335,7 @@ export default function PersonalTasks({ token }: PersonalTasksProps) {
 
   return (
     <Card className="bg-[#0d0d0d] border-[rgba(255,255,255,0.08)]">
+      {confirmDialog}
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-white flex items-center gap-2">
           <Briefcase className="w-5 h-5" />

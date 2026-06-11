@@ -1,74 +1,39 @@
-import {
-  BookOpen,
-  ClipboardList,
-  Bug,
-  Target,
-  Plus,
-  Clock,
-  AlertCircle,
-  CheckCircle2,
-} from 'lucide-react';
+// ProjectsPage shared constants. Status/type/priority config is sourced from
+// the canonical single source in `@/lib/workItemConfig` and re-exported here so
+// existing `./constants` importers keep working — with the ProjectsPage-specific
+// extras (the `blocked`/`backlog` pseudo-statuses and the legend bar order)
+// derived from it rather than hand-maintained.
+import { STATUS_CONFIG, TYPE_CONFIG } from '@/lib/workItemConfig';
 
+export { PRIORITY_COLOR } from '@/lib/workItemConfig';
+
+// Same canonical object, re-typed as a string-indexable record to preserve the
+// prior `TASK_TYPE_CONFIG[item.type]` call contract.
+export const TASK_TYPE_CONFIG: Record<string, (typeof TYPE_CONFIG)[keyof typeof TYPE_CONFIG]> =
+  TYPE_CONFIG;
+
+// Status → color, extended with the two pseudo-statuses ProjectsPage renders
+// that aren't part of the work-item workflow (`blocked`; `backlog` is canonical).
+export const STATUS_COLOR: Record<string, string> = {
+  todo: STATUS_CONFIG.todo.color,
+  in_progress: STATUS_CONFIG.in_progress.color,
+  in_review: STATUS_CONFIG.in_review.color,
+  done: STATUS_CONFIG.done.color,
+  blocked: '#EF4444',
+  backlog: STATUS_CONFIG.backlog.color,
+};
+
+// Status legend bars (display order: done → in_progress → in_review → todo).
 export const STATUS_BARS = [
-  { key: 'done', color: '#34D399', label: 'Done' },
-  { key: 'in_progress', color: '#E0B954', label: 'In Progress' },
-  { key: 'in_review', color: '#A78BFA', label: 'In Review' },
-  { key: 'todo', color: '#60A5FA', label: 'To Do' },
+  { key: 'done', color: STATUS_CONFIG.done.color, label: STATUS_CONFIG.done.label },
+  {
+    key: 'in_progress',
+    color: STATUS_CONFIG.in_progress.color,
+    label: STATUS_CONFIG.in_progress.label,
+  },
+  { key: 'in_review', color: STATUS_CONFIG.in_review.color, label: STATUS_CONFIG.in_review.label },
+  { key: 'todo', color: STATUS_CONFIG.todo.color, label: STATUS_CONFIG.todo.label },
 ] as const;
 
-export const STATUS_COLOR: Record<string, string> = {
-  todo: '#60A5FA',
-  in_progress: '#E0B954',
-  in_review: '#A78BFA',
-  done: '#34D399',
-  blocked: '#EF4444',
-  backlog: '#555',
-};
-
-export const STATUS_CONFIG = {
-  todo: { label: 'To Do', color: '#60A5FA', icon: Plus },
-  in_progress: { label: 'In Progress', color: '#E0B954', icon: Clock },
-  in_review: { label: 'In Review', color: '#A78BFA', icon: AlertCircle },
-  done: { label: 'Done', color: '#34D399', icon: CheckCircle2 },
-} as const;
-
-export const TASK_TYPE_CONFIG: Record<
-  string,
-  { icon: React.ElementType; color: string; label: string; bg: string }
-> = {
-  user_story: { icon: BookOpen, color: '#E0B954', label: 'Story', bg: 'rgba(224,185,84,0.15)' },
-  task: { icon: ClipboardList, color: '#F59E0B', label: 'Task', bg: 'rgba(245,158,11,0.15)' },
-  bug: { icon: Bug, color: '#EF4444', label: 'Bug', bg: 'rgba(239,68,68,0.15)' },
-  epic: { icon: Target, color: '#A78BFA', label: 'Epic', bg: 'rgba(167,139,250,0.15)' },
-  subtask: {
-    icon: ClipboardList,
-    color: '#FBBF24',
-    label: 'Subtask',
-    bg: 'rgba(251,191,36,0.15)',
-  },
-};
-
-// Calendar styling shared across date picker popovers in ProjectsPage dialogs
-export const CALENDAR_CLASS_NAMES = {
-  months: 'flex flex-col',
-  month: 'space-y-4',
-  caption: 'flex justify-between items-center px-0 pb-4 relative h-7 mb-2',
-  caption_label: 'text-sm font-medium text-white',
-  nav: 'space-x-1 flex items-center',
-  nav_button: 'text-white hover:bg-[rgba(224,185,84,0.1)] rounded p-1',
-  nav_button_previous: 'absolute left-0',
-  nav_button_next: 'absolute right-0',
-  table: 'w-full border-collapse space-y-1',
-  head_row: 'flex',
-  head_cell: 'text-xs font-medium text-[#737373] w-8 h-8 flex items-center justify-center rounded',
-  row: 'flex w-full gap-1',
-  cell: 'relative p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-transparent',
-  day: 'h-8 w-8 p-0 font-normal',
-  day_button: 'text-white hover:bg-[rgba(224,185,84,0.1)] rounded-lg h-8 w-8 transition-colors',
-  day_selected: 'bg-[#E0B954] text-[#0d0d0d] hover:bg-[#E0B954] font-semibold',
-  day_today: 'bg-[rgba(224,185,84,0.2)] text-[#E0B954] font-semibold',
-  day_outside: 'text-[#444]',
-  day_disabled: 'text-[#333] opacity-50 cursor-not-allowed',
-  day_range_middle: 'aria-selected:bg-[rgba(224,185,84,0.1)] aria-selected:text-white',
-  day_hidden: 'invisible',
-};
+// Calendar styling shared across date picker popovers.
+export { CALENDAR_CLASS_NAMES } from '@/lib/calendarClassNames';

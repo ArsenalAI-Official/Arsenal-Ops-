@@ -23,6 +23,14 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+} from '@/components/ui/empty';
 import {
   Select,
   SelectContent,
@@ -417,15 +425,19 @@ const ProjectsTab = ({
               <span>Loading report…</span>
             </div>
           ) : reportRows.length === 0 ? (
-            <div className="py-12 text-center">
-              <TableProperties className="w-7 h-7 text-[#525252] mx-auto mb-2" />
-              <p className="text-sm text-[#a3a3a3] font-medium">No report data</p>
-              <p className="text-xs text-[#525252] mt-1">
-                {projectSearch.trim()
-                  ? 'No projects match your search.'
-                  : 'Nothing matches the current category filter.'}
-              </p>
-            </div>
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <TableProperties />
+                </EmptyMedia>
+                <EmptyTitle>No report data</EmptyTitle>
+                <EmptyDescription>
+                  {projectSearch.trim()
+                    ? 'No projects match your search.'
+                    : 'Nothing matches the current category filter.'}
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : (
             <table className="w-full text-sm">
               <thead>
@@ -599,13 +611,15 @@ const ProjectsTab = ({
           active so the page doesn't double-scroll. */}
       {view === 'cards' &&
         (searchedProjects.length === 0 ? (
-          <div className="border border-dashed border-[rgba(255,255,255,0.08)] rounded-xl p-10 text-center text-sm text-[#737373]">
-            {projectSearch.trim()
-              ? 'No projects match your search.'
-              : categoryFilter === 'all'
-                ? 'No projects yet.'
-                : 'No projects match this category filter.'}
-          </div>
+          <Empty>
+            <EmptyDescription>
+              {projectSearch.trim()
+                ? 'No projects match your search.'
+                : categoryFilter === 'all'
+                  ? 'No projects yet.'
+                  : 'No projects match this category filter.'}
+            </EmptyDescription>
+          </Empty>
         ) : (
           <div className="grid grid-cols-3 gap-4">
             {[...searchedProjects]
@@ -726,7 +740,7 @@ const ProjectsTab = ({
                         >
                           {invitingProjectId === project.id ? (
                             <>
-                              <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin mr-1" />
+                              <Spinner size="xs" tone="white" className="mr-1" />
                               Sending...
                             </>
                           ) : (

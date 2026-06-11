@@ -19,10 +19,10 @@ import {
   Circle,
   X,
   BookOpen,
-  ClipboardList,
-  Bug,
   Target,
 } from 'lucide-react';
+import { TYPE_CONFIG, getStatusColor } from '@/lib/workItemConfig';
+import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
 
 interface WorkItem {
   id: string;
@@ -54,16 +54,6 @@ interface ListViewProps {
 
 type SortField = 'title' | 'status' | 'priority' | 'due_date' | 'completed_at' | 'assignee';
 type SortDirection = 'asc' | 'desc';
-
-const TYPE_CONFIG: Record<
-  string,
-  { icon: React.ElementType; color: string; label: string; bg: string }
-> = {
-  user_story: { icon: BookOpen, color: '#E0B954', label: 'Story', bg: 'rgba(224,185,84,0.15)' },
-  task: { icon: ClipboardList, color: '#F59E0B', label: 'Task', bg: 'rgba(245,158,11,0.15)' },
-  bug: { icon: Bug, color: '#EF4444', label: 'Bug', bg: 'rgba(239,68,68,0.15)' },
-  epic: { icon: Target, color: '#C79E3B', label: 'Epic', bg: 'rgba(199,158,59,0.15)' },
-};
 
 const ListView: React.FC<ListViewProps> = ({ workItems, onTaskClick }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -178,11 +168,11 @@ const ListView: React.FC<ListViewProps> = ({ workItems, onTaskClick }) => {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'done':
-        return <CheckCircle2 className="w-4 h-4 text-[#E0B954]" />;
+        return <CheckCircle2 className="w-4 h-4" style={{ color: getStatusColor('done') }} />;
       case 'in_progress':
-        return <Clock className="w-4 h-4 text-[#F59E0B]" />;
+        return <Clock className="w-4 h-4" style={{ color: getStatusColor('in_progress') }} />;
       case 'in_review':
-        return <AlertCircle className="w-4 h-4 text-[#C79E3B]" />;
+        return <AlertCircle className="w-4 h-4" style={{ color: getStatusColor('in_review') }} />;
       default:
         return <Circle className="w-4 h-4 text-[#737373]" />;
     }
@@ -376,9 +366,11 @@ const ListView: React.FC<ListViewProps> = ({ workItems, onTaskClick }) => {
         ))}
 
         {filteredAndSortedItems.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-[#737373]">No tasks match your filters</p>
-          </div>
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle className="text-[#737373]">No tasks match your filters</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
         )}
       </CardContent>
 
@@ -391,7 +383,8 @@ const ListView: React.FC<ListViewProps> = ({ workItems, onTaskClick }) => {
             <div className="flex items-start justify-between p-5 border-b border-[rgba(255,255,255,0.05)] sticky top-0 bg-[#080808]">
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 {(() => {
-                  const ti = TYPE_CONFIG[selectedItem.type] || TYPE_CONFIG.task;
+                  const ti =
+                    TYPE_CONFIG[selectedItem.type as keyof typeof TYPE_CONFIG] || TYPE_CONFIG.task;
                   return (
                     <div
                       className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-sm font-medium flex-shrink-0"

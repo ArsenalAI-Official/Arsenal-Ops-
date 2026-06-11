@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Users, Plus, X, Github, Trash2, Crown } from 'lucide-react';
+import { Users, Plus, Github, Trash2, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Modal } from '@/components/ui/modal';
 
 interface Developer {
   id: number;
@@ -190,75 +191,70 @@ const TeamSection = ({
 
       {/* Add Developer Modal */}
       {effectiveShowAddDeveloper && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
-              <h2 className="text-lg font-bold text-white">Add Developer</h2>
-              <button
-                onClick={() => setShowAddDeveloper(false)}
-                className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white"
+        <Modal
+          open
+          onClose={() => setShowAddDeveloper(false)}
+          title="Add Developer"
+          maxWidthClass="max-w-md"
+          closeOnBackdrop={false}
+        >
+          <div className="p-5 space-y-4">
+            <div>
+              <label className="text-xs font-medium text-[#737373] block mb-1.5">Developer</label>
+              <select
+                value={newDeveloper.developer_id}
+                onChange={(e) => setNewDeveloper((d) => ({ ...d, developer_id: e.target.value }))}
+                className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
               >
-                <X className="w-5 h-5" />
-              </button>
+                <option value="">Select a developer</option>
+                {availableDevelopers.map((dev) => (
+                  <option key={dev.id} value={dev.id}>
+                    {dev.name} ({dev.email})
+                  </option>
+                ))}
+              </select>
             </div>
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="text-xs font-medium text-[#737373] block mb-1.5">Developer</label>
-                <select
-                  value={newDeveloper.developer_id}
-                  onChange={(e) => setNewDeveloper((d) => ({ ...d, developer_id: e.target.value }))}
-                  className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
-                >
-                  <option value="">Select a developer</option>
-                  {availableDevelopers.map((dev) => (
-                    <option key={dev.id} value={dev.id}>
-                      {dev.name} ({dev.email})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-[#737373] block mb-1.5">Role</label>
-                <Input
-                  value={newDeveloper.role}
-                  onChange={(e) => setNewDeveloper((d) => ({ ...d, role: e.target.value }))}
-                  placeholder="e.g., Backend Developer"
-                  className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-[#737373] block mb-1.5">
-                  Responsibilities
-                </label>
-                <Textarea
-                  value={newDeveloper.responsibilities}
-                  onChange={(e) =>
-                    setNewDeveloper((d) => ({ ...d, responsibilities: e.target.value }))
-                  }
-                  placeholder="What will this developer work on?"
-                  className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl min-h-[80px]"
-                />
-              </div>
+            <div>
+              <label className="text-xs font-medium text-[#737373] block mb-1.5">Role</label>
+              <Input
+                value={newDeveloper.role}
+                onChange={(e) => setNewDeveloper((d) => ({ ...d, role: e.target.value }))}
+                placeholder="e.g., Backend Developer"
+                className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
+              />
             </div>
-            <div className="flex justify-end gap-3 p-5 border-t border-[rgba(255,255,255,0.05)]">
-              <Button
-                variant="ghost"
-                onClick={() => setShowAddDeveloper(false)}
-                className="text-[#737373] rounded-xl"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleAddDeveloper}
-                disabled={!newDeveloper.developer_id || !newDeveloper.role}
-                className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] hover:from-[#C79E3B] hover:to-[#B8872A] text-white rounded-xl font-medium shadow-lg shadow-[#B8872A]/20 disabled:opacity-50"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Developer
-              </Button>
+            <div>
+              <label className="text-xs font-medium text-[#737373] block mb-1.5">
+                Responsibilities
+              </label>
+              <Textarea
+                value={newDeveloper.responsibilities}
+                onChange={(e) =>
+                  setNewDeveloper((d) => ({ ...d, responsibilities: e.target.value }))
+                }
+                placeholder="What will this developer work on?"
+                className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl min-h-[80px]"
+              />
             </div>
           </div>
-        </div>
+          <div className="flex justify-end gap-3 p-5 border-t border-[rgba(255,255,255,0.05)]">
+            <Button
+              variant="ghost"
+              onClick={() => setShowAddDeveloper(false)}
+              className="text-[#737373] rounded-xl"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddDeveloper}
+              disabled={!newDeveloper.developer_id || !newDeveloper.role}
+              className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] hover:from-[#C79E3B] hover:to-[#B8872A] text-white rounded-xl font-medium shadow-lg shadow-[#B8872A]/20 disabled:opacity-50"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Developer
+            </Button>
+          </div>
+        </Modal>
       )}
     </>
   );

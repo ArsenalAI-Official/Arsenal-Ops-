@@ -1,6 +1,7 @@
 // Thin per-tab container: owns the Employees tab's data + modal state (via
 // useEmployeesAdmin) and renders the tab plus its modal.
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { AdminSpinner } from '../components/AdminSpinner';
 import { useEmployeesAdmin } from '../hooks/useEmployeesAdmin';
 import EmployeesTab from '../tabs/EmployeesTab';
@@ -8,6 +9,7 @@ import EmployeeModal from '../modals/EmployeeModal';
 
 export default function EmployeesContainer() {
   const { can } = useAuth();
+  const { confirm, confirmDialog } = useConfirm();
   const {
     employees,
     developerCapacities,
@@ -22,7 +24,7 @@ export default function EmployeesContainer() {
     handleEditEmployee,
     handleSaveEmployee,
     handleDeleteEmployee,
-  } = useEmployeesAdmin();
+  } = useEmployeesAdmin(confirm);
 
   if (isLoading) return <AdminSpinner />;
 
@@ -45,6 +47,7 @@ export default function EmployeesContainer() {
         setEmployeeForm={setEmployeeForm}
         handleSaveEmployee={handleSaveEmployee}
       />
+      {confirmDialog}
     </>
   );
 }

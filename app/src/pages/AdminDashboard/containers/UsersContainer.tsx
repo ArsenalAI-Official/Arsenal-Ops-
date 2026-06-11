@@ -3,8 +3,10 @@
 // + useUserRoleAssignment) for the inline "Edit Roles" modal, and the
 // open-role-dropdown UI state. Renders the Users tab plus its three modals.
 import { useState } from 'react';
-import { Shield, KeyRound, X } from 'lucide-react';
+import { Shield, KeyRound } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { Modal } from '@/components/ui/modal';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { AdminSpinner } from '../components/AdminSpinner';
 import { useUsersAdmin } from '../hooks/useUsersAdmin';
 import { useRolesList } from '../hooks/useRolesList';
@@ -15,6 +17,7 @@ import UserModal from '../modals/UserModal';
 import EditUserModal from '../modals/EditUserModal';
 
 export default function UsersContainer() {
+  const { confirm, confirmDialog } = useConfirm();
   const {
     users,
     isLoading,
@@ -32,7 +35,7 @@ export default function UsersContainer() {
     handleSaveEditUser,
     updateUserMutation,
     handleDeleteUser,
-  } = useUsersAdmin();
+  } = useUsersAdmin(confirm);
 
   // Roles list + assignment feed the inline per-user "Edit Roles" modal. Shared
   // with the Roles tab via react-query (same ['admin','roles'] key).
@@ -74,19 +77,18 @@ export default function UsersContainer() {
               .filter(Boolean),
           );
           return (
-            <div
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-              onClick={() => setOpenRoleDropdown(null)}
-            >
-              <div
-                className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-md shadow-2xl max-h-[80vh] flex flex-col"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* Header — Shield icon tile + title + user avatar/name +
-                    assignment counter pill. The counter gives instant
-                    feedback as roles are toggled (no save button needed —
-                    changes auto-persist via handleToggleUserRoleById). */}
-                <div className="flex items-center justify-between gap-3 p-5 border-b border-[rgba(255,255,255,0.05)]">
+            <Modal
+              open
+              onClose={() => setOpenRoleDropdown(null)}
+              maxWidthClass="max-w-md"
+              panelClassName="max-h-[80vh] flex flex-col"
+              title={
+                // Shield icon tile + title + user avatar/name + assignment
+                // counter pill. The counter gives instant feedback as roles are
+                // toggled (no save button — changes auto-persist via
+                // handleToggleUserRoleById). flex-1 lets it span the header so
+                // the counter right-aligns next to the Modal's close button.
+                <div className="flex flex-1 items-center justify-between gap-3 min-w-0">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E0B954]/15 to-[#B8872A]/10 border border-[#E0B954]/20 flex items-center justify-center shrink-0">
                       <Shield className="w-5 h-5 text-[#E0B954]" />
@@ -103,97 +105,90 @@ export default function UsersContainer() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {roles.length > 0 && (
-                      <span
-                        className="text-[10px] tabular-nums px-2 py-1 rounded-md border font-medium"
-                        style={{
-                          color: userRoleNames.size > 0 ? '#E0B954' : '#737373',
-                          backgroundColor:
-                            userRoleNames.size > 0
-                              ? 'rgba(224,185,84,0.1)'
-                              : 'rgba(255,255,255,0.04)',
-                          borderColor:
-                            userRoleNames.size > 0
-                              ? 'rgba(224,185,84,0.25)'
-                              : 'rgba(255,255,255,0.06)',
-                        }}
-                        title={`${userRoleNames.size} of ${roles.length} roles assigned`}
-                      >
-                        {userRoleNames.size} / {roles.length}
-                      </span>
-                    )}
-                    <button
-                      onClick={() => setOpenRoleDropdown(null)}
-                      className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.05)] text-[#737373] hover:text-white"
+                  {roles.length > 0 && (
+                    <span
+                      className="text-[10px] tabular-nums px-2 py-1 rounded-md border font-medium shrink-0"
+                      style={{
+                        color: userRoleNames.size > 0 ? '#E0B954' : '#737373',
+                        backgroundColor:
+                          userRoleNames.size > 0
+                            ? 'rgba(224,185,84,0.1)'
+                            : 'rgba(255,255,255,0.04)',
+                        borderColor:
+                          userRoleNames.size > 0
+                            ? 'rgba(224,185,84,0.25)'
+                            : 'rgba(255,255,255,0.06)',
+                      }}
+                      title={`${userRoleNames.size} of ${roles.length} roles assigned`}
                     >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
-                <div className="p-4 space-y-1.5 overflow-y-auto">
-                  {roles.length === 0 ? (
-                    <div className="py-10 text-center">
-                      <KeyRound className="w-7 h-7 text-[#525252] mx-auto mb-2" />
-                      <p className="text-sm text-[#a3a3a3] font-medium">No roles defined yet</p>
-                      <p className="text-xs text-[#525252] mt-1">
-                        Create roles in the Roles tab to assign them here.
-                      </p>
-                    </div>
-                  ) : (
-                    roles.map((role) => {
-                      const isChecked = userRoleNames.has(role.name);
-                      return (
-                        <label
-                          key={role.id}
-                          className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors border ${
-                            isChecked
-                              ? 'bg-[rgba(224,185,84,0.06)] border-[rgba(224,185,84,0.2)] hover:bg-[rgba(224,185,84,0.09)]'
-                              : 'bg-transparent border-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.025)] hover:border-[rgba(255,255,255,0.08)]'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(e) =>
-                              handleToggleUserRoleById(targetUser, role, e.target.checked)
-                            }
-                            className="w-4 h-4 rounded cursor-pointer mt-0.5 shrink-0"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {/* Role chip — same KeyRound + Pascal-case
-                                  treatment used in the Roles tab table so the
-                                  same role reads identically across screens. */}
-                              <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors ${
-                                  isChecked
-                                    ? 'bg-[#E0B954]/20 text-[#E0B954]'
-                                    : 'bg-[rgba(255,255,255,0.04)] text-[#a3a3a3]'
-                                }`}
-                              >
-                                <KeyRound className="w-3 h-3" />
-                                {toPascalCase(role.name)}
-                              </span>
-                              {role.is_system && (
-                                <span className="text-[9px] uppercase tracking-wider text-[#737373] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)]">
-                                  System
-                                </span>
-                              )}
-                            </div>
-                            {role.description && (
-                              <p className="text-xs text-[#a3a3a3] mt-1.5 leading-relaxed">
-                                {role.description}
-                              </p>
-                            )}
-                          </div>
-                        </label>
-                      );
-                    })
+                      {userRoleNames.size} / {roles.length}
+                    </span>
                   )}
                 </div>
+              }
+            >
+              <div className="p-4 space-y-1.5 overflow-y-auto">
+                {roles.length === 0 ? (
+                  <div className="py-10 text-center">
+                    <KeyRound className="w-7 h-7 text-[#525252] mx-auto mb-2" />
+                    <p className="text-sm text-[#a3a3a3] font-medium">No roles defined yet</p>
+                    <p className="text-xs text-[#525252] mt-1">
+                      Create roles in the Roles tab to assign them here.
+                    </p>
+                  </div>
+                ) : (
+                  roles.map((role) => {
+                    const isChecked = userRoleNames.has(role.name);
+                    return (
+                      <label
+                        key={role.id}
+                        className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors border ${
+                          isChecked
+                            ? 'bg-[rgba(224,185,84,0.06)] border-[rgba(224,185,84,0.2)] hover:bg-[rgba(224,185,84,0.09)]'
+                            : 'bg-transparent border-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.025)] hover:border-[rgba(255,255,255,0.08)]'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) =>
+                            handleToggleUserRoleById(targetUser, role, e.target.checked)
+                          }
+                          className="w-4 h-4 rounded cursor-pointer mt-0.5 shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {/* Role chip — same KeyRound + Pascal-case treatment
+                                used in the Roles tab table so the same role reads
+                                identically across screens. */}
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                                isChecked
+                                  ? 'bg-[#E0B954]/20 text-[#E0B954]'
+                                  : 'bg-[rgba(255,255,255,0.04)] text-[#a3a3a3]'
+                              }`}
+                            >
+                              <KeyRound className="w-3 h-3" />
+                              {toPascalCase(role.name)}
+                            </span>
+                            {role.is_system && (
+                              <span className="text-[9px] uppercase tracking-wider text-[#737373] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)]">
+                                System
+                              </span>
+                            )}
+                          </div>
+                          {role.description && (
+                            <p className="text-xs text-[#a3a3a3] mt-1.5 leading-relaxed">
+                              {role.description}
+                            </p>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })
+                )}
               </div>
-            </div>
+            </Modal>
           );
         })()}
 
@@ -216,6 +211,7 @@ export default function UsersContainer() {
         onSave={handleSaveEditUser}
         isSaving={updateUserMutation.isPending}
       />
+      {confirmDialog}
     </>
   );
 }

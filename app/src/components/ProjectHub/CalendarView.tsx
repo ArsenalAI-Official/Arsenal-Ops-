@@ -5,6 +5,9 @@ import { enUS } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { parseLocalDate } from '@/lib/dateUtils';
+import { isPastDue } from '@/components/ProjectsPage/utils';
+import { getStatusColor } from '@/lib/workItemConfig';
 
 interface WorkItem {
   id: string;
@@ -50,26 +53,6 @@ interface CalendarEvent {
   resource: any;
 }
 
-/**
- * Parse a date string into a local-midnight Date object.
- * Handles both ISO datetime strings ("2026-03-15T00:00:00") and
- * date-only strings ("2026-03-15") correctly across all timezones.
- *
- * The key insight: "2026-03-15T00:00:00" without a 'Z' suffix is treated
- * by JavaScript as LOCAL time already — no shift needed.
- * But "2026-03-15T00:00:00Z" (with Z) would shift to local time, so we
- * strip the time component and reconstruct as local midnight to be safe.
- */
-function parseLocalDate(str: string): Date {
-  // Remove any trailing Z to treat as local time, not UTC
-  const clean = str.endsWith('Z') ? str.slice(0, -1) : str;
-  // Extract YYYY-MM-DD portion (handles both "2026-03-15" and "2026-03-15T00:00:00")
-  const datePart = clean.includes('T') ? clean.split('T')[0] : clean;
-  const [year, month, day] = datePart.split('-').map(Number);
-  // Construct at local midnight — timezone-safe for any locale
-  return new Date(year, month - 1, day, 0, 0, 0, 0);
-}
-
 const locales = {
   'en-US': enUS,
 };
@@ -95,8 +78,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     const taskEvents: CalendarEvent[] = workItems
       .filter((item) => item.due_date || item.start_date)
       .map((item) => {
-        const startDate = parseLocalDate((item.start_date || item.due_date)!);
-        const dueDate = parseLocalDate((item.due_date || item.start_date)!);
+        const startDate = parseLocalDate((item.start_date || item.due_date)!)!;
+        const dueDate = parseLocalDate((item.due_date || item.start_date)!)!;
         const effectiveEnd = dueDate < startDate ? startDate : dueDate;
         // react-big-calendar allDay end is exclusive:
         // to display an event THROUGH March 30, end must be March 31.
@@ -115,7 +98,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     const milestoneEvents: CalendarEvent[] = milestones
       .filter((m) => m.due_date)
       .map((m) => {
-        const dueDate = parseLocalDate(m.due_date!);
+        const dueDate = parseLocalDate(m.due_date!)!;
         const endExclusive = new Date(dueDate);
         endExclusive.setDate(endExclusive.getDate() + 1);
         return {
@@ -131,7 +114,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     const goalEvents: CalendarEvent[] = goals
       .filter((g) => g.due_date)
       .map((g) => {
-        const dueDate = parseLocalDate(g.due_date!);
+        const dueDate = parseLocalDate(g.due_date!)!;
         const endExclusive = new Date(dueDate);
         endExclusive.setDate(endExclusive.getDate() + 1);
         return {
@@ -159,26 +142,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   const eventStyleGetter = (event: CalendarEvent) => {
     const item = event.resource;
-    let backgroundColor = '#E0B954';
+    let backgroundColor = getStatusColor(item.status);
 
-    switch (item.status) {
-      case 'done':
-        backgroundColor = '#E0B954';
-        break;
-      case 'in_progress':
-        backgroundColor = '#F59E0B';
-        break;
-      case 'in_review':
-        backgroundColor = '#C79E3B';
-        break;
-      case 'todo':
-        backgroundColor = '#737373';
-        break;
-    }
-
-    // Check if overdue
-    const isOverdue =
-      item.due_date && new Date(item.due_date) < new Date() && item.status !== 'done';
+    // Check if overdue (canonical date-only semantics: due-today is not overdue)
+    const isOverdue = isPastDue(item.due_date, item.status);
     if (isOverdue) {
       backgroundColor = '#EF4444';
     }
@@ -349,11 +316,14 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         </div>
         <div className="flex items-center gap-4 mt-4 text-sm">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-[#E0B954]" />
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: getStatusColor('done') }} />
             <span className="text-[#737373]">Done</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-[#F59E0B]" />
+            <div
+              className="w-3 h-3 rounded"
+              style={{ backgroundColor: getStatusColor('in_progress') }}
+            />
             <span className="text-[#737373]">In Progress</span>
           </div>
           <div className="flex items-center gap-2">
@@ -361,7 +331,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             <span className="text-[#737373]">Overdue</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-[#737373]" />
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: getStatusColor('todo') }} />
             <span className="text-[#737373]">To Do</span>
           </div>
         </div>

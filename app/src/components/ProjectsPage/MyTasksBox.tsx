@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarIcon } from '@/components/ui/calendar';
+import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '@/contexts/AuthContext';
 import type { MyTask, PersonalTask } from './types';
 import { parseLocalDate } from './utils';
@@ -315,7 +316,7 @@ const MyTasksBox = ({
           )
         ) : myTasksLoading ? (
           <div className="flex items-center justify-center py-10">
-            <div className="w-5 h-5 border-2 border-[#E0B954]/30 border-t-[#E0B954] rounded-full animate-spin" />
+            <Spinner size="sm" tone="gold" />
           </div>
         ) : filteredMyTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-center">

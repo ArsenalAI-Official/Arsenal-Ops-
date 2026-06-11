@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
+import type { ConfirmFn } from '@/components/ui/confirm-dialog';
 import type { Employee, DeveloperCapacity } from '../types';
 import { ADMIN_REFETCH } from './adminRefetch';
 import { useEmployeesList } from './useEmployeesList';
@@ -15,7 +16,7 @@ const WEEKLY_CAPACITY_HRS = 40;
  * EmployeesContainer only mounts when the Employees tab is active. Cross-cutting
  * invalidation (stats, capacity, developers) preserved — see app/CLAUDE.md.
  */
-export function useEmployeesAdmin() {
+export function useEmployeesAdmin(confirm: ConfirmFn) {
   const queryClient = useQueryClient();
 
   const { employees, isLoading: employeesLoading } = useEmployeesList();
@@ -157,8 +158,16 @@ export function useEmployeesAdmin() {
     },
   });
 
-  const handleDeleteEmployee = (id: number) => {
-    if (!confirm('Are you sure you want to delete this employee?')) return;
+  const handleDeleteEmployee = async (id: number) => {
+    if (
+      !(await confirm({
+        title: 'Delete employee?',
+        description: 'Are you sure you want to delete this employee?',
+        confirmText: 'Delete',
+        destructive: true,
+      }))
+    )
+      return;
     deleteEmployeeMutation.mutate(id);
   };
 

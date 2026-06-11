@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
+import type { ConfirmFn } from '@/components/ui/confirm-dialog';
 import type { User } from '../types';
 import { ADMIN_REFETCH } from './adminRefetch';
 
@@ -11,7 +12,7 @@ import { ADMIN_REFETCH } from './adminRefetch';
  * Employees tab and developer lists consistent (developer-role users surface in
  * both) — preserved from the original component, see app/CLAUDE.md.
  */
-export function useUsersAdmin() {
+export function useUsersAdmin(confirm: ConfirmFn) {
   const queryClient = useQueryClient();
 
   const usersQuery = useQuery<User[]>({
@@ -82,11 +83,14 @@ export function useUsersAdmin() {
     },
   });
 
-  const handleDeleteUser = (user: User) => {
+  const handleDeleteUser = async (user: User) => {
     if (
-      !confirm(
-        `Delete user "${user.name}" (${user.email})? They'll lose access immediately. This cannot be undone.`,
-      )
+      !(await confirm({
+        title: 'Delete user?',
+        description: `Delete user "${user.name}" (${user.email})? They'll lose access immediately. This cannot be undone.`,
+        confirmText: 'Delete',
+        destructive: true,
+      }))
     )
       return;
     deleteUserMutation.mutate(user.id);

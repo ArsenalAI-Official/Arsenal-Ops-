@@ -56,3 +56,7 @@ backend/uv.lock
 # Verification / smoke-test scratch
 smoke-*.png
 verification-*.png
+
+# Playwright generated output
+app/playwright-report/
+app/test-results/

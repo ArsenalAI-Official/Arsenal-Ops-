@@ -16,6 +16,7 @@ import {
   Inbox,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { toast, Toaster } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
@@ -126,6 +127,10 @@ const ProjectBoard = () => {
   // PUT /api/workitems/{id} and DELETE /api/workitems/{id}.
   const canWriteTracker = can('project.tracker_write');
   const queryClient = useQueryClient();
+  // Themed confirm dialog (replaces the native window.confirm for destructive
+  // actions; matches the rest of the app post-#49). `confirmDialog` is rendered
+  // once below; `confirm` is threaded into the mutation handlers that need it.
+  const { confirm, confirmDialog } = useConfirm();
   const [showReviewer, setShowReviewer] = useState(false);
   // Defense-in-depth gate for the slide-in Reviewer panel. The Reviewer
   // entry takes the user into a queue where they can mark items as done
@@ -316,6 +321,7 @@ const ProjectBoard = () => {
     invalidateProject,
     selectedItem,
     onCreateSuccess: () => setShowCreateForm(false),
+    confirm,
   });
 
   // Drag-and-drop state + handlers live in useBoardDnd, which owns both the
@@ -467,6 +473,7 @@ const ProjectBoard = () => {
   return (
     <div className="min-h-screen bg-[#080808] text-[#F4F6FF] flex flex-col">
       <Toaster position="top-right" theme="dark" richColors />
+      {confirmDialog}
 
       {/* Top Header */}
       <header className="border-b border-[rgba(255,255,255,0.05)] bg-[#080808]/90 backdrop-blur-xl sticky top-0 z-40">

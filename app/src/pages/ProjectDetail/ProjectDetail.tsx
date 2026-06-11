@@ -2,6 +2,10 @@ import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiError } from '@/lib/api';
+import { useAllDevelopers } from '@/hooks/useAllDevelopers';
+import { Spinner } from '@/components/ui/spinner';
+import { toastErrorHandler } from '@/lib/mutationToast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import {
   invalidateProjectScope,
   invalidateWorkItemScope,
@@ -255,6 +259,7 @@ const ProjectDetail = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, can } = useAuth();
   const queryClient = useQueryClient();
+  const { confirm, confirmDialog } = useConfirm();
 
   // Initial tab respects ?tab= URL param so external links (e.g. admin "Pulse Settings"
   // button) can deep-link to a specific tab on this project.
@@ -374,10 +379,7 @@ const ProjectDetail = () => {
   }, [accessDenied]);
 
   // ── react-query: developers ─────────────────────────────────────────────
-  const developersQuery = useQuery<Developer[]>({
-    queryKey: ['developers'],
-    queryFn: () => apiFetch<Developer[]>('/api/developers/'),
-  });
+  const developersQuery = useAllDevelopers<Developer>();
   const allDevelopers = developersQuery.data ?? [];
 
   // ── react-query: sprints ────────────────────────────────────────────────
@@ -490,7 +492,7 @@ const ProjectDetail = () => {
     onSettled: () => {
       invalidateProjectScope(queryClient, id);
     },
-    onError: () => toast.error('Failed to add link'),
+    onError: toastErrorHandler('add link'),
   });
 
   const deleteLinkMutation = useMutation({
@@ -521,7 +523,7 @@ const ProjectDetail = () => {
         method: 'PUT',
         body: JSON.stringify(updates),
       }),
-    onError: () => toast.error('Failed to update task'),
+    onError: toastErrorHandler('update task'),
     onSettled: () => {
       invalidateWorkItemScope(queryClient, id);
       invalidateProjectScope(queryClient, id);
@@ -591,7 +593,7 @@ const ProjectDetail = () => {
     onSuccess: () => {
       toast.success('Developer added!');
     },
-    onError: () => toast.error('Failed to add developer'),
+    onError: toastErrorHandler('add developer'),
     onSettled: () => {
       invalidateProjectScope(queryClient, id);
       // Cascade-affects work-item assignments on the backend — capacity needs invalidation.
@@ -620,7 +622,7 @@ const ProjectDetail = () => {
     onSuccess: () => {
       toast.success('Developer removed!');
     },
-    onError: () => toast.error('Failed to remove developer'),
+    onError: toastErrorHandler('remove developer'),
     onSettled: () => {
       invalidateProjectScope(queryClient, id);
       // Cascade-affects work-item assignments on the backend — capacity needs invalidation.
@@ -629,9 +631,17 @@ const ProjectDetail = () => {
   });
 
   // Remove developer from project
-  const handleRemoveDeveloper = (developerId: number) => {
+  const handleRemoveDeveloper = async (developerId: number) => {
     if (!project) return;
-    if (!confirm('Remove this developer from the project?')) return;
+    if (
+      !(await confirm({
+        title: 'Remove developer?',
+        description: 'Remove this developer from the project?',
+        destructive: true,
+        confirmText: 'Remove',
+      }))
+    )
+      return;
     removeDeveloperMutation.mutate(developerId);
   };
 
@@ -646,7 +656,7 @@ const ProjectDetail = () => {
     onSuccess: () => {
       toast.success('Developer promoted to project admin!');
     },
-    onError: (err: any) => toast.error(err?.message || 'Failed to promote developer'),
+    onError: toastErrorHandler('promote developer'),
     onSettled: () => {
       invalidateProjectScope(queryClient, id);
     },
@@ -662,7 +672,7 @@ const ProjectDetail = () => {
     onSuccess: () => {
       toast.success('Developer demoted from project admin!');
     },
-    onError: (err: any) => toast.error(err?.message || 'Failed to demote developer'),
+    onError: toastErrorHandler('demote developer'),
     onSettled: () => {
       invalidateProjectScope(queryClient, id);
     },
@@ -723,7 +733,7 @@ const ProjectDetail = () => {
       toast.success('Architecture updated!');
       setEditingArchitecture(null);
     },
-    onError: () => toast.error('Failed to update architecture'),
+    onError: toastErrorHandler('update architecture'),
     onSettled: () => {
       invalidateProjectScope(queryClient, id);
     },
@@ -883,6 +893,7 @@ const ProjectDetail = () => {
   return (
     <div className="min-h-screen bg-[#080808] text-[#F4F6FF]">
       <Toaster position="top-right" theme="dark" richColors />
+      {confirmDialog}
 
       {/* Header */}
       <header className="border-b border-[rgba(224,185,84,0.15)] bg-[#080808]/95 backdrop-blur-xl sticky top-0 z-40 shadow-[0_1px_0_0_rgba(224,185,84,0.08)]">
@@ -1161,7 +1172,7 @@ const ProjectDetail = () => {
         <Suspense
           fallback={
             <div className="flex items-center justify-center p-8">
-              <div className="w-8 h-8 border-2 border-[#E0B954]/30 border-t-[#E0B954] rounded-full animate-spin" />
+              <Spinner size="md" tone="gold" />
             </div>
           }
         >
