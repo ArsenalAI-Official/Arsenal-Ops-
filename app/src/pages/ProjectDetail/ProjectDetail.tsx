@@ -332,6 +332,40 @@ const ProjectDetail = () => {
   const isLoading = projectQuery.isLoading;
   const accessDenied = projectQuery.error instanceof ApiError && projectQuery.error.status === 403;
 
+  // If the active tab isn't accessible (URL deep-link to a gated tab, role
+  // change mid-session, or the default `overview` is blocked), redirect to
+  // the first tab the user CAN see. Runs once `project` resolves because
+  // the per-project admin membership check needs `project.developers`.
+  //
+  // Logic is inlined rather than calling `canAccessTab` (defined later in
+  // the body) because this effect must live above the loading-state early
+  // return at line ~706 to satisfy Rules of Hooks.
+  //
+  // The existing state → URL sync effect picks up the setActiveTab call
+  // and updates `?tab=…` automatically (replace mode), so refresh + share
+  // both reflect the corrected tab.
+  useEffect(() => {
+    if (!project) return;
+    const isAdminOfThisProject = !!(
+      user && (project.developers ?? []).some((dev) => dev.email === user.email && dev.is_admin)
+    );
+    // `TabType` is wider than `ProjectTabId` (it includes legacy ids like
+    // 'goals' and 'hub' that aren't in the picker registry). For those,
+    // `PROJECT_TABS_BY_ID` lookup is undefined and we fail-closed to false,
+    // which is correct — the redirect logic then picks the first allowed
+    // registry tab below.
+    const checkTabAccess = (id: TabType): boolean => {
+      const spec = PROJECT_TABS_BY_ID[id as ProjectTabId];
+      return spec ? canAccessProjectTab(spec, can, isAdminOfThisProject) : false;
+    };
+    if (checkTabAccess(activeTab)) return;
+    const firstAccessible = PROJECT_TABS.find((spec) => checkTabAccess(spec.id));
+    if (firstAccessible && firstAccessible.id !== activeTab) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- legitimate access-correction redirect; cap state is external to React tree
+      setActiveTab(firstAccessible.id);
+    }
+  }, [project, activeTab, user, can]);
+
   // Show toast when 403 is encountered
   useEffect(() => {
     if (accessDenied) {
@@ -647,11 +681,20 @@ const ProjectDetail = () => {
   };
 
   // Check if current user can manage project membership (add/remove devs,
-  // promote/demote project admins). Two paths grant this:
-  //   1. Capability-based: `admin.projects` — system admins managing projects
-  //      from the admin shell.
-  //   2. Project membership: marked is_admin on this specific project's
+  // promote/demote project admins). Three paths grant this:
+  //   1. Capability-based (tool admin): `admin.projects` — system admins
+  //      managing projects from the admin shell.
+  //   2. Capability-based (overview write): `project.overview_write` —
+  //      tool-wide grant to edit Overview content (project info + team)
+  //      on any project the user can see. Wider than per-project admin
+  //      because it spans every project; narrower than `admin.projects`
+  //      because it doesn't grant admin-shell access.
+  //   3. Project membership: marked is_admin on this specific project's
   //      developers list. Per-project, can't be expressed as a global cap.
+  //
+  // Mirrors `is_project_admin` in backend/routers/projects.py — if you add
+  // a path here, add it there too or the UI will offer actions the backend
+  // rejects (and vice versa).
   //
   // Replaces the legacy `user.role.includes('admin')` string match — that
   // check ignored custom roles that had `admin.projects` granted via the
@@ -659,6 +702,7 @@ const ProjectDetail = () => {
   const isCurrentUserAdmin = () => {
     if (!user || !project) return false;
     if (can('admin.projects')) return true;
+    if (can('project.overview_write')) return true;
     return (project.developers ?? []).some((dev) => dev.email === user.email && dev.is_admin);
   };
 
@@ -865,13 +909,18 @@ const ProjectDetail = () => {
                 </div>
               </div>
             </div>
-            <Button
-              onClick={() => navigate(`/project/${project.id}/board`)}
-              className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-xl font-semibold shadow-lg shadow-[#E0B954]/20 h-9 px-4"
-            >
-              <LayoutGrid className="w-4 h-4 mr-2" />
-              Open Board
-            </Button>
+            {/* Hidden when the user lacks `project.board` so they don't see
+                an entry point that would 403 on click. Backend GET /board
+                enforces the same cap, so this gate is UX-only, not security. */}
+            {can('project.board') && (
+              <Button
+                onClick={() => navigate(`/project/${project.id}/board`)}
+                className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-xl font-semibold shadow-lg shadow-[#E0B954]/20 h-9 px-4"
+              >
+                <LayoutGrid className="w-4 h-4 mr-2" />
+                Open Board
+              </Button>
+            )}
           </div>
         </div>
 
@@ -990,7 +1039,14 @@ const ProjectDetail = () => {
                 <ArchitectureSection
                   architecture={project.selected_architecture}
                   onEdit={setEditingArchitecture}
-                  onOpenBoard={() => navigate(`/project/${project.id}/board`)}
+                  isCurrentUserAdmin={isCurrentUserAdmin()}
+                  // Omitted when the user lacks `project.board` so the
+                  // "AI Generate" / Open Board entry point doesn't render.
+                  onOpenBoard={
+                    can('project.board')
+                      ? () => navigate(`/project/${project.id}/board`)
+                      : undefined
+                  }
                 />
               )}
 
@@ -1013,6 +1069,7 @@ const ProjectDetail = () => {
             isLoading={linksLoading}
             onAddLink={handleAddLink}
             onDeleteLink={handleDeleteLink}
+            isCurrentUserAdmin={isCurrentUserAdmin()}
           />
         )}
 

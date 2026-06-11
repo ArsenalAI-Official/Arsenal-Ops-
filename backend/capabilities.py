@@ -36,14 +36,32 @@ CAPABILITIES: dict[str, str] = {
     # sweep them in.
     "project.tracker_write": "Create, edit, and delete work items and sprints",
     "project.ai.write": "Use AI generators (PRD analyzer, roadmap parser)",
+    # Overview-section write cap. Underscore (not dot) so the read wildcard
+    # `project.overview.*` does NOT auto-cover this — the same pattern used
+    # for `project.tracker_write`. System admins (`*`), PM (`project.*`),
+    # and per-project admins always have access regardless of this cap;
+    # see `is_project_admin` in routers/projects.py.
+    "project.overview_write": (
+        "Edit Overview content (project info, team membership, project-admin role)"
+    ),
     "project.create": "Create new projects",
     "project.assign_personal_task": "Assign personal tasks to a project (convert to ticket)",
-    # Admin screens
-    "admin.dashboard": "Access admin dashboard",
-    "admin.employees": "Manage employees",
-    "admin.projects": "Manage projects from admin",
-    "admin.users": "Manage users and role assignments",
-    "admin.roles": "Manage roles and capability grants",
+    "project.board": "Open and view the Project Board (kanban + sprints)",
+    # Admin screens — each tab has a read cap (for GETs / viewing the tab)
+    # and, where the tab has write actions, a paired *_write cap (for
+    # POST/PUT/DELETE). The combined read-cap → both reads-and-writes
+    # behaviour was retired; see `reconcile_admin_write_caps` in database.py
+    # for the one-shot migration that preserves access for existing roles.
+    "admin.dashboard": "View admin dashboard",
+    "admin.employees": "View employees",
+    "admin.employees_write": "Add, edit, and delete employees",
+    "admin.projects": "View projects in admin",
+    "admin.projects_write": "Edit project settings (e.g. GitHub) from admin",
+    "admin.users": "View users",
+    "admin.users_write": "Create, edit, delete users and assign roles",
+    "admin.roles": "View roles and their capability grants",
+    "admin.roles_write": "Create, edit, delete roles and modify their capabilities",
+    "admin.time_entries": "View all time entries across projects",
 }
 
 

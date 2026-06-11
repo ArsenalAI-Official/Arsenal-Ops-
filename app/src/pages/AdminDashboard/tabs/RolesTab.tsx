@@ -18,6 +18,9 @@ interface RolesTabProps {
   onCreateRole: () => void;
   onEditRole: (role: Role) => void;
   onDeleteRole: (role: Role) => void;
+  /** Gates Add/Edit/Delete role buttons. Without it the tab is read-only —
+   *  users with `admin.roles` can still see what each role grants. */
+  canWriteRoles: boolean;
 }
 
 // Helper function to convert role to Pascal Case
@@ -34,6 +37,7 @@ const RolesTab = ({
   onCreateRole,
   onEditRole,
   onDeleteRole,
+  canWriteRoles,
 }: RolesTabProps) => {
   return (
     <div className="space-y-4">
@@ -45,13 +49,15 @@ const RolesTab = ({
             assigned to them.
           </p>
         </div>
-        <Button
-          onClick={onCreateRole}
-          className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] hover:from-[#C79E3B] hover:to-[#B8872A] text-white rounded-xl h-10 px-4"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Role
-        </Button>
+        {canWriteRoles && (
+          <Button
+            onClick={onCreateRole}
+            className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] hover:from-[#C79E3B] hover:to-[#B8872A] text-white rounded-xl h-10 px-4"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Role
+          </Button>
+        )}
       </div>
       <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.05)] rounded-xl overflow-visible">
         <table className="w-full">
@@ -87,12 +93,17 @@ const RolesTab = ({
                 <td className="py-3 px-4 text-sm text-[#a3a3a3]">{role.user_count ?? 0}</td>
                 <td className="py-3 px-4 text-right">
                   <div className="flex items-center justify-end gap-2">
+                    {/* Buttons stay visible so the action column has consistent
+                        width across rows. Disabled when the caller lacks
+                        roles-write OR (for delete) the role is a system role.
+                        Tooltip explains the most specific reason. */}
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => onEditRole(role)}
-                      className="text-[#737373] hover:text-white h-8 w-8 p-0"
-                      title="Edit role"
+                      disabled={!canWriteRoles}
+                      className="text-[#737373] hover:text-white h-8 w-8 p-0 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-[#737373]"
+                      title={canWriteRoles ? 'Edit role' : 'Requires roles-write access'}
                     >
                       <Pencil className="w-4 h-4" />
                     </Button>
@@ -100,9 +111,15 @@ const RolesTab = ({
                       variant="ghost"
                       size="sm"
                       onClick={() => onDeleteRole(role)}
-                      disabled={role.is_system || isDeletingRole}
-                      className="text-red-400 hover:text-red-300 h-8 w-8 p-0 disabled:opacity-30 disabled:cursor-not-allowed"
-                      title={role.is_system ? 'System roles cannot be deleted' : 'Delete role'}
+                      disabled={!canWriteRoles || role.is_system || isDeletingRole}
+                      className="text-red-400 hover:text-red-300 h-8 w-8 p-0 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-red-400"
+                      title={
+                        !canWriteRoles
+                          ? 'Requires roles-write access'
+                          : role.is_system
+                            ? 'System roles cannot be deleted'
+                            : 'Delete role'
+                      }
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>

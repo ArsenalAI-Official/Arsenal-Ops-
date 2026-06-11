@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -19,8 +19,10 @@ import {
   TableProperties,
   ChevronDown,
   ChevronRight,
+  Search,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -117,6 +119,10 @@ interface ProjectsTabProps {
   onEditGitHubSettings: (project: Project, e: React.MouseEvent) => void;
   onSendGitHubInvites: (project: Project, e: React.MouseEvent) => void;
   onOpenProjectMembers: (project: Project, e: React.MouseEvent) => void;
+  /** Gates write affordances: Manage Categories, per-card category Select,
+   *  Edit GitHub Settings, Send GitHub Invites. The filter dropdown and
+   *  read-only project list stay visible for read-only admins. */
+  canWriteProjects: boolean;
 }
 
 /** Compact "Jun 1 – 7, 2026" range for the report header. Same-month dates
@@ -180,6 +186,7 @@ const ProjectsTab = ({
   onEditGitHubSettings,
   onSendGitHubInvites,
   onOpenProjectMembers,
+  canWriteProjects,
 }: ProjectsTabProps) => {
   const navigate = useNavigate();
 
@@ -189,17 +196,43 @@ const ProjectsTab = ({
   // apply to both views.
   const [view, setView] = useState<'cards' | 'reports'>('cards');
 
+  // Free-text search applied on top of the category filter. Matches the
+  // project name and description (case-insensitive substring). Local state
+  // because it's purely UI — the parent stays unaware of search semantics.
+  const [projectSearch, setProjectSearch] = useState<string>('');
+
   // Which row in the reports table is expanded — null when none. Reset to
   // null whenever the user switches back to 'cards' so re-entering 'reports'
   // starts collapsed.
   const [expandedProjectId, setExpandedProjectId] = useState<number | null>(null);
 
+  // Apply the search filter on top of the category-filtered list the parent
+  // passes in. Memoized so the cards view and the reports table see the
+  // same reference and the downstream `.sort()`/`.map()` chains don't
+  // recompute when unrelated state changes.
+  const searchedProjects = useMemo(() => {
+    const q = projectSearch.trim().toLowerCase();
+    if (!q) return projects;
+    return projects.filter(
+      (p) => p.name.toLowerCase().includes(q) || (p.description ?? '').toLowerCase().includes(q),
+    );
+  }, [projects, projectSearch]);
+
   // Sort report rows alphabetically by project name (case- and
   // accent-insensitive), matching the order used by the project cards
   // view, the home-page Projects box, and the task-dialog dropdowns.
   // `.slice()` copies before sorting so we don't mutate the cache payload.
+  // Search filter applied here too so both views (cards + reports) honor
+  // the same user-typed query. WeeklyReportRow only carries `project_name`,
+  // so search is name-only on the reports side — description isn't part of
+  // that payload.
   const reportRows = (weeklyReport?.rows ?? [])
     .slice()
+    .filter((r) => {
+      const q = projectSearch.trim().toLowerCase();
+      if (!q) return true;
+      return r.project_name.toLowerCase().includes(q);
+    })
     .sort((a, b) =>
       a.project_name.localeCompare(b.project_name, undefined, { sensitivity: 'base' }),
     );
@@ -224,6 +257,18 @@ const ProjectsTab = ({
         <h2 className="text-lg font-semibold text-white">All Projects</h2>
 
         <div className="flex items-center gap-2">
+          {/* Free-text search — matches name + description across the
+              category-filtered list. Same input style as the Users tab
+              search so the admin shell stays uniform. */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#737373]" />
+            <Input
+              placeholder="Search projects…"
+              value={projectSearch}
+              onChange={(e) => setProjectSearch(e.target.value)}
+              className="pl-8 w-56 bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-9 text-sm focus:border-[#E0B954]/50"
+            />
+          </div>
           <div className="flex items-center gap-1.5 text-xs text-[#737373]">
             <Filter className="w-3.5 h-3.5" />
             Category
@@ -246,17 +291,48 @@ const ProjectsTab = ({
               ))}
             </SelectContent>
           </Select>
+          {/* Clear-filters affordance — surfaces when search OR a non-"all"
+              category is active. Mirrors the UsersTab pattern so both
+              tabs reset the same way. Resets both at once, even if only
+              one of them is set, so the "back to default" expectation is
+              consistent. */}
+          {(projectSearch !== '' || categoryFilter !== 'all') && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setProjectSearch('');
+                onCategoryFilterChange('all');
+              }}
+              className="h-9 text-xs text-[#737373] hover:text-white rounded-xl px-3"
+            >
+              Clear filters
+            </Button>
+          )}
+          {/* Result count — always shown so the admin sees the size of
+              the current list at a glance. Mirrors UsersTab's "{x} of {y}"
+              indicator. `projects` here is the parent's category-filtered
+              list; the count denominator is therefore "after category
+              filter", which is the largest meaningful baseline given the
+              parent owns the category filter. */}
+          <div className="text-xs text-[#737373]">
+            {searchedProjects.length} of {projects.length}
+          </div>
           {/* Match "Back to Projects" button style — ghost variant, muted
               foreground that brightens on hover. Keeps the header visual
-              hierarchy consistent across the admin shell. */}
-          <Button
-            variant="ghost"
-            onClick={onOpenCategoryManager}
-            className="text-[#737373] hover:text-white"
-          >
-            <Tag className="w-4 h-4 mr-2" />
-            Manage categories
-          </Button>
+              hierarchy consistent across the admin shell.
+              Hidden without `admin.projects_write` so read-only admins
+              don't see an entry point that would 403 on category mutation. */}
+          {canWriteProjects && (
+            <Button
+              variant="ghost"
+              onClick={onOpenCategoryManager}
+              className="text-[#737373] hover:text-white"
+            >
+              <Tag className="w-4 h-4 mr-2" />
+              Manage categories
+            </Button>
+          )}
         </div>
       </div>
 
@@ -345,7 +421,9 @@ const ProjectsTab = ({
               <TableProperties className="w-7 h-7 text-[#525252] mx-auto mb-2" />
               <p className="text-sm text-[#a3a3a3] font-medium">No report data</p>
               <p className="text-xs text-[#525252] mt-1">
-                Nothing matches the current category filter.
+                {projectSearch.trim()
+                  ? 'No projects match your search.'
+                  : 'Nothing matches the current category filter.'}
               </p>
             </div>
           ) : (
@@ -520,15 +598,17 @@ const ProjectsTab = ({
       {/* Cards view — the original project-card grid. Hidden when Reports is
           active so the page doesn't double-scroll. */}
       {view === 'cards' &&
-        (projects.length === 0 ? (
+        (searchedProjects.length === 0 ? (
           <div className="border border-dashed border-[rgba(255,255,255,0.08)] rounded-xl p-10 text-center text-sm text-[#737373]">
-            {categoryFilter === 'all'
-              ? 'No projects yet.'
-              : 'No projects match this category filter.'}
+            {projectSearch.trim()
+              ? 'No projects match your search.'
+              : categoryFilter === 'all'
+                ? 'No projects yet.'
+                : 'No projects match this category filter.'}
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-4">
-            {[...projects]
+            {[...searchedProjects]
               .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
               .map((project) => (
                 <div
@@ -543,61 +623,76 @@ const ProjectsTab = ({
                       <h3 className="text-sm font-semibold text-white truncate">{project.name}</h3>
                       <div className="text-xs text-[#737373] mt-0.5">{project.status}</div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => onEditGitHubSettings(project, e)}
-                      className="text-[#737373] hover:text-white h-7 w-7 p-0 shrink-0"
-                    >
-                      <Settings className="w-3.5 h-3.5" />
-                    </Button>
+                    {canWriteProjects && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => onEditGitHubSettings(project, e)}
+                        className="text-[#737373] hover:text-white h-7 w-7 p-0 shrink-0"
+                      >
+                        <Settings className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
                   </div>
 
-                  {/* Category badge IS the edit affordance — clicking it opens
-                  the Select dropdown so a single chip-shaped element shows
-                  the current state and lets the admin change it without a
-                  separate control next to the badge. Trigger styling adapts
-                  based on whether a category is assigned (gold tones) or
-                  not (muted tones). */}
+                  {/* Category chip. When the admin has projects-write, the
+                  chip IS the edit affordance (a Select); without it, the
+                  chip renders as a read-only badge with the same shape so
+                  the layout stays stable across permission levels. */}
                   <div className="mb-3">
-                    <Select
-                      value={
-                        project.category_id === null
-                          ? UNCATEGORIZED_OPTION
-                          : String(project.category_id)
-                      }
-                      onValueChange={(value) => {
-                        const nextId = value === UNCATEGORIZED_OPTION ? null : Number(value);
-                        // No-op guard — Radix Select sometimes fires onValueChange
-                        // with the current value during open/close. Skip the round
-                        // trip when nothing actually changed.
-                        if (nextId === project.category_id) return;
-                        onSetProjectCategory(project.id, nextId);
-                      }}
-                    >
-                      <SelectTrigger
-                        onClick={(e) => e.stopPropagation()}
-                        className={
-                          'h-7 px-2.5 text-[11px] gap-1.5 rounded-full border w-auto inline-flex ' +
-                          (project.category_name
-                            ? 'bg-[rgba(224,185,84,0.1)] text-[#E0B954] border-[rgba(224,185,84,0.2)] hover:bg-[rgba(224,185,84,0.18)]'
-                            : 'bg-[rgba(255,255,255,0.03)] text-[#737373] border-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.06)] hover:text-white')
+                    {canWriteProjects ? (
+                      <Select
+                        value={
+                          project.category_id === null
+                            ? UNCATEGORIZED_OPTION
+                            : String(project.category_id)
                         }
+                        onValueChange={(value) => {
+                          const nextId = value === UNCATEGORIZED_OPTION ? null : Number(value);
+                          // No-op guard — Radix Select sometimes fires onValueChange
+                          // with the current value during open/close. Skip the round
+                          // trip when nothing actually changed.
+                          if (nextId === project.category_id) return;
+                          onSetProjectCategory(project.id, nextId);
+                        }}
+                      >
+                        <SelectTrigger
+                          onClick={(e) => e.stopPropagation()}
+                          className={
+                            'h-7 px-2.5 text-[11px] gap-1.5 rounded-full border w-auto inline-flex ' +
+                            (project.category_name
+                              ? 'bg-[rgba(224,185,84,0.1)] text-[#E0B954] border-[rgba(224,185,84,0.2)] hover:bg-[rgba(224,185,84,0.18)]'
+                              : 'bg-[rgba(255,255,255,0.03)] text-[#737373] border-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.06)] hover:text-white')
+                          }
+                        >
+                          <Tag className="w-3 h-3" />
+                          <SelectValue>{project.category_name ?? 'Uncategorized'}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#0d0d0d] border-[rgba(255,255,255,0.08)]">
+                          <SelectItem value={UNCATEGORIZED_OPTION} className="text-white">
+                            Uncategorized
+                          </SelectItem>
+                          {categories.map((cat) => (
+                            <SelectItem key={cat.id} value={String(cat.id)} className="text-white">
+                              {cat.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <span
+                        className={
+                          'h-7 px-2.5 text-[11px] gap-1.5 rounded-full border inline-flex items-center ' +
+                          (project.category_name
+                            ? 'bg-[rgba(224,185,84,0.1)] text-[#E0B954] border-[rgba(224,185,84,0.2)]'
+                            : 'bg-[rgba(255,255,255,0.03)] text-[#737373] border-[rgba(255,255,255,0.05)]')
+                        }
+                        title="Read-only — requires projects write to change"
                       >
                         <Tag className="w-3 h-3" />
-                        <SelectValue>{project.category_name ?? 'Uncategorized'}</SelectValue>
-                      </SelectTrigger>
-                      <SelectContent className="bg-[#0d0d0d] border-[rgba(255,255,255,0.08)]">
-                        <SelectItem value={UNCATEGORIZED_OPTION} className="text-white">
-                          Uncategorized
-                        </SelectItem>
-                        {categories.map((cat) => (
-                          <SelectItem key={cat.id} value={String(cat.id)} className="text-white">
-                            {cat.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                        {project.category_name ?? 'Uncategorized'}
+                      </span>
+                    )}
                   </div>
 
                   {/* GitHub Info + Invite */}
@@ -622,24 +717,26 @@ const ProjectsTab = ({
                           </span>
                         )}
                       </div>
-                      <Button
-                        size="sm"
-                        onClick={(e) => onSendGitHubInvites(project, e)}
-                        disabled={invitingProjectId === project.id}
-                        className="w-full h-7 text-[10px] bg-gradient-to-r from-[#E0B954] to-[#B8872A] hover:from-[#C79E3B] hover:to-[#B8872A] text-white rounded-lg font-medium shadow-sm disabled:opacity-50"
-                      >
-                        {invitingProjectId === project.id ? (
-                          <>
-                            <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin mr-1" />
-                            Sending...
-                          </>
-                        ) : (
-                          <>
-                            <Mail className="w-3 h-3 mr-1" />
-                            Send GitHub Invites
-                          </>
-                        )}
-                      </Button>
+                      {canWriteProjects && (
+                        <Button
+                          size="sm"
+                          onClick={(e) => onSendGitHubInvites(project, e)}
+                          disabled={invitingProjectId === project.id}
+                          className="w-full h-7 text-[10px] bg-gradient-to-r from-[#E0B954] to-[#B8872A] hover:from-[#C79E3B] hover:to-[#B8872A] text-white rounded-lg font-medium shadow-sm disabled:opacity-50"
+                        >
+                          {invitingProjectId === project.id ? (
+                            <>
+                              <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin mr-1" />
+                              Sending...
+                            </>
+                          ) : (
+                            <>
+                              <Mail className="w-3 h-3 mr-1" />
+                              Send GitHub Invites
+                            </>
+                          )}
+                        </Button>
+                      )}
                     </div>
                   )}
                   {!project.github_repo_url && (

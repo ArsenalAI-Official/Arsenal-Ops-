@@ -44,6 +44,7 @@ const ProjectsPage = () => {
     name: '',
     description: '',
     github_repo_url: '',
+    category_id: null,
   });
   const [selectedDevelopers, setSelectedDevelopers] = useState<SelectedDeveloper[]>([]);
   const [selectedDeveloperId, setSelectedDeveloperId] = useState<string>('');
@@ -106,6 +107,18 @@ const ProjectsPage = () => {
     enabled: showCreateModal,
   });
   const availableDevelopers = developersQuery.data ?? [];
+
+  // Category list for the Create Project dialog. Lite endpoint (id + name
+  // only) gated on `project.create` — distinct from the admin endpoint
+  // which is gated on `admin.projects` and carries `project_count`.
+  // Enabled only when the modal is open so the list isn't fetched on every
+  // home-page visit.
+  const projectCategoriesQuery = useQuery<{ id: number; name: string }[]>({
+    queryKey: ['projectCategories'],
+    queryFn: () => apiFetch<{ id: number; name: string }[]>('/api/projects/categories'),
+    enabled: showCreateModal,
+  });
+  const projectCategories = projectCategoriesQuery.data ?? [];
 
   // ── react-query: personal tasks ───────────────────────────────────────────
   const personalTasksQuery = useQuery<PersonalTask[]>({
@@ -549,12 +562,16 @@ const ProjectsPage = () => {
           name: createForm.name,
           description: createForm.description,
           github_repo_url: createForm.github_repo_url || undefined,
+          // Send category_id only when set — backend treats absent as null,
+          // same as null. Sending `undefined` keeps the field out of the
+          // JSON payload entirely, which is slightly cleaner.
+          category_id: createForm.category_id ?? undefined,
           developers: selectedDevelopers,
         }),
       }),
     onSuccess: () => {
       setShowCreateModal(false);
-      setCreateForm({ name: '', description: '', github_repo_url: '' });
+      setCreateForm({ name: '', description: '', github_repo_url: '', category_id: null });
       setSelectedDevelopers([]);
       toast.success('Project created successfully!');
     },
@@ -767,6 +784,7 @@ const ProjectsPage = () => {
         isCreating={isCreating}
         onCreate={handleCreateProject}
         availableDevelopers={availableDevelopers}
+        categories={projectCategories}
         selectedDevelopers={selectedDevelopers}
         selectedDeveloperId={selectedDeveloperId}
         setSelectedDeveloperId={setSelectedDeveloperId}

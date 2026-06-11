@@ -121,6 +121,9 @@ export interface CreateProjectForm {
   name: string;
   description: string;
   github_repo_url: string;
+  /** Category to assign on create. `null` (or omitted) means uncategorized.
+   *  Backend POST /api/projects/ already accepts this field. */
+  category_id: number | null;
 }
 
 export interface SelectedDeveloper {

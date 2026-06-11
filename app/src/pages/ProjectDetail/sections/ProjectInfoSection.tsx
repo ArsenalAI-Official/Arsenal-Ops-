@@ -53,7 +53,20 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
   const [showCalendarStartDate, setShowCalendarStartDate] = useState(false);
   const [showCalendarEndDate, setShowCalendarEndDate] = useState(false);
 
+  // Defense-in-depth: derive the effective edit mode from BOTH the local
+  // toggle and the current admin status. If admin status is revoked
+  // mid-session (caps refresh, demotion, etc.), the form + Save controls
+  // disappear immediately even though `isEditing` is still true in state.
+  // Backend independently enforces `require_project_admin` on the PUT, so
+  // this is purely a UI defense — but it stops the misleading "I see
+  // editable inputs that would 403 on Save" surface.
+  const effectiveIsEditing = isEditing && isCurrentUserAdmin;
+
   const handleSaveEdit = () => {
+    // Mirror of the UI gate — guards against a stale state where
+    // `effectiveIsEditing` was true on render but admin flipped before the
+    // click landed.
+    if (!isCurrentUserAdmin) return;
     onSave(editForm);
     setIsEditing(false);
   };
@@ -63,7 +76,7 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
       <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-white">Project Information</h2>
-          {!isEditing ? (
+          {!effectiveIsEditing ? (
             isCurrentUserAdmin && (
               <Button
                 variant="ghost"
@@ -104,7 +117,7 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
           )}
         </div>
 
-        {isEditing ? (
+        {effectiveIsEditing ? (
           <div className="space-y-4">
             <div>
               <label className="text-xs font-medium text-[#737373] block mb-1.5">

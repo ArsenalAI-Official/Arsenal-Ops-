@@ -9,8 +9,10 @@ import {
   Flag,
   ArrowRight,
   Calendar,
+  Search,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarIcon } from '@/components/ui/calendar';
 import { useAuth } from '@/contexts/AuthContext';
@@ -67,6 +69,20 @@ const sortUpcomingTasks = (tasks: MyTask[]) => {
   });
 };
 
+/**
+ * Completed tab: latest-completed first. Falls back to 0 when
+ * `completed_at` is missing (legacy rows that pre-date the column), which
+ * sorts them at the bottom — better than letting them disrupt the
+ * timeline of newer rows.
+ */
+const sortCompletedTasks = (tasks: MyTask[]) => {
+  return [...tasks].sort((a, b) => {
+    const aT = a.completed_at ? new Date(a.completed_at).getTime() : 0;
+    const bT = b.completed_at ? new Date(b.completed_at).getTime() : 0;
+    return bT - aT;
+  });
+};
+
 const MyTasksBox = ({
   myTasks,
   personalTasks,
@@ -86,22 +102,47 @@ const MyTasksBox = ({
   onQuickDueDateChange,
 }: MyTasksBoxProps) => {
   const [openDateRowId, setOpenDateRowId] = useState<string | null>(null);
+  // Header search box — mirrors the pattern in `ProjectsBox` so the home
+  // page has consistent search affordances. Filters across every tab
+  // (matches task title, ticket key, project name for work items; title +
+  // description for personal tasks). Empty string = no filter.
+  const [taskSearch, setTaskSearch] = useState('');
   // "Tag to project" promotes a personal task into a project ticket via
   // POST /api/personal-tasks/{id}/convert-to-ticket — gated server-side on
   // `project.assign_personal_task`. Hide the per-task button when the user
   // lacks the cap so they don't get a 403 toast.
   const { can } = useAuth();
   const canAssignToProject = can('project.assign_personal_task');
+
+  const normalizedSearch = taskSearch.trim().toLowerCase();
+  const matchesSearch = (...fields: (string | null | undefined)[]): boolean => {
+    if (!normalizedSearch) return true;
+    return fields.some((f) => (f ?? '').toLowerCase().includes(normalizedSearch));
+  };
+
   const filteredMyTasks = myTasks.filter((t) => {
-    if (myTaskTab === 'upcoming') return t.status !== 'done' && !t.is_overdue;
-    if (myTaskTab === 'overdue') return t.is_overdue;
-    return t.status === 'done';
+    const inTab =
+      myTaskTab === 'upcoming'
+        ? t.status !== 'done' && !t.is_overdue
+        : myTaskTab === 'overdue'
+          ? t.is_overdue
+          : myTaskTab === 'completed'
+            ? t.status === 'done'
+            : false;
+    if (!inTab) return false;
+    return matchesSearch(t.title, t.key, t.project_name);
   });
 
   const sortedFiltered =
-    myTaskTab === 'upcoming' ? sortUpcomingTasks(filteredMyTasks) : filteredMyTasks;
+    myTaskTab === 'upcoming'
+      ? sortUpcomingTasks(filteredMyTasks)
+      : myTaskTab === 'completed'
+        ? sortCompletedTasks(filteredMyTasks)
+        : filteredMyTasks;
   const visibleTasks = showAllTasks ? sortedFiltered : sortedFiltered.slice(0, 6);
-  const activePersonalTasks = personalTasks.filter((t) => !t.is_converted);
+  const activePersonalTasks = personalTasks.filter(
+    (t) => !t.is_converted && matchesSearch(t.title, t.description),
+  );
   const visiblePersonalTasks = [...activePersonalTasks].sort(sortPersonalTasks).slice(0, 5);
 
   return (
@@ -112,6 +153,18 @@ const MyTasksBox = ({
           <CheckSquare2 className="w-3.5 h-3.5 text-[#737373]" />
         </div>
         <div className="flex items-center gap-2">
+          {/* Search — styled to match the ProjectsBox header search so the
+              home page stays consistent. Filters across every tab using
+              the matchesSearch helper above. */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#737373]" />
+            <Input
+              placeholder="Search..."
+              value={taskSearch}
+              onChange={(e) => setTaskSearch(e.target.value)}
+              className="pl-8 w-32 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-lg h-7 text-xs focus:border-[#E0B954]/50"
+            />
+          </div>
           <button
             onClick={onAddPersonalTaskClick}
             className="w-7 h-7 flex items-center justify-center rounded-lg bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] transition-opacity"

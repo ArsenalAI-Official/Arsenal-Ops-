@@ -1,6 +1,7 @@
 """Models package"""
 
 from models.activity_log import ActivityLog
+from models.applied_migration import AppliedMigration
 from models.architecture import Architecture
 from models.comment import Comment
 from models.developer import Developer, project_developers
@@ -47,6 +48,7 @@ __all__ = [
     "ProjectMilestone",
     "ProjectPulseOverride",
     "ActivityLog",
+    "AppliedMigration",
     "ProjectFile",
     "ProjectLink",
     "PersonalTask",

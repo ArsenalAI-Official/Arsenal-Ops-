@@ -5,6 +5,7 @@ import {
   Navigate,
   useNavigate,
   useLocation,
+  useParams,
 } from 'react-router-dom';
 import { useState, useEffect, lazy, Suspense, type ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -46,6 +47,26 @@ function RequireAnyAdminCapability({ children }: { children: ReactNode }) {
   const { can } = useAuth();
   if (hasAnyAdminCapability(can)) return <>{children}</>;
   return <Navigate to="/" replace />;
+}
+
+/**
+ * Route guard for /project/:id/board and /project/:id/board/:ticketId.
+ *
+ * Renders the Project Board only when the user holds `project.board`.
+ * Without it we redirect to the project detail page rather than rendering
+ * an empty board that would 403 on every API call. Backend
+ * `GET /api/workitems/board` enforces the same cap independently — this
+ * guard is defense-in-depth on the client so the lazy-loaded ProjectBoard
+ * chunk never mounts (no wasted queries, no flash of empty UI).
+ *
+ * Falls back to "/" if the URL is missing the project id, which shouldn't
+ * happen with the current route patterns but keeps the redirect safe.
+ */
+function RequireProjectBoardRead({ children }: { children: ReactNode }) {
+  const { can } = useAuth();
+  const { id } = useParams();
+  if (can('project.board')) return <>{children}</>;
+  return <Navigate to={id ? `/project/${id}` : '/'} replace />;
 }
 
 function IdleWarningModal({
@@ -178,8 +199,22 @@ function AuthenticatedRoutes() {
           <Route path="/" element={<ProjectsPage />} />
           <Route path="/personal-tasks" element={<PersonalTasksPage />} />
           <Route path="/project/:id" element={<ProjectDetail />} />
-          <Route path="/project/:id/board" element={<ProjectBoard />} />
-          <Route path="/project/:id/board/:ticketId" element={<ProjectBoard />} />
+          <Route
+            path="/project/:id/board"
+            element={
+              <RequireProjectBoardRead>
+                <ProjectBoard />
+              </RequireProjectBoardRead>
+            }
+          />
+          <Route
+            path="/project/:id/board/:ticketId"
+            element={
+              <RequireProjectBoardRead>
+                <ProjectBoard />
+              </RequireProjectBoardRead>
+            }
+          />
           <Route
             path="/admin"
             element={

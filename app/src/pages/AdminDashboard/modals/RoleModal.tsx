@@ -17,25 +17,35 @@ interface RoleFormState {
   capability_keys: string[];
 }
 
-interface CatalogChild {
+/**
+ * One picker entry — either a tab/feature (top-level) or a sub-row (child).
+ * Each entry has up to two grants: `readGrant` (view), `writeGrant` (edit).
+ * Render rules:
+ *   - both present → two checkboxes per row
+ *   - readGrant only → Read checkbox + "—" placeholder for Write
+ *   - writeGrant only → "—" placeholder for Read + Write checkbox
+ * The W→R dependency is enforced by the parent's `togglePickerCheckbox`.
+ */
+export interface CatalogChild {
   label: string;
-  grant: string;
   description: string;
+  readGrant?: string;
+  writeGrant?: string;
+  footnote?: string;
 }
 
-interface CatalogItem {
-  label: string;
-  grant: string;
-  description: string;
+export interface CatalogItem extends CatalogChild {
   /** Optional nested sub-rows. Rendered indented under the parent. When the
-   *  parent's grant is active (or `*`), children show as covered/disabled —
-   *  admins uncheck the parent first to grant a subset. */
-  children?: CatalogChild[];
+   *  parent's read wildcard is active (or `*`), children show as covered. */
+  children?: readonly CatalogChild[];
 }
 
 interface CatalogGroup {
   prefix: 'project' | 'admin';
   label: string;
+  /** Group-level wildcard cap (e.g. `project.*`). The "Grant all <Group>"
+   *  toggle flips this one key, which the matcher then covers every cap in
+   *  the group with. */
   wildcard: string;
   items: CatalogItem[];
 }
@@ -47,28 +57,68 @@ interface RoleModalProps {
   roleForm: RoleFormState;
   setRoleForm: React.Dispatch<React.SetStateAction<RoleFormState>>;
   isSavingRole: boolean;
-  /** PM-friendly capability catalog. Replaces the auto-grouped registry so
-   *  the picker shows human labels (e.g. "Overview") instead of raw keys
-   *  ("project.overview.prd"), and collapses sub-caps to one row per feature. */
   pickerCatalog: CatalogGroup[];
   /** Toggle the global `*` (full access) grant. */
   toggleGrant: (key: string) => void;
-  /** Toggle a catalog node (group wildcard, top-level item, or child).
-   *  Receives `{ grant, children? }` so the toggle can compute the
-   *  effective-checked state correctly — clicking a parent that's checked
-   *  only because all children are granted sweeps those children. */
-  toggleCatalogItem: (node: { grant: string; children?: readonly { grant: string }[] }) => void;
-  /** Strict checked: exact grant or wildcard ancestor in `grants`. */
-  isItemChecked: (grant: string, grants: string[]) => boolean;
-  /** Effective checked: strict OR every child of the node effectively checked.
-   *  Drives display so a parent auto-checks when all sub-rows are granted. */
-  isItemEffectivelyChecked: (
-    node: { grant: string; children?: readonly { grant: string }[] },
+  /** Toggle the group wildcard ("Grant all Project" / "Grant all Admin"). */
+  toggleGroupWildcard: (group: CatalogGroup) => void;
+  /** Toggle a single side of a paired row. Implements the W→R dependency:
+   *  - Toggling Read OFF also clears Write.
+   *  - Toggling Write ON also sets Read. */
+  togglePickerCheckbox: (item: CatalogChild | CatalogItem, side: 'read' | 'write') => void;
+  /** Strict check: is this exact grant (or a wildcard ancestor) in `grants`. */
+  isGrantHeld: (grant: string, grants: string[]) => boolean;
+  /** Effective check for one side of an item. Returns true when:
+   *  - the item's own side-grant is held, OR
+   *  - the item has children and every child's same-side grant is held. */
+  isSideEffective: (
+    item: CatalogChild | CatalogItem,
+    side: 'read' | 'write',
     grants: string[],
   ) => boolean;
+  /** True when the entire group is effectively covered — either its wildcard
+   *  is held, or every item's every defined side is held. Drives the "Grant
+   *  all <Group>" checkbox display. */
+  isGroupEffective: (group: CatalogGroup, grants: string[]) => boolean;
   toPascalCase: (str: string) => string;
   handleSaveRole: () => void;
 }
+
+/**
+ * A single Read or Write cell inside a row. Renders an "—" placeholder when
+ * the item doesn't expose this side, so the columns stay vertically aligned
+ * across rows where some are R-only, some W-only, some both.
+ */
+const RWCell: React.FC<{
+  grant: string | undefined;
+  checked: boolean;
+  disabled: boolean;
+  onToggle: () => void;
+}> = ({ grant, checked, disabled, onToggle }) => {
+  if (!grant) {
+    return (
+      <span
+        className="w-4 h-4 inline-flex items-center justify-center text-[#3a3a3a] text-[11px]"
+        aria-hidden
+      >
+        —
+      </span>
+    );
+  }
+  return (
+    <input
+      type="checkbox"
+      checked={checked}
+      disabled={disabled}
+      onChange={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      onClick={(e) => e.stopPropagation()}
+      className="w-4 h-4 rounded cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+    />
+  );
+};
 
 const RoleModal: React.FC<RoleModalProps> = ({
   open,
@@ -79,9 +129,11 @@ const RoleModal: React.FC<RoleModalProps> = ({
   isSavingRole,
   pickerCatalog,
   toggleGrant,
-  toggleCatalogItem,
-  isItemChecked,
-  isItemEffectivelyChecked,
+  toggleGroupWildcard,
+  togglePickerCheckbox,
+  isGrantHeld,
+  isSideEffective,
+  isGroupEffective,
   toPascalCase,
   handleSaveRole,
 }) => {
@@ -95,7 +147,7 @@ const RoleModal: React.FC<RoleModalProps> = ({
       onClick={() => !isSavingRole && onClose()}
     >
       <div
-        className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-2xl shadow-2xl max-h-[88vh] flex flex-col"
+        className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-2xl w-full max-w-3xl shadow-2xl max-h-[88vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
@@ -141,9 +193,7 @@ const RoleModal: React.FC<RoleModalProps> = ({
           </div>
 
           <div className="border border-[rgba(255,255,255,0.06)] rounded-xl">
-            {/* Header: just the Full-access toggle. The "Capabilities" h3 and
-                its description were removed per UX cleanup — the section
-                speaks for itself once you see the group labels below. */}
+            {/* Header: Full-access toggle on the right. */}
             <div className="px-4 py-3 border-b border-[rgba(255,255,255,0.05)] flex items-center justify-end">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -156,23 +206,19 @@ const RoleModal: React.FC<RoleModalProps> = ({
               </label>
             </div>
 
-            <div className="p-4 space-y-5 max-h-[40vh] overflow-y-auto">
+            {/* R/W column header strip — aligns with the per-row cells below. */}
+            <div className="px-4 py-2 border-b border-[rgba(255,255,255,0.05)] bg-[rgba(255,255,255,0.015)] grid grid-cols-[1fr_56px_56px] gap-2 text-[10px] uppercase tracking-wider text-[#737373]">
+              <div />
+              <div className="text-center">Read</div>
+              <div className="text-center">Write</div>
+            </div>
+
+            <div className="p-4 space-y-5 max-h-[50vh] overflow-y-auto">
               {pickerCatalog.map((group) => {
-                // groupNode lets isItemEffectivelyChecked recurse into the
-                // group's items so "Grant all Project" auto-checks when
-                // every project item is individually checked.
-                const groupNode = { grant: group.wildcard, children: group.items };
-                // Display state — uses effective check (own grant OR all
-                // children effectively checked).
-                const groupDisplayChecked = isItemEffectivelyChecked(
-                  groupNode,
-                  roleForm.capability_keys,
-                );
-                // "Wildcard actually granted" — drives whether ITEMS inside
-                // the group are forced-covered (disabled). Auto-promotion
-                // does NOT force-cover children: when all items are granted
-                // individually, admins can still uncheck them individually.
-                const groupWildcardActive = isItemChecked(group.wildcard, roleForm.capability_keys);
+                const groupChecked = isGroupEffective(group, roleForm.capability_keys);
+                // When the group wildcard is directly granted (not just
+                // auto-promoted from per-item checks), items show as covered.
+                const groupWildcardActive = isGrantHeld(group.wildcard, roleForm.capability_keys);
                 return (
                   <div key={group.prefix} className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -182,99 +228,61 @@ const RoleModal: React.FC<RoleModalProps> = ({
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={groupDisplayChecked}
+                          checked={groupChecked}
                           disabled={fullAccessSelected}
-                          onChange={() => toggleCatalogItem(groupNode)}
+                          onChange={() => toggleGroupWildcard(group)}
                           className="w-4 h-4 rounded cursor-pointer disabled:opacity-40"
                         />
                         <span className="text-[11px] text-[#a3a3a3]">Grant all {group.label}</span>
                       </label>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
-                      {group.items.map((item) => {
-                        // Display state — own grant OR all children granted.
-                        const directlyChecked = isItemEffectivelyChecked(
-                          item,
-                          roleForm.capability_keys,
-                        );
-                        // Force-covered when `*` or the group wildcard is in
-                        // grants directly (NOT when "Grant all" is just
-                        // auto-promoted from per-item checks — those are
-                        // still individually controllable).
-                        const covered = fullAccessSelected || groupWildcardActive;
-                        const hasChildren = !!item.children && item.children.length > 0;
-                        const parentClass = hasChildren ? 'md:col-span-2' : '';
-                        // Children force-covered when `*`, the group wildcard,
-                        // or this item's own wildcard is directly granted.
-                        // Auto-promotion via all-children-granted leaves the
-                        // individual children controllable.
-                        const childrenCovered =
-                          covered || roleForm.capability_keys.includes(item.grant);
-                        return (
-                          <div key={item.grant} className={parentClass}>
-                            <label
-                              className={`flex items-start gap-2 p-2 rounded-lg transition ${
-                                covered
-                                  ? 'bg-[rgba(224,185,84,0.04)] cursor-not-allowed'
-                                  : 'hover:bg-[rgba(255,255,255,0.02)] cursor-pointer'
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={directlyChecked}
-                                // Disable when a higher wildcard covers this
-                                // item. Without this, clicking would call
-                                // toggleCatalogItem but the wildcard ancestor
-                                // would keep access intact — confusing no-op.
-                                // Admin uncheck the covering wildcard first.
-                                disabled={covered}
-                                onChange={() => toggleCatalogItem(item)}
-                                className="w-4 h-4 mt-0.5 rounded cursor-pointer disabled:cursor-not-allowed"
-                              />
-                              <div className="flex-1 min-w-0">
-                                <div className="text-[12px] text-white">{item.label}</div>
-                                <p className="text-[10px] text-[#737373] truncate">
-                                  {item.description}
-                                </p>
-                              </div>
-                            </label>
 
+                    <div className="space-y-1">
+                      {group.items.map((item) => {
+                        // Force-covered when `*` or the group wildcard is held.
+                        const covered = fullAccessSelected || groupWildcardActive;
+                        const readOn = isSideEffective(item, 'read', roleForm.capability_keys);
+                        const writeOn = isSideEffective(item, 'write', roleForm.capability_keys);
+                        // Children covered also when this item's read wildcard
+                        // is directly held — e.g. `project.overview.*` covers
+                        // all four overview sub-rows.
+                        const childrenCovered =
+                          covered ||
+                          (!!item.readGrant && roleForm.capability_keys.includes(item.readGrant));
+                        const hasChildren = !!item.children && item.children.length > 0;
+
+                        return (
+                          <div key={item.label} className="space-y-1">
+                            <ItemRow
+                              item={item}
+                              readOn={readOn}
+                              writeOn={writeOn}
+                              covered={covered}
+                              onToggle={togglePickerCheckbox}
+                            />
                             {hasChildren && (
-                              <div className="ml-6 mt-1 pl-3 border-l border-[rgba(255,255,255,0.06)] space-y-0.5">
+                              <div className="ml-6 pl-3 border-l border-[rgba(255,255,255,0.06)] space-y-0.5">
                                 {item.children!.map((child) => {
-                                  // Effective check: strict (own grant or
-                                  // covered by a wildcard ancestor). Children
-                                  // have no further nesting, so effective ==
-                                  // strict for them.
-                                  const childEffective = isItemEffectivelyChecked(
+                                  const cRead = isSideEffective(
                                     child,
+                                    'read',
+                                    roleForm.capability_keys,
+                                  );
+                                  const cWrite = isSideEffective(
+                                    child,
+                                    'write',
                                     roleForm.capability_keys,
                                   );
                                   return (
-                                    <label
-                                      key={child.grant}
-                                      className={`flex items-start gap-2 p-1.5 rounded transition ${
-                                        childrenCovered
-                                          ? 'cursor-not-allowed opacity-70'
-                                          : 'hover:bg-[rgba(255,255,255,0.02)] cursor-pointer'
-                                      }`}
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={childEffective}
-                                        disabled={childrenCovered}
-                                        onChange={() => toggleCatalogItem(child)}
-                                        className="w-3.5 h-3.5 mt-0.5 rounded cursor-pointer disabled:cursor-not-allowed"
-                                      />
-                                      <div className="flex-1 min-w-0">
-                                        <div className="text-[11px] text-[#d4d4d4]">
-                                          {child.label}
-                                        </div>
-                                        <p className="text-[10px] text-[#737373] truncate">
-                                          {child.description}
-                                        </p>
-                                      </div>
-                                    </label>
+                                    <ItemRow
+                                      key={child.label}
+                                      item={child}
+                                      readOn={cRead}
+                                      writeOn={cWrite}
+                                      covered={childrenCovered}
+                                      onToggle={togglePickerCheckbox}
+                                      isChild
+                                    />
                                   );
                                 })}
                               </div>
@@ -320,6 +328,53 @@ const RoleModal: React.FC<RoleModalProps> = ({
             {isSavingRole ? 'Saving…' : editingRole ? 'Update Role' : 'Create Role'}
           </Button>
         </div>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * One row in the picker — label + description on the left, R/W cells on the
+ * right. Extracted so children render the exact same shape, just smaller
+ * type sizes via `isChild`.
+ */
+const ItemRow: React.FC<{
+  item: CatalogChild | CatalogItem;
+  readOn: boolean;
+  writeOn: boolean;
+  covered: boolean;
+  onToggle: (item: CatalogChild | CatalogItem, side: 'read' | 'write') => void;
+  isChild?: boolean;
+}> = ({ item, readOn, writeOn, covered, onToggle, isChild }) => {
+  const labelClass = isChild ? 'text-[11px] text-[#d4d4d4]' : 'text-[12px] text-white';
+  const descClass = isChild ? 'text-[10px] text-[#737373]' : 'text-[10px] text-[#737373]';
+  const rowClass = `grid grid-cols-[1fr_56px_56px] gap-2 items-start p-2 rounded-lg transition ${
+    covered ? 'bg-[rgba(224,185,84,0.04)]' : 'hover:bg-[rgba(255,255,255,0.02)]'
+  }`;
+  return (
+    <div className={rowClass}>
+      <div className="min-w-0">
+        <div className={labelClass}>{item.label}</div>
+        <p className={`${descClass} truncate`}>{item.description}</p>
+        {item.footnote && (
+          <p className="text-[10px] text-[#525252] italic mt-0.5">{item.footnote}</p>
+        )}
+      </div>
+      <div className="flex justify-center pt-0.5">
+        <RWCell
+          grant={item.readGrant}
+          checked={readOn}
+          disabled={covered}
+          onToggle={() => onToggle(item, 'read')}
+        />
+      </div>
+      <div className="flex justify-center pt-0.5">
+        <RWCell
+          grant={item.writeGrant}
+          checked={writeOn}
+          disabled={covered}
+          onToggle={() => onToggle(item, 'write')}
+        />
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { Plus, X, FolderKanban, User, Trash2, Sparkles } from 'lucide-react';
+import { Plus, X, FolderKanban, User, Trash2, Sparkles, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,6 +10,17 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { Developer, CreateProjectForm, SelectedDeveloper } from './types';
+
+/** Sentinel used by the shadcn Select to represent "no category". Lifted
+ *  out so it isn't an inline magic string at two call sites (the value and
+ *  the onChange branch). Matches the pattern used by the admin Projects
+ *  tab's per-card category picker. */
+const UNCATEGORIZED_OPTION = '__uncategorized__';
+
+interface ProjectCategoryOption {
+  id: number;
+  name: string;
+}
 
 interface CreateProjectDialogProps {
   open: boolean;
@@ -28,6 +39,10 @@ interface CreateProjectDialogProps {
   setNewResponsibilities: (value: string) => void;
   onAddDeveloper: () => void;
   onRemoveDeveloper: (developerId: number) => void;
+  /** Categories the user can pick from. When the list is empty (no
+   *  categories defined yet) the picker still renders with only the
+   *  "Uncategorized" option, so creation always works. */
+  categories: ProjectCategoryOption[];
 }
 
 const CreateProjectDialog = ({
@@ -47,6 +62,7 @@ const CreateProjectDialog = ({
   setNewResponsibilities,
   onAddDeveloper,
   onRemoveDeveloper,
+  categories,
 }: CreateProjectDialogProps) => {
   if (!open) return null;
 
@@ -95,6 +111,46 @@ const CreateProjectDialog = ({
               onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
               className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl min-h-[80px] focus:border-[#E0B954]/50 placeholder:text-[#334155] resize-none"
             />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-[#a3a3a3] block mb-2">
+              Category
+              <span className="text-[#737373] text-xs ml-2">(Optional)</span>
+            </label>
+            <Select
+              value={form.category_id === null ? UNCATEGORIZED_OPTION : String(form.category_id)}
+              onValueChange={(value) =>
+                setForm((prev) => ({
+                  ...prev,
+                  category_id: value === UNCATEGORIZED_OPTION ? null : Number(value),
+                }))
+              }
+            >
+              <SelectTrigger className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-11 focus:border-[#E0B954]/50">
+                <div className="flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-[#737373]" />
+                  <SelectValue placeholder="Uncategorized" />
+                </div>
+              </SelectTrigger>
+              <SelectContent className="bg-[#1a1d29] border-[rgba(255,255,255,0.07)]">
+                <SelectItem
+                  value={UNCATEGORIZED_OPTION}
+                  className="text-[#F4F6FF] focus:bg-[rgba(224,185,84,0.2)] focus:text-[#F4F6FF]"
+                >
+                  Uncategorized
+                </SelectItem>
+                {categories.map((cat) => (
+                  <SelectItem
+                    key={cat.id}
+                    value={String(cat.id)}
+                    className="text-[#F4F6FF] focus:bg-[rgba(224,185,84,0.2)] focus:text-[#F4F6FF]"
+                  >
+                    {cat.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>

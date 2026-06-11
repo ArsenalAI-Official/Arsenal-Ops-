@@ -476,7 +476,10 @@ def list_board_items(
     project_id: int = Query(..., description="Required: project to fetch board items for"),
     sprint_id: int | None = Query(None, description="Optional: filter to a single sprint"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    # Gated on `project.board` so the role editor's "Project Board · Read"
+    # toggle actually enforces — without this, hiding the Open Board button
+    # in the UI would be cosmetic only.
+    current_user: User = Depends(require_capability("project.board")),
 ):
     """Slim variant of ``GET /api/workitems/`` used by the Kanban board.
 

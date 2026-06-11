@@ -15,9 +15,21 @@ interface LinksSectionProps {
   isLoading: boolean;
   onAddLink: (link: { name: string; url: string }) => void;
   onDeleteLink: (linkId: number) => void;
+  /** Gates the Add Link and per-row Delete buttons. Mirrors
+   *  `isCurrentUserAdmin()` from ProjectDetail — true when the user is a
+   *  tool admin, holds `project.overview_write`, or is a per-project
+   *  admin on this project. Backend independently enforces the same
+   *  predicate via `require_project_admin`. */
+  isCurrentUserAdmin: boolean;
 }
 
-const LinksSection = ({ links, isLoading, onAddLink, onDeleteLink }: LinksSectionProps) => {
+const LinksSection = ({
+  links,
+  isLoading,
+  onAddLink,
+  onDeleteLink,
+  isCurrentUserAdmin,
+}: LinksSectionProps) => {
   const [showAddLink, setShowAddLink] = useState(false);
   const [newLink, setNewLink] = useState({ name: '', url: '' });
   const addLinkFormRef = useRef<HTMLDivElement>(null);
@@ -48,19 +60,23 @@ const LinksSection = ({ links, isLoading, onAddLink, onDeleteLink }: LinksSectio
             <p className="text-xs text-[#737373]">Useful links and resources</p>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setShowAddLink(!showAddLink)}
-          className="text-[#E0B954] hover:bg-[#E0B954]/10"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Link
-        </Button>
+        {isCurrentUserAdmin && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowAddLink(!showAddLink)}
+            className="text-[#E0B954] hover:bg-[#E0B954]/10"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Link
+          </Button>
+        )}
       </div>
 
-      {/* Add Link Form */}
-      {showAddLink && (
+      {/* Add Link Form — `isCurrentUserAdmin` is the outer gate on the
+          trigger; this nested check makes the section defensive if the
+          prop flips false while the form is open (e.g. caps refresh). */}
+      {showAddLink && isCurrentUserAdmin && (
         <div
           ref={addLinkFormRef}
           className="bg-[rgba(255,255,255,0.01)] border border-[rgba(224,185,84,0.2)] rounded-xl p-4 mb-4"
@@ -132,14 +148,16 @@ const LinksSection = ({ links, isLoading, onAddLink, onDeleteLink }: LinksSectio
                 <ExternalLink className="w-4 h-4 text-[#E0B954] flex-shrink-0" />
                 <span className="text-sm text-[#E0B954] hover:underline truncate">{link.name}</span>
               </a>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onDeleteLink(link.id)}
-                className="text-red-400 hover:text-red-300 hover:bg-red-400/10 ml-2"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              {isCurrentUserAdmin && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onDeleteLink(link.id)}
+                  className="text-red-400 hover:text-red-300 hover:bg-red-400/10 ml-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              )}
             </div>
           ))}
         </div>

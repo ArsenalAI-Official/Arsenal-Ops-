@@ -25,6 +25,7 @@ from models.sprint import Sprint, SprintStatus
 from models.user import User
 from models.work_item import WorkItem
 from routers.auth import get_current_user, require_capability
+from routers.projects import require_project_admin
 from services.architecture_generator import architecture_generator
 from services.prd_processor import prd_processor
 from services.roadmap_generator import build_week_dates, roadmap_generator
@@ -330,10 +331,17 @@ def update_architecture(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Update an architecture (e.g., edit mermaid code) (requires auth)"""
+    """Update an architecture (e.g., edit mermaid code).
+
+    Architecture lives inside the Overview section, so writes share the
+    same gate as other Overview edits — see `is_project_admin` for the
+    three accept paths (tool admin, `project.overview_write`, per-project
+    admin). Project is resolved from the architecture row.
+    """
     architecture = db.query(Architecture).filter(Architecture.id == architecture_id).first()
     if not architecture:
         raise HTTPException(status_code=404, detail="Architecture not found")
+    require_project_admin(architecture.project_id, current_user, db)
 
     if update.mermaid_code is not None:
         architecture.mermaid_code = update.mermaid_code
@@ -369,6 +377,9 @@ async def ai_refine_architecture(
     architecture = db.query(Architecture).filter(Architecture.id == architecture_id).first()
     if not architecture:
         raise HTTPException(status_code=404, detail="Architecture not found")
+
+    # AI-refine mutates the architecture row — same Overview-write gate.
+    require_project_admin(architecture.project_id, current_user, db)
 
     # Get project for context
     project = db.query(Project).filter(Project.id == architecture.project_id).first()
@@ -419,6 +430,9 @@ def select_architecture(
         if not architecture:
             raise HTTPException(status_code=404, detail="Architecture not found")
 
+        # Selecting an architecture is a write — same Overview-write gate.
+        require_project_admin(architecture.project_id, current_user, db)
+
         print(
             f"[SELECT] Found architecture project_id={architecture.project_id}, deselecting others..."
         )
@@ -453,10 +467,16 @@ async def commit_architecture(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Commit selected architecture and generate Jira tickets (requires auth)
-    Assigns tickets to developers based on their specialization
-    Divides project into sprints if timeline is provided
+    Commit selected architecture and generate Jira tickets.
+    Assigns tickets to developers based on their specialization.
+    Divides project into sprints if timeline is provided.
+
+    Same Overview-write gate as the other architecture endpoints — also
+    happens to be the only path that creates work items from the Overview
+    flow, so requiring project-admin (or `project.overview_write`) here is
+    a tighter version of the same intent.
     """
+    require_project_admin(project_id, current_user, db)
     # Get project
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:

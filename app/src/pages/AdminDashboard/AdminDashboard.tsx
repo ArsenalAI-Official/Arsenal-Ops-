@@ -1,7 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, FolderKanban, X, ArrowLeft, BarChart3, Shield, KeyRound } from 'lucide-react';
+import {
+  Users,
+  FolderKanban,
+  X,
+  ArrowLeft,
+  BarChart3,
+  Shield,
+  KeyRound,
+  Clock,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast, Toaster } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -23,6 +32,7 @@ import CategoryManagerModal, {
   type CategoryFormPayload,
 } from './modals/CategoryManagerModal';
 import EmployeesTab, { type Employee, type DeveloperCapacity } from './tabs/EmployeesTab';
+import TimeEntriesTab from './tabs/TimeEntriesTab';
 import DashboardTab from './tabs/DashboardTab';
 import ProjectsTab from './tabs/ProjectsTab';
 import UsersTab from './tabs/UsersTab';
@@ -102,18 +112,56 @@ interface Capability {
   description: string;
 }
 
-type AdminTab = 'dashboard' | 'employees' | 'projects' | 'users' | 'roles';
-const VALID_ADMIN_TABS: AdminTab[] = ['dashboard', 'employees', 'projects', 'users', 'roles'];
+type AdminTab = 'dashboard' | 'employees' | 'projects' | 'time_entries' | 'users' | 'roles';
+
+/**
+ * Tab order + the capability that gates each. Order drives both the tab-strip
+ * left-to-right and the "first allowed tab" fallback below — keep them aligned
+ * with the picker catalog's Admin section in `PICKER_CATALOG`.
+ */
+const ADMIN_TAB_CAPS: ReadonlyArray<{ id: AdminTab; cap: string }> = [
+  { id: 'dashboard', cap: 'admin.dashboard' },
+  { id: 'employees', cap: 'admin.employees' },
+  { id: 'projects', cap: 'admin.projects' },
+  { id: 'time_entries', cap: 'admin.time_entries' },
+  { id: 'users', cap: 'admin.users' },
+  { id: 'roles', cap: 'admin.roles' },
+];
+
+/**
+ * Resolve which admin tab to render. Single source of truth used by both the
+ * `useState` lazy initializer (correct on first paint) and the URL-sync
+ * effect (correct on browser back/forward).
+ *
+ * Rules:
+ *   - If the URL specifies a tab and the user has its cap → use it.
+ *   - Else fall back to the FIRST tab in `ADMIN_TAB_CAPS` the user can see.
+ *   - Else 'dashboard' as a defensive last resort — shouldn't happen because
+ *     `RequireAnyAdminCapability` guards the route, but keeps the return
+ *     type honest if caps drift mid-session.
+ */
+function resolveAdminTab(urlTab: string | null, hasAccess: (cap: string) => boolean): AdminTab {
+  if (urlTab) {
+    const requested = ADMIN_TAB_CAPS.find((t) => t.id === urlTab);
+    if (requested && hasAccess(requested.cap)) return requested.id;
+  }
+  const firstAllowed = ADMIN_TAB_CAPS.find((t) => hasAccess(t.cap));
+  return firstAllowed ? firstAllowed.id : 'dashboard';
+}
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  // Auth hook hoisted above the tab-state setup so `can` is available to the
+  // `useState` lazy initializer below — that's how we resolve the right
+  // starting tab on first paint without a flash of restricted content.
+  const { user, refreshCapabilities, can } = useAuth(); // keeps auth guard active; token read from localStorage by apiFetch
+
   const tabFromUrl = searchParams.get('tab');
-  const initialTab: AdminTab =
-    tabFromUrl && (VALID_ADMIN_TABS as string[]).includes(tabFromUrl)
-      ? (tabFromUrl as AdminTab)
-      : 'dashboard';
-  const [activeTab, setActiveTabState] = useState<AdminTab>(initialTab);
+  // Lazy initializer so we read `can` exactly once on mount. If the URL
+  // points at a tab the user can see → use it. Otherwise fall back to the
+  // first tab they can see (skipping the "Section restricted" splash).
+  const [activeTab, setActiveTabState] = useState<AdminTab>(() => resolveAdminTab(tabFromUrl, can));
 
   const setActiveTab = (tab: AdminTab) => {
     setActiveTabState(tab);
@@ -128,17 +176,26 @@ const AdminDashboard = () => {
     }
   };
 
-  // Sync state with URL on browser back/forward navigation. Pre-existing
-  // pattern; deliberately reads activeTab without listing it as a dep so
-  // the effect only runs when the URL changes, not when state changes back.
+  // Sync state with URL on browser back/forward navigation, and self-correct
+  // when the URL points at a tab the user can't see (or no tab at all and
+  // the user lacks `admin.dashboard`). Deliberately reads activeTab without
+  // listing it as a dep so the effect only runs when the URL changes, not
+  // when state changes back.
   useEffect(() => {
     const urlTab = searchParams.get('tab');
-    const resolved: AdminTab =
-      urlTab && (VALID_ADMIN_TABS as string[]).includes(urlTab)
-        ? (urlTab as AdminTab)
-        : 'dashboard';
+    const resolved = resolveAdminTab(urlTab, can);
     if (resolved !== activeTab) {
       setActiveTabState(resolved);
+    }
+    // If the URL referred to a forbidden / unknown tab, rewrite it to
+    // match the resolved tab so refresh + share both work. `replace: true`
+    // so this self-correction doesn't litter browser history.
+    const expectedUrlTab = resolved === 'dashboard' ? null : resolved;
+    if (urlTab !== expectedUrlTab) {
+      const next = new URLSearchParams(searchParams);
+      if (expectedUrlTab === null) next.delete('tab');
+      else next.set('tab', expectedUrlTab);
+      setSearchParams(next, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
@@ -292,8 +349,6 @@ const AdminDashboard = () => {
     [employees],
   );
 
-  const { user, refreshCapabilities, can } = useAuth(); // keeps auth guard active; token read from localStorage by apiFetch
-
   // Per-tab capability gates. The /admin route guard in App.tsx already
   // ensures the user holds at least one admin.* capability before this
   // component mounts; these gates control which tabs they actually see
@@ -301,8 +356,16 @@ const AdminDashboard = () => {
   const canSeeDashboard = can('admin.dashboard');
   const canSeeEmployees = can('admin.employees');
   const canSeeProjects = can('admin.projects');
+  const canSeeTimeEntries = can('admin.time_entries');
   const canSeeUsers = can('admin.users');
   const canSeeRoles = can('admin.roles');
+  // Write caps — gate action buttons (Add/Edit/Delete) inside each tab.
+  // Tabs receive these as props so the components stay decoupled from the
+  // auth context.
+  const canWriteEmployees = can('admin.employees_write');
+  const canWriteProjects = can('admin.projects_write');
+  const canWriteUsers = can('admin.users_write');
+  const canWriteRoles = can('admin.roles_write');
 
   // Refresh capabilities twice: once now, once after the backend LRU window
   // expires for the most common case. Used after role mutations that may
@@ -404,16 +467,18 @@ const AdminDashboard = () => {
   });
 
   // ── Category CRUD mutations ───────────────────────────────────────────
-  // Invalidate three keys on any category mutation:
+  // Invalidate four keys on any category mutation:
   //   ['admin','projectCategories'] — drives the manager modal list
   //   ['admin','projects']          — project cards show category badges
   //   ['admin','projectsWeeklyReport'] — report rows include category_name
+  //   ['projectCategories']         — home-page CreateProjectDialog picker
   // A rename of a category needs to reflow into the cards AND the report;
   // an assignment change re-buckets which projects show in a filtered report.
   const invalidateCategoryScope = () => {
     queryClient.invalidateQueries({ queryKey: ['admin', 'projectCategories'] });
     queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] });
     queryClient.invalidateQueries({ queryKey: ['admin', 'projectsWeeklyReport'] });
+    queryClient.invalidateQueries({ queryKey: ['projectCategories'] });
   };
 
   const createCategoryMutation = useMutation({
@@ -454,11 +519,12 @@ const AdminDashboard = () => {
   });
 
   // Assigning a category to a single project. Uses the existing
-  // PUT /api/projects/{id} surface (extended with category_id support).
-  // Passing null clears the assignment ("uncategorized").
+  // Dedicated admin endpoint — gated on `admin.projects_write` so a
+  // read-only admin (or per-project admin only) can't reorganize the
+  // admin-wide categorization. Passing null clears the assignment.
   const setProjectCategoryMutation = useMutation({
     mutationFn: ({ projectId, categoryId }: { projectId: number; categoryId: number | null }) =>
-      apiFetch(`/api/projects/${projectId}`, {
+      apiFetch(`/api/admin/projects/${projectId}/category`, {
         method: 'PUT',
         body: JSON.stringify({ category_id: categoryId }),
       }),
@@ -1027,24 +1093,29 @@ const AdminDashboard = () => {
 
   // Display catalog for the Roles role-editor picker.
   //
-  // PROJECT items are derived from the single project-tab registry
-  // (`lib/projectTabs.ts`) so adding a tab there automatically surfaces it in
-  // the role editor with the right label, description, grant key, and
-  // sub-rows. The ADMIN group is hand-curated since admin surfaces don't
-  // share the tab abstraction.
+  // Each row now carries up to two grants: `readGrant` (view) and
+  // `writeGrant` (edit/create/delete). The role editor renders 0–2
+  // checkboxes per row accordingly, with a Write→Read dependency enforced
+  // in `togglePickerCheckbox` below.
   //
-  // Both surfaces use PM-friendly labels ("Overview", "Timeline") rather
-  // than raw keys; the keys still drive the grant — only the label is
-  // humanized.
-  interface PickerItem {
+  // PROJECT items are mapped from `lib/projectTabs.ts` so adding a tab
+  // surfaces it here automatically with the right label/description/grants.
+  // The three write-only project actions (AI, Create project, Assign
+  // personal task) live outside the tab registry and are appended manually.
+  //
+  // The ADMIN group is hand-curated. As of the R/W split, every admin tab
+  // that has write actions exposes both a read cap (`admin.<tab>`) and a
+  // write cap (`admin.<tab>_write`). See backend/capabilities.py +
+  // `reconcile_admin_write_caps` in database.py.
+  interface PickerChild {
     label: string;
-    grant: string;
     description: string;
-    /** Optional sub-rows shown indented under the parent. When the parent's
-     *  grant (typically a wildcard) is active, children render as covered
-     *  and disabled — to customize, admin unchecks the parent first then
-     *  picks specific child grants. */
-    children?: { label: string; grant: string; description: string }[];
+    readGrant?: string;
+    writeGrant?: string;
+    footnote?: string;
+  }
+  interface PickerItem extends PickerChild {
+    children?: PickerChild[];
   }
 
   const PICKER_CATALOG: {
@@ -1058,40 +1129,47 @@ const AdminDashboard = () => {
         prefix: 'project',
         label: 'Project',
         wildcard: 'project.*',
-        // Mapped from PROJECT_TABS so the role editor reflects the live
-        // project-tab registry — no duplicated labels/descriptions to drift.
-        // The two write-side entries below are appended manually because they
-        // gate creation surfaces (work items/sprints, PRD/roadmap AI) that
-        // aren't tabs and so don't live in PROJECT_TABS. Cap keys live
-        // outside the read groups' wildcards on purpose (`project.tracker_write`
-        // is a sibling of `project.tracker`, not nested under it) so granting
-        // read access doesn't auto-grant write.
         items: [
           ...PROJECT_TABS.map((tab) => ({
             label: tab.label,
-            grant: tab.picker.grant,
             description: tab.picker.description,
-            children: tab.picker.children ? [...tab.picker.children] : undefined,
+            readGrant: tab.picker.readGrant,
+            writeGrant: tab.picker.writeGrant,
+            footnote: tab.picker.footnote,
+            children: tab.picker.children
+              ? tab.picker.children.map((c) => ({
+                  label: c.label,
+                  description: c.description,
+                  readGrant: c.readGrant,
+                  writeGrant: c.writeGrant,
+                  footnote: c.footnote,
+                }))
+              : undefined,
           })),
           {
-            label: 'Manage items & sprints',
-            grant: 'project.tracker_write',
-            description: 'Create, edit, and delete work items and sprints',
+            // Project Board is a separate surface (`/project/{id}/board`)
+            // from the Project Tracker tab. Read = open & view the board;
+            // Write = create/edit/delete work items and sprints. Hand-added
+            // here because it isn't a tab in PROJECT_TABS.
+            label: 'Project Board',
+            description: 'Open the board to view items and sprints; create/edit/delete with write',
+            readGrant: 'project.board',
+            writeGrant: 'project.tracker_write',
           },
           {
             label: 'AI Generators',
-            grant: 'project.ai.write',
-            description: 'Run PRD analyzer and roadmap parser (write)',
+            description: 'Run PRD analyzer and roadmap parser',
+            writeGrant: 'project.ai.write',
           },
           {
             label: 'Create new projects',
-            grant: 'project.create',
-            description: 'Create new projects from the home page (write)',
+            description: 'Create new projects from the home page',
+            writeGrant: 'project.create',
           },
           {
             label: 'Assign personal tasks to project',
-            grant: 'project.assign_personal_task',
-            description: 'Convert a personal task into a project ticket (write)',
+            description: 'Convert a personal task into a project ticket',
+            writeGrant: 'project.assign_personal_task',
           },
         ],
       },
@@ -1102,28 +1180,37 @@ const AdminDashboard = () => {
         items: [
           {
             label: 'Dashboard',
-            grant: 'admin.dashboard',
             description: 'Admin dashboard summary',
+            readGrant: 'admin.dashboard',
           },
           {
             label: 'Employees',
-            grant: 'admin.employees',
-            description: 'Manage employees',
+            description: 'View, add, edit, and delete employees',
+            readGrant: 'admin.employees',
+            writeGrant: 'admin.employees_write',
           },
           {
             label: 'Projects',
-            grant: 'admin.projects',
-            description: 'Manage projects from admin',
+            description: 'View admin projects list; edit GitHub settings',
+            readGrant: 'admin.projects',
+            writeGrant: 'admin.projects_write',
+          },
+          {
+            label: 'Time Entries',
+            description: 'View all time entries across projects',
+            readGrant: 'admin.time_entries',
           },
           {
             label: 'Users',
-            grant: 'admin.users',
-            description: 'Manage users and role assignments',
+            description: 'View, create, edit, delete users; assign roles',
+            readGrant: 'admin.users',
+            writeGrant: 'admin.users_write',
           },
           {
             label: 'Roles',
-            grant: 'admin.roles',
-            description: 'Manage roles and capability grants',
+            description: 'View, create, edit, delete roles and capability grants',
+            readGrant: 'admin.roles',
+            writeGrant: 'admin.roles_write',
           },
         ],
       },
@@ -1131,87 +1218,165 @@ const AdminDashboard = () => {
     [],
   );
 
-  /** Strict "is this exact grant or a wildcard ancestor in the grant set?"
-   *  check. Sibling sub-caps and descendants do NOT count.
-   *
-   *  This is the LEAF check — for items that have children (or for groups),
-   *  use `isItemEffectivelyChecked` below which also returns true when
-   *  every child is effectively checked.
-   */
-  const isItemChecked = (grant: string, grants: string[]): boolean => {
+  /** Strict check: is this exact grant (or a wildcard ancestor) in `grants`.
+   *  Used as the leaf primitive by all the effective-check helpers below. */
+  const isGrantHeld = (grant: string, grants: string[]): boolean => {
     if (grants.includes('*')) return true;
     if (grants.includes(grant)) return true;
     for (const g of grants) {
       if (!g.endsWith('.*')) continue;
       const prefix = g.slice(0, -2);
-      // grant is covered when it equals the wildcard's prefix or is a
-      // descendant. e.g. grant='project.pm.*' is covered by g='project.*'
-      // because 'project.pm.*' starts with 'project.'.
       if (grant === prefix || grant.startsWith(prefix + '.')) return true;
     }
     return false;
   };
 
-  /** Recursive "effectively checked" — used for the display state of any
-   *  catalog node (group wildcard, top-level item, or child item).
-   *
-   *  Returns true when:
-   *    - The grant is exactly in `grants` or covered by a wildcard ancestor
-   *      (strict path — same as `isItemChecked`), OR
-   *    - The node has children AND every child is effectively checked
-   *      (auto-promote path — e.g. all 3 PM sub-rows checked → "Project
-   *      Manager" parent shows checked; all top-level project items
-   *      checked → "Grant all Project" shows checked).
-   *
-   *  Toggle logic uses this same predicate so clicking a parent that's
-   *  "checked because all children are" cleanly sweeps everything under it.
-   */
-  type CatalogNode = { grant: string; children?: readonly { grant: string }[] };
-
-  const isItemEffectivelyChecked = (node: CatalogNode, grants: string[]): boolean => {
-    if (isItemChecked(node.grant, grants)) return true;
-    if (!node.children || node.children.length === 0) return false;
-    return node.children.every((c) => isItemEffectivelyChecked(c, grants));
+  /** A node the toggle helpers consume — kept structurally compatible with
+   *  the picker item / child shape but only requires the side-grant fields. */
+  type ToggleNode = {
+    readGrant?: string;
+    writeGrant?: string;
+    children?: readonly { readGrant?: string; writeGrant?: string }[];
   };
 
-  /** Toggle a catalog item.
+  /** Effective check for one *side* (read or write) of a picker row.
    *
-   *  Uses the EFFECTIVE checked state — so a parent that's showing checked
-   *  only because every child is granted will, on click, sweep those
-   *  children. Same shape works for the group wildcard ("Grant all Project")
-   *  when all top-level items are individually granted.
+   *  - Direct: the item's side-grant is in `grants` (or covered by an
+   *    ancestor wildcard).
+   *  - Auto-promote: the item has a side-grant AND children whose same-side
+   *    grants are all effectively held — e.g. Overview's Read shows checked
+   *    when all four sub-tab Reads are granted explicitly, because Overview
+   *    has `readGrant=project.overview.*` to promote to.
    *
-   *  Uncheck: remove the exact grant; for wildcards, also sweep every
-   *  explicit sub-cap underneath. This single sweep handles both the
-   *  "wildcard directly granted" and "all children granted" auto-promote
-   *  paths because both end up with grants under the wildcard prefix.
+   *  Auto-promote is only meaningful when the parent itself has a side-grant
+   *  to promote to. Otherwise the "every child checked" condition is
+   *  vacuous (read-only parents have no Write checkbox, so promoting an
+   *  imaginary Write checkbox makes no sense).
    *
-   *  Check: add the grant; for wildcards, sweep redundant explicit sub-caps
-   *  underneath since they're now covered. Keeps `grants` minimal.
+   *  Children with no side-grant are "vacuously held" for that side — they
+   *  don't drag the parent down. Without this, Overview's Read auto-promote
+   *  would fail if any child lacked an explicit grant for that side (none
+   *  do today, but the rule keeps the auto-promote robust to future shapes).
    */
-  const toggleCatalogItem = (node: CatalogNode) => {
-    const { grant } = node;
+  const isSideEffective = (item: ToggleNode, side: 'read' | 'write', grants: string[]): boolean => {
+    const grant = side === 'read' ? item.readGrant : item.writeGrant;
+    if (grant && isGrantHeld(grant, grants)) return true;
+    // No side-grant to promote to → no auto-promote.
+    if (!grant) return false;
+    if (!item.children || item.children.length === 0) return false;
+    return item.children.every((c) => {
+      const cg = side === 'read' ? c.readGrant : c.writeGrant;
+      if (!cg) return true; // vacuous — child doesn't expose this side
+      return isSideEffective(c, side, grants);
+    });
+  };
+
+  /** True when every item-side defined across the group is effectively held.
+   *  Drives the "Grant all <Group>" checkbox: shows checked when the group
+   *  wildcard is granted directly OR every R/W across every item is covered.
+   */
+  const isGroupEffective = (
+    group: { wildcard: string; items: ToggleNode[] },
+    grants: string[],
+  ): boolean => {
+    if (isGrantHeld(group.wildcard, grants)) return true;
+    return group.items.every((item) => {
+      const readOk = !item.readGrant || isSideEffective(item, 'read', grants);
+      const writeOk = !item.writeGrant || isSideEffective(item, 'write', grants);
+      // Children also need to be covered when present — recurse via
+      // isSideEffective's own child-check rather than re-implementing.
+      const childrenReadOk =
+        !item.children ||
+        item.children.every((c) => !c.readGrant || isSideEffective(c, 'read', grants));
+      const childrenWriteOk =
+        !item.children ||
+        item.children.every((c) => !c.writeGrant || isSideEffective(c, 'write', grants));
+      return readOk && writeOk && childrenReadOk && childrenWriteOk;
+    });
+  };
+
+  /** Sweep every explicit grant under a wildcard's prefix from `grants`.
+   *  Used both when granting a wildcard (clean up redundant sub-caps) and
+   *  when revoking one (purge everything it covered). */
+  const sweepUnder = (wildcard: string, grants: Set<string>): void => {
+    if (!wildcard.endsWith('.*')) {
+      grants.delete(wildcard);
+      return;
+    }
+    const prefix = wildcard.slice(0, -2);
+    for (const g of [...grants]) {
+      if (g === wildcard || g === prefix || g.startsWith(prefix + '.')) grants.delete(g);
+    }
+  };
+
+  /** Toggle the group-level wildcard (the "Grant all Project / Admin"
+   *  checkbox). Same shape as the previous catalog toggle, but spelled out
+   *  for the new picker contract. */
+  const toggleGroupWildcard = (group: { wildcard: string; items: ToggleNode[] }) => {
     setRoleForm((f) => {
-      const grants = f.capability_keys;
-      const checked = isItemEffectivelyChecked(node, grants);
-      if (checked) {
-        let isUnderRemoved: (g: string) => boolean;
-        if (grant.endsWith('.*')) {
-          const prefix = grant.slice(0, -2);
-          isUnderRemoved = (g) => g === grant || g === prefix || g.startsWith(prefix + '.');
-        } else {
-          isUnderRemoved = (g) => g === grant;
-        }
-        return { ...f, capability_keys: grants.filter((g) => !isUnderRemoved(g)) };
-      }
-      let cleaned: string[];
-      if (grant.endsWith('.*')) {
-        const prefix = grant.slice(0, -2);
-        cleaned = grants.filter((g) => g !== prefix && !g.startsWith(prefix + '.'));
+      const next = new Set(f.capability_keys);
+      const wildcardHeld = isGroupEffective(group, f.capability_keys);
+      if (wildcardHeld) {
+        // Revoke: drop the wildcard plus any explicit sub-caps under it.
+        sweepUnder(group.wildcard, next);
       } else {
-        cleaned = grants.slice();
+        // Grant: sweep redundant sub-caps and add the wildcard.
+        sweepUnder(group.wildcard, next);
+        next.add(group.wildcard);
       }
-      return { ...f, capability_keys: [...cleaned, grant] };
+      return { ...f, capability_keys: [...next] };
+    });
+  };
+
+  /** Toggle one side (read or write) of a picker row. Implements the
+   *  W→R dependency:
+   *    - Ticking Write ON also adds Read (otherwise: "edit but can't view"
+   *      is incoherent).
+   *    - Ticking Read OFF also clears Write (same reason in reverse).
+   *  Single-side rows (read-only or write-only) just toggle their one cap.
+   *  When the item's side-grant is a wildcard, sub-caps under it are swept
+   *  to keep the grant list minimal.
+   */
+  const togglePickerCheckbox = (item: ToggleNode, side: 'read' | 'write') => {
+    setRoleForm((f) => {
+      const next = new Set(f.capability_keys);
+      const isOn = isSideEffective(item, side, f.capability_keys);
+
+      if (side === 'read') {
+        if (isOn) {
+          // Read OFF → also clear Write.
+          if (item.readGrant) sweepUnder(item.readGrant, next);
+          if (item.writeGrant) next.delete(item.writeGrant);
+          // Sweep all child grants on both sides (children become ungranted
+          // when the parent's read is revoked).
+          if (item.children) {
+            for (const c of item.children) {
+              if (c.readGrant) sweepUnder(c.readGrant, next);
+              if (c.writeGrant) next.delete(c.writeGrant);
+            }
+          }
+        } else {
+          // Read ON
+          if (item.readGrant) {
+            sweepUnder(item.readGrant, next); // dedup
+            next.add(item.readGrant);
+          }
+        }
+      } else {
+        // Write
+        if (isOn) {
+          // Write OFF → Read stays.
+          if (item.writeGrant) next.delete(item.writeGrant);
+        } else {
+          // Write ON → also ensure Read.
+          if (item.writeGrant) next.add(item.writeGrant);
+          if (item.readGrant && !isSideEffective(item, 'read', f.capability_keys)) {
+            sweepUnder(item.readGrant, next);
+            next.add(item.readGrant);
+          }
+        }
+      }
+      return { ...f, capability_keys: [...next] };
     });
   };
 
@@ -1250,6 +1415,9 @@ const AdminDashboard = () => {
               ...(canSeeEmployees ? [{ id: 'employees', label: 'Employees', icon: Users }] : []),
               ...(canSeeProjects
                 ? [{ id: 'projects', label: 'Projects', icon: FolderKanban }]
+                : []),
+              ...(canSeeTimeEntries
+                ? [{ id: 'time_entries', label: 'Time Entries', icon: Clock }]
                 : []),
               ...(canSeeUsers ? [{ id: 'users', label: 'Users', icon: Shield }] : []),
               ...(canSeeRoles ? [{ id: 'roles', label: 'Roles', icon: KeyRound }] : []),
@@ -1297,6 +1465,7 @@ const AdminDashboard = () => {
                   availableSpecs={availableSpecs}
                   onEditEmployee={handleEditEmployee}
                   onDeleteEmployee={handleDeleteEmployee}
+                  canWriteEmployees={canWriteEmployees}
                 />
               ) : (
                 <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
@@ -1320,7 +1489,16 @@ const AdminDashboard = () => {
                   onEditGitHubSettings={handleEditGitHubSettings}
                   onSendGitHubInvites={handleSendGitHubInvites}
                   onOpenProjectMembers={handleOpenProjectMembers}
+                  canWriteProjects={canWriteProjects}
                 />
+              ) : (
+                <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
+              ))}
+
+            {/* Time Entries Tab — gated on admin.time_entries */}
+            {activeTab === 'time_entries' &&
+              (canSeeTimeEntries ? (
+                <TimeEntriesTab projects={projects} employees={employees} />
               ) : (
                 <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
               ))}
@@ -1334,6 +1512,11 @@ const AdminDashboard = () => {
                   onAddUser={() => setShowUserModal(true)}
                   onDeleteUser={handleDeleteUser}
                   onEditUser={handleOpenEditUser}
+                  // Hide Add/Edit/Delete user buttons without users-write.
+                  canWriteUsers={canWriteUsers}
+                  // Edit Roles affordance gates on roles-write since it
+                  // mutates user_roles (handled server-side by the same cap).
+                  canWriteRoles={canWriteRoles}
                 />
               ) : (
                 <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
@@ -1348,6 +1531,7 @@ const AdminDashboard = () => {
                   onCreateRole={handleOpenCreateRole}
                   onEditRole={handleOpenEditRole}
                   onDeleteRole={handleDeleteRole}
+                  canWriteRoles={canWriteRoles}
                 />
               ) : (
                 <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
@@ -1366,9 +1550,11 @@ const AdminDashboard = () => {
         isSavingRole={isSavingRole}
         pickerCatalog={PICKER_CATALOG}
         toggleGrant={toggleGrant}
-        toggleCatalogItem={toggleCatalogItem}
-        isItemChecked={isItemChecked}
-        isItemEffectivelyChecked={isItemEffectivelyChecked}
+        toggleGroupWildcard={toggleGroupWildcard}
+        togglePickerCheckbox={togglePickerCheckbox}
+        isGrantHeld={isGrantHeld}
+        isSideEffective={isSideEffective}
+        isGroupEffective={isGroupEffective}
         toPascalCase={toPascalCase}
         handleSaveRole={handleSaveRole}
       />

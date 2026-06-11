@@ -267,7 +267,7 @@ def change_password(
 @router.post("/admin/create-user", response_model=dict)
 def create_user(
     user_data: UserCreate,
-    admin: User = Depends(require_capability("admin.users")),
+    admin: User = Depends(require_capability("admin.users_write")),
     db: Session = Depends(get_db),
 ):
     """Admin: Pre-register a user for Google SSO login.
@@ -355,7 +355,7 @@ def list_users(
 @router.post("/admin/reset-password")
 def admin_reset_password(
     reset_data: PasswordReset,
-    admin: User = Depends(require_capability("admin.users")),
+    admin: User = Depends(require_capability("admin.users_write")),
     db: Session = Depends(get_db),
 ):
     """Admin: Reset a user's password"""
@@ -383,7 +383,7 @@ class UserProfileUpdate(BaseModel):
 def update_user_profile(
     user_id: int,
     payload: UserProfileUpdate,
-    admin: User = Depends(require_capability("admin.users")),
+    admin: User = Depends(require_capability("admin.users_write")),
     db: Session = Depends(get_db),
 ):
     """Admin: Update a user's profile (name, email, GitHub username).
@@ -463,7 +463,7 @@ class RoleUpdate(BaseModel):
 def update_user_role(
     user_id: int,
     role_data: RoleUpdate,
-    admin: User = Depends(require_capability("admin.roles")),
+    admin: User = Depends(require_capability("admin.roles_write")),
     db: Session = Depends(get_db),
 ):
     """Admin: Update a user's role"""
@@ -499,7 +499,7 @@ def update_user_role(
 @router.delete("/admin/users/{user_id}/")  # Support trailing slash
 def delete_user(
     user_id: int,
-    admin: User = Depends(require_capability("admin.users")),
+    admin: User = Depends(require_capability("admin.users_write")),
     db: Session = Depends(get_db),
 ):
     """Admin: Delete a user permanently"""
@@ -871,7 +871,7 @@ def list_roles(
 def create_role(
     req: RoleCreateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_capability("admin.roles")),
+    current_user: User = Depends(require_capability("admin.roles_write")),
 ):
     from models.role import RoleCapability
 
@@ -909,7 +909,7 @@ def update_role(
     role_id: int,
     req: RoleUpdateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_capability("admin.roles")),
+    current_user: User = Depends(require_capability("admin.roles_write")),
 ):
     role = db.query(Role).filter(Role.id == role_id).first()
     if not role:
@@ -945,7 +945,7 @@ def update_role(
 def delete_role(
     role_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_capability("admin.roles")),
+    current_user: User = Depends(require_capability("admin.roles_write")),
 ):
     role = db.query(Role).filter(Role.id == role_id).first()
     if not role:
@@ -971,7 +971,7 @@ def replace_role_capabilities(
     role_id: int,
     req: RoleCapabilitiesRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_capability("admin.roles")),
+    current_user: User = Depends(require_capability("admin.roles_write")),
 ):
     from models.role import RoleCapability
 
@@ -1006,7 +1006,7 @@ def assign_role_to_user(
     user_id: int,
     role_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_capability("admin.roles")),
+    current_user: User = Depends(require_capability("admin.roles_write")),
 ):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -1030,7 +1030,7 @@ def remove_role_from_user(
     user_id: int,
     role_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_capability("admin.roles")),
+    current_user: User = Depends(require_capability("admin.roles_write")),
 ):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:

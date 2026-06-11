@@ -698,6 +698,7 @@ SYSTEM_ROLES: list[tuple[str, str, list[str]]] = [
             "project.overview.*",
             "project.tracker.*",
             "project.tracker_write",
+            "project.board",
             "project.calendar",
             "project.pulse",
             "project.activity",
@@ -832,6 +833,19 @@ def seed_rbac():
                 # 7 entries: after tracker_write rename, before project.create
                 #            + project.assign_personal_task were added
                 BASE_READ_GRANTS | {"project.ai.write", "project.tracker_write"},
+                # 9 entries: after project.create + assign_personal_task were
+                #            added, before project.board was split out of the
+                #            tracker. `reconcile_project_board_cap` covers the
+                #            same case via a separate path; listing it here
+                #            keeps the seed_rbac one-shot able to bring the
+                #            role forward even if that migration is removed.
+                BASE_READ_GRANTS
+                | {
+                    "project.ai.write",
+                    "project.tracker_write",
+                    "project.create",
+                    "project.assign_personal_task",
+                },
             ]
             CANONICAL_DEV_GRANTS = {g for n, _, gs in SYSTEM_ROLES if n == "developer" for g in gs}
             dev_row = conn.execute(
@@ -919,6 +933,51 @@ def seed_rbac():
         except Exception as e:
             print(f"[SEED ERROR] user_roles backfill: {e}")
             conn.rollback()
+
+
+def mark_migration_applied(name: str, db) -> bool:
+    """Idempotency gate for one-shot data migrations.
+
+    Returns True the FIRST time a given migration name is seen — the caller
+    should then proceed with its work. Returns False on every subsequent
+    call, signalling "already applied, skip."
+
+    The marker row is committed BEFORE the caller does its mutations. That
+    ordering means:
+
+      - On a clean first run: marker committed → migration body runs → if
+        the body fails partway, the marker is still set and the body will
+        not re-run on boot. Therefore the migration body MUST be internally
+        idempotent (skip rows it's already touched) — see the existing
+        reconcile functions for the pattern.
+
+      - On any later boot: marker is found → return False → body skips.
+
+    `db` is a `Session`; the caller owns its lifecycle. We commit only the
+    one marker row here and roll back on conflict so the caller's
+    subsequent commits are independent.
+
+    See `models/applied_migration.py` for the table + naming convention.
+    """
+    from models.applied_migration import AppliedMigration
+
+    # Race-tolerant insert: two processes booting in parallel both pass the
+    # existence check, then both INSERT — the second one hits the primary
+    # key and we return False. Without this guard the second process would
+    # double-run the migration body.
+    existing = db.query(AppliedMigration).filter(AppliedMigration.name == name).first()
+    if existing:
+        return False
+    try:
+        db.add(AppliedMigration(name=name))
+        db.commit()
+    except Exception:
+        # Most likely a duplicate-key from a parallel boot. Treat as
+        # already-applied — the other process is doing (or has done) the
+        # work, and re-running is unnecessary.
+        db.rollback()
+        return False
+    return True
 
 
 def _allowed_internal_domains() -> list[str]:
@@ -1085,6 +1144,145 @@ def reconcile_user_roles():
         db.close()
 
 
+def reconcile_project_board_cap():
+    """One-shot backfill: grants `project.board` to roles that held the
+    pre-split tracker caps (`project.tracker.*` or `project.tracker_write`).
+
+    Why: before the read/write split, anyone who could view the tracker tab
+    could also navigate to the Project Board page (there was no read gate).
+    After the split, that page requires `project.board`, which roles
+    holding only tracker caps don't have — and the tracker wildcard does
+    NOT cover board (board isn't a sub-cap of tracker). Without this
+    backfill, every developer role user would lose Open Board access on
+    deploy.
+
+    Gated by the `applied_migrations` table so it runs at most once per
+    database. After it has applied, an admin who deliberately removes
+    `project.board` from a role won't have it re-added on next boot.
+
+    Wildcards (`*`, `project.*`) need no update — they already cover
+    `project.board` via prefix match.
+    """
+    from models.role import Role, RoleCapability
+
+    TRIGGER_CAPS = {"project.tracker.*", "project.tracker_write"}
+    TARGET = "project.board"
+    MIGRATION_NAME = "reconcile_project_board_cap_v1"
+
+    db = SessionLocal()
+    try:
+        if not mark_migration_applied(MIGRATION_NAME, db):
+            return  # already applied — admin owns role caps from here on
+
+        all_caps = db.query(RoleCapability).all()
+        held: dict[int, set[str]] = {}
+        for rc in all_caps:
+            held.setdefault(rc.role_id, set()).add(rc.capability_key)
+
+        affected_role_ids: list[int] = []
+        for role_id, keys in held.items():
+            if TARGET in keys:
+                continue
+            if keys & TRIGGER_CAPS:
+                db.add(RoleCapability(role_id=role_id, capability_key=TARGET))
+                affected_role_ids.append(role_id)
+
+        if affected_role_ids:
+            db.commit()
+            names = {
+                r.id: r.name
+                for r in db.query(Role).filter(Role.id.in_(set(affected_role_ids))).all()
+            }
+            pretty = ", ".join(sorted({names.get(rid, str(rid)) for rid in affected_role_ids}))
+            print(
+                f"[MIGRATION {MIGRATION_NAME}] Granted `project.board` to "
+                f"{len(affected_role_ids)} role(s): {pretty}"
+            )
+        else:
+            print(f"[MIGRATION {MIGRATION_NAME}] No roles needed backfill (first run).")
+    except Exception as e:
+        db.rollback()
+        print(f"[MIGRATION ERROR] {MIGRATION_NAME}: {e}")
+    finally:
+        db.close()
+
+
+def reconcile_admin_write_caps():
+    """One-shot backfill: grants `admin.*_write` caps to roles that held
+    the pre-split combined cap (`admin.employees` / `admin.projects` /
+    `admin.users` / `admin.roles`).
+
+    Why: before the read/write split, those four combined keys gated both
+    GETs and writes. After the split they gate only GETs, and a new
+    `_write` key gates writes. Without this backfill, any custom role
+    that had `admin.employees` (etc.) would lose its create/edit/delete
+    ability on deploy.
+
+    Gated by the `applied_migrations` table so it runs at most once per
+    database. After it has applied, deliberately removing a `*_write` cap
+    from a role to make it read-only is respected forever.
+
+    Wildcards (`*`, `admin.*`) already cover the new caps and aren't
+    enumerated by this migration — only explicit grants are backfilled.
+    """
+    from sqlalchemy.orm import Session
+
+    from models.role import Role, RoleCapability
+
+    # Map: combined-read cap → paired write cap to ensure
+    PAIRS = {
+        "admin.employees": "admin.employees_write",
+        "admin.projects": "admin.projects_write",
+        "admin.users": "admin.users_write",
+        "admin.roles": "admin.roles_write",
+    }
+    MIGRATION_NAME = "reconcile_admin_write_caps_v1"
+
+    db: Session = SessionLocal()
+    try:
+        if not mark_migration_applied(MIGRATION_NAME, db):
+            return  # already applied — admin owns role caps from here on
+
+        # One scan over RoleCapability is enough — we keep a per-role set of
+        # held keys, then insert any missing paired writes inside a single
+        # transaction.
+        all_caps = db.query(RoleCapability).all()
+        held: dict[int, set[str]] = {}
+        for rc in all_caps:
+            held.setdefault(rc.role_id, set()).add(rc.capability_key)
+
+        inserted = 0
+        affected_role_ids: list[int] = []
+        for role_id, keys in held.items():
+            for read_cap, write_cap in PAIRS.items():
+                if read_cap in keys and write_cap not in keys:
+                    db.add(RoleCapability(role_id=role_id, capability_key=write_cap))
+                    keys.add(write_cap)
+                    inserted += 1
+                    affected_role_ids.append(role_id)
+
+        if inserted:
+            db.commit()
+            # Resolve role names for the log line — single query, only fires
+            # when we actually changed something.
+            names = {
+                r.id: r.name
+                for r in db.query(Role).filter(Role.id.in_(set(affected_role_ids))).all()
+            }
+            pretty = ", ".join(sorted({names.get(rid, str(rid)) for rid in affected_role_ids}))
+            print(
+                f"[MIGRATION {MIGRATION_NAME}] Granted {inserted} admin *_write "
+                f"cap(s) to role(s): {pretty}"
+            )
+        else:
+            print(f"[MIGRATION {MIGRATION_NAME}] No roles needed backfill (first run).")
+    except Exception as e:
+        db.rollback()
+        print(f"[MIGRATION ERROR] {MIGRATION_NAME}: {e}")
+    finally:
+        db.close()
+
+
 def init_db():
     """Initialize database tables"""
     Base.metadata.create_all(bind=engine)
@@ -1104,3 +1302,12 @@ def init_db():
     # returns False for everything even when their legacy role string says
     # "developer" or "admin".
     reconcile_user_roles()
+
+    # One-shot backfills for the read/write cap split. Each is gated by
+    # the `applied_migrations` table — they run exactly once per database,
+    # then never again. After the first successful run, admin role
+    # customizations (e.g. deliberately removing a `*_write` cap to make a
+    # role read-only) are preserved forever. See
+    # `models/applied_migration.py` for the pattern.
+    reconcile_admin_write_caps()
+    reconcile_project_board_cap()
