@@ -81,15 +81,10 @@ export interface Capability {
   description: string;
 }
 
+// Tab order + the capability gating each tab is the single source of truth in
+// AdminDashboard.tsx's ADMIN_TAB_CAPS — don't reintroduce a parallel tab list
+// here (it drifts). This type just enumerates the valid ids.
 export type AdminTab = 'dashboard' | 'employees' | 'projects' | 'time_entries' | 'users' | 'roles';
-export const VALID_ADMIN_TABS: AdminTab[] = [
-  'dashboard',
-  'employees',
-  'projects',
-  'time_entries',
-  'users',
-  'roles',
-];
 
 // Re-export the types owned by their component modules so downstream consumers
 // have a single `./types` import surface for everything admin.
