@@ -4,28 +4,18 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   Plus,
-  Sparkles,
   BookOpen,
   ClipboardList,
   Bug,
   Target,
   Clock,
   CheckCircle2,
-  X,
-  Search,
   LayoutGrid,
   List,
-  Layers,
-  BarChart3,
   AlertCircle,
   Inbox,
-  Eye,
-  ListFilter,
-  Check,
-  Repeat2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { toast, Toaster } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
@@ -47,6 +37,10 @@ const ItemDetailDrawer = lazy(() => import('./ItemDetailDrawer'));
 import BoardView from './views/BoardView';
 import ListView from './views/ListView';
 import EpicView from './views/EpicView';
+import BoardSkeleton from './components/BoardSkeleton';
+import BoardHeader from './components/BoardHeader';
+import BoardToolbar from './components/BoardToolbar';
+import BoardFilterMenu from './components/BoardFilterMenu';
 import ReviewerPanel from './ReviewerPanel';
 import ArchitectureEditorWrapper from './ArchitectureEditorWrapper';
 import { parseLocalDate } from './lib/listGrouping';
@@ -459,56 +453,7 @@ const ProjectBoard = () => {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#080808] text-[#F4F6FF]">
-        {/* Skeleton Header */}
-        <header className="border-b border-[rgba(255,255,255,0.05)] bg-[#080808]/90 sticky top-0 z-40">
-          <div className="px-6 py-4 flex items-center gap-4">
-            <div className="h-8 w-24 bg-[rgba(255,255,255,0.06)] rounded-lg animate-pulse" />
-            <div className="h-8 w-48 bg-[rgba(255,255,255,0.04)] rounded-lg animate-pulse" />
-            <div className="ml-auto flex gap-2">
-              <div className="h-8 w-24 bg-[rgba(255,255,255,0.04)] rounded-lg animate-pulse" />
-              <div className="h-8 w-24 bg-[rgba(255,255,255,0.06)] rounded-lg animate-pulse" />
-            </div>
-          </div>
-          <div className="px-6 pb-3 flex gap-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-3 w-16 bg-[rgba(255,255,255,0.04)] rounded animate-pulse" />
-            ))}
-          </div>
-        </header>
-        {/* Skeleton Board Columns */}
-        <div className="flex gap-4 p-6">
-          {[...Array(4)].map((_, col) => (
-            <div key={col} className="flex-1 min-w-[260px]">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="h-4 w-24 bg-[rgba(255,255,255,0.06)] rounded animate-pulse" />
-                <div className="h-4 w-6 bg-[rgba(255,255,255,0.04)] rounded-full animate-pulse" />
-              </div>
-              <div className="space-y-3">
-                {[...Array(col === 0 ? 4 : col === 1 ? 3 : col === 2 ? 2 : 1)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 space-y-3"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="h-3 w-14 bg-[rgba(255,255,255,0.06)] rounded animate-pulse" />
-                      <div className="h-3 w-10 bg-[rgba(255,255,255,0.04)] rounded animate-pulse ml-auto" />
-                    </div>
-                    <div className="h-4 w-full bg-[rgba(255,255,255,0.05)] rounded animate-pulse" />
-                    <div className="h-3 w-3/4 bg-[rgba(255,255,255,0.04)] rounded animate-pulse" />
-                    <div className="flex items-center gap-2 pt-1">
-                      <div className="h-5 w-5 rounded-full bg-[rgba(255,255,255,0.06)] animate-pulse" />
-                      <div className="h-3 w-16 bg-[rgba(255,255,255,0.04)] rounded animate-pulse" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    return <BoardSkeleton />;
   }
 
   if (!project) {
@@ -536,475 +481,73 @@ const ProjectBoard = () => {
 
       {/* Top Header */}
       <header className="border-b border-[rgba(255,255,255,0.05)] bg-[#080808]/90 backdrop-blur-xl sticky top-0 z-40">
-        <div className="px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/')}
-              className="text-[#737373] hover:text-white hover:bg-[rgba(244,246,255,0.05)] rounded-lg gap-2"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Dashboard
-            </Button>
-            <div className="w-px h-6 bg-[rgba(255,255,255,0.18)]" />
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E0B954] to-[#C79E3B] flex items-center justify-center text-sm font-bold text-[#080808] shadow-lg shadow-[#E0B954]/25">
-                {project.key_prefix.substring(0, 2)}
-              </div>
-              <div>
-                <h1 className="text-lg font-semibold text-white">{project.name}</h1>
-                <p className="text-xs text-[#737373] font-mono">{project.key_prefix}</p>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Reviewer entry — gated on `project.tracker_write`. The
-                review queue's purpose is approving / closing in-review
-                tickets, which requires the same write cap as edit/delete.
-                Hidden entirely (not disabled) to avoid showing an entry
-                that would lead to a dead-end queue. */}
-            {canWriteTracker && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowReviewer((v) => !v)}
-                className={`text-[#737373] hover:text-white hover:bg-[rgba(244,246,255,0.05)] rounded-lg gap-2 h-9 px-3 ${effectiveShowReviewer ? 'bg-[rgba(224,185,84,0.1)] text-[#E0B954]' : ''}`}
-                title="Review Mode"
-              >
-                <Eye className="w-3.5 h-3.5" />
-                Reviewer
-              </Button>
-            )}
-            {/* AI Generate — gated on `project.ai.write`. Hidden entirely
-                when missing so the modal (which would 403 on submit) can't
-                be opened. */}
-            {can('project.ai.write') && (
-              <Button
-                onClick={handleAIGenerate}
-                disabled={isGenerating}
-                size="sm"
-                className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-lg font-medium h-9 transition-opacity"
-              >
-                {isGenerating ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-[#080808]/30 border-t-[#080808] rounded-full animate-spin mr-2" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3.5 h-3.5 mr-2" />
-                    AI Generate
-                  </>
-                )}
-              </Button>
-            )}
-            <Button
-              onClick={() => navigate(`/project/${id}`)}
-              size="sm"
-              className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-lg font-medium h-9 px-4 transition-opacity"
-            >
-              <LayoutGrid className="w-4 h-4 mr-2" />
-              Project Overview
-            </Button>
-          </div>
-        </div>
+        <BoardHeader
+          project={project}
+          canWriteTracker={canWriteTracker}
+          effectiveShowReviewer={effectiveShowReviewer}
+          canWriteAI={can('project.ai.write')}
+          isGenerating={isGenerating}
+          onToggleReviewer={() => setShowReviewer((v) => !v)}
+          onOpenAI={handleAIGenerate}
+          onBackToDashboard={() => navigate('/')}
+          onBackToOverview={() => navigate(`/project/${id}`)}
+        />
 
-        {/* Stats + Filters Bar */}
-        <div className="px-6 py-2.5 flex items-center justify-between gap-4 border-t border-[rgba(255,255,255,0.03)]">
-          {/* Left: Stats + Sprint + Filter */}
-          <div className="flex items-center gap-3 flex-shrink-0">
-            {[
-              { label: 'Items', value: workItems.length, icon: Layers },
-              { label: 'Points', value: totalPoints, icon: BarChart3 },
-              { label: 'Done', value: completedCount, icon: CheckCircle2 },
-              { label: 'Hours Left', value: `${remainingHours}h`, icon: Clock },
-            ].map((s) => (
-              <div key={s.label} className="flex items-center gap-2 text-xs">
-                <s.icon className="w-3.5 h-3.5 text-[#737373]" />
-                <span className="text-[#737373]">{s.label}</span>
-                <span className="text-white font-semibold">{s.value}</span>
-              </div>
-            ))}
-
-            <div className="w-px h-4 bg-[rgba(255,255,255,0.07)]" />
-
-            {/* Sprint Selector */}
-            <div className="flex items-center gap-1.5 relative" ref={sprintMenuRef}>
-              <span className="text-xs text-[#737373]">Sprint</span>
-              <button
-                onClick={() => setShowSprintMenu((v) => !v)}
-                className={`flex items-center gap-1.5 px-2.5 h-8 text-xs border rounded-lg font-medium transition-colors ${
-                  selectedSprintId !== 'all'
-                    ? 'border-[#E0B954]/50 text-[#E0B954] bg-[#E0B954]/5'
-                    : 'border-[rgba(255,255,255,0.1)] text-[#737373] bg-transparent hover:border-[rgba(255,255,255,0.2)] hover:text-white'
-                }`}
-              >
-                {selectedSprintId === 'all'
-                  ? 'All Sprints'
-                  : selectedSprintId === 'unassigned'
-                    ? 'Backlog'
-                    : (sprints.find((s) => s.id === selectedSprintId)?.name ?? 'Sprint')}
-                <svg
-                  className="w-3 h-3 opacity-50"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
-              {showSprintMenu && (
-                <div className="absolute top-full mt-2 left-9 bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-xl shadow-2xl shadow-black/50 z-50 min-w-[160px]">
-                  <div className="p-1.5">
-                    {(
-                      [
-                        { id: 'all', label: 'All Sprints' },
-                        { id: 'unassigned', label: 'Backlog' },
-                        ...sprints.map((s) => ({ id: s.id, label: s.name })),
-                      ] as { id: string | number; label: string }[]
-                    ).map((opt) => (
-                      <button
-                        key={opt.id}
-                        onClick={() => {
-                          setSelectedSprintId(opt.id as typeof selectedSprintId);
-                          setShowSprintMenu(false);
-                        }}
-                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg transition-colors ${
-                          selectedSprintId === opt.id
-                            ? 'bg-[#E0B954]/10 text-[#E0B954]'
-                            : 'text-[#a3a3a3] hover:text-white hover:bg-[rgba(255,255,255,0.05)]'
-                        }`}
-                      >
-                        {selectedSprintId === opt.id && (
-                          <div className="w-1.5 h-1.5 rounded-full bg-[#E0B954]" />
-                        )}
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Filter */}
-            <div className="flex items-center gap-2">
-              <div className="relative" ref={filterMenuRef}>
-                <button
-                  onClick={() => setShowFilterMenu(!showFilterMenu)}
-                  className={`flex items-center gap-1.5 px-2.5 h-8 text-xs border rounded-lg font-medium transition-colors ${
-                    showFilterMenu || hasActiveFilters
-                      ? 'border-[#E0B954]/50 text-[#E0B954] bg-[#E0B954]/5'
-                      : 'border-[rgba(255,255,255,0.1)] text-[#737373] bg-transparent hover:border-[rgba(255,255,255,0.2)] hover:text-white'
-                  }`}
-                >
-                  <ListFilter className="w-3.5 h-3.5" />
-                  Filter
-                  {hasActiveFilters && (
-                    <span className="ml-0.5 min-w-[18px] h-[18px] px-1 rounded text-[10px] font-bold bg-[#E0B954] text-[#080808] flex items-center justify-center">
-                      {activeFilterCount}
-                    </span>
-                  )}
-                </button>
-
-                {showFilterMenu && (
-                  <div className="absolute top-full mt-2 left-0 bg-[#0d0d0d] border border-[rgba(255,255,255,0.07)] rounded-xl shadow-2xl shadow-black/50 z-50 w-60">
-                    <div className="flex items-center justify-between px-3 py-2.5 border-b border-[rgba(255,255,255,0.05)]">
-                      <p className="text-xs font-semibold text-[#a3a3a3]">Filters</p>
-                      <button
-                        onClick={() => setShowFilterMenu(false)}
-                        className="p-1 rounded hover:bg-[rgba(255,255,255,0.05)] text-[#737373] hover:text-white"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                    <div className="p-1.5">
-                      {/* Type */}
-                      <div className="px-1.5 pt-2 pb-1">
-                        <p className="text-[10px] font-semibold text-[#555] uppercase tracking-wider px-1 mb-1">
-                          Type
-                        </p>
-                        {Object.entries(TYPE_CONFIG).map(([key, config]) => {
-                          const checked = filterTypes.includes(key);
-                          return (
-                            <button
-                              key={key}
-                              onClick={() => toggleArrayFilter(setFilterTypes, key)}
-                              className="w-full flex items-center gap-2.5 px-1.5 py-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.04)] transition-colors"
-                            >
-                              <div
-                                className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-[#E0B954] border-[#E0B954]' : 'border-[rgba(255,255,255,0.2)]'}`}
-                              >
-                                {checked && <Check className="w-2.5 h-2.5 text-[#080808]" />}
-                              </div>
-                              <config.icon
-                                className="w-3.5 h-3.5 flex-shrink-0"
-                                style={{ color: config.color }}
-                              />
-                              <span className="text-xs text-[#d4d4d4]">{config.label}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      <div className="h-px bg-[rgba(255,255,255,0.05)] mx-1.5 my-1" />
-
-                      {/* Priority */}
-                      <div className="px-1.5 pt-1 pb-1">
-                        <p className="text-[10px] font-semibold text-[#555] uppercase tracking-wider px-1 mb-1">
-                          Priority
-                        </p>
-                        {Object.entries(PRIORITY_COLORS).map(([key, colors]) => {
-                          const checked = filterPriorities.includes(key);
-                          return (
-                            <button
-                              key={key}
-                              onClick={() => toggleArrayFilter(setFilterPriorities, key)}
-                              className="w-full flex items-center gap-2.5 px-1.5 py-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.04)] transition-colors"
-                            >
-                              <div
-                                className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-[#E0B954] border-[#E0B954]' : 'border-[rgba(255,255,255,0.2)]'}`}
-                              >
-                                {checked && <Check className="w-2.5 h-2.5 text-[#080808]" />}
-                              </div>
-                              <div
-                                className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${colors.bg}`}
-                              />
-                              <span className="text-xs text-[#d4d4d4]">
-                                {key.charAt(0).toUpperCase() + key.slice(1)}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {/* Assignee */}
-                      {project?.developers && project.developers.length > 0 && (
-                        <>
-                          <div className="h-px bg-[rgba(255,255,255,0.05)] mx-1.5 my-1" />
-                          <div className="px-1.5 pt-1 pb-1">
-                            <p className="text-[10px] font-semibold text-[#555] uppercase tracking-wider px-1 mb-1">
-                              Assignee
-                            </p>
-                            <div className="relative mb-1.5">
-                              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[#737373]" />
-                              <input
-                                type="text"
-                                placeholder="Search..."
-                                value={assigneeSearchFilter}
-                                onChange={(e) => setAssigneeSearchFilter(e.target.value)}
-                                className="w-full pl-7 pr-2.5 py-1.5 text-xs bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)] text-[#F4F6FF] rounded-lg focus:border-[#E0B954]/50 placeholder:text-[#555]"
-                              />
-                            </div>
-                            <div className="space-y-0.5 max-h-48 overflow-y-auto">
-                              {(!assigneeSearchFilter ||
-                                'unassigned'.includes(assigneeSearchFilter.toLowerCase())) &&
-                                (() => {
-                                  const checked = filterAssignees.includes('unassigned');
-                                  return (
-                                    <button
-                                      onClick={() =>
-                                        toggleArrayFilter(setFilterAssignees, 'unassigned')
-                                      }
-                                      className="w-full flex items-center gap-2.5 px-1.5 py-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.04)] transition-colors"
-                                    >
-                                      <div
-                                        className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-[#E0B954] border-[#E0B954]' : 'border-[rgba(255,255,255,0.2)]'}`}
-                                      >
-                                        {checked && (
-                                          <Check className="w-2.5 h-2.5 text-[#080808]" />
-                                        )}
-                                      </div>
-                                      <div className="w-5 h-5 rounded-full bg-[rgba(255,255,255,0.08)] flex-shrink-0" />
-                                      <span className="text-xs text-[#d4d4d4]">Unassigned</span>
-                                    </button>
-                                  );
-                                })()}
-                              {project.developers
-                                .filter(
-                                  (dev) =>
-                                    dev.name
-                                      .toLowerCase()
-                                      .includes(assigneeSearchFilter.toLowerCase()) ||
-                                    dev.email
-                                      .toLowerCase()
-                                      .includes(assigneeSearchFilter.toLowerCase()),
-                                )
-                                .map((dev) => {
-                                  const checked = filterAssignees.includes(String(dev.id));
-                                  return (
-                                    <button
-                                      key={dev.id}
-                                      onClick={() =>
-                                        toggleArrayFilter(setFilterAssignees, String(dev.id))
-                                      }
-                                      className="w-full flex items-center gap-2.5 px-1.5 py-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.04)] transition-colors"
-                                    >
-                                      <div
-                                        className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-[#E0B954] border-[#E0B954]' : 'border-[rgba(255,255,255,0.2)]'}`}
-                                      >
-                                        {checked && (
-                                          <Check className="w-2.5 h-2.5 text-[#080808]" />
-                                        )}
-                                      </div>
-                                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0">
-                                        {dev.name.charAt(0).toUpperCase()}
-                                      </div>
-                                      <span className="text-xs text-[#d4d4d4] truncate">
-                                        {dev.name}
-                                      </span>
-                                    </button>
-                                  );
-                                })}
-                            </div>
-                          </div>
-                        </>
-                      )}
-
-                      {/* Tags */}
-                      {existingTags.length > 0 && (
-                        <>
-                          <div className="h-px bg-[rgba(255,255,255,0.05)] mx-1.5 my-1" />
-                          <div className="px-1.5 pt-1 pb-1">
-                            <p className="text-[10px] font-semibold text-[#555] uppercase tracking-wider px-1 mb-1">
-                              Tags
-                            </p>
-                            <div className="space-y-0.5 max-h-40 overflow-y-auto">
-                              {existingTags.map((tag) => {
-                                const checked = filterTags.includes(tag);
-                                return (
-                                  <button
-                                    key={tag}
-                                    onClick={() => toggleArrayFilter(setFilterTags, tag)}
-                                    className="w-full flex items-center gap-2.5 px-1.5 py-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.04)] transition-colors"
-                                  >
-                                    <div
-                                      className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-[#E0B954] border-[#E0B954]' : 'border-[rgba(255,255,255,0.2)]'}`}
-                                    >
-                                      {checked && <Check className="w-2.5 h-2.5 text-[#080808]" />}
-                                    </div>
-                                    <span className="text-xs text-[#d4d4d4]">{tag}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-              {hasActiveFilters && (
-                <button
-                  onClick={clearAllFilters}
-                  className="text-xs text-[#737373] hover:text-red-400 transition-colors whitespace-nowrap"
-                >
-                  Clear filters
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Right: Search + view toggle + new sprint */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#737373]" />
-              <Input
-                placeholder="Search items..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 h-8 w-48 text-xs bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.05)] text-[#F4F6FF] rounded-lg focus:border-[#E0B954]/50 placeholder:text-[#334155]"
-              />
-            </div>
-
-            {/* View Tab Bar */}
-            <div
-              role="tablist"
-              aria-label="Project view"
-              className="flex items-center gap-0"
-              onKeyDown={handleViewTabKeyDown}
-            >
-              {VIEW_TABS.map(({ mode, icon: Icon, label, tabId }) => (
-                <button
-                  key={mode}
-                  role="tab"
-                  id={tabId}
-                  aria-selected={viewMode === mode}
-                  aria-controls={`tabpanel-${mode}`}
-                  tabIndex={viewMode === mode ? 0 : -1}
-                  onClick={() => setViewMode(mode)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${
-                    viewMode === mode
-                      ? 'border-[#E0B954] text-[#E0B954]'
-                      : 'border-transparent text-[#737373] hover:text-white'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" aria-hidden="true" />
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* "+" menu — gated on `project.tracker_write`. */}
-            {can('project.tracker_write') && (
-              <div className="relative">
-                <Button
-                  onClick={() => setShowAddMenu((prev) => !prev)}
-                  size="sm"
-                  className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-lg font-medium h-8 px-3 text-xs transition-opacity flex items-center gap-1.5"
-                >
-                  <Plus className="w-3 h-3" />
-                  Add
-                </Button>
-                {showAddMenu && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setShowAddMenu(false)} />
-                    <div className="absolute right-0 top-full mt-1 z-20 bg-[#1a1a1a] border border-[rgba(255,255,255,0.08)] rounded-lg shadow-xl overflow-hidden min-w-[140px]">
-                      <button
-                        onClick={() => {
-                          setCreateFormType('user_story');
-                          setShowCreateForm(true);
-                          setShowAddMenu(false);
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
-                      >
-                        <Plus className="w-3.5 h-3.5 text-[#E0B954]" />
-                        New Item
-                      </button>
-                      <button
-                        onClick={() => {
-                          setCreateFormType('epic');
-                          setShowCreateForm(true);
-                          setShowAddMenu(false);
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
-                      >
-                        <Target className="w-3.5 h-3.5 text-[#A78BFA]" />
-                        New Epic
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowCreateSprintModal(true);
-                          setShowAddMenu(false);
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
-                      >
-                        <Repeat2 className="w-3.5 h-3.5 text-[#E0B954]" />
-                        New Sprint
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+        <BoardToolbar
+          itemCount={workItems.length}
+          totalPoints={totalPoints}
+          completedCount={completedCount}
+          remainingHours={remainingHours}
+          sprints={sprints}
+          selectedSprintId={selectedSprintId}
+          setSelectedSprintId={setSelectedSprintId}
+          showSprintMenu={showSprintMenu}
+          setShowSprintMenu={setShowSprintMenu}
+          sprintMenuRef={sprintMenuRef}
+          filterMenu={
+            <BoardFilterMenu
+              project={project}
+              typeConfig={TYPE_CONFIG}
+              priorityColors={PRIORITY_COLORS}
+              filterTypes={filterTypes}
+              setFilterTypes={setFilterTypes}
+              filterPriorities={filterPriorities}
+              setFilterPriorities={setFilterPriorities}
+              filterAssignees={filterAssignees}
+              setFilterAssignees={setFilterAssignees}
+              filterTags={filterTags}
+              setFilterTags={setFilterTags}
+              assigneeSearchFilter={assigneeSearchFilter}
+              setAssigneeSearchFilter={setAssigneeSearchFilter}
+              existingTags={existingTags}
+              toggleArrayFilter={toggleArrayFilter}
+              clearAllFilters={clearAllFilters}
+              activeFilterCount={activeFilterCount}
+              hasActiveFilters={hasActiveFilters}
+              showFilterMenu={showFilterMenu}
+              setShowFilterMenu={setShowFilterMenu}
+              filterMenuRef={filterMenuRef}
+            />
+          }
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          viewTabs={VIEW_TABS}
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          onViewTabKeyDown={handleViewTabKeyDown}
+          canWriteTracker={can('project.tracker_write')}
+          showAddMenu={showAddMenu}
+          setShowAddMenu={setShowAddMenu}
+          onAddItem={(type) => {
+            setCreateFormType(type);
+            setShowCreateForm(true);
+            setShowAddMenu(false);
+          }}
+          onAddSprint={() => {
+            setShowCreateSprintModal(true);
+            setShowAddMenu(false);
+          }}
+        />
       </header>
 
       {/* Board Content */}
