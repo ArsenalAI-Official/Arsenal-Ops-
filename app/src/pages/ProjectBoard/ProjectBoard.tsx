@@ -10,7 +10,7 @@ import {
   Suspense,
 } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   Plus,
@@ -77,33 +77,8 @@ import {
 import { validateSprintForm } from './lib/sprintValidation';
 import { getNextSprint as getNextSprintPure } from './lib/sprintNav';
 import { applyStatusChange } from './lib/optimisticStatus';
-
-interface Developer {
-  id: number;
-  name: string;
-  email: string;
-  github_username?: string;
-  role: string;
-  responsibilities?: string;
-  is_admin?: boolean;
-}
-
-interface Project {
-  id: number;
-  name: string;
-  description: string;
-  key_prefix: string;
-  status: string;
-  created_at: string;
-  work_item_stats: {
-    total: number;
-    by_status: Record<string, number>;
-    total_points: number;
-    completed: number;
-    completion_pct: number;
-  };
-  developers?: Developer[];
-}
+import { useBoardData } from './hooks/useBoardData';
+import { useBoardInvalidations } from './hooks/useBoardInvalidations';
 
 interface Architecture {
   id: number;
@@ -334,45 +309,21 @@ const ProjectBoard = () => {
   // + the create-item mutation.
 
   // ── react-query: project, workItems, sprints, developers, comments ────────
-
-  const projectQuery = useQuery<Project>({
-    queryKey: ['project', id],
-    queryFn: () => apiFetch<Project>(`/api/projects/${id}`),
-    enabled: !!id,
-  });
-  const project = projectQuery.data ?? null;
-  const isLoading = projectQuery.isLoading;
-
-  // Filters object drives the query key so filter changes auto-refetch.
-  // useMemo keeps the reference stable across renders so the query key
-  // (and any closures holding it) stay equal.
-  // Switched to /api/workitems/board (slim shape: 18 fields, no description,
-  // due_date, etc.). The drawer fetches the full item separately so list-only
-  // bandwidth drops without breaking the detail view. Query key has a 'board'
-  // suffix so it doesn't collide with the Hub view's full-shape cache.
-  const workItemFilters = useMemo(() => ({ project_id: id }), [id]);
-  const workItemsQuery = useQuery<WorkItem[]>({
-    queryKey: ['workItems', workItemFilters, 'board'],
-    queryFn: () => apiFetch<WorkItem[]>(`/api/workitems/board?project_id=${id}`),
-    enabled: !!id,
-  });
-  // Stabilize ref so downstream useMemos (parentExcludeIds, existingTags) don't bust on every render.
-  const workItems = useMemo(() => workItemsQuery.data ?? [], [workItemsQuery.data]);
-
-  const sprintsQuery = useQuery<Sprint[]>({
-    queryKey: ['sprints', id],
-    queryFn: () => apiFetch<Sprint[]>(`/api/workitems/projects/${id}/sprints`),
-    enabled: !!id,
-  });
-  // Stable ref so the list-view memos below (orderedListSprints, listViewGroups)
-  // actually hold instead of busting on a fresh [] every render.
-  const sprints = useMemo(() => sprintsQuery.data ?? [], [sprintsQuery.data]);
-
-  const developersQuery = useQuery<Array<{ id: number; name: string; email: string }>>({
-    queryKey: ['developers'],
-    queryFn: () => apiFetch('/api/developers/'),
-  });
-  const allDevelopers = developersQuery.data ?? [];
+  // The board's read layer (4 queries + the memo-stable `workItemFilters` that
+  // anchors the work-items query key + the `data ?? []` stabilization memos +
+  // hover-prefetch) lives in `useBoardData`, called ONCE here as the sole query
+  // owner (CONVENTIONS rule 1). `workItemFilters` is threaded back into the
+  // inline mutations so their optimistic cache reads/writes/rollback key off the
+  // SAME memoized reference (`['workItems', workItemFilters, 'board']`).
+  const {
+    project,
+    isLoading,
+    workItems,
+    sprints,
+    allDevelopers,
+    workItemFilters,
+    prefetchComments,
+  } = useBoardData(id);
 
   // Selected ticket — derived from URL param + workItems cache (no extra fetch)
   const selectedItem = ticketId ? (workItems.find((item) => item.id === ticketId) ?? null) : null;
@@ -380,21 +331,8 @@ const ProjectBoard = () => {
   // commentsQuery moved to ItemDetailDrawer (PR 9). Documented exception to
   // CONVENTIONS rule "queries stay at parent": this query is keyed on the
   // currently-open ticket and is only consumed inside the drawer's lifecycle.
-  // prefetchComments remains here because the kanban cards (parent JSX) call
-  // it on hover.
-
-  // Prefetch comments on hover so data is ready before the drawer opens.
-  // useCallback so the KanbanCard memo can compare prop references and skip
-  // re-renders when items don't change.
-  const prefetchComments = useCallback(
-    (itemId: string) => {
-      queryClient.prefetchQuery({
-        queryKey: ['workItem', itemId, 'comments'],
-        queryFn: () => apiFetch(`/api/comments/workitem/${itemId}`),
-      });
-    },
-    [queryClient],
-  );
+  // prefetchComments remains in useBoardData because the kanban cards (parent
+  // JSX) call it on hover.
 
   // Single outside-click listener for both the filter and sprint menus. We
   // only attach it when at least one menu is open so we don't pay for the
@@ -429,19 +367,12 @@ const ProjectBoard = () => {
     [workItems],
   );
 
-  // Helper: invalidate workItems list (prefix match) plus the current user's
-  // MyTasks view, which any work-item write may affect if the assignee is
-  // the active user. Also nudges the drawer's per-item detail cache so the
-  // full-shape view (description, sprint name, due_date) refreshes after a
-  // save — the slim /board list doesn't carry those fields.
-  const invalidateWorkItems = () => {
-    invalidateWorkItemScope(queryClient, id);
-    if (selectedItem) {
-      queryClient.invalidateQueries({ queryKey: ['workItem', selectedItem.id, 'detail'] });
-    }
-  };
-  // Helper: invalidate project (stats + hub overview + sprints + goals/milestones/etc.)
-  const invalidateProject = () => invalidateProjectScope(queryClient, id);
+  // Work-item / project invalidation closures. Called every render with the
+  // current `selectedItem` so `invalidateWorkItems` reads it fresh (no stale
+  // snapshot — R11): it busts the drawer's per-item detail cache only when a
+  // ticket is open. The still-inline mutations call these via the destructured
+  // references below.
+  const { invalidateWorkItems, invalidateProject } = useBoardInvalidations(id, selectedItem);
 
   // Filtered items — memoized so KanbanCard React.memo + BoardColumn React.memo
   // can rely on stable array references when filters don't change.
