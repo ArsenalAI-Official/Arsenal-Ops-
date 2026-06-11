@@ -27,13 +27,19 @@ generic `index.tsx`.
 
 ## Extraction rules
 
-1. **Queries stay at the parent.** `useQuery` lives in the orchestrator;
-   sub-components receive `data`/`isLoading` as props. Do not re-call
-   `useQuery` with the same key in a child — it doubles subscriptions.
+1. **Queries stay at the page level.** `useQuery` lives in the orchestrator
+   — or, once the data layer is large, in a co-located `hooks/use<Page>Data.ts`
+   the orchestrator calls (see `AdminDashboard/hooks/` and
+   `ProjectDetail/hooks/useProjectDetailData.ts`). Either way, sub-components
+   receive `data`/`isLoading` as props. Do not re-call `useQuery` with the
+   same key in a child — it doubles subscriptions.
 
-2. **Mutations stay at the parent.** Pass the `mutate` function down. Form
-   state can live in the child (modals especially benefit from owning their
-   own form state); the parent owns the cache.
+2. **Mutations stay at the page level.** Same rule as queries: in the
+   orchestrator or its data hook. Pass the `mutate` function (or a wrapped
+   handler) down. Form state can live in the child (modals especially benefit
+   from owning their own form state); the page owns the cache. Effects that
+   drive the orchestrator's own render/routing (URL sync, access-correction
+   redirects) stay in the orchestrator, not the data hook.
 
 3. **Each sub-component has an explicit `interface FooProps`** at the top of
    its file. No implicit closure dependencies on parent variables.
@@ -59,10 +65,19 @@ generic `index.tsx`.
    `useQuery`/`useMutation`), `components/` (chrome + the `BoardModals` render
    cluster), and types via `@/types`. New large pages should mirror this layout.
 
-6. **No barrels until a folder has ≥4 files.** Explicit named imports keep
+6. **Co-located per-page `types.ts` is the home for a page's domain types.**
+   When a page's shapes are shared across its orchestrator, hooks, tabs, and
+   sections, declare them once in `pages/<Page>/types.ts` and import from there
+   (see `AdminDashboard/types.ts` and `ProjectDetail/types.ts`) rather than
+   redeclaring the same `interface` in each file. A single *cross-page* shared
+   types module (audit F-T1) remains a separate initiative — per-page `types.ts`
+   is not that. (Page domain types; the canonical `WorkItem`/`Sprint` in rule 5
+   still win for work-item shapes.)
+
+7. **No barrels until a folder has ≥4 files.** Explicit named imports keep
    the dependency graph readable.
 
-7. **`React.lazy` only when audit or plan specifies.** Lazy-loading a small
+8. **`React.lazy` only when audit or plan specifies.** Lazy-loading a small
    modal that opens on user click adds chunk-load latency for no benefit.
 
 ## Why this exists

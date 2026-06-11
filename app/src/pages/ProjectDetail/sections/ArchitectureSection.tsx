@@ -13,42 +13,11 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import type { Architecture } from '../types';
 
 // MermaidRenderer is heavy; lazy-load only when this section renders.
 // ArchitectureEditor (the modal) stays lazy at the parent, since edit state lives there.
 const MermaidRenderer = lazy(() => import('@/components/MermaidRenderer'));
-
-interface Architecture {
-  id: number;
-  name: string;
-  description: string;
-  architecture_type: string;
-  mermaid_code: string;
-  pros: string[];
-  cons: string[];
-  estimated_cost: string;
-  complexity: string;
-  time_to_implement: string;
-  is_selected: boolean;
-  created_at: string;
-  updated_at: string;
-  cost_analysis?: {
-    infrastructure?: {
-      monthly: string;
-      annual: string;
-      breakdown: { item: string; cost: string }[];
-    };
-    development?: { total: string; breakdown: { item: string; cost: string }[] };
-    total_estimated?: string;
-  };
-  tools_recommended?: {
-    frontend?: string[];
-    backend?: string[];
-    database?: string[];
-    devops?: string[];
-    [key: string]: string[] | undefined;
-  };
-}
 
 interface ArchitectureSectionProps {
   architecture: Architecture;

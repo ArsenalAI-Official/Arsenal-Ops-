@@ -5,24 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
-
-interface Developer {
-  id: number;
-  name: string;
-  email: string;
-  github_username: string;
-  avatar_url?: string;
-}
-
-interface ProjectDeveloper {
-  id: number;
-  name: string;
-  email: string;
-  github_username: string;
-  role: string;
-  responsibilities: string;
-  is_admin: boolean;
-}
+import type { Developer, ProjectDeveloper } from '../types';
 
 interface NewDeveloperForm {
   developer_id: string;
