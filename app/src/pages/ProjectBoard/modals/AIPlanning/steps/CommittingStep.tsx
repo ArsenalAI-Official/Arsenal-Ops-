@@ -1,4 +1,5 @@
 import { GitCommit } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 
 const CommittingStep = () => {
   return (
@@ -6,7 +7,7 @@ const CommittingStep = () => {
       <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center mb-6">
         <GitCommit className="w-8 h-8 text-white" />
       </div>
-      <div className="w-12 h-12 border-3 border-[#E0B954]/30 border-t-[#E0B954] rounded-full animate-spin mb-6" />
+      <Spinner size="xl" className="mb-6" />
       <h3 className="text-xl font-semibold text-white mb-2">Creating Tickets</h3>
       <p className="text-[#737373] text-center max-w-md">
         Adding tickets to your board and assigning to team members...

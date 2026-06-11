@@ -1,5 +1,6 @@
 import { Users, BarChart3, ClipboardList } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Empty, EmptyDescription } from '@/components/ui/empty';
 import GeneratedTicketCard from '../components/GeneratedTicketCard';
 import type { GeneratedTicket, TicketsSummary } from '../useAIPlanning';
 
@@ -106,9 +107,11 @@ const PreviewStep = ({
           </h3>
           <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
             {generatedTickets.length === 0 ? (
-              <div className="text-center py-8 text-[#737373]">
-                <p>No tickets generated. Please try again.</p>
-              </div>
+              <Empty className="py-8">
+                <EmptyDescription className="text-[#737373]">
+                  No tickets generated. Please try again.
+                </EmptyDescription>
+              </Empty>
             ) : (
               generatedTickets.map((ticket, index) => (
                 <GeneratedTicketCard key={index} ticket={ticket} />
@@ -127,9 +130,11 @@ const PreviewStep = ({
           </h3>
           <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
             {!roadmapParsedData.tickets || roadmapParsedData.tickets.length === 0 ? (
-              <div className="text-center py-8 text-[#737373]">
-                <p>No tickets found in roadmap.</p>
-              </div>
+              <Empty className="py-8">
+                <EmptyDescription className="text-[#737373]">
+                  No tickets found in roadmap.
+                </EmptyDescription>
+              </Empty>
             ) : (
               roadmapParsedData.tickets.map((ticket: any, index: number) => (
                 <div

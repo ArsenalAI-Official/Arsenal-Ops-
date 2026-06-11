@@ -1,4 +1,5 @@
 import { Sparkles } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 
 const AnalyzingStep = () => {
   return (
@@ -6,7 +7,7 @@ const AnalyzingStep = () => {
       <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center mb-6 animate-pulse">
         <Sparkles className="w-8 h-8 text-white" />
       </div>
-      <div className="w-12 h-12 border-3 border-[#E0B954]/30 border-t-[#E0B954] rounded-full animate-spin mb-6" />
+      <Spinner size="xl" className="mb-6" />
       <h3 className="text-xl font-semibold text-white mb-2">AI is analyzing your project</h3>
       <p className="text-[#737373] text-center max-w-md">
         Performing cost analysis, recommending tools, and generating architecture options...

@@ -1,4 +1,5 @@
 import { Target, ChevronDown, ChevronRight } from 'lucide-react';
+import { Empty, EmptyTitle } from '@/components/ui/empty';
 import type { EpicGroup } from '@/lib/hierarchy/buildEpicGroups';
 import type { WorkItem } from '@/types/workItems';
 import type { ListSortKey } from '../lib/listSort';
@@ -60,7 +61,9 @@ const EpicView = ({
   return (
     <div role="tabpanel" id="tabpanel-epic" aria-labelledby="tab-epic" className="p-6 space-y-3">
       {listViewEpicGroups.length === 0 ? (
-        <div className="py-16 text-center text-[#737373] text-sm">No items found</div>
+        <Empty className="py-16">
+          <EmptyTitle className="text-[#737373] text-sm font-normal">No items found</EmptyTitle>
+        </Empty>
       ) : (
         listViewEpicGroups.map((group) => {
           const isCollapsed = collapsedSprints.has(group.key);

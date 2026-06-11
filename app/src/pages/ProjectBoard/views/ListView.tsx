@@ -1,4 +1,5 @@
 import { Eye, EyeOff, CheckCircle2, Pencil, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Empty, EmptyTitle } from '@/components/ui/empty';
 import type { WorkItem } from '@/types/workItems';
 import type { ListSortKey } from '../lib/listSort';
 import { parseLocalDate, formatWeekRange } from '../lib/listGrouping';
@@ -193,7 +194,9 @@ const ListView = ({
 
       {listGroupBy === 'week' ? (
         listViewWeekGroups.length === 0 ? (
-          <div className="py-16 text-center text-[#737373] text-sm">No items found</div>
+          <Empty className="py-16">
+            <EmptyTitle className="text-[#737373] text-sm font-normal">No items found</EmptyTitle>
+          </Empty>
         ) : (
           listViewWeekGroups.map((group) => {
             const isCollapsed = collapsedSprints.has(group.key);
@@ -265,7 +268,9 @@ const ListView = ({
           })
         )
       ) : listViewGroups.length === 0 ? (
-        <div className="py-16 text-center text-[#737373] text-sm">No items found</div>
+        <Empty className="py-16">
+          <EmptyTitle className="text-[#737373] text-sm font-normal">No items found</EmptyTitle>
+        </Empty>
       ) : (
         listViewGroups.map((group) => {
           const isCollapsed = collapsedSprints.has(group.key);
