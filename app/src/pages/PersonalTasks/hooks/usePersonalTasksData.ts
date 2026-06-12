@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
-import { invalidateProjectScope } from '@/lib/invalidations';
+import { invalidateAdminWorkItemImpact, invalidateProjectScope } from '@/lib/invalidations';
 import { toastErrorHandler } from '@/lib/mutationToast';
 import type { ConfirmFn } from '@/components/ui/confirm-dialog';
 import type { PersonalTask, ProjectSummary, ProjectDetailResponse, NewTaskForm } from '../types';
@@ -88,8 +88,8 @@ export const usePersonalTasksData = (confirm: ConfirmFn) => {
   });
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      apiFetch<PersonalTask>('/api/personal-tasks/', {
+    mutationFn: async () => {
+      const createdTask = await apiFetch<PersonalTask>('/api/personal-tasks/', {
         method: 'POST',
         body: JSON.stringify({
           title: newTask.title,
@@ -98,12 +98,33 @@ export const usePersonalTasksData = (confirm: ConfirmFn) => {
           due_date: newTask.due_date || undefined,
           estimated_hours: newTask.estimated_hours ? parseInt(newTask.estimated_hours) : 0,
         }),
-      }),
+      });
+      // The Add dialog exposes a "Project (optional)" selector; when set, the
+      // new task is immediately converted to a work item — mirrors the home
+      // page's create flow so both entry points behave identically.
+      if (newTask.project_id) {
+        await apiFetch(`/api/personal-tasks/${createdTask.id}/convert-to-ticket`, {
+          method: 'POST',
+          body: JSON.stringify({ project_id: parseInt(newTask.project_id) }),
+        });
+      }
+      return createdTask;
+    },
     onSuccess: () => {
+      const createdWithProject = !!newTask.project_id;
+      const createdProjectId = newTask.project_id;
       setNewTask({ ...EMPTY_FORM });
       setMemberLookupProjectId('');
       setShowAddDialog(false);
       toast.success('Task created!');
+      // A project was selected → a work item was created; refresh the work-item
+      // and admin-impact caches the same way the home-page convert flow does.
+      if (createdWithProject) {
+        queryClient.invalidateQueries({ queryKey: ['myTasks'] });
+        queryClient.invalidateQueries({ queryKey: ['workItems'] });
+        invalidateAdminWorkItemImpact(queryClient);
+        invalidateProjectScope(queryClient, parseInt(createdProjectId));
+      }
     },
     onError: toastErrorHandler('create task'),
     onSettled: () => invalidateTasks(),
@@ -173,6 +194,9 @@ export const usePersonalTasksData = (confirm: ConfirmFn) => {
       invalidateTasks();
       queryClient.invalidateQueries({ queryKey: ['myTasks'] });
       queryClient.invalidateQueries({ queryKey: ['workItems'] });
+      // A new work item exists → admin stats/capacity move (matches the home
+      // page's convert flow, which previously diverged by omitting this).
+      invalidateAdminWorkItemImpact(queryClient);
       const pid = parseInt(convertProjectId);
       if (!Number.isNaN(pid)) {
         invalidateProjectScope(queryClient, pid);

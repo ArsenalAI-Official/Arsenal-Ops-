@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { apiFetch, permissionAwareError } from '@/lib/api';
+import { apiFetch } from '@/lib/api';
+import { toastErrorHandler } from '@/lib/mutationToast';
 import { invalidateProjectScope, invalidateWorkItemScope } from '@/lib/invalidations';
 import type { Sprint } from '@/types/workItems';
 import { validateSprintForm } from '../lib/sprintValidation';
@@ -71,7 +72,7 @@ export function useSprintMutations(
       toast.success('Sprint created!');
       setShowCreateSprintModal(false);
     },
-    onError: (err) => toast.error(permissionAwareError(err, 'Failed to create sprint')),
+    onError: toastErrorHandler('create sprint'),
     onSettled: () => {
       invalidateProjectScope(queryClient, id);
     },
@@ -122,7 +123,7 @@ export function useSprintMutations(
       toast.success('Sprint updated!');
       setEditingSprint(null);
     },
-    onError: (err) => toast.error(permissionAwareError(err, 'Failed to update sprint')),
+    onError: toastErrorHandler('update sprint'),
     onSettled: () => {
       invalidateProjectScope(queryClient, id);
     },
@@ -161,7 +162,7 @@ export function useSprintMutations(
       toast.success(`"${sprint?.name}" has been completed.`);
       setCompletingSprintId(null);
     },
-    onError: (err) => toast.error(permissionAwareError(err, 'Failed to complete sprint')),
+    onError: toastErrorHandler('complete sprint'),
     onSettled: () => {
       invalidateProjectScope(queryClient, id);
       invalidateWorkItemScope(queryClient, id);
@@ -181,7 +182,7 @@ export function useSprintMutations(
       toast.success('Sprint deleted');
       setDeletingSprintId(null);
     },
-    onError: (err) => toast.error(permissionAwareError(err, 'Failed to delete sprint')),
+    onError: toastErrorHandler('delete sprint'),
     onSettled: () => {
       invalidateWorkItems();
       invalidateProjectScope(queryClient, id);

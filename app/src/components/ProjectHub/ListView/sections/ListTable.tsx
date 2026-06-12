@@ -17,6 +17,39 @@ interface ListTableProps {
   onSelectItem: (item: WorkItem) => void;
 }
 
+// Hoisted to module scope so it isn't a fresh component type on every ListTable
+// render (which would remount every header <th> subtree instead of reconciling).
+interface SortHeaderProps {
+  field: SortField;
+  label: string;
+  sortField: SortField;
+  sortDirection: SortDirection;
+  onSort: (field: SortField) => void;
+}
+
+const SortHeader: React.FC<SortHeaderProps> = ({
+  field,
+  label,
+  sortField,
+  sortDirection,
+  onSort,
+}) => (
+  <th
+    className="text-left py-3 px-4 text-xs font-medium text-[#737373] uppercase cursor-pointer hover:text-white transition-colors"
+    onClick={() => onSort(field)}
+  >
+    <div className="flex items-center gap-1">
+      {label}
+      {sortField === field &&
+        (sortDirection === 'asc' ? (
+          <ChevronUp className="w-3 h-3" />
+        ) : (
+          <ChevronDown className="w-3 h-3" />
+        ))}
+    </div>
+  </th>
+);
+
 const ListTable: React.FC<ListTableProps> = ({
   groupedItems,
   groupBy,
@@ -26,23 +59,6 @@ const ListTable: React.FC<ListTableProps> = ({
   totalItems,
   onSelectItem,
 }) => {
-  const SortHeader = ({ field, label }: { field: SortField; label: string }) => (
-    <th
-      className="text-left py-3 px-4 text-xs font-medium text-[#737373] uppercase cursor-pointer hover:text-white transition-colors"
-      onClick={() => onSort(field)}
-    >
-      <div className="flex items-center gap-1">
-        {label}
-        {sortField === field &&
-          (sortDirection === 'asc' ? (
-            <ChevronUp className="w-3 h-3" />
-          ) : (
-            <ChevronDown className="w-3 h-3" />
-          ))}
-      </div>
-    </th>
-  );
-
   return (
     <CardContent>
       {Object.entries(groupedItems).map(([group, items]) => (
@@ -61,12 +77,48 @@ const ListTable: React.FC<ListTableProps> = ({
               <thead className="bg-[#0A0A14]">
                 <tr>
                   <th className="w-10"></th>
-                  <SortHeader field="title" label="Task" />
-                  <SortHeader field="status" label="Status" />
-                  <SortHeader field="priority" label="Priority" />
-                  <SortHeader field="assignee" label="Assignee" />
-                  <SortHeader field="due_date" label="Due Date" />
-                  <SortHeader field="completed_at" label="Completed" />
+                  <SortHeader
+                    field="title"
+                    label="Task"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={onSort}
+                  />
+                  <SortHeader
+                    field="status"
+                    label="Status"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={onSort}
+                  />
+                  <SortHeader
+                    field="priority"
+                    label="Priority"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={onSort}
+                  />
+                  <SortHeader
+                    field="assignee"
+                    label="Assignee"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={onSort}
+                  />
+                  <SortHeader
+                    field="due_date"
+                    label="Due Date"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={onSort}
+                  />
+                  <SortHeader
+                    field="completed_at"
+                    label="Completed"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={onSort}
+                  />
                   <th className="text-left py-3 px-4 text-xs font-medium text-[#737373] uppercase">
                     Est / Logged
                   </th>

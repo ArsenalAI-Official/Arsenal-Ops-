@@ -16,12 +16,16 @@ export function useReviewerActions({ reviewItems, token, onTaskUpdate }: UseRevi
   const [showLogHours, setShowLogHours] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
 
-  // Fetch comments for each review item
+  // Fetch comments for each review item. Keyed on the SET of item ids (not just
+  // the count): an equal-count membership swap — one item leaving review as
+  // another enters — must still load the newcomer's comments.
+  const reviewItemIds = reviewItems.map((item) => item.id).join(',');
   useEffect(() => {
     reviewItems.forEach((item) => {
       fetchComments(item.id);
     });
-  }, [reviewItems.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the id set; fetchComments is a stable fire-and-forget fetch
+  }, [reviewItemIds]);
 
   const fetchComments = async (itemId: string) => {
     try {

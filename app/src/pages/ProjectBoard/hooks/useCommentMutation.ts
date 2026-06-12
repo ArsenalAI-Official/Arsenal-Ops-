@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { apiFetch, permissionAwareError } from '@/lib/api';
+import { apiFetch } from '@/lib/api';
+import { toastErrorHandler } from '@/lib/mutationToast';
 import type { WorkItem } from '@/types/workItems';
 import type { Project } from './useBoardData';
 
@@ -48,7 +49,7 @@ export function useCommentMutation({ selectedItem, project }: UseCommentMutation
       } as const;
       toast.success(messages[commentType]);
     },
-    onError: (err) => toast.error(permissionAwareError(err, 'Failed to add comment')),
+    onError: toastErrorHandler('add comment'),
     onSettled: (_data, _err, { workItemId }) => {
       queryClient.invalidateQueries({ queryKey: ['workItem', workItemId, 'comments'] });
     },

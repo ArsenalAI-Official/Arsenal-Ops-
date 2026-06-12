@@ -17,7 +17,9 @@ export interface WorkItem {
   type: 'user_story' | 'task' | 'bug' | 'epic' | 'subtask';
   title: string;
   description: string;
-  status: 'todo' | 'in_progress' | 'in_review' | 'done';
+  // Mirrors the backend WorkItemStatus enum (incl. BACKLOG) and the board's
+  // BOARD_STATUS_ORDER — items can legitimately be persisted with 'backlog'.
+  status: 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done';
   assigned_hours: number;
   remaining_hours: number;
   logged_hours: number;

@@ -598,12 +598,15 @@ export const useProjectsPageData = ({ user, confirm }: UseProjectsPageDataArgs) 
       queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] });
       // Assignments were freed by the cascading delete, so developer capacity moves.
       invalidateAdminWorkItemImpact(queryClient);
-      // Evict per-project caches so a recreated id can't see stale data.
+      // Evict per-project caches so a recreated id can't see stale data. Keys
+      // use the STRING route-param shape, so normalize the number id or the
+      // removeQueries silently no-op (['project', 7] !== ['project', '7']).
       if (projectId !== undefined) {
-        queryClient.removeQueries({ queryKey: ['project', projectId] });
-        queryClient.removeQueries({ queryKey: ['projectOverview', projectId] });
-        queryClient.removeQueries({ queryKey: ['sprints', projectId] });
-        queryClient.removeQueries({ queryKey: ['hubData', projectId] });
+        const id = String(projectId);
+        queryClient.removeQueries({ queryKey: ['project', id] });
+        queryClient.removeQueries({ queryKey: ['projectOverview', id] });
+        queryClient.removeQueries({ queryKey: ['sprints', id] });
+        queryClient.removeQueries({ queryKey: ['hubData', id] });
       }
     },
   });

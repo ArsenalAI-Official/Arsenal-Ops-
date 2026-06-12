@@ -381,14 +381,16 @@ export const useProjectDetailData = (
   // (threaded from the orchestrator's useConfirm) instead of native confirm().
   const handleRemoveDeveloper = async (developerId: number) => {
     if (!project) return;
-    const confirmed = options?.confirm
-      ? await options.confirm({
-          title: 'Remove developer?',
-          description: 'Remove this developer from the project?',
-          destructive: true,
-          confirmText: 'Remove',
-        })
-      : true;
+    // Fail safe: a destructive delete must never fire without an explicit
+    // confirmation. If no confirm dialog was provided, do nothing rather than
+    // silently proceeding.
+    if (!options?.confirm) return;
+    const confirmed = await options.confirm({
+      title: 'Remove developer?',
+      description: 'Remove this developer from the project?',
+      destructive: true,
+      confirmText: 'Remove',
+    });
     if (!confirmed) return;
     removeDeveloperMutation.mutate(developerId);
   };

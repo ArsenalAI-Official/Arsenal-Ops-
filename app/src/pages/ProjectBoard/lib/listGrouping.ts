@@ -1,9 +1,9 @@
-// Helper function to parse YYYY-MM-DD string to local Date object (avoids UTC timezone issues)
-export const parseLocalDate = (dateString: string | undefined): Date | undefined => {
-  if (!dateString) return undefined;
-  const [year, month, day] = dateString.split('-');
-  return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-};
+// Re-export the canonical local-date parser. The board family imports
+// parseLocalDate from here for convenience, but the implementation (with full
+// validation + ISO-timestamp handling — a bare-YYYY-MM-DD fork mis-rendered
+// malformed dates as "Invalid Date") lives in @/lib/dateUtils.
+import { parseLocalDate } from '@/lib/dateUtils';
+export { parseLocalDate };
 
 // Returns YYYY-MM-DD for the Monday of the week containing `d`, in local time.
 export const getWeekStart = (d: Date): string => {

@@ -1,0 +1,286 @@
+==============================================================================
+INTEGRATE GOOGLE CALENDAR MEETINGS INTO DEVELOPER WEEKLY CAPACITY
+==============================================================================
+
+Type:  Story / Feature
+Size:  L (one PR, ~1-2 weeks)
+Ships: a single pull request
+
+NOTE FOR THE ASSIGNEE
+This ticket is written for someone new to this codebase. The "Project
+orientation" and "Implementation guide" sections below walk you through where
+everything lives and the order to build it in. Read them before starting --
+they'll save you the discovery pass.
+
+
+------------------------------------------------------------------------------
+SUMMARY
+------------------------------------------------------------------------------
+Pull each developer's Google Calendar meetings into the app and count them as
+part of their weekly capacity on the Admin > Employees page, shown as a
+visually distinct segment with a per-meeting breakdown.
+
+
+------------------------------------------------------------------------------
+WHY WE'RE DOING THIS
+------------------------------------------------------------------------------
+Capacity today only counts ticket work -- logged hours plus remaining
+estimates against a flat 40h/week. Meetings consume real working hours but are
+completely invisible to the system, so a developer who spends 12h/week in
+meetings looks far more available than they actually are. Admins use the
+Employees page to plan assignments; an inflated capacity number leads to
+over-assignment. Folding meetings in makes that number honest.
+
+Desired end state: on Admin > Employees, a developer's capacity bar shows
+ticket hours AND meeting hours (in a distinct color), and expanding their row
+reveals a per-meeting list -- title, time, hours -- exactly the way it already
+reveals a per-ticket list today.
+
+
+------------------------------------------------------------------------------
+PROJECT ORIENTATION (read this first)
+------------------------------------------------------------------------------
+STACK
+  Backend is FastAPI + SQLAlchemy 2.0 + PostgreSQL (SQLite in dev) under
+  backend/. Frontend is React 19 + TypeScript + TanStack Query v5 +
+  Tailwind/shadcn under app/. There's no Celery/APScheduler -- scheduled work
+  runs as a CLI script invoked by an external cron (the docker-compose
+  scheduler container).
+
+HOW CAPACITY WORKS TODAY (the thing you're extending)
+  - The unit is hours, per week, week = Saturday -> Friday in UTC. The cap is a
+    flat constant WEEKLY_CAPACITY_HRS = 40 defined on the frontend in
+    app/src/pages/AdminDashboard/tabs/EmployeesTab.tsx:125
+  - Backend computes it in backend/services/capacity_service.py:
+    week_boundaries() (~lines 38-46) defines the Sat-Fri UTC window;
+    compute_capacity_breakdown() (~lines 100-265) walks each developer's
+    tickets and TimeEntry rows to produce the numbers.
+  - It's served to the admin UI by GET /api/admin/developers/capacity in
+    backend/routers/admin.py:170-302. That endpoint returns, per developer:
+    this_week_in_progress_hours, this_week_in_review_hours,
+    this_week_done_hours, this_week_capacity_used, this_week_remaining_capacity
+    (= max(0, 40 - capacity_used)), a tickets[] array, and
+    weekly_logged_history[].
+  - The frontend consumes it under TanStack Query key
+    ['admin','developers_capacity']. The DeveloperCapacity TypeScript interface
+    is at EmployeesTab.tsx:46-67. The capacity bar + status badge render around
+    EmployeesTab.tsx:576-641, and the expandable per-ticket breakdown (the
+    pattern you'll mirror for meetings) is at EmployeesTab.tsx:669-957.
+  - The same data feeds a developer's own self-view:
+    app/src/components/ProjectsPage/MyCapacityCard.tsx (interface at lines
+    23-34).
+
+KEY DATA MODELS
+  - backend/models/developer.py -- Developer (id, name, email, is_external).
+    is_external == False means an internal employee. There is NO
+    calendar/meeting field anywhere yet.
+  - backend/models/time_entry.py -- TimeEntry, the existing source of logged
+    hours. Your new CalendarEvent model will follow the same shape conventions.
+  - Migrations: there's a lightweight runner in backend/database.py -- follow
+    how existing tables get created/migrated there.
+
+EXISTING GOOGLE / EXTERNAL INTEGRATIONS (precedent to copy)
+  - backend/services/google_oauth_service.py only VERIFIES Google SSO ID
+    tokens. It does NOT do an authorization-code flow and has NO calendar
+    access -- you can't reuse it for reading calendars, but copy its
+    is_configured() shape.
+  - The Gmail sending integration (backend/services/email_service.py) is the
+    real precedent: it holds a single org-level credential (env-var secret) and
+    acts on behalf of the org. Our calendar access works the same way -- one
+    org credential, not per-user.
+  - The required Python packages are ALREADY declared in
+    backend/requirements.txt: google-api-python-client, google-auth,
+    google-auth-oauthlib. No new deps.
+  - Scheduled-job precedent: backend/scripts/send_weekly_report.py is a CLI
+    entry point run by cron. Your sync script mirrors it.
+
+ACCESS MODEL DECISION (already made)
+  We use a Google Workspace domain-wide-delegation service account, not
+  per-developer OAuth. One service account, authorized once by a Workspace
+  admin, can read every employee's calendar by "impersonating" their email.
+  This gives full coverage with zero per-developer opt-in -- the right fit for
+  an admin-facing, all-developers view, and it mirrors the single-org-credential
+  pattern Gmail already uses.
+
+
+------------------------------------------------------------------------------
+!! EXTERNAL SETUP -- COORDINATE WITH ELI BEFORE/WHILE BUILDING !!
+------------------------------------------------------------------------------
+This integration cannot work end-to-end until a Google Workspace super-admin
+authorizes the service account for domain-wide delegation. That's an
+Admin-console action, not something doable from code.
+
+ACTION: contact Eli (eli.heakins@arsenalai.com) to coordinate all Google
+Workspace / Google Cloud admin setup, specifically:
+
+  1. Creating (or identifying) the Google Cloud service account and generating
+     its credentials JSON.
+  2. Enabling the Calendar API on the Cloud project.
+  3. Registering the service account's client ID for the
+     https://www.googleapis.com/auth/calendar.readonly scope under
+     Admin console > Security > API controls > Domain-wide delegation.
+  4. Getting the credentials secret into the deployment environment
+     (Render / docker-compose) -- see render.yaml and docker-compose.yml for
+     where existing secrets like the Gmail token live.
+
+Until step 3 is done, impersonation calls fail with "unauthorized_client". You
+can build and unit-test most of the code with a mocked client first, but
+reserve time for this hand-off -- don't leave it to the end.
+
+
+------------------------------------------------------------------------------
+WHAT YOU'RE BUILDING (high level)
+------------------------------------------------------------------------------
+  1. A CalendarEvent model to store synced meetings per developer.
+  2. A GoogleCalendarService that authenticates as the service account,
+     impersonates a developer's email, and reads their primary calendar for a
+     date range.
+  3. A sync script (cron entry point) that, for every internal developer,
+     upserts the current week's events -- idempotently.
+  4. Capacity changes: compute_capacity_breakdown() adds meeting hours into
+     this_week_capacity_used and returns a meetings[] array +
+     this_week_meeting_hours.
+  5. Frontend changes: extend the types, render meeting time as a distinct
+     segment in the capacity bar, and add a per-meeting breakdown to the
+     expandable row (mirroring per-ticket).
+
+All of this ships in ONE PR.
+
+
+------------------------------------------------------------------------------
+ACCEPTANCE CRITERIA
+------------------------------------------------------------------------------
+INGESTION
+  [ ] A calendar_events table/model exists, keyed by developer, storing at
+      minimum: developer_id (FK -> developers, ondelete=CASCADE),
+      google_event_id, calendar_id/organizer_email, title, start_at/end_at
+      (UTC), is_all_day, response_status (accepted / tentative / declined /
+      needs_action), visibility (default / private), synced_at. Unique
+      constraint on (developer_id, google_event_id).
+  [ ] A GoogleCalendarService authenticates as the service account and returns
+      a developer's events for a date range via subject=<dev email>
+      impersonation; exposes is_configured() like google_oauth_service.py.
+  [ ] A sync routine pulls the current capacity week (via week_boundaries() --
+      same window as capacity) for every internal (is_external == False)
+      developer and UPSERTS their events.
+  [ ] Re-running the sync for the same week is IDEMPOTENT: updates changed
+      events, inserts new ones, removes events that no longer exist on the
+      calendar (cancellations) for that window.
+  [ ] A CLI entry point under backend/scripts/ (e.g. sync_calendar_events.py)
+      follows the send_weekly_report.py pattern, runs as
+      "python -m scripts.sync_calendar_events", and is wired into the
+      docker-compose scheduler.
+  [ ] When the service account is unconfigured, the sync logs a clear warning
+      and NO-OPS (does not crash) -- matching how email degrades.
+  [ ] Events marked private store only timing metadata; the title falls back to
+      a generic label (e.g. "Busy").
+
+CAPACITY + UI
+  - Given a developer with synced meetings this week, when
+    GET /api/admin/developers/capacity is called, then the response includes
+    this_week_meeting_hours and a meetings[] array (title, start/end, hours),
+    and this_week_capacity_used includes meeting hours.
+  - Given ticket hours + meeting hours exceed 40, when capacity is computed,
+    then this_week_remaining_capacity is 0 (floored, never negative) and the
+    status badge reads "Busy".
+  - Given a developer has meeting hours, when the Employees capacity bar
+    renders, then meeting time appears as a visually differentiated segment
+    (distinct color/label from ticket time) within the same 40h bar.
+  - Given an admin expands a developer row, then a per-meeting breakdown lists
+    each meeting with its title (or "Busy" for private events), time, and hours
+    -- mirroring the existing per-ticket breakdown layout.
+  - Given a developer with no synced meetings (or sync not yet run), then
+    this_week_meeting_hours is 0, no meeting segment renders, and behavior
+    matches today (no regression).
+  - Given the same data, when the logged-in developer views MyCapacityCard,
+    then meeting hours are reflected consistently with the admin view.
+  - Counting rules (defaults -- confirm with the team during build): declined
+    events are excluded; accepted, tentative, and needs_action count; all-day
+    events count as 0 meeting hours unless flagged out-of-office; overlapping
+    meetings are counted once (union of intervals, not sum) so double-booking
+    can't exceed real time.
+
+
+------------------------------------------------------------------------------
+IMPLEMENTATION GUIDE (suggested order)
+------------------------------------------------------------------------------
+  1. MODEL + MIGRATION
+     Add backend/models/calendar_event.py mirroring the conventions in
+     time_entry.py. Register it where models are imported and add its table to
+     the migration runner in database.py. Store all times in UTC (the Calendar
+     API returns RFC3339 with offsets -- normalize on write).
+
+  2. SERVICE
+     Add backend/services/google_calendar_service.py. Use:
+
+         from google.oauth2 import service_account
+         from googleapiclient.discovery import build
+         creds = service_account.Credentials.from_service_account_info(info) \
+             .with_scopes(["https://www.googleapis.com/auth/calendar.readonly"]) \
+             .with_subject(dev_email)
+         client = build("calendar", "v3", credentials=creds)
+         events = client.events().list(
+             calendarId="primary", timeMin=..., timeMax=...,
+             singleEvents=True, orderBy="startTime").execute()
+
+     Add is_configured() that checks the secret is present; if not, callers
+     no-op.
+
+  3. SYNC SCRIPT
+     Add backend/scripts/sync_calendar_events.py modeled on
+     send_weekly_report.py. Loop internal developers, call the service for the
+     week_boundaries() window, upsert into calendar_events (delete-then-insert
+     or true upsert keyed on the unique constraint). Wire it into the scheduler
+     container in docker-compose.yml.
+
+  4. CAPACITY
+     In capacity_service.py (compute_capacity_breakdown) and the response
+     builder in admin.py:170-302, query calendar_events for the week, compute
+     meeting_hours as the UNION OF EVENT INTERVALS (not a naive sum), add to
+     this_week_capacity_used, and include this_week_meeting_hours + meetings[]
+     in the payload. Keep remaining = max(0, 40 - used).
+
+  5. FRONTEND TYPES
+     Extend DeveloperCapacity (EmployeesTab.tsx:46-67) and MyCapacityResponse
+     (MyCapacityCard.tsx:23-34) with this_week_meeting_hours and meetings[].
+
+  6. FRONTEND DISPLAY
+     Add the differentiated meeting segment to the capacity bar around
+     EmployeesTab.tsx:576-641, and reuse the expandable-row pattern at
+     EmployeesTab.tsx:669-957 for the per-meeting list. No new endpoint or query
+     key needed -- ['admin','developers_capacity'] already drives the view;
+     you're just enriching the payload.
+
+  GOTCHAS
+     - Keep the calendar window and capacity window identical by reusing
+       week_boundaries() -- don't reinvent week math.
+     - Keep WEEKLY_CAPACITY_HRS = 40 as the denominator (meetings are a new
+       CONSUMER of the 40h, not a reduction of the baseline).
+     - Respect event visibility so private event titles never leak into the
+       admin UI.
+
+
+------------------------------------------------------------------------------
+TESTING / VERIFICATION
+------------------------------------------------------------------------------
+  - Unit-test GoogleCalendarService with a mocked events().list() response (no
+    live Google needed).
+  - Unit-test the union-of-intervals meeting-hours math (overlaps, back-to-back,
+    all-day).
+  - Test the sync is idempotent: run twice, assert no duplicate rows and that a
+    removed event disappears.
+  - Manually verify on Admin > Employees once Eli has authorized the service
+    account: a developer with real meetings shows a distinct meeting segment and
+    a correct per-meeting breakdown.
+
+
+------------------------------------------------------------------------------
+OUT OF SCOPE
+------------------------------------------------------------------------------
+  - Per-developer OAuth connect flow (we chose the domain-wide service account).
+  - Two-way sync / writing events back to Google.
+  - Non-primary, shared, or room calendars.
+  - Configurable per-developer weekly capacity (still a flat 40h).
+  - Historical meeting hours in weekly_logged_history (current week only for v1).
+  - Any standalone calendar page -- meetings surface only inside the existing
+    capacity views.

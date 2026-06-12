@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { apiFetch, ApiError, permissionAwareError } from '@/lib/api';
+import { toastErrorHandler } from '@/lib/mutationToast';
 import { invalidateProjectScope } from '@/lib/invalidations';
 import type { ConfirmFn } from '@/components/ui/confirm-dialog';
 import type { WorkItem } from '@/types/workItems';
@@ -33,10 +34,13 @@ interface UseWorkItemMutationsArgs {
  * (with `.mutate`/`.isPending`) and handlers are threaded into the JSX, drawer,
  * and DnD handlers.
  *
- * R2: the optimistic `moveMutation`/`statusChangeMutation` key their
+ * R2: the optimistic `moveMutation` keys its
  * `getQueryData`/`setQueryData`/rollback against the SAME memoized
- * `workItemFilters` reference passed in — never a rebuilt object — and keep the
+ * `workItemFilters` reference passed in — never a rebuilt object — and keeps the
  * prefix-cancel (`['workItems']`) vs exact read/write asymmetry verbatim (F-C3).
+ * Drag-drop (`onMove`) and the quick status-dot menu (`handleStatusChange`)
+ * share this one mutation; they differ only in the toast fallback shown when a
+ * non-ApiError rejects the PUT, passed per-call via the `errorFallback` var.
  */
 export function useWorkItemMutations(
   id: string | undefined,
@@ -52,9 +56,19 @@ export function useWorkItemMutations(
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  // Drag-drop: optimistic status update
+  // Optimistic status update — shared by drag-drop (onMove) and the quick
+  // status-dot menu (handleStatusChange). Both PUT /api/workitems/{id} {status}
+  // and optimistically patch the SAME cache key; the only behavioral difference
+  // is the non-ApiError toast fallback, supplied per-call via `errorFallback`.
   const moveMutation = useMutation({
-    mutationFn: ({ itemId, newStatus }: { itemId: string; newStatus: string }) =>
+    mutationFn: ({
+      itemId,
+      newStatus,
+    }: {
+      itemId: string;
+      newStatus: string;
+      errorFallback?: string;
+    }) =>
       apiFetch(`/api/workitems/${itemId}`, {
         method: 'PUT',
         body: JSON.stringify({ status: newStatus }),
@@ -73,20 +87,21 @@ export function useWorkItemMutations(
       );
       return { previous };
     },
-    onError: (err, _vars, ctx) => {
+    onError: (err, vars, ctx) => {
       if (ctx?.previous)
         queryClient.setQueryData(['workItems', workItemFilters, 'board'], ctx.previous);
       // Surface backend validation errors (e.g. "subtask still open" when
-      // marking a parent done) so the user knows why the move was rejected
+      // marking a parent done) so the user knows why the change was rejected
       // instead of seeing a generic toast.
-      const detail = err instanceof ApiError ? err.message : 'Failed to move ticket';
+      const detail =
+        err instanceof ApiError ? err.message : (vars.errorFallback ?? 'Failed to move ticket');
       toast.error(detail);
     },
     onSettled: (_data, _err, { itemId }) => {
       invalidateWorkItems();
       invalidateProject();
-      // Backend writes "Marked as done" / "Reopened ticket" auto-comments on
-      // done-boundary status changes — keep this item's comments in sync.
+      // Backend writes "Marked as done" / "Reopened ticket" / "Moved to <Status>"
+      // auto-comments on status changes — keep this item's comments in sync.
       queryClient.invalidateQueries({ queryKey: ['workItem', itemId, 'comments'] });
     },
   });
@@ -179,7 +194,7 @@ export function useWorkItemMutations(
       );
       toast.success('Item updated!');
     },
-    onError: (err) => toast.error(permissionAwareError(err, 'Failed to update item')),
+    onError: toastErrorHandler('update item'),
     onSettled: () => {
       invalidateWorkItems();
       invalidateProject();
@@ -199,7 +214,7 @@ export function useWorkItemMutations(
       navigate(`/project/${id}/board`);
       toast.success('Item deleted');
     },
-    onError: (err) => toast.error(permissionAwareError(err, 'Failed to delete item')),
+    onError: toastErrorHandler('delete item'),
     onSettled: () => {
       invalidateWorkItems();
       invalidateProject();
@@ -236,7 +251,7 @@ export function useWorkItemMutations(
       );
       toast.success(`Logged ${hours}h! Remaining: ${data.remaining_hours}h`);
     },
-    onError: (err) => toast.error(permissionAwareError(err, 'Failed to log hours')),
+    onError: toastErrorHandler('log hours'),
     onSettled: (_data, _err, { itemId }) => {
       invalidateWorkItems();
       invalidateProject();
@@ -251,45 +266,10 @@ export function useWorkItemMutations(
     logHoursMutation.mutate({ itemId: item.id, hours: hoursToLog });
   };
 
-  // Quick status change — optimistic via the same cache key as drag-drop
-  const statusChangeMutation = useMutation({
-    mutationFn: ({ itemId, newStatus }: { itemId: string; newStatus: string }) =>
-      apiFetch(`/api/workitems/${itemId}`, {
-        method: 'PUT',
-        body: JSON.stringify({ status: newStatus }),
-      }),
-    onMutate: async ({ itemId, newStatus }) => {
-      // Prefix cancel — see moveMutation above. F-C3.
-      await queryClient.cancelQueries({ queryKey: ['workItems'] });
-      const previous = queryClient.getQueryData<WorkItem[]>([
-        'workItems',
-        workItemFilters,
-        'board',
-      ]);
-      queryClient.setQueryData<WorkItem[]>(['workItems', workItemFilters, 'board'], (old) =>
-        applyStatusChange(old, itemId, newStatus),
-      );
-      return { previous };
-    },
-    onError: (err, _vars, ctx) => {
-      if (ctx?.previous)
-        queryClient.setQueryData(['workItems', workItemFilters, 'board'], ctx.previous);
-      // Surface backend validation messages (e.g. "subtask still open" when
-      // marking a parent done) instead of the generic toast.
-      const detail = err instanceof ApiError ? err.message : 'Failed to update status';
-      toast.error(detail);
-    },
-    onSettled: (_data, _err, { itemId }) => {
-      invalidateWorkItems();
-      invalidateProject();
-      // Backend writes a "Moved to <Status>" auto-comment on every status
-      // change — keep this item's comments in sync.
-      queryClient.invalidateQueries({ queryKey: ['workItem', itemId, 'comments'] });
-    },
-  });
-
+  // Quick status change (status-dot menu) — reuses moveMutation with a
+  // status-specific toast fallback; the optimistic cache path is identical.
   const handleStatusChange = (item: WorkItem, newStatus: string) => {
-    statusChangeMutation.mutate({ itemId: item.id, newStatus });
+    moveMutation.mutate({ itemId: item.id, newStatus, errorFallback: 'Failed to update status' });
   };
 
   return {
@@ -305,7 +285,8 @@ export function useWorkItemMutations(
     handleDeleteItem,
     logHoursMutation,
     handleLogHours,
-    statusChangeMutation,
+    // Alias preserved for existing consumers; backed by the single moveMutation.
+    statusChangeMutation: moveMutation,
     handleStatusChange,
   };
 }

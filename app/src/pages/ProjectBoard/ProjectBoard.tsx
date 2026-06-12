@@ -1,25 +1,19 @@
 import { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  ArrowLeft,
-  Plus,
-  BookOpen,
-  ClipboardList,
-  Bug,
-  Target,
-  Clock,
-  CheckCircle2,
-  LayoutGrid,
-  List,
-  AlertCircle,
-  Inbox,
-} from 'lucide-react';
+import { ArrowLeft, LayoutGrid, List, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { toast, Toaster } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
+// Canonical single source of truth for type/status/priority config — do NOT
+// re-fork these locally (they had drifted across ~7 copies before consolidation).
+import {
+  TYPE_CONFIG,
+  STATUS_CONFIG,
+  PRIORITY_STYLE as PRIORITY_COLORS,
+} from '@/lib/workItemConfig';
 import type { WorkItem, Sprint } from '@/types/workItems';
 import BoardView from './views/BoardView';
 import ListView from './views/ListView';
@@ -58,64 +52,6 @@ interface Architecture {
   time_to_implement: string;
   is_selected: boolean;
 }
-
-const STATUS_CONFIG = {
-  backlog: { label: 'Backlog', color: '#555555', icon: Inbox, gradient: 'from-[#555555]/10' },
-  todo: { label: 'To Do', color: '#60A5FA', icon: Plus, gradient: 'from-[#60A5FA]/10' },
-  in_progress: {
-    label: 'In Progress',
-    color: '#E0B954',
-    icon: Clock,
-    gradient: 'from-[#E0B954]/10',
-  },
-  in_review: {
-    label: 'In Review',
-    color: '#A78BFA',
-    icon: AlertCircle,
-    gradient: 'from-[#A78BFA]/10',
-  },
-  done: { label: 'Done', color: '#34D399', icon: CheckCircle2, gradient: 'from-[#34D399]/10' },
-} as const;
-
-const TYPE_CONFIG = {
-  user_story: { icon: BookOpen, color: '#E0B954', label: 'Story', bg: 'rgba(224,185,84,0.15)' },
-  task: { icon: ClipboardList, color: '#F59E0B', label: 'Task', bg: 'rgba(245,158,11,0.15)' },
-  bug: { icon: Bug, color: '#EF4444', label: 'Bug', bg: 'rgba(239,68,68,0.15)' },
-  epic: { icon: Target, color: '#A78BFA', label: 'Epic', bg: 'rgba(167,139,250,0.15)' },
-  subtask: {
-    icon: ClipboardList,
-    color: '#FBBF24',
-    label: 'Subtask',
-    bg: 'rgba(251,191,36,0.15)',
-  },
-};
-
-const PRIORITY_COLORS = {
-  critical: {
-    border: 'border-[#EF4444]/60',
-    text: 'text-[#EF4444]',
-    bg: 'bg-[#EF4444]/10',
-    hex: '#EF4444',
-  },
-  high: {
-    border: 'border-[#F97316]/60',
-    text: 'text-[#F97316]',
-    bg: 'bg-[#F97316]/10',
-    hex: '#F97316',
-  },
-  medium: {
-    border: 'border-[#F59E0B]/50',
-    text: 'text-[#F59E0B]',
-    bg: 'bg-[#F59E0B]/10',
-    hex: '#F59E0B',
-  },
-  low: {
-    border: 'border-[#737373]/50',
-    text: 'text-[#737373]',
-    bg: 'bg-[#737373]/10',
-    hex: '#737373',
-  },
-};
 
 const ProjectBoard = () => {
   const { id, ticketId } = useParams<{ id: string; ticketId?: string }>();
