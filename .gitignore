@@ -4,6 +4,11 @@
 .env.*.local
 backend/.env
 
+# Google credentials / OAuth tokens - NEVER commit these
+backend/client_secret.json
+backend/.cal_test_token.json
+backend/service_account*.json
+
 # Python
 __pycache__/
 *.py[cod]

@@ -43,6 +43,15 @@ interface CapacityTicket {
   your_logged_this_week?: number;
 }
 
+// A synced Google Calendar meeting contributing to weekly capacity.
+// (Duplicated in MyCapacityCard.tsx — there's no shared types module yet; see app/CLAUDE.md. TODO(audit-FT1))
+interface CapacityMeeting {
+  title: string;
+  start_at: string | null;
+  end_at: string | null;
+  hours: number;
+}
+
 interface DeveloperCapacity {
   developer_id: number;
   developer_name: string;
@@ -52,11 +61,13 @@ interface DeveloperCapacity {
   this_week_in_progress_hours: number;
   this_week_in_review_hours: number;
   this_week_done_hours: number;
+  this_week_meeting_hours: number;
   this_week_capacity_used: number;
   this_week_remaining_capacity: number;
   week_start?: string;
   week_end?: string;
   tickets?: CapacityTicket[];
+  meetings?: CapacityMeeting[];
   weekly_logged_history?: Array<{
     week_start: string;
     week_end: string;
@@ -111,6 +122,9 @@ const PROJECT_COLOR_PALETTE = [
   '#94A3B8',
   '#EF4444',
 ];
+// Meetings render in a distinct slate that's deliberately outside the project
+// palette, so the meeting segment never reads as "another project".
+const MEETING_COLOR = '#64748B';
 const projectColor = (projectId: number) =>
   PROJECT_COLOR_PALETTE[Math.abs(projectId) % PROJECT_COLOR_PALETTE.length];
 
@@ -510,6 +524,8 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
                 remaining >= 10 ? 'Available' : remaining > 0 ? 'Moderate' : 'Busy';
               const isExpanded = expandedCapacityDevId === emp.id;
               const tickets = devCapacity?.tickets ?? [];
+              const meetingHours = devCapacity?.this_week_meeting_hours ?? 0;
+              const meetings = devCapacity?.meetings ?? [];
 
               // Group tickets by project for inline distribution + expanded view
               const projectGroupsMap = tickets.reduce<
@@ -588,9 +604,19 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
                                 title={`${p.projectName}: ${p.total}h (${p.tickets.length} ticket${p.tickets.length === 1 ? '' : 's'})`}
                               />
                             ))}
+                            {meetingHours > 0 && (
+                              <div
+                                className="h-full"
+                                style={{
+                                  width: `${Math.min(100, (meetingHours / 40) * 100)}%`,
+                                  backgroundColor: MEETING_COLOR,
+                                }}
+                                title={`Meetings: ${meetingHours}h (${meetings.length} meeting${meetings.length === 1 ? '' : 's'})`}
+                              />
+                            )}
                           </div>
                           <div className="text-[10px] text-[#737373] mt-1.5 flex items-center gap-2 flex-wrap">
-                            {projectsByHours.length === 0 ? (
+                            {projectsByHours.length === 0 && meetingHours === 0 ? (
                               <span>No tickets this week</span>
                             ) : (
                               <>
@@ -620,6 +646,21 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
                                   <>
                                     <span className="text-[rgba(255,255,255,0.15)]">·</span>
                                     <span>+{projectsByHours.length - 3} more</span>
+                                  </>
+                                )}
+                                {meetingHours > 0 && (
+                                  <>
+                                    {projectsByHours.length > 0 && (
+                                      <span className="text-[rgba(255,255,255,0.15)]">·</span>
+                                    )}
+                                    <span className="flex items-center gap-1">
+                                      <span
+                                        className="w-1.5 h-1.5 rounded-sm"
+                                        style={{ backgroundColor: MEETING_COLOR }}
+                                      />
+                                      <span>Meetings</span>
+                                      <span>· {meetingHours}h</span>
+                                    </span>
                                   </>
                                 )}
                               </>
@@ -947,6 +988,75 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
                                       </div>
                                     );
                                   })}
+                                </div>
+                              )}
+
+                              {meetings.length > 0 && (
+                                <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-3">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span
+                                        className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                                        style={{ backgroundColor: MEETING_COLOR }}
+                                      />
+                                      <span className="text-xs font-semibold text-white">
+                                        Meetings
+                                      </span>
+                                      <span className="text-[10px] text-[#737373] flex-shrink-0">
+                                        ({meetings.length})
+                                      </span>
+                                    </div>
+                                    <span
+                                      className="text-xs font-mono tabular-nums flex-shrink-0"
+                                      style={{ color: MEETING_COLOR }}
+                                      title="Counted against this week's capacity (overlaps counted once)"
+                                    >
+                                      {meetingHours}h
+                                    </span>
+                                  </div>
+                                  <ul className="space-y-1.5">
+                                    {meetings.map((m, i) => {
+                                      const start = m.start_at ? new Date(m.start_at) : null;
+                                      const end = m.end_at ? new Date(m.end_at) : null;
+                                      const timeLabel = start
+                                        ? `${start.toLocaleDateString(undefined, {
+                                            month: 'short',
+                                            day: 'numeric',
+                                          })} ${start.toLocaleTimeString(undefined, {
+                                            hour: 'numeric',
+                                            minute: '2-digit',
+                                          })}${
+                                            end
+                                              ? `–${end.toLocaleTimeString(undefined, {
+                                                  hour: 'numeric',
+                                                  minute: '2-digit',
+                                                })}`
+                                              : ''
+                                          }`
+                                        : '—';
+                                      return (
+                                        <li
+                                          key={`${m.start_at ?? 'm'}-${i}`}
+                                          className="flex items-start gap-2 text-xs"
+                                        >
+                                          <div className="flex-1 min-w-0">
+                                            <div className="text-white truncate" title={m.title}>
+                                              {m.title}
+                                            </div>
+                                            <div className="text-[10px] text-[#737373] mt-0.5">
+                                              {timeLabel}
+                                            </div>
+                                          </div>
+                                          <span
+                                            className="font-mono tabular-nums flex-shrink-0"
+                                            style={{ color: MEETING_COLOR }}
+                                          >
+                                            {m.hours}h
+                                          </span>
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
                                 </div>
                               )}
                             </>

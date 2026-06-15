@@ -2,6 +2,7 @@
 
 from models.activity_log import ActivityLog
 from models.architecture import Architecture
+from models.calendar_event import CalendarEvent
 from models.comment import Comment
 from models.developer import Developer, project_developers
 from models.market_insight import MarketInsight
@@ -56,4 +57,5 @@ __all__ = [
     "user_roles",
     "Architecture",
     "User",
+    "CalendarEvent",
 ]

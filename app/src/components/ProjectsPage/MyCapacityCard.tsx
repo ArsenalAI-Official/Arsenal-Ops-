@@ -20,6 +20,15 @@ interface CapacityTicket {
   your_logged_this_week: number;
 }
 
+// A synced Google Calendar meeting contributing to weekly capacity.
+// (Duplicated in EmployeesTab.tsx — there's no shared types module yet; see app/CLAUDE.md. TODO(audit-FT1))
+interface CapacityMeeting {
+  title: string;
+  start_at: string | null;
+  end_at: string | null;
+  hours: number;
+}
+
 interface MyCapacityResponse {
   developer_id: number;
   developer_name: string;
@@ -28,9 +37,11 @@ interface MyCapacityResponse {
   this_week_in_progress_hours: number;
   this_week_in_review_hours: number;
   this_week_done_hours: number;
+  this_week_meeting_hours: number;
   this_week_capacity_used: number;
   this_week_remaining_capacity: number;
   tickets: CapacityTicket[];
+  meetings?: CapacityMeeting[];
 }
 
 const WEEKLY_CAPACITY = 40;
@@ -49,6 +60,10 @@ const PROJECT_COLOR_PALETTE = [
 ];
 const projectColor = (projectId: number) =>
   PROJECT_COLOR_PALETTE[Math.abs(projectId) % PROJECT_COLOR_PALETTE.length];
+
+// Meetings render in a distinct slate, outside the project palette, so the
+// meeting segment never reads as "another project".
+const MEETING_COLOR = '#64748B';
 
 const statusBadgeColor = (status: string) => {
   if (status === 'in_progress') return '#E0B954';
@@ -117,6 +132,9 @@ const MyCapacityCard = () => {
     return acc;
   }, {});
   const projectsByHours = Object.values(projectGroupsMap).sort((a, b) => b.total - a.total);
+
+  const meetingHours = data?.this_week_meeting_hours ?? 0;
+  const meetings = data?.meetings ?? [];
 
   return (
     <>
@@ -222,8 +240,18 @@ const MyCapacityCard = () => {
                         title={`${p.projectName}: ${p.total}h`}
                       />
                     ))}
+                    {meetingHours > 0 && (
+                      <div
+                        className="h-full"
+                        style={{
+                          width: `${Math.min(100, (meetingHours / WEEKLY_CAPACITY) * 100)}%`,
+                          backgroundColor: MEETING_COLOR,
+                        }}
+                        title={`Meetings: ${meetingHours}h`}
+                      />
+                    )}
                   </div>
-                  {projectsByHours.length > 0 && (
+                  {(projectsByHours.length > 0 || meetingHours > 0) && (
                     <div className="text-[11px] text-[#737373] mt-3 flex items-center gap-x-3 gap-y-1.5 flex-wrap">
                       {projectsByHours.map((p) => (
                         <span key={p.projectId} className="flex items-center gap-1.5">
@@ -237,6 +265,16 @@ const MyCapacityCard = () => {
                           <span className="text-[#525252] tabular-nums">{p.total}h</span>
                         </span>
                       ))}
+                      {meetingHours > 0 && (
+                        <span className="flex items-center gap-1.5">
+                          <span
+                            className="w-2 h-2 rounded-sm shrink-0"
+                            style={{ backgroundColor: MEETING_COLOR }}
+                          />
+                          <span>Meetings</span>
+                          <span className="text-[#525252] tabular-nums">{meetingHours}h</span>
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -267,7 +305,7 @@ const MyCapacityCard = () => {
                   ticket rows can show key + status, title, and metadata
                   without truncation; the counted-hours stamp pins to the
                   right edge and stays visually anchored. */}
-              {projectsByHours.length > 0 ? (
+              {projectsByHours.length > 0 && (
                 <div>
                   <h3 className="text-[10px] uppercase tracking-wider text-[#737373] font-semibold mb-3">
                     Breakdown by Project
@@ -367,7 +405,63 @@ const MyCapacityCard = () => {
                     })}
                   </div>
                 </div>
-              ) : (
+              )}
+
+              {meetings.length > 0 && (
+                <div>
+                  <h3 className="text-[10px] uppercase tracking-wider text-[#737373] font-semibold mb-3 flex items-center gap-2">
+                    <span
+                      className="w-2.5 h-2.5 rounded-sm"
+                      style={{ backgroundColor: MEETING_COLOR }}
+                    />
+                    Meetings ({meetings.length}) · {meetingHours}h
+                  </h3>
+                  <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-4">
+                    <ul className="space-y-3">
+                      {meetings.map((m, i) => {
+                        const start = m.start_at ? new Date(m.start_at) : null;
+                        const end = m.end_at ? new Date(m.end_at) : null;
+                        const timeLabel = start
+                          ? `${start.toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                            })} ${start.toLocaleTimeString(undefined, {
+                              hour: 'numeric',
+                              minute: '2-digit',
+                            })}${
+                              end
+                                ? `–${end.toLocaleTimeString(undefined, {
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                  })}`
+                                : ''
+                            }`
+                          : '—';
+                        return (
+                          <li key={`${m.start_at ?? 'm'}-${i}`} className="flex items-start gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs text-white leading-snug" title={m.title}>
+                                {m.title}
+                              </div>
+                              <div className="text-[10px] text-[#737373] mt-0.5 tabular-nums">
+                                {timeLabel}
+                              </div>
+                            </div>
+                            <span
+                              className="text-sm font-mono font-semibold tabular-nums shrink-0 mt-0.5"
+                              style={{ color: MEETING_COLOR }}
+                            >
+                              {m.hours}h
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {projectsByHours.length === 0 && meetings.length === 0 && (
                 <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl p-10 text-center">
                   <Activity className="w-8 h-8 text-[#525252] mx-auto mb-2.5" />
                   <p className="text-sm text-[#a3a3a3] font-medium">Nothing scheduled this week</p>
