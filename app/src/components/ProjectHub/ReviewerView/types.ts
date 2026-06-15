@@ -1,4 +1,4 @@
-import type { CommentThreadComment, CommentThreadDeveloper } from '@/components/CommentThread';
+import type { CommentThreadDeveloper } from '@/components/CommentThread';
 
 export interface WorkItem {
   id: string;
@@ -13,10 +13,6 @@ export interface WorkItem {
   logged_hours?: number;
   remaining_hours?: number;
 }
-
-// The Reviewer queue renders comments via the shared <CommentThread>, so it
-// reuses that component's comment shape rather than declaring its own.
-export type ReviewComment = CommentThreadComment;
 
 export interface ReviewerViewProps {
   workItems: WorkItem[];

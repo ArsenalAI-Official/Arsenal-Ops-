@@ -1,0 +1,29 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/main.tsx",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "eslint.config.js",
+    "postcss.config.js",
+    "tailwind.config.ts",
+
+    // Vendored shadcn/ui primitives. Treated as entry points (not `ignore`d) so
+    // their intentionally-unused exports aren't reported, while the Radix /
+    // form / use-mobile imports they pull in are still counted as used. Plain
+    // `ignore` would drop them from the graph and produce ~20 false-positive
+    // "unused dependency" reports.
+    "src/components/ui/**",
+
+    // Decomposition output from commit 2f12d8ab ("decompose 7 ProjectHub views
+    // into orchestrators + sections") that is built but not yet wired into a
+    // ProjectDetail tab. Kept intentionally pending wiring; listed as entry so
+    // their default export isn't flagged. Remove from this list once they're
+    // imported by a tab (then knip will track them normally).
+    "src/components/ProjectHub/BusinessReviewView/**",
+    "src/components/ProjectHub/ListView/**"
+  ],
+  "project": ["src/**/*.{ts,tsx}"],
+  "ignoreExportsUsedInFile": true,
+  "ignoreDependencies": []
+}

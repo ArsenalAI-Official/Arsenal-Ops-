@@ -83,17 +83,6 @@ export interface PersonalTask {
   work_item_id?: number;
 }
 
-export interface Comment {
-  id: number;
-  work_item_id: number;
-  author_id: number;
-  author_name: string;
-  content: string;
-  comment_type: 'comment' | 'blocker' | 'business_review';
-  mentions: number[];
-  created_at: string;
-}
-
 export interface ProjectMember {
   id: number;
   name: string;
