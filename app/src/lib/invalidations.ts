@@ -10,7 +10,10 @@ export function invalidateProjectScope(
   projectId: number | string | undefined,
 ) {
   if (projectId === undefined || projectId === null) return;
-  const id = projectId;
+  // Per-project caches are keyed by the STRING route param (useParams id), so a
+  // number id (e.g. from project.id) must be normalized or the invalidation
+  // silently no-ops: ['project', 7] never matches ['project', '7'].
+  const id = String(projectId);
   queryClient.invalidateQueries({ queryKey: ['project', id] });
   queryClient.invalidateQueries({ queryKey: ['project', id, 'links'] });
   queryClient.invalidateQueries({ queryKey: ['projectOverview', id] });
@@ -36,9 +39,11 @@ export function invalidateWorkItemScope(
   queryClient.invalidateQueries({ queryKey: ['workItem'] }); // prefix matches all single-item detail/comments
   queryClient.invalidateQueries({ queryKey: ['myTasks'] });
   if (projectId !== undefined && projectId !== null) {
-    queryClient.invalidateQueries({ queryKey: ['hubData', projectId, 'analytics'] });
-    queryClient.invalidateQueries({ queryKey: ['hubData', projectId, 'activities'] });
-    queryClient.invalidateQueries({ queryKey: ['projectOverview', projectId] });
+    // Normalize to the string route-param key shape (see invalidateProjectScope).
+    const id = String(projectId);
+    queryClient.invalidateQueries({ queryKey: ['hubData', id, 'analytics'] });
+    queryClient.invalidateQueries({ queryKey: ['hubData', id, 'activities'] });
+    queryClient.invalidateQueries({ queryKey: ['projectOverview', id] });
   }
   invalidateAdminWorkItemImpact(queryClient);
 }

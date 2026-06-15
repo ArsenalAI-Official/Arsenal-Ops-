@@ -89,11 +89,8 @@ const MermaidRenderer = ({ code, className = '', showControls = true }: MermaidR
         mermaidIdCounter += 1;
         const id = `mermaid-${mermaidIdCounter}-${Date.now()}`;
 
-        console.log('Rendering mermaid diagram:', { id, codeLength: cleanCode.length });
-
         // Parse and render
         const { svg } = await mermaid.render(id, cleanCode);
-        console.log('Mermaid render successful, SVG length:', svg.length);
         setSvgContent(svg);
       } catch (err: any) {
         console.error('Mermaid render error:', err);

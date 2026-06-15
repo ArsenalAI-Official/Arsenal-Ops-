@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Eye, X } from 'lucide-react';
 import { ReviewerView } from '@/components/ProjectHub';
 import { apiFetch } from '@/lib/api';
-import type { CommentThreadDeveloper } from '@/components/WorkItemPanel/CommentThread';
+import type { CommentThreadDeveloper } from '@/components/CommentThread';
 
 interface WorkItemIn {
   id: string;

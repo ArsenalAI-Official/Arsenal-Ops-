@@ -28,6 +28,9 @@ export default defineConfig([
       // shapes, drag handlers, recharts payloads). Downgrade to warn so it
       // stays visible without blocking CI.
       '@typescript-eslint/no-explicit-any': 'warn',
+      // Keep stray debug logging out of production code; console.warn/error are
+      // allowed for genuine diagnostics.
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
       // Allow `_`-prefixed identifiers and ignore unused catch params entirely
       // (we frequently write `} catch { ... }` or `} catch (_err) { ... }`).
       '@typescript-eslint/no-unused-vars': [

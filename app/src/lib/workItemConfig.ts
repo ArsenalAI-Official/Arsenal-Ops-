@@ -49,6 +49,45 @@ export const PRIORITY_COLOR: Record<string, string> = {
   low: '#737373',
 };
 
+/**
+ * Richer priority styling (Tailwind border/text/bg classes + hex) for surfaces
+ * that need more than the bare hex — e.g. the board's list/epic priority pills.
+ * `hex` is kept consistent with PRIORITY_COLOR above.
+ */
+export interface PriorityStyle {
+  border: string;
+  text: string;
+  bg: string;
+  hex: string;
+}
+
+export const PRIORITY_STYLE: Record<string, PriorityStyle> = {
+  critical: {
+    border: 'border-[#EF4444]/60',
+    text: 'text-[#EF4444]',
+    bg: 'bg-[#EF4444]/10',
+    hex: '#EF4444',
+  },
+  high: {
+    border: 'border-[#F97316]/60',
+    text: 'text-[#F97316]',
+    bg: 'bg-[#F97316]/10',
+    hex: '#F97316',
+  },
+  medium: {
+    border: 'border-[#F59E0B]/50',
+    text: 'text-[#F59E0B]',
+    bg: 'bg-[#F59E0B]/10',
+    hex: '#F59E0B',
+  },
+  low: {
+    border: 'border-[#737373]/50',
+    text: 'text-[#737373]',
+    bg: 'bg-[#737373]/10',
+    hex: '#737373',
+  },
+};
+
 export type WorkItemTypeKey = keyof typeof TYPE_CONFIG;
 export type StatusKey = keyof typeof STATUS_CONFIG;
 

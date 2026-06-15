@@ -6,30 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarIcon } from '@/components/ui/calendar';
 import { parseLocalDate } from '@/lib/dateUtils';
-
-interface ProjectDeveloper {
-  id: number;
-  name: string;
-  email: string;
-  github_username: string;
-  role: string;
-  responsibilities: string;
-  is_admin: boolean;
-}
-
-interface Project {
-  id: number;
-  name: string;
-  description: string;
-  key_prefix: string;
-  status: string;
-  github_repo_url: string;
-  github_repo_urls?: string[];
-  github_repo_name?: string;
-  created_at: string;
-  end_date?: string;
-  developers?: ProjectDeveloper[];
-}
+import type { Project } from '../types';
 
 interface ProjectInfoSectionProps {
   project: Project;
