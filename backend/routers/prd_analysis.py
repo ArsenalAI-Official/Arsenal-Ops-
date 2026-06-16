@@ -25,7 +25,11 @@ from models.sprint import Sprint, SprintStatus
 from models.user import User
 from models.work_item import WorkItem
 from routers.auth import get_current_user, require_capability
-from routers.projects import ProjectArchitectureResponse, require_project_admin
+from routers.projects import (
+    CostAnalysisResponse,
+    ProjectArchitectureResponse,
+    require_project_admin,
+)
 from services.architecture_generator import architecture_generator
 from services.prd_processor import prd_processor
 from services.roadmap_generator import build_week_dates, roadmap_generator
@@ -64,12 +68,26 @@ class GenerateRoadmapTemplateRequest(BaseModel):
     sprint_weeks: int = Field(default=2, ge=1, le=6)
 
 
+class PRDRisk(BaseModel):
+    risk: str | None = None
+    impact: str | None = None
+    mitigation: str | None = None
+
+
+class PRDTimelinePhase(BaseModel):
+    phase: str | None = None
+    duration: str | None = None
+    tasks: list[str] | None = None
+
+
 class PRDAnalysisResponse(BaseModel):
     """Shape of `PRDAnalysis.to_dict()` (models/architecture.py). Field
     optionality is inferred from `to_dict()` and the underlying nullable
     columns: `summary` is a nullable Text column; the JSON list columns are
-    coalesced to `[]`/`{}` so they are non-null but loosely typed.
-    `cost_analysis` is passed through unchanged and can be null."""
+    coalesced to `[]`/`{}`. The AI-produced blobs (cost_analysis / risks /
+    timeline / recommended_tools) are best-effort shapes — typed for the
+    generated client only (these routes use `responses=`, never
+    `response_model=`, so nothing is validated/filtered at runtime)."""
 
     id: int
     project_id: int
@@ -77,11 +95,10 @@ class PRDAnalysisResponse(BaseModel):
     summary: str | None = None
     key_features: list[str]
     technical_requirements: list[str]
-    # Opaque JSON blobs — kept loosely typed to match the untyped columns.
-    cost_analysis: dict | None = None
-    recommended_tools: dict
-    risks: list[dict]
-    timeline: list[dict]
+    cost_analysis: CostAnalysisResponse | None = None
+    recommended_tools: dict[str, list[str]]
+    risks: list[PRDRisk]
+    timeline: list[PRDTimelinePhase]
     created_at: str | None = None
 
 

@@ -9,87 +9,23 @@
  */
 
 import type {
-  ProjectDeveloperEntry,
   GoalResponse,
   MilestoneResponse,
   ActivityResponse,
   ProjectAnalyticsResponse,
   ProjectLinkResponse,
   SprintResponse,
+  PrdAnalysisResponse,
+  ProjectDetailResponse,
 } from '@/client';
 
-export interface Architecture {
-  id: number;
-  name: string;
-  description: string;
-  architecture_type: string;
-  mermaid_code: string;
-  pros: string[];
-  cons: string[];
-  estimated_cost: string;
-  complexity: string;
-  time_to_implement: string;
-  is_selected: boolean;
-  created_at: string;
-  updated_at: string;
-  cost_analysis?: {
-    infrastructure?: {
-      monthly: string;
-      annual: string;
-      breakdown: { item: string; cost: string }[];
-    };
-    development?: { total: string; breakdown: { item: string; cost: string }[] };
-    total_estimated?: string;
-  };
-  tools_recommended?: {
-    frontend?: string[];
-    backend?: string[];
-    database?: string[];
-    devops?: string[];
-    [key: string]: string[] | undefined;
-  };
-}
-
-export interface PRDAnalysis {
-  id: number;
-  summary: string;
-  key_features: string[];
-  technical_requirements: string[];
-  cost_analysis?: {
-    infrastructure?: {
-      monthly: string;
-      annual: string;
-      breakdown: { item: string; cost: string }[];
-    };
-    development?: { total: string; breakdown: { item: string; cost: string }[] };
-    total_estimated?: string;
-  };
-  recommended_tools?: {
-    frontend?: string[];
-    backend?: string[];
-    database?: string[];
-    devops?: string[];
-    [key: string]: string[] | undefined;
-  };
-  risks: { risk: string; impact: string; mitigation: string }[];
-  timeline: { phase: string; duration: string; tasks: string[] }[];
-}
-
-export interface Project {
-  id: number;
-  name: string;
-  description: string;
-  key_prefix: string;
-  status: string;
-  github_repo_url: string;
-  github_repo_urls?: string[];
-  github_repo_name?: string;
-  created_at: string;
-  end_date?: string;
-  developers?: ProjectDeveloperEntry[];
-  selected_architecture?: Architecture;
-  architectures: Architecture[];
-}
+// The Architecture / PRDAnalysis / detail-Project shapes that used to live here
+// now map 1:1 onto generated backend response types and are consumed directly
+// from '@/client': ProjectArchitectureResponse, PrdAnalysisResponse,
+// ProjectDetailResponse. The backend models were tightened so the generator
+// emits the nested cost/tool/risk/timeline shapes the UI reads. (Detail Project
+// previously also carried `architectures[]`, which ProjectDetailResponse
+// deliberately omits — nothing in ProjectDetail read it, so it's gone.)
 
 export type TabType =
   | 'overview'
@@ -126,12 +62,12 @@ export interface HubWorkItem {
 // kept as fallback (for cache priming + invalidation routing), but the
 // overview query primes their caches so they short-circuit on first paint.
 export interface ProjectOverview {
-  project: Project;
+  project: ProjectDetailResponse;
   sprints: SprintResponse[];
   goals: GoalResponse[];
   milestones: MilestoneResponse[];
   activities: ActivityResponse[];
   analytics: ProjectAnalyticsResponse;
-  prdAnalysis: PRDAnalysis;
+  prdAnalysis: PrdAnalysisResponse;
   links: ProjectLinkResponse[];
 }

@@ -7,25 +7,12 @@ import { Textarea } from '@/components/ui/textarea';
 import MermaidRenderer from './MermaidRenderer';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import type { ProjectArchitectureResponse } from '@/client';
 
 import { API_BASE_URL } from '@/config/api';
 
-interface Architecture {
-  id: number;
-  name: string;
-  description: string;
-  architecture_type: string;
-  mermaid_code: string;
-  pros: string[];
-  cons: string[];
-  estimated_cost: string;
-  complexity: string;
-  time_to_implement: string;
-  is_selected: boolean;
-}
-
 interface ArchitectureEditorProps {
-  architecture: Architecture;
+  architecture: ProjectArchitectureResponse;
   onSave: (
     id: number,
     updates: { mermaid_code?: string; name?: string; description?: string },
@@ -37,7 +24,7 @@ const ArchitectureEditor = ({ architecture, onSave, onClose }: ArchitectureEdito
   const { token } = useAuth();
   const [code, setCode] = useState(architecture.mermaid_code);
   const [name, setName] = useState(architecture.name);
-  const [description, setDescription] = useState(architecture.description);
+  const [description, setDescription] = useState(architecture.description ?? '');
   const [originalCode] = useState(architecture.mermaid_code);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -62,7 +49,7 @@ const ArchitectureEditor = ({ architecture, onSave, onClose }: ArchitectureEdito
   const handleReset = () => {
     setCode(originalCode);
     setName(architecture.name);
-    setDescription(architecture.description);
+    setDescription(architecture.description ?? '');
     setChangesApplied([]);
     setAiNotes('');
   };

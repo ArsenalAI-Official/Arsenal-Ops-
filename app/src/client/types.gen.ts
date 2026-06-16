@@ -314,6 +314,37 @@ export type ConvertToTicketRequest = {
 };
 
 /**
+ * CostAnalysisResponse
+ *
+ * AI-produced cost breakdown. Best-effort shape — the AI output isn't
+ * validated, but these routes use `responses=` (not `response_model=`), so
+ * this only types the generated client; it never validates/filters at runtime.
+ * Shared by ProjectArchitectureResponse and PRDAnalysisResponse.
+ */
+export type CostAnalysisResponse = {
+  development?: DevelopmentCost | null;
+  infrastructure?: InfrastructureCost | null;
+  /**
+   * Total Estimated
+   */
+  total_estimated?: string | null;
+};
+
+/**
+ * CostBreakdownItem
+ */
+export type CostBreakdownItem = {
+  /**
+   * Cost
+   */
+  cost?: string | null;
+  /**
+   * Item
+   */
+  item?: string | null;
+};
+
+/**
  * CreatePersonalTaskRequest
  */
 export type CreatePersonalTaskRequest = {
@@ -481,6 +512,20 @@ export type DeveloperUpdate = {
    * Name
    */
   name?: string | null;
+};
+
+/**
+ * DevelopmentCost
+ */
+export type DevelopmentCost = {
+  /**
+   * Breakdown
+   */
+  breakdown?: Array<CostBreakdownItem> | null;
+  /**
+   * Total
+   */
+  total?: string | null;
 };
 
 /**
@@ -796,6 +841,24 @@ export type HttpValidationError = {
 };
 
 /**
+ * InfrastructureCost
+ */
+export type InfrastructureCost = {
+  /**
+   * Annual
+   */
+  annual?: string | null;
+  /**
+   * Breakdown
+   */
+  breakdown?: Array<CostBreakdownItem> | null;
+  /**
+   * Monthly
+   */
+  monthly?: string | null;
+};
+
+/**
  * LogHoursRequest
  */
 export type LogHoursRequest = {
@@ -1014,16 +1077,13 @@ export type MyTaskResponse = {
  * Shape of `PRDAnalysis.to_dict()` (models/architecture.py). Field
  * optionality is inferred from `to_dict()` and the underlying nullable
  * columns: `summary` is a nullable Text column; the JSON list columns are
- * coalesced to `[]`/`{}` so they are non-null but loosely typed.
- * `cost_analysis` is passed through unchanged and can be null.
+ * coalesced to `[]`/`{}`. The AI-produced blobs (cost_analysis / risks /
+ * timeline / recommended_tools) are best-effort shapes — typed for the
+ * generated client only (these routes use `responses=`, never
+ * `response_model=`, so nothing is validated/filtered at runtime).
  */
 export type PrdAnalysisResponse = {
-  /**
-   * Cost Analysis
-   */
-  cost_analysis?: {
-    [key: string]: unknown;
-  } | null;
+  cost_analysis?: CostAnalysisResponse | null;
   /**
    * Created At
    */
@@ -1048,14 +1108,12 @@ export type PrdAnalysisResponse = {
    * Recommended Tools
    */
   recommended_tools: {
-    [key: string]: unknown;
+    [key: string]: Array<string>;
   };
   /**
    * Risks
    */
-  risks: Array<{
-    [key: string]: unknown;
-  }>;
+  risks: Array<PrdRisk>;
   /**
    * Summary
    */
@@ -1067,9 +1125,43 @@ export type PrdAnalysisResponse = {
   /**
    * Timeline
    */
-  timeline: Array<{
-    [key: string]: unknown;
-  }>;
+  timeline: Array<PrdTimelinePhase>;
+};
+
+/**
+ * PRDRisk
+ */
+export type PrdRisk = {
+  /**
+   * Impact
+   */
+  impact?: string | null;
+  /**
+   * Mitigation
+   */
+  mitigation?: string | null;
+  /**
+   * Risk
+   */
+  risk?: string | null;
+};
+
+/**
+ * PRDTimelinePhase
+ */
+export type PrdTimelinePhase = {
+  /**
+   * Duration
+   */
+  duration?: string | null;
+  /**
+   * Phase
+   */
+  phase?: string | null;
+  /**
+   * Tasks
+   */
+  tasks?: Array<string> | null;
 };
 
 /**
@@ -1248,13 +1340,8 @@ export type ProjectArchitectureResponse = {
   /**
    * Cons
    */
-  cons: Array<unknown>;
-  /**
-   * Cost Analysis
-   */
-  cost_analysis?: {
-    [key: string]: unknown;
-  } | null;
+  cons: Array<string>;
+  cost_analysis?: CostAnalysisResponse | null;
   /**
    * Created At
    */
@@ -1290,7 +1377,7 @@ export type ProjectArchitectureResponse = {
   /**
    * Pros
    */
-  pros: Array<unknown>;
+  pros: Array<string>;
   /**
    * Selected At
    */
@@ -1303,7 +1390,7 @@ export type ProjectArchitectureResponse = {
    * Tools Recommended
    */
   tools_recommended: {
-    [key: string]: unknown;
+    [key: string]: Array<string>;
   };
   /**
    * Updated At

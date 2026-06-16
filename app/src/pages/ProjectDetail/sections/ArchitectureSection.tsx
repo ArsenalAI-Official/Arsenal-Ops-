@@ -13,15 +13,15 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
-import type { Architecture } from '../types';
+import type { ProjectArchitectureResponse } from '@/client';
 
 // MermaidRenderer is heavy; lazy-load only when this section renders.
 // ArchitectureEditor (the modal) stays lazy at the parent, since edit state lives there.
 const MermaidRenderer = lazy(() => import('@/components/MermaidRenderer'));
 
 interface ArchitectureSectionProps {
-  architecture: Architecture;
-  onEdit: (arch: Architecture) => void;
+  architecture: ProjectArchitectureResponse;
+  onEdit: (arch: ProjectArchitectureResponse) => void;
   /** Optional — when undefined the "AI Generate" button (which navigates to
    *  the board) is hidden. Parent passes undefined when the user lacks the
    *  `project.board` cap. */
@@ -161,17 +161,15 @@ const ArchitectureSection = ({
               <div className="mb-3">
                 <p className="text-xs text-[#737373] mb-2">Infrastructure Components</p>
                 <div className="space-y-1.5">
-                  {arch.cost_analysis.infrastructure.breakdown.map(
-                    (item: { item: string; cost: string }, idx: number) => (
-                      <div
-                        key={idx}
-                        className="flex items-center justify-between py-1 px-2 bg-[rgba(255,255,255,0.025)] rounded"
-                      >
-                        <span className="text-xs text-[#f5f5f5]">{item.item}</span>
-                        <span className="text-xs font-medium text-[#E0B954]">{item.cost}</span>
-                      </div>
-                    ),
-                  )}
+                  {arch.cost_analysis.infrastructure.breakdown.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between py-1 px-2 bg-[rgba(255,255,255,0.025)] rounded"
+                    >
+                      <span className="text-xs text-[#f5f5f5]">{item.item}</span>
+                      <span className="text-xs font-medium text-[#E0B954]">{item.cost}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

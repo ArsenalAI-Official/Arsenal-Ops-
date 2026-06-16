@@ -183,6 +183,33 @@ class ProjectDeveloperEntry(BaseModel):
     is_admin: bool
 
 
+class CostBreakdownItem(BaseModel):
+    item: str | None = None
+    cost: str | None = None
+
+
+class InfrastructureCost(BaseModel):
+    monthly: str | None = None
+    annual: str | None = None
+    breakdown: list[CostBreakdownItem] | None = None
+
+
+class DevelopmentCost(BaseModel):
+    total: str | None = None
+    breakdown: list[CostBreakdownItem] | None = None
+
+
+class CostAnalysisResponse(BaseModel):
+    """AI-produced cost breakdown. Best-effort shape — the AI output isn't
+    validated, but these routes use `responses=` (not `response_model=`), so
+    this only types the generated client; it never validates/filters at runtime.
+    Shared by ProjectArchitectureResponse and PRDAnalysisResponse."""
+
+    infrastructure: InfrastructureCost | None = None
+    development: DevelopmentCost | None = None
+    total_estimated: str | None = None
+
+
 class ProjectArchitectureResponse(BaseModel):
     """Shape of `selected_architecture` — the output of
     `Architecture.to_dict()` (models/architecture.py). It is `null` in the
@@ -195,12 +222,13 @@ class ProjectArchitectureResponse(BaseModel):
     description: str | None = None
     architecture_type: str | None = None
     mermaid_code: str
-    # JSON columns: `cost_analysis` can be null; the others are coalesced to
-    # {}/[] in to_dict() so they are non-null but loosely typed.
-    cost_analysis: dict | None = None
-    tools_recommended: dict
-    pros: list
-    cons: list
+    # JSON columns. `cost_analysis` (AI-produced) can be null; the others are
+    # coalesced to {}/[] in to_dict(). tools_recommended maps tech areas
+    # (frontend/backend/database/devops/...) → string lists.
+    cost_analysis: CostAnalysisResponse | None = None
+    tools_recommended: dict[str, list[str]]
+    pros: list[str]
+    cons: list[str]
     estimated_cost: str | None = None
     complexity: str | None = None
     time_to_implement: str | None = None

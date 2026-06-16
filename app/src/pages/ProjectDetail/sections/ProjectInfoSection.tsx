@@ -6,21 +6,21 @@ import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarIcon } from '@/components/ui/calendar';
 import { parseLocalDate } from '@/lib/dateUtils';
-import type { Project } from '../types';
+import type { ProjectDetailResponse } from '@/client';
 
 interface ProjectInfoSectionProps {
-  project: Project;
+  project: ProjectDetailResponse;
   /** True when the current user is a project admin OR system admin.
    *  Mirrors `isCurrentUserAdmin()` from ProjectDetail. Drives the visibility
    *  of the inline Edit button; the matching backend gate lives on
    *  `PUT /api/projects/{id}` via `require_project_admin`. */
   isCurrentUserAdmin: boolean;
-  onSave: (updates: Partial<Project>) => void;
+  onSave: (updates: Partial<ProjectDetailResponse>) => void;
 }
 
 const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfoSectionProps) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<Partial<Project>>({});
+  const [editForm, setEditForm] = useState<Partial<ProjectDetailResponse>>({});
   const [showCalendarStartDate, setShowCalendarStartDate] = useState(false);
   const [showCalendarEndDate, setShowCalendarEndDate] = useState(false);
 

@@ -2,10 +2,11 @@ import { ArrowLeft, LayoutGrid } from 'lucide-react';
 import type { NavigateFunction } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import type { ProjectTabSpec, ProjectTabId } from '@/lib/projectTabs';
-import type { Project, TabType } from '../types';
+import type { TabType } from '../types';
+import type { ProjectDetailResponse } from '@/client';
 
 interface ProjectDetailHeaderProps {
-  project: Project;
+  project: ProjectDetailResponse;
   /** Already filtered to the tabs this user can access (parent applies the
    *  capability/project-admin gate before passing). Order + labels + icons
    *  come straight from the registry. */

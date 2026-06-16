@@ -3,21 +3,26 @@ import PRDAnalysisSection from '../sections/PRDAnalysisSection';
 import ArchitectureSection from '../sections/ArchitectureSection';
 import TeamSection from '../sections/TeamSection';
 import LinksSection from '../sections/LinksSection';
-import type { Architecture, PRDAnalysis, Project } from '../types';
-import type { DeveloperResponse, ProjectLinkResponse } from '@/client';
+import type {
+  DeveloperResponse,
+  ProjectLinkResponse,
+  ProjectArchitectureResponse,
+  PrdAnalysisResponse,
+  ProjectDetailResponse,
+} from '@/client';
 
 interface OverviewTabProps {
   /** While true, the full overview skeleton is shown until ALL hub data
    *  (analytics, PRD, …) is ready. */
   hubLoading: boolean;
-  project: Project;
-  prdAnalysis: PRDAnalysis | null;
+  project: ProjectDetailResponse;
+  prdAnalysis: PrdAnalysisResponse | null;
   isCurrentUserAdmin: boolean;
   availableDevelopers: DeveloperResponse[];
   links: ProjectLinkResponse[];
   linksLoading: boolean;
-  onSaveEdit: (editForm: Partial<Project>) => void;
-  onEditArchitecture: (arch: Architecture) => void;
+  onSaveEdit: (editForm: Partial<ProjectDetailResponse>) => void;
+  onEditArchitecture: (arch: ProjectArchitectureResponse) => void;
   /** Undefined when the user lacks `project.board` — hides the "AI Generate"
    *  / Open Board entry point inside ArchitectureSection. */
   onOpenBoard?: () => void;

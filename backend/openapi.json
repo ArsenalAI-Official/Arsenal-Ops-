@@ -508,6 +508,72 @@
         "title": "ConvertToTicketRequest",
         "type": "object"
       },
+      "CostAnalysisResponse": {
+        "description": "AI-produced cost breakdown. Best-effort shape \u2014 the AI output isn't\nvalidated, but these routes use `responses=` (not `response_model=`), so\nthis only types the generated client; it never validates/filters at runtime.\nShared by ProjectArchitectureResponse and PRDAnalysisResponse.",
+        "properties": {
+          "development": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DevelopmentCost"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "infrastructure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InfrastructureCost"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total_estimated": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Estimated"
+          }
+        },
+        "title": "CostAnalysisResponse",
+        "type": "object"
+      },
+      "CostBreakdownItem": {
+        "properties": {
+          "cost": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          },
+          "item": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item"
+          }
+        },
+        "title": "CostBreakdownItem",
+        "type": "object"
+      },
       "CreatePersonalTaskRequest": {
         "properties": {
           "description": {
@@ -815,6 +881,37 @@
           }
         },
         "title": "DeveloperUpdate",
+        "type": "object"
+      },
+      "DevelopmentCost": {
+        "properties": {
+          "breakdown": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CostBreakdownItem"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Breakdown"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          }
+        },
+        "title": "DevelopmentCost",
         "type": "object"
       },
       "EmployeeCreate": {
@@ -1380,6 +1477,48 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "InfrastructureCost": {
+        "properties": {
+          "annual": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annual"
+          },
+          "breakdown": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CostBreakdownItem"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Breakdown"
+          },
+          "monthly": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Monthly"
+          }
+        },
+        "title": "InfrastructureCost",
+        "type": "object"
+      },
       "LogHoursRequest": {
         "properties": {
           "description": {
@@ -1762,19 +1901,17 @@
         "type": "object"
       },
       "PRDAnalysisResponse": {
-        "description": "Shape of `PRDAnalysis.to_dict()` (models/architecture.py). Field\noptionality is inferred from `to_dict()` and the underlying nullable\ncolumns: `summary` is a nullable Text column; the JSON list columns are\ncoalesced to `[]`/`{}` so they are non-null but loosely typed.\n`cost_analysis` is passed through unchanged and can be null.",
+        "description": "Shape of `PRDAnalysis.to_dict()` (models/architecture.py). Field\noptionality is inferred from `to_dict()` and the underlying nullable\ncolumns: `summary` is a nullable Text column; the JSON list columns are\ncoalesced to `[]`/`{}`. The AI-produced blobs (cost_analysis / risks /\ntimeline / recommended_tools) are best-effort shapes \u2014 typed for the\ngenerated client only (these routes use `responses=`, never\n`response_model=`, so nothing is validated/filtered at runtime).",
         "properties": {
           "cost_analysis": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/CostAnalysisResponse"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Cost Analysis"
+            ]
           },
           "created_at": {
             "anyOf": [
@@ -1814,14 +1951,18 @@
             "type": "integer"
           },
           "recommended_tools": {
-            "additionalProperties": true,
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
             "title": "Recommended Tools",
             "type": "object"
           },
           "risks": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/PRDRisk"
             },
             "title": "Risks",
             "type": "array"
@@ -1846,8 +1987,7 @@
           },
           "timeline": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/PRDTimelinePhase"
             },
             "title": "Timeline",
             "type": "array"
@@ -1863,6 +2003,87 @@
           "timeline"
         ],
         "title": "PRDAnalysisResponse",
+        "type": "object"
+      },
+      "PRDRisk": {
+        "properties": {
+          "impact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impact"
+          },
+          "mitigation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mitigation"
+          },
+          "risk": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risk"
+          }
+        },
+        "title": "PRDRisk",
+        "type": "object"
+      },
+      "PRDTimelinePhase": {
+        "properties": {
+          "duration": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration"
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase"
+          },
+          "tasks": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tasks"
+          }
+        },
+        "title": "PRDTimelinePhase",
         "type": "object"
       },
       "PasswordChange": {
@@ -2116,21 +2337,21 @@
             "title": "Complexity"
           },
           "cons": {
-            "items": {},
+            "items": {
+              "type": "string"
+            },
             "title": "Cons",
             "type": "array"
           },
           "cost_analysis": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/CostAnalysisResponse"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Cost Analysis"
+            ]
           },
           "created_at": {
             "anyOf": [
@@ -2186,7 +2407,9 @@
             "type": "integer"
           },
           "pros": {
-            "items": {},
+            "items": {
+              "type": "string"
+            },
             "title": "Pros",
             "type": "array"
           },
@@ -2213,7 +2436,12 @@
             "title": "Time To Implement"
           },
           "tools_recommended": {
-            "additionalProperties": true,
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
             "title": "Tools Recommended",
             "type": "object"
           },

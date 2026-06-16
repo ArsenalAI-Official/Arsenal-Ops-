@@ -1,16 +1,16 @@
 import { Target } from 'lucide-react';
 import ArchitectureCard from '@/components/ArchitectureCard';
 import RoadmapSummaryPanel from '../components/RoadmapSummaryPanel';
-import type { Architecture, PRDAnalysis } from '../useAIPlanning';
+import type { ProjectArchitectureResponse, PrdAnalysisResponse } from '@/client';
 
 interface ArchitecturesStepProps {
-  analysis: PRDAnalysis | null;
+  analysis: PrdAnalysisResponse | null;
   roadmapSummary: any;
   roadmapParsedData: any;
-  architectures: Architecture[];
+  architectures: ProjectArchitectureResponse[];
   selectedArchitectureId: number | null;
   onSelectArchitecture: (archId: number) => void;
-  onEditArchitecture: (arch: Architecture) => void;
+  onEditArchitecture: (arch: ProjectArchitectureResponse) => void;
 }
 
 const ArchitecturesStep = ({

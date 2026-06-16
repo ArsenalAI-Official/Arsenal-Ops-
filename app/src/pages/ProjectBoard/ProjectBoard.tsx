@@ -15,7 +15,7 @@ import {
   PRIORITY_STYLE as PRIORITY_COLORS,
 } from '@/lib/workItemConfig';
 import type { WorkItem } from '@/types/workItems';
-import type { SprintResponse } from '@/client';
+import type { SprintResponse, ProjectArchitectureResponse } from '@/client';
 import BoardView from './views/BoardView';
 import ListView from './views/ListView';
 import EpicView from './views/EpicView';
@@ -39,20 +39,6 @@ import { useCommentMutation } from './hooks/useCommentMutation';
 import { useBoardFilters } from './hooks/useBoardFilters';
 import { useListSort } from './hooks/useListSort';
 import { useListGrouping } from './hooks/useListGrouping';
-
-interface Architecture {
-  id: number;
-  name: string;
-  description: string;
-  architecture_type: string;
-  mermaid_code: string;
-  pros: string[];
-  cons: string[];
-  estimated_cost: string;
-  complexity: string;
-  time_to_implement: string;
-  is_selected: boolean;
-}
 
 const ProjectBoard = () => {
   const { id, ticketId } = useParams<{ id: string; ticketId?: string }>();
@@ -122,8 +108,9 @@ const ProjectBoard = () => {
   // ArchitectureEditor wrapper) stay at the parent. Multi-step + PRD/Roadmap
   // state lives inside AIPlanningModal.
   const [showAIModal, setShowAIModal] = useState(false);
-  const [architectures, setArchitectures] = useState<Architecture[]>([]);
-  const [editingArchitecture, setEditingArchitecture] = useState<Architecture | null>(null);
+  const [architectures, setArchitectures] = useState<ProjectArchitectureResponse[]>([]);
+  const [editingArchitecture, setEditingArchitecture] =
+    useState<ProjectArchitectureResponse | null>(null);
 
   // Sprint and timeline states
   const [startDate, setStartDate] = useState('');
@@ -366,10 +353,13 @@ const ProjectBoard = () => {
     updates: { mermaid_code?: string; name?: string; description?: string },
   ): Promise<void> => {
     try {
-      const updated = await apiFetch<Architecture>(`/api/prd/architectures/${archId}`, {
-        method: 'PUT',
-        body: JSON.stringify(updates),
-      });
+      const updated = await apiFetch<ProjectArchitectureResponse>(
+        `/api/prd/architectures/${archId}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(updates),
+        },
+      );
       setArchitectures((prev) => prev.map((a) => (a.id === archId ? updated : a)));
       toast.success('Architecture saved!');
       setEditingArchitecture(null);

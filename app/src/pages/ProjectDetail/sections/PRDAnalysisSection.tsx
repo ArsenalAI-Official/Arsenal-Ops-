@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { apiFetch, ApiError } from '@/lib/api';
 import { API_BASE_URL } from '@/config/api';
 import { useAuth } from '@/contexts/AuthContext';
+import type { PrdAnalysisResponse } from '@/client';
 import GenerateRoadmapModal from '../modals/GenerateRoadmapModal';
 
 interface RoadmapTemplateMeta {
@@ -34,33 +35,8 @@ interface RoadmapTemplateMeta {
   updated_at: string;
 }
 
-interface PRDAnalysis {
-  id: number;
-  summary: string;
-  key_features: string[];
-  technical_requirements: string[];
-  cost_analysis?: {
-    infrastructure?: {
-      monthly: string;
-      annual: string;
-      breakdown: { item: string; cost: string }[];
-    };
-    development?: { total: string; breakdown: { item: string; cost: string }[] };
-    total_estimated?: string;
-  };
-  recommended_tools?: {
-    frontend?: string[];
-    backend?: string[];
-    database?: string[];
-    devops?: string[];
-    [key: string]: string[] | undefined;
-  };
-  risks: { risk: string; impact: string; mitigation: string }[];
-  timeline: { phase: string; duration: string; tasks: string[] }[];
-}
-
 interface PRDAnalysisSectionProps {
-  prdAnalysis: PRDAnalysis;
+  prdAnalysis: PrdAnalysisResponse;
   projectId: number;
   projectName: string;
 }

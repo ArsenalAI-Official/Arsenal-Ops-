@@ -3,7 +3,8 @@ import { Sparkles, CheckCircle2, X, ArrowRight, GitCommit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import GenerateRoadmapModal from '@/pages/ProjectDetail/modals/GenerateRoadmapModal';
-import { useAIPlanning, type Architecture, type Project } from './AIPlanning/useAIPlanning';
+import { useAIPlanning, type Project } from './AIPlanning/useAIPlanning';
+import type { ProjectArchitectureResponse } from '@/client';
 import UploadStep from './AIPlanning/steps/UploadStep';
 import AnalyzingStep from './AIPlanning/steps/AnalyzingStep';
 import ArchitecturesStep from './AIPlanning/steps/ArchitecturesStep';
@@ -13,9 +14,9 @@ import DoneStep from './AIPlanning/steps/DoneStep';
 
 export interface AIPlanningModalProps {
   project: Project | null;
-  architectures: Architecture[];
-  setArchitectures: Dispatch<SetStateAction<Architecture[]>>;
-  onEditArchitecture: (arch: Architecture) => void;
+  architectures: ProjectArchitectureResponse[];
+  setArchitectures: Dispatch<SetStateAction<ProjectArchitectureResponse[]>>;
+  onEditArchitecture: (arch: ProjectArchitectureResponse) => void;
   startDate: string;
   setStartDate: Dispatch<SetStateAction<string>>;
   endDate: string;

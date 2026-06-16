@@ -2,25 +2,12 @@ import { CheckCircle2, Clock, DollarSign, Maximize2, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import MermaidRenderer from './MermaidRenderer';
-
-interface Architecture {
-  id: number;
-  name: string;
-  description: string;
-  architecture_type: string;
-  mermaid_code: string;
-  pros: string[];
-  cons: string[];
-  estimated_cost: string;
-  complexity: string;
-  time_to_implement: string;
-  is_selected: boolean;
-}
+import type { ProjectArchitectureResponse } from '@/client';
 
 interface ArchitectureCardProps {
-  architecture: Architecture;
+  architecture: ProjectArchitectureResponse;
   onSelect: (id: number) => void;
-  onViewFullScreen: (architecture: Architecture) => void;
+  onViewFullScreen: (architecture: ProjectArchitectureResponse) => void;
   isSelected?: boolean;
 }
 

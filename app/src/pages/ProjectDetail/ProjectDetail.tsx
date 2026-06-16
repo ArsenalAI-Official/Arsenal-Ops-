@@ -14,7 +14,8 @@ import { resetPulseData } from '@/components/ProjectHub/pulseData';
 import { useMergedPulse, usePulseManualData } from '@/components/ProjectHub/usePulseData';
 import { toast, Toaster } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import type { Architecture, TabType } from './types';
+import type { TabType } from './types';
+import type { ProjectArchitectureResponse } from '@/client';
 import { useProjectDetailData } from './hooks/useProjectDetailData';
 import ProjectDetailHeader from './sections/ProjectDetailHeader';
 import ProjectDetailSkeleton from './components/ProjectDetailSkeleton';
@@ -56,7 +57,8 @@ const ProjectDetail = () => {
   }, [activeTab]);
 
   // Architecture editing state — modal lives at parent so it overlays any tab.
-  const [editingArchitecture, setEditingArchitecture] = useState<Architecture | null>(null);
+  const [editingArchitecture, setEditingArchitecture] =
+    useState<ProjectArchitectureResponse | null>(null);
 
   const [sprintsExpanded, setSprintsExpanded] = useState(false);
 

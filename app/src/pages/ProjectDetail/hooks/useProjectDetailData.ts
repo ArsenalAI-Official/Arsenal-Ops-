@@ -11,9 +11,11 @@ import { useAllDevelopers } from '@/hooks/useAllDevelopers';
 import type { ConfirmFn } from '@/components/ui/confirm-dialog';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import type { Project, PRDAnalysis, HubWorkItem, ProjectOverview } from '../types';
-import type { SprintResponse } from '@/client';
+import type { HubWorkItem, ProjectOverview } from '../types';
 import type {
+  SprintResponse,
+  ProjectDetailResponse,
+  PrdAnalysisResponse,
   DeveloperResponse,
   ProjectAnalyticsResponse,
   GoalResponse,
@@ -49,7 +51,7 @@ export interface UseProjectDetailDataOptions {
   confirm?: ConfirmFn;
 }
 export interface UseProjectDetailDataResult {
-  project: Project | null;
+  project: ProjectDetailResponse | null;
   isLoading: boolean;
   accessDenied: boolean;
   allDevelopers: DeveloperResponse[];
@@ -59,14 +61,14 @@ export interface UseProjectDetailDataResult {
   milestones: MilestoneResponse[];
   activities: ActivityResponse[];
   analytics: ProjectAnalyticsResponse | null;
-  prdAnalysis: PRDAnalysis | null;
+  prdAnalysis: PrdAnalysisResponse | null;
   links: ProjectLinkResponse[];
   linksLoading: boolean;
   hubLoading: boolean;
   handleAddLink: (link: { name: string; url: string }) => void;
   handleDeleteLink: (linkId: number) => void;
   handleTaskUpdate: (itemId: string, updates: any) => void;
-  handleSaveEdit: (editForm: Partial<Project>) => void;
+  handleSaveEdit: (editForm: Partial<ProjectDetailResponse>) => void;
   handleAddDeveloper: (form: {
     developer_id: string;
     role: string;
@@ -115,9 +117,9 @@ export const useProjectDetailData = (
   }, [overviewQuery.data, id, queryClient]);
 
   // ── react-query: project ────────────────────────────────────────────────
-  const projectQuery = useQuery<Project>({
+  const projectQuery = useQuery<ProjectDetailResponse>({
     queryKey: ['project', id],
-    queryFn: () => apiFetch<Project>(`/api/projects/${id}`),
+    queryFn: () => apiFetch<ProjectDetailResponse>(`/api/projects/${id}`),
     enabled: !!id,
   });
   const project = projectQuery.data ?? null;
@@ -200,9 +202,9 @@ export const useProjectDetailData = (
   const analytics = analyticsQuery.data ?? null;
 
   // ── react-query: PRD analysis ───────────────────────────────────────────
-  const prdAnalysisQuery = useQuery<PRDAnalysis>({
+  const prdAnalysisQuery = useQuery<PrdAnalysisResponse>({
     queryKey: ['hubData', id, 'prd'],
-    queryFn: () => apiFetch<PRDAnalysis>(`/api/prd/projects/${id}/analysis`),
+    queryFn: () => apiFetch<PrdAnalysisResponse>(`/api/prd/projects/${id}/analysis`),
     enabled: !!id,
   });
   const prdAnalysis = prdAnalysisQuery.data ?? null;
@@ -283,7 +285,7 @@ export const useProjectDetailData = (
 
   // ── mutation: save project edits ────────────────────────────────────────
   const saveEditMutation = useMutation({
-    mutationFn: (editForm: Partial<Project>) => {
+    mutationFn: (editForm: Partial<ProjectDetailResponse>) => {
       if (!project) throw new Error('No project');
       const updateData: any = {
         name: editForm.name || undefined,
@@ -296,7 +298,7 @@ export const useProjectDetailData = (
       Object.keys(updateData).forEach((key) => {
         if (updateData[key] === undefined) delete updateData[key];
       });
-      return apiFetch<Project>(`/api/projects/${project.id}`, {
+      return apiFetch<ProjectDetailResponse>(`/api/projects/${project.id}`, {
         method: 'PUT',
         body: JSON.stringify(updateData),
       });
@@ -317,7 +319,7 @@ export const useProjectDetailData = (
   });
 
   // Save project edits
-  const handleSaveEdit = (editForm: Partial<Project>) => {
+  const handleSaveEdit = (editForm: Partial<ProjectDetailResponse>) => {
     saveEditMutation.mutate(editForm);
   };
 

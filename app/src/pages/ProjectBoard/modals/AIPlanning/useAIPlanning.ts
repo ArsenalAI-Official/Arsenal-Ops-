@@ -3,31 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import { invalidateProjectScope } from '@/lib/invalidations';
-
-export interface Architecture {
-  id: number;
-  name: string;
-  description: string;
-  architecture_type: string;
-  mermaid_code: string;
-  pros: string[];
-  cons: string[];
-  estimated_cost: string;
-  complexity: string;
-  time_to_implement: string;
-  is_selected: boolean;
-}
-
-export interface PRDAnalysis {
-  id: number;
-  summary: string;
-  key_features: string[];
-  technical_requirements: string[];
-  cost_analysis: any;
-  recommended_tools: any;
-  risks: any[];
-  timeline: any[];
-}
+import type { ProjectArchitectureResponse, PrdAnalysisResponse } from '@/client';
 
 export interface GeneratedTicket {
   title: string;
@@ -59,7 +35,7 @@ export interface TicketsSummary {
 
 interface UseAIPlanningArgs {
   project: Project | null;
-  setArchitectures: Dispatch<SetStateAction<Architecture[]>>;
+  setArchitectures: Dispatch<SetStateAction<ProjectArchitectureResponse[]>>;
   startDate: string;
   endDate: string;
   onClose: () => void;
@@ -105,7 +81,7 @@ export function useAIPlanning({
   const [prdFile, setPrdFile] = useState<File | null>(null);
   const [prdText, setPrdText] = useState('');
   const [additionalContext, setAdditionalContext] = useState('');
-  const [analysis, setAnalysis] = useState<PRDAnalysis | null>(null);
+  const [analysis, setAnalysis] = useState<PrdAnalysisResponse | null>(null);
   const [selectedArchitectureId, setSelectedArchitectureId] = useState<number | null>(null);
   const [generatedTickets, setGeneratedTickets] = useState<GeneratedTicket[]>([]);
   const [ticketsSummary, setTicketsSummary] = useState<TicketsSummary | null>(null);
