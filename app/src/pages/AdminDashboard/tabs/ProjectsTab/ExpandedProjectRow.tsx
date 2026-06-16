@@ -4,7 +4,8 @@ import { Loader2 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { TASK_TYPE_CONFIG } from '@/components/ProjectsPage/constants';
 import { PRIORITY_COLOR, STATUS_ACCENTS, STATUS_BUTTONS } from './types';
-import type { ProjectWeeklyTickets, StatusBucket, WeeklyReportRow, WeeklyTicket } from './types';
+import type { StatusBucket } from './types';
+import type { ProjectWeeklyReportRow, ProjectWeeklyTicketsResponse, WeeklyTicket } from '@/client';
 
 // ─────────────────────────────────────────────────────────────────────────
 // ExpandedProjectRow — sub-component that owns the drill-down for one row.
@@ -18,16 +19,18 @@ import type { ProjectWeeklyTickets, StatusBucket, WeeklyReportRow, WeeklyTicket 
 // ─────────────────────────────────────────────────────────────────────────
 
 interface ExpandedProjectRowProps {
-  project: WeeklyReportRow;
+  project: ProjectWeeklyReportRow;
 }
 
 const ExpandedProjectRow = ({ project }: ExpandedProjectRowProps) => {
   const [selectedStatus, setSelectedStatus] = useState<StatusBucket>('in_progress');
 
-  const ticketsQuery = useQuery<ProjectWeeklyTickets>({
+  const ticketsQuery = useQuery<ProjectWeeklyTicketsResponse>({
     queryKey: ['admin', 'projectsWeeklyTickets', project.project_id],
     queryFn: () =>
-      apiFetch<ProjectWeeklyTickets>(`/api/admin/projects/${project.project_id}/weekly-tickets`),
+      apiFetch<ProjectWeeklyTicketsResponse>(
+        `/api/admin/projects/${project.project_id}/weekly-tickets`,
+      ),
     // No staleTime override — admin views are background-refetched on focus
     // by the parent's ADMIN_REFETCH defaults; per-row queries inherit those
     // when AdminDashboard's QueryClient resolves the cache.

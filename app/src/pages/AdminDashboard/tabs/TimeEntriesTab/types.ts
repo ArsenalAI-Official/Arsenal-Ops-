@@ -15,30 +15,6 @@ export interface EmployeeOption {
   email: string;
 }
 
-export interface TimeEntryRow {
-  id: number;
-  hours: number;
-  description: string | null;
-  logged_at: string;
-  work_item_id: number | null;
-  work_item_key: string | null;
-  work_item_title: string | null;
-  work_item_type: string | null;
-  project_id: number | null;
-  project_name: string | null;
-  developer_id: number | null;
-  developer_name: string | null;
-  developer_email: string | null;
-  avatar_url: string | null;
-}
-
-export interface TimeEntriesResponse {
-  rows: TimeEntryRow[];
-  total_hours: number;
-  total_rows: number;
-  truncated: boolean;
-}
-
 /**
  * A raw row collapsed by (employee, project, local-day). The table renders
  * these — multiple log-hours entries the same employee made against the same

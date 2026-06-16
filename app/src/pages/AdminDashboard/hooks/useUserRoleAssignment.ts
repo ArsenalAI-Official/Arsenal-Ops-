@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { invalidateAdminRoles, invalidateAdminUserRoleImpact } from '@/lib/invalidations';
-import type { Role, User } from '../types';
+import type { RoleResponse, UserListItemResponse } from '@/client';
 import { useRefreshCapsTwice } from './useRefreshCapsTwice';
 
 /**
@@ -57,7 +57,11 @@ export function useUserRoleAssignment() {
     },
   });
 
-  const handleToggleUserRoleById = (targetUser: User, role: Role, isChecked: boolean) => {
+  const handleToggleUserRoleById = (
+    targetUser: UserListItemResponse,
+    role: RoleResponse,
+    isChecked: boolean,
+  ) => {
     // No per-toggle success toast: the Edit-Roles modal shows a live assigned
     // counter (n/total), so the toggle is its own feedback. Errors still toast
     // via the mutations' onError.

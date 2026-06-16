@@ -5,7 +5,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
-import type { Project } from '../types';
+import type { ProjectResponse } from '@/client';
 import { ADMIN_REFETCH } from '../hooks/adminRefetch';
 import { useEmployeesList } from '../hooks/useEmployeesList';
 import { AdminSpinner } from '../components/AdminSpinner';
@@ -16,9 +16,9 @@ export default function TimeEntriesContainer() {
 
   // Shares the ['admin','projects'] cache with the Projects tab — react-query
   // dedupes the fetch when both are visited.
-  const projectsQuery = useQuery<Project[]>({
+  const projectsQuery = useQuery<ProjectResponse[]>({
     queryKey: ['admin', 'projects'],
-    queryFn: () => apiFetch<Project[]>('/api/admin/projects'),
+    queryFn: () => apiFetch<ProjectResponse[]>('/api/admin/projects'),
     ...ADMIN_REFETCH,
   });
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);

@@ -5,12 +5,13 @@ import ProjectsViewToggle from './ProjectsViewToggle';
 import ProjectReportsView from './ProjectReportsView';
 import ProjectCardsView from './ProjectCardsView';
 import { formatWeekRange } from './types';
-import type { Project, ProjectsView, WeeklyReport } from './types';
+import type { ProjectsView } from './types';
+import type { ProjectResponse, ProjectWeeklyReportResponse } from '@/client';
 
 interface ProjectsTabProps {
   /** Already filtered list — parent applies the category filter before
    *  passing it in so this tab stays pure presentational. */
-  projects: Project[];
+  projects: ProjectResponse[];
   /** Full category list for the filter dropdown + per-card category picker. */
   categories: ProjectCategory[];
   /** Encoded filter value: 'all' | 'uncategorized' | '<numeric id>'. */
@@ -21,12 +22,12 @@ interface ProjectsTabProps {
   onSetProjectCategory: (projectId: number, categoryId: number | null) => void;
   /** Weekly report for the projects currently in scope (server applies the
    *  same category filter). `null` while loading and on fetch error. */
-  weeklyReport: WeeklyReport | null;
+  weeklyReport: ProjectWeeklyReportResponse | null;
   weeklyReportLoading: boolean;
   invitingProjectId: number | null;
-  onEditGitHubSettings: (project: Project, e: React.MouseEvent) => void;
-  onSendGitHubInvites: (project: Project, e: React.MouseEvent) => void;
-  onOpenProjectMembers: (project: Project, e: React.MouseEvent) => void;
+  onEditGitHubSettings: (project: ProjectResponse, e: React.MouseEvent) => void;
+  onSendGitHubInvites: (project: ProjectResponse, e: React.MouseEvent) => void;
+  onOpenProjectMembers: (project: ProjectResponse, e: React.MouseEvent) => void;
   /** Gates write affordances: Manage Categories, per-card category Select,
    *  Edit GitHub Settings, Send GitHub Invites. The filter dropdown and
    *  read-only project list stay visible for read-only admins. */
@@ -173,4 +174,3 @@ const ProjectsTab = ({
 };
 
 export default ProjectsTab;
-export type { Project, WeeklyReport, WeeklyReportRow } from './types';

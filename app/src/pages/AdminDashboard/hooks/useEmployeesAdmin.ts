@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import type { ConfirmFn } from '@/components/ui/confirm-dialog';
-import type { Employee, DeveloperCapacity } from '../types';
+import type { EmployeeResponse } from '@/client';
+import type { DeveloperCapacity } from '../types';
 import { ADMIN_REFETCH } from './adminRefetch';
 import { useEmployeesList } from './useEmployeesList';
 
@@ -96,7 +97,7 @@ export function useEmployeesAdmin(confirm: ConfirmFn) {
 
   // Employee create/edit modal + form state
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
-  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [editingEmployee, setEditingEmployee] = useState<EmployeeResponse | null>(null);
   const [employeeForm, setEmployeeForm] = useState({
     name: '',
     email: '',
@@ -104,7 +105,7 @@ export function useEmployeesAdmin(confirm: ConfirmFn) {
     specialization: '',
   });
 
-  const handleEditEmployee = (employee: Employee) => {
+  const handleEditEmployee = (employee: EmployeeResponse) => {
     setEditingEmployee(employee);
     setEmployeeForm({
       name: employee.name,
@@ -121,7 +122,7 @@ export function useEmployeesAdmin(confirm: ConfirmFn) {
         ? `/api/admin/employees/${editingEmployee.id}`
         : `/api/admin/employees`;
       const method = editingEmployee ? 'PUT' : 'POST';
-      return apiFetch<Employee>(url, { method, body: JSON.stringify(employeeForm) });
+      return apiFetch<EmployeeResponse>(url, { method, body: JSON.stringify(employeeForm) });
     },
     onSuccess: () => {
       toast.success(editingEmployee ? 'Employee updated!' : 'Employee created!');

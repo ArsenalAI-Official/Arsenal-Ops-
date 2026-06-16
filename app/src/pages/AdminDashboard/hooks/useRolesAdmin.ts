@@ -4,7 +4,8 @@ import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import { invalidateAdminRoles } from '@/lib/invalidations';
 import type { ConfirmFn } from '@/components/ui/confirm-dialog';
-import type { Capability, Role } from '../types';
+import type { RoleResponse } from '@/client';
+import type { Capability } from '../types';
 import {
   type PickerChild,
   type PickerGroup,
@@ -41,7 +42,7 @@ export function useRolesAdmin(confirm: ConfirmFn) {
 
   // RBAC role create/edit modal state
   const [showRoleModal, setShowRoleModal] = useState(false);
-  const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [editingRole, setEditingRole] = useState<RoleResponse | null>(null);
   const [roleForm, setRoleForm] = useState<{
     name: string;
     description: string;
@@ -53,7 +54,7 @@ export function useRolesAdmin(confirm: ConfirmFn) {
 
   const createRoleMutation = useMutation({
     mutationFn: (vars: { name: string; description: string | null; capability_keys: string[] }) =>
-      apiFetch<Role>('/api/auth/admin/roles', {
+      apiFetch<RoleResponse>('/api/auth/admin/roles', {
         method: 'POST',
         body: JSON.stringify(vars),
       }),
@@ -74,7 +75,7 @@ export function useRolesAdmin(confirm: ConfirmFn) {
 
   const updateRoleMetaMutation = useMutation({
     mutationFn: (vars: { id: number; name: string; description: string | null }) =>
-      apiFetch<Role>(`/api/auth/admin/roles/${vars.id}`, {
+      apiFetch<RoleResponse>(`/api/auth/admin/roles/${vars.id}`, {
         method: 'PUT',
         body: JSON.stringify({ name: vars.name, description: vars.description }),
       }),
@@ -86,7 +87,7 @@ export function useRolesAdmin(confirm: ConfirmFn) {
 
   const replaceRoleCapsMutation = useMutation({
     mutationFn: (vars: { id: number; capability_keys: string[] }) =>
-      apiFetch<Role>(`/api/auth/admin/roles/${vars.id}/capabilities`, {
+      apiFetch<RoleResponse>(`/api/auth/admin/roles/${vars.id}/capabilities`, {
         method: 'PUT',
         body: JSON.stringify({ capability_keys: vars.capability_keys }),
       }),
@@ -122,7 +123,7 @@ export function useRolesAdmin(confirm: ConfirmFn) {
     setShowRoleModal(true);
   };
 
-  const handleOpenEditRole = (role: Role) => {
+  const handleOpenEditRole = (role: RoleResponse) => {
     setEditingRole(role);
     setRoleForm({
       name: role.name,
@@ -170,7 +171,7 @@ export function useRolesAdmin(confirm: ConfirmFn) {
     }
   };
 
-  const handleDeleteRole = async (role: Role) => {
+  const handleDeleteRole = async (role: RoleResponse) => {
     if (role.is_system) {
       toast.error('Cannot delete a system role');
       return;

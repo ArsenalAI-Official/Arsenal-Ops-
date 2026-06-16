@@ -13,7 +13,7 @@ interface UserFormState {
 interface RoleOption {
   id: number;
   name: string;
-  description: string | null;
+  description?: string | null;
   is_system: boolean;
 }
 

@@ -1,19 +1,7 @@
 // Domain types + shared presentation helpers for the Employees tab.
 // Co-located here so the orchestrator, filter bar, capacity overview, and the
 // capacity table all reference one definition (CONVENTIONS rule 6).
-
-export interface Employee {
-  id: number;
-  name: string;
-  email: string;
-  github_username: string | null;
-  avatar_url: string | null;
-  specialization: string | null;
-  created_at: string;
-  updated_at: string;
-  project_count: number;
-  assigned_items_count: number;
-}
+import type { EmployeeResponse } from '@/client';
 
 export interface CapacityTicket {
   id: number;
@@ -86,7 +74,7 @@ export interface EmployeeSort {
 
 /** A pre-computed capacity-augmented employee row (search/filter/sort input). */
 export interface EmployeeRow {
-  emp: Employee;
+  emp: EmployeeResponse;
   used: number;
   inProgress: number;
   inReview: number;

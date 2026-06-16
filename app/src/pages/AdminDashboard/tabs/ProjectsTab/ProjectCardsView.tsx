@@ -23,20 +23,20 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { UNCATEGORIZED_OPTION } from './types';
-import type { Project } from './types';
+import type { ProjectResponse } from '@/client';
 import type { ProjectCategory } from '../../modals/CategoryManagerModal';
 
 interface ProjectCardsViewProps {
   /** Already category- + search-filtered list. */
-  searchedProjects: Project[];
+  searchedProjects: ProjectResponse[];
   projectSearch: string;
   categoryFilter: string;
   categories: ProjectCategory[];
   invitingProjectId: number | null;
   onSetProjectCategory: (projectId: number, categoryId: number | null) => void;
-  onEditGitHubSettings: (project: Project, e: React.MouseEvent) => void;
-  onSendGitHubInvites: (project: Project, e: React.MouseEvent) => void;
-  onOpenProjectMembers: (project: Project, e: React.MouseEvent) => void;
+  onEditGitHubSettings: (project: ProjectResponse, e: React.MouseEvent) => void;
+  onSendGitHubInvites: (project: ProjectResponse, e: React.MouseEvent) => void;
+  onOpenProjectMembers: (project: ProjectResponse, e: React.MouseEvent) => void;
   canWriteProjects: boolean;
 }
 

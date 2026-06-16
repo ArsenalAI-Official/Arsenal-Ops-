@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
-import type { Role } from '../types';
+import type { RoleResponse } from '@/client';
 import { ADMIN_REFETCH } from './adminRefetch';
 
 /**
@@ -11,9 +11,9 @@ import { ADMIN_REFETCH } from './adminRefetch';
  * is the gate.
  */
 export function useRolesList() {
-  const rolesQuery = useQuery<Role[]>({
+  const rolesQuery = useQuery<RoleResponse[]>({
     queryKey: ['admin', 'roles'],
-    queryFn: () => apiFetch<Role[]>('/api/auth/admin/roles'),
+    queryFn: () => apiFetch<RoleResponse[]>('/api/auth/admin/roles'),
     ...ADMIN_REFETCH,
   });
   const roles = useMemo(() => rolesQuery.data ?? [], [rolesQuery.data]);

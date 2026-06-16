@@ -14,8 +14,8 @@ import type {
   FiltersState,
   GroupBy,
   ProjectOption,
-  TimeEntriesResponse,
 } from './types';
+import type { TimeEntriesResponse } from '@/client';
 
 /**
  * Admin Time Entries tab — workforce-tool-style filterable grid of every

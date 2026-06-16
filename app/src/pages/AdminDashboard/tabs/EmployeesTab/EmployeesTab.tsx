@@ -3,9 +3,9 @@ import TeamCapacityOverview from './TeamCapacityOverview';
 import EmployeeFilterBar from './EmployeeFilterBar';
 import EmployeeCapacityTable from './EmployeeCapacityTable';
 import { WEEKLY_CAPACITY_HRS } from './types';
+import type { EmployeeResponse } from '@/client';
 import type {
   DeveloperCapacity,
-  Employee,
   EmployeeRow,
   EmployeeSortKey,
   EmployeeStatusFilter,
@@ -13,11 +13,11 @@ import type {
 } from './types';
 
 interface EmployeesTabProps {
-  employees: Employee[];
+  employees: EmployeeResponse[];
   developerCapacities: DeveloperCapacity[];
   teamCapacity: TeamCapacity;
   availableSpecs: string[];
-  onEditEmployee: (employee: Employee) => void;
+  onEditEmployee: (employee: EmployeeResponse) => void;
   onDeleteEmployee: (id: number) => void;
   /** Gates the per-row Edit/Delete action buttons. Read-only admins see
    *  the capacity table without the actions column. */
@@ -156,5 +156,5 @@ const EmployeesTab: React.FC<EmployeesTabProps> = ({
   );
 };
 
-export type { Employee, DeveloperCapacity, CapacityTicket, TeamCapacity } from './types';
+export type { DeveloperCapacity, CapacityTicket, TeamCapacity } from './types';
 export default EmployeesTab;

@@ -7,7 +7,7 @@ import { Modal } from '@/components/ui/modal';
 interface RoleLike {
   id: number;
   name: string;
-  description: string | null;
+  description?: string | null;
   is_system: boolean;
   capability_keys: string[];
 }

@@ -2,24 +2,14 @@ import { Plus, Pencil, Trash2, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toPascalCase } from '@/lib/stringUtils';
 import { Empty, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
-
-interface Role {
-  id: number;
-  name: string;
-  description: string | null;
-  is_system: boolean;
-  capability_keys: string[];
-  user_count?: number;
-  created_at?: string;
-  updated_at?: string;
-}
+import type { RoleResponse } from '@/client';
 
 interface RolesTabProps {
-  roles: Role[];
+  roles: RoleResponse[];
   isDeletingRole: boolean;
   onCreateRole: () => void;
-  onEditRole: (role: Role) => void;
-  onDeleteRole: (role: Role) => void;
+  onEditRole: (role: RoleResponse) => void;
+  onDeleteRole: (role: RoleResponse) => void;
   /** Gates Add/Edit/Delete role buttons. Without it the tab is read-only —
    *  users with `admin.roles` can still see what each role grants. */
   canWriteRoles: boolean;
@@ -135,4 +125,3 @@ const RolesTab = ({
 };
 
 export default RolesTab;
-export type { Role };

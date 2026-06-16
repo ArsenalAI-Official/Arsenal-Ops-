@@ -11,15 +11,7 @@ import {
 } from 'recharts';
 import { Users, FolderKanban, Ticket, Calendar, ChevronRight } from 'lucide-react';
 import { Empty, EmptyDescription } from '@/components/ui/empty';
-
-interface DashboardStats {
-  total_employees: number;
-  total_projects: number;
-  total_tickets: number;
-  active_sprints: number;
-  tickets_by_status: Record<string, number>;
-  tickets_by_priority: Record<string, number>;
-}
+import type { DashboardStats } from '@/client';
 
 type AdminTab = 'dashboard' | 'employees' | 'projects' | 'users' | 'roles';
 

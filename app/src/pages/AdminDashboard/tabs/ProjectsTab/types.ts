@@ -2,70 +2,7 @@
 // Co-located so the orchestrator, toolbar, cards view, reports table, and the
 // per-row drill-down share one definition (CONVENTIONS rule 6).
 
-/** One ticket row in the per-project drill-down. Mirrors the backend's
- *  `WeeklyTicket` Pydantic model. */
-export interface WeeklyTicket {
-  id: number;
-  key: string | null;
-  title: string;
-  type: string;
-  priority: string;
-  assignee_name: string | null;
-  estimated_hours: number | null;
-  logged_hours: number | null;
-  completed_at: string | null;
-}
-
-/** Bucketed ticket lists for one project. Returned in one shot so flipping
- *  between the ToDo/Backlog / In progress / In review / Done buttons is a
- *  pure client switch. `todo_backlog` collapses the `backlog` and `todo`
- *  workflow statuses into one UI bucket per the admin Reports drill-down. */
-export interface ProjectWeeklyTickets {
-  todo_backlog: WeeklyTicket[];
-  in_progress: WeeklyTicket[];
-  in_review: WeeklyTicket[];
-  done_this_week: WeeklyTicket[];
-}
-
 export type StatusBucket = 'todo_backlog' | 'in_progress' | 'in_review' | 'done_this_week';
-
-/** Per-project row in the weekly report table. Mirrors the backend's
- *  `ProjectWeeklyReportRow` Pydantic model. */
-export interface WeeklyReportRow {
-  project_id: number;
-  project_name: string;
-  category_id: number | null;
-  category_name: string | null;
-  todo_backlog: number;
-  in_progress: number;
-  in_review: number;
-  done_this_week: number;
-}
-
-/** Whole-payload shape from `GET /api/admin/projects/weekly-report`. */
-export interface WeeklyReport {
-  week_start: string;
-  week_end: string;
-  rows: WeeklyReportRow[];
-}
-
-export interface Project {
-  id: number;
-  name: string;
-  description: string | null;
-  status: string;
-  created_at: string;
-  total_items: number;
-  done_items: number;
-  completion_pct: number;
-  developer_count: number;
-  github_repo_url: string | null;
-  github_repo_urls?: string[];
-  github_repo_name: string | null;
-  has_github_token: boolean;
-  category_id: number | null;
-  category_name: string | null;
-}
 
 export type ProjectsView = 'cards' | 'reports';
 

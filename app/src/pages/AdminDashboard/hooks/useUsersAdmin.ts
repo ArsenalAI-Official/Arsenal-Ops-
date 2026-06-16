@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import type { ConfirmFn } from '@/components/ui/confirm-dialog';
-import type { User } from '../types';
+import type { UserListItemResponse } from '@/client';
 import { ADMIN_REFETCH } from './adminRefetch';
 
 /**
@@ -15,9 +15,9 @@ import { ADMIN_REFETCH } from './adminRefetch';
 export function useUsersAdmin(confirm: ConfirmFn) {
   const queryClient = useQueryClient();
 
-  const usersQuery = useQuery<User[]>({
+  const usersQuery = useQuery<UserListItemResponse[]>({
     queryKey: ['admin', 'users'],
-    queryFn: () => apiFetch<User[]>('/api/auth/admin/users'),
+    queryFn: () => apiFetch<UserListItemResponse[]>('/api/auth/admin/users'),
     ...ADMIN_REFETCH,
   });
   const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data]);
@@ -83,7 +83,7 @@ export function useUsersAdmin(confirm: ConfirmFn) {
     },
   });
 
-  const handleDeleteUser = async (user: User) => {
+  const handleDeleteUser = async (user: UserListItemResponse) => {
     if (
       !(await confirm({
         title: 'Delete user?',
@@ -98,7 +98,7 @@ export function useUsersAdmin(confirm: ConfirmFn) {
 
   // Edit-user profile (name + email + github_username) — distinct from role
   // editing which lives behind the inline "Edit Roles" pill.
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<UserListItemResponse | null>(null);
   const [editUserForm, setEditUserForm] = useState<{
     name: string;
     email: string;
@@ -107,7 +107,7 @@ export function useUsersAdmin(confirm: ConfirmFn) {
 
   const updateUserMutation = useMutation({
     mutationFn: (vars: { id: number; name: string; email: string; github_username: string }) =>
-      apiFetch<User>(`/api/auth/admin/users/${vars.id}`, {
+      apiFetch<UserListItemResponse>(`/api/auth/admin/users/${vars.id}`, {
         method: 'PUT',
         body: JSON.stringify({
           name: vars.name,
@@ -128,7 +128,7 @@ export function useUsersAdmin(confirm: ConfirmFn) {
     },
   });
 
-  const handleOpenEditUser = (user: User) => {
+  const handleOpenEditUser = (user: UserListItemResponse) => {
     setEditingUser(user);
     setEditUserForm({
       name: user.name,

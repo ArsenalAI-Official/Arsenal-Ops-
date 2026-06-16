@@ -4100,15 +4100,8 @@
         "description": "Rich admin user shape returned by GET /api/auth/admin/users.\n\nMirrors User.to_dict() plus the github_username joined from the linked\nDeveloper row. Used for OpenAPI/TS typing only (no runtime serialization).",
         "properties": {
           "created_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created At"
+            "title": "Created At",
+            "type": "string"
           },
           "email": {
             "title": "Email",
@@ -4163,7 +4156,8 @@
           "name",
           "role",
           "is_active",
-          "is_first_login"
+          "is_first_login",
+          "created_at"
         ],
         "title": "UserListItemResponse",
         "type": "object"

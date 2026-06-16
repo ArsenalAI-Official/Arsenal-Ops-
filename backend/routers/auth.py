@@ -97,7 +97,10 @@ class UserListItemResponse(BaseModel):
     role: str
     is_active: bool
     is_first_login: bool
-    created_at: str | None = None
+    # Always present on a persisted user row (server-default timestamp); the
+    # to_dict() `else None` guard is defensive only. Typed non-null so the
+    # generated FE type doesn't force null-guards on a never-null field.
+    created_at: str
     last_login_at: str | None = None
     github_username: str | None = None
 

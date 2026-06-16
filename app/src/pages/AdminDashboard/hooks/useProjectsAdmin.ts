@@ -4,7 +4,8 @@ import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import { invalidateProjectScope, invalidateAdminMembershipImpact } from '@/lib/invalidations';
 import type { ConfirmFn } from '@/components/ui/confirm-dialog';
-import type { CategoryFormPayload, Project, ProjectCategory, ProjectWeeklyReport } from '../types';
+import type { ProjectResponse, ProjectWeeklyReportResponse } from '@/client';
+import type { CategoryFormPayload, ProjectCategory } from '../types';
 import { ADMIN_REFETCH } from './adminRefetch';
 
 /**
@@ -18,9 +19,9 @@ import { ADMIN_REFETCH } from './adminRefetch';
 export function useProjectsAdmin(confirm: ConfirmFn) {
   const queryClient = useQueryClient();
 
-  const projectsQuery = useQuery<Project[]>({
+  const projectsQuery = useQuery<ProjectResponse[]>({
     queryKey: ['admin', 'projects'],
-    queryFn: () => apiFetch<Project[]>('/api/admin/projects'),
+    queryFn: () => apiFetch<ProjectResponse[]>('/api/admin/projects'),
     ...ADMIN_REFETCH,
   });
   // Stabilize the empty default — `data ?? []` creates a new array every render,
@@ -51,7 +52,7 @@ export function useProjectsAdmin(confirm: ConfirmFn) {
   // Weekly report — server-side filtered by the same category filter the card
   // grid uses. The query key includes `categoryFilter` so React Query refetches
   // on filter change.
-  const weeklyReportQuery = useQuery<ProjectWeeklyReport>({
+  const weeklyReportQuery = useQuery<ProjectWeeklyReportResponse>({
     queryKey: ['admin', 'projectsWeeklyReport', categoryFilter],
     queryFn: () => {
       const params = new URLSearchParams();
@@ -62,7 +63,7 @@ export function useProjectsAdmin(confirm: ConfirmFn) {
         if (Number.isFinite(id)) params.set('category_id', String(id));
       }
       const qs = params.toString();
-      return apiFetch<ProjectWeeklyReport>(
+      return apiFetch<ProjectWeeklyReportResponse>(
         `/api/admin/projects/weekly-report${qs ? `?${qs}` : ''}`,
       );
     },
@@ -139,7 +140,7 @@ export function useProjectsAdmin(confirm: ConfirmFn) {
 
   // GitHub settings state
   const [showGitHubModal, setShowGitHubModal] = useState(false);
-  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [editingProject, setEditingProject] = useState<ProjectResponse | null>(null);
   const [gitHubForm, setGitHubForm] = useState({
     github_repo_url: '',
     github_repo_name: '',
@@ -147,7 +148,7 @@ export function useProjectsAdmin(confirm: ConfirmFn) {
   });
   const [invitingProjectId, setInvitingProjectId] = useState<number | null>(null);
 
-  const handleEditGitHubSettings = (project: Project, e: React.MouseEvent) => {
+  const handleEditGitHubSettings = (project: ProjectResponse, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingProject(project);
     setGitHubForm({
@@ -181,7 +182,7 @@ export function useProjectsAdmin(confirm: ConfirmFn) {
   const handleSaveGitHubSettings = () => saveGitHubMutation.mutate();
 
   const sendGitHubInvitesMutation = useMutation({
-    mutationFn: (project: Project) =>
+    mutationFn: (project: ProjectResponse) =>
       apiFetch<{ successful_invitations: number }>(
         `/api/projects/${project.id}/github-invite?role=push`,
         {
@@ -200,7 +201,7 @@ export function useProjectsAdmin(confirm: ConfirmFn) {
     },
   });
 
-  const handleSendGitHubInvites = (project: Project, e: React.MouseEvent) => {
+  const handleSendGitHubInvites = (project: ProjectResponse, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!project.github_repo_url) {
       toast.error('No GitHub repository configured');
@@ -212,7 +213,8 @@ export function useProjectsAdmin(confirm: ConfirmFn) {
 
   // Project members management
   const [showProjectMembersModal, setShowProjectMembersModal] = useState(false);
-  const [selectedProjectForMembers, setSelectedProjectForMembers] = useState<Project | null>(null);
+  const [selectedProjectForMembers, setSelectedProjectForMembers] =
+    useState<ProjectResponse | null>(null);
   const [addMemberForm, setAddMemberForm] = useState<{ developer_id: string; role: string }>({
     developer_id: '',
     role: 'developer',
@@ -235,7 +237,7 @@ export function useProjectsAdmin(confirm: ConfirmFn) {
   const projectMembers = projectMembersQuery.data?.developers ?? [];
   const projectMembersLoading = projectMembersQuery.isLoading;
 
-  const handleOpenProjectMembers = (project: Project, e: React.MouseEvent) => {
+  const handleOpenProjectMembers = (project: ProjectResponse, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedProjectForMembers(project);
     setShowProjectMembersModal(true);

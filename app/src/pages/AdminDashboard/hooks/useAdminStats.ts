@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
-import type { DashboardStats } from '../types';
+import type { DashboardStats } from '@/client';
 import { ADMIN_REFETCH } from './adminRefetch';
 
 /** Dashboard-tab summary stats. No `enabled` flag — the DashboardContainer only

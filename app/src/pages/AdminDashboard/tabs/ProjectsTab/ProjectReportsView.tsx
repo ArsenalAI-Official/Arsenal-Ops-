@@ -9,7 +9,8 @@ import {
 import { CalendarRange, Loader2, TableProperties, ChevronDown, ChevronRight } from 'lucide-react';
 import ExpandedProjectRow from './ExpandedProjectRow';
 import { STATUS_ACCENTS } from './types';
-import type { StatusBucket, WeeklyReportRow } from './types';
+import type { StatusBucket } from './types';
+import type { ProjectWeeklyReportRow } from '@/client';
 
 interface ReportTotals {
   todo_backlog: number;
@@ -19,7 +20,7 @@ interface ReportTotals {
 }
 
 interface ProjectReportsViewProps {
-  reportRows: WeeklyReportRow[];
+  reportRows: ProjectWeeklyReportRow[];
   reportRange: string;
   totals: ReportTotals;
   weeklyReportLoading: boolean;

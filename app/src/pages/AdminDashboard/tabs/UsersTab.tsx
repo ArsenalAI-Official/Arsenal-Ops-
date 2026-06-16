@@ -14,26 +14,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toPascalCase } from '@/lib/stringUtils';
 import { Empty, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
-
-interface User {
-  id: number;
-  email: string;
-  name: string;
-  role: string; // Comma-separated roles
-  is_active: boolean;
-  is_first_login: boolean;
-  created_at: string;
-  last_login_at: string | null;
-}
+import type { UserListItemResponse } from '@/client';
 
 type UsersSortKey = 'created' | 'name' | 'status' | 'last_login';
 
 interface UsersTabProps {
-  users: User[];
+  users: UserListItemResponse[];
   onEditUserRoles: (userId: number) => void;
   onAddUser: () => void;
-  onDeleteUser: (user: User) => void;
-  onEditUser: (user: User) => void;
+  onDeleteUser: (user: UserListItemResponse) => void;
+  onEditUser: (user: UserListItemResponse) => void;
   /** Gates Add User + per-row Edit/Delete (all mutate the users table). */
   canWriteUsers: boolean;
   /** Gates the per-row "Edit Roles" affordance — that mutation hits
@@ -369,4 +359,3 @@ const UsersTab = ({
 };
 
 export default UsersTab;
-export type { User };

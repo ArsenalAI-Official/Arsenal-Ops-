@@ -4,13 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription } from '@/components/ui/empty';
 import EmployeeExpandedRow, { type ProjectGroup } from './EmployeeExpandedRow';
 import { projectColor } from './types';
-import type {
-  DeveloperCapacity,
-  Employee,
-  EmployeeRow,
-  EmployeeSort,
-  EmployeeSortKey,
-} from './types';
+import type { EmployeeResponse } from '@/client';
+import type { DeveloperCapacity, EmployeeRow, EmployeeSort, EmployeeSortKey } from './types';
 
 interface EmployeeCapacityTableProps {
   /** Pre-filtered + sorted rows from the orchestrator. */
@@ -20,7 +15,7 @@ interface EmployeeCapacityTableProps {
   onSort: (key: EmployeeSortKey) => void;
   expandedCapacityDevId: number | null;
   onToggleExpand: (id: number) => void;
-  onEditEmployee: (employee: Employee) => void;
+  onEditEmployee: (employee: EmployeeResponse) => void;
   onDeleteEmployee: (id: number) => void;
   canWriteEmployees: boolean;
   /** Total employee count (before filters) — drives the empty-state copy. */
