@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarIcon } from '@/components/ui/calendar';
 import { CALENDAR_CLASS_NAMES } from '@/lib/calendarClassNames';
+import type { SprintResponse } from '@/client';
 
 export interface EditSprintFormValues {
   name: string;
@@ -14,21 +15,13 @@ export interface EditSprintFormValues {
   end_date: string;
 }
 
-interface Sprint {
-  id: number;
-  name: string;
-  goal: string;
-  start_date: string | null;
-  end_date: string | null;
-}
-
 interface WorkItemLite {
   sprint_id: number | null;
   status: string;
 }
 
 export interface EditSprintModalProps {
-  editingSprint: Sprint;
+  editingSprint: SprintResponse;
   parseLocalDate: (dateString: string | undefined) => Date | undefined;
   onClose: () => void;
   onSubmit: (form: EditSprintFormValues) => void;
@@ -195,7 +188,7 @@ const EditSprintModal = ({
 
 export interface CompleteSprintConfirmProps {
   sprintId: number;
-  sprints: Sprint[];
+  sprints: SprintResponse[];
   workItems: WorkItemLite[];
   onClose: () => void;
   onConfirm: () => void;
@@ -266,7 +259,7 @@ export const CompleteSprintConfirm = ({
 
 export interface DeleteSprintConfirmProps {
   sprintId: number;
-  sprints: Sprint[];
+  sprints: SprintResponse[];
   workItems: WorkItemLite[];
   onClose: () => void;
   onConfirm: () => void;

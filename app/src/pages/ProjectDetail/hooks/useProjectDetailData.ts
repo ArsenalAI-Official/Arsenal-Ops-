@@ -11,7 +11,8 @@ import { useAllDevelopers } from '@/hooks/useAllDevelopers';
 import type { ConfirmFn } from '@/components/ui/confirm-dialog';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import type { Project, PRDAnalysis, Sprint, HubWorkItem, ProjectOverview } from '../types';
+import type { Project, PRDAnalysis, HubWorkItem, ProjectOverview } from '../types';
+import type { SprintResponse } from '@/client';
 import type {
   DeveloperResponse,
   ProjectAnalyticsResponse,
@@ -52,7 +53,7 @@ export interface UseProjectDetailDataResult {
   isLoading: boolean;
   accessDenied: boolean;
   allDevelopers: DeveloperResponse[];
-  sprints: Sprint[];
+  sprints: SprintResponse[];
   hubWorkItems: HubWorkItem[];
   goals: GoalResponse[];
   milestones: MilestoneResponse[];
@@ -128,9 +129,9 @@ export const useProjectDetailData = (
   const allDevelopers = developersQuery.data ?? [];
 
   // ── react-query: sprints ────────────────────────────────────────────────
-  const sprintsQuery = useQuery<Sprint[]>({
+  const sprintsQuery = useQuery<SprintResponse[]>({
     queryKey: ['sprints', id],
-    queryFn: () => apiFetch<Sprint[]>(`/api/workitems/projects/${id}/sprints`),
+    queryFn: () => apiFetch<SprintResponse[]>(`/api/workitems/projects/${id}/sprints`),
     enabled: !!id,
   });
   const sprints = sprintsQuery.data ?? [];

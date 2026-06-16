@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import { toastErrorHandler } from '@/lib/mutationToast';
 import { invalidateProjectScope, invalidateWorkItemScope } from '@/lib/invalidations';
-import type { Sprint } from '@/types/workItems';
+import type { SprintResponse } from '@/client';
 import { validateSprintForm } from '../lib/sprintValidation';
 
 interface SprintFormInput {
@@ -16,13 +16,13 @@ interface SprintFormInput {
 interface UseSprintMutationsArgs {
   // Live values/setters threaded from the orchestrator so the onSuccess/handler
   // close + reset + validation behavior stays byte-identical.
-  sprints: Sprint[];
+  sprints: SprintResponse[];
   invalidateWorkItems: () => void;
-  editingSprint: Sprint | null;
+  editingSprint: SprintResponse | null;
   completingSprintId: number | null;
   deletingSprintId: number | null;
   setShowCreateSprintModal: (open: boolean) => void;
-  setEditingSprint: (sprint: Sprint | null) => void;
+  setEditingSprint: (sprint: SprintResponse | null) => void;
   setCompletingSprintId: (id: number | null) => void;
   setDeletingSprintId: (id: number | null) => void;
 }

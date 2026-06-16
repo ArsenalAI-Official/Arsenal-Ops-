@@ -3,7 +3,8 @@ import { CardContent } from '@/components/ui/card';
 import { getStatusColor } from '@/lib/workItemConfig';
 import { parseLocalDate } from '@/lib/dateUtils';
 import { addDays, colDays, fmtShort, LABEL_WIDTH, ROW_HEIGHT } from '../lib/timelineGrid';
-import type { GanttRow, SprintBand, WorkItem, ZoomLevel } from '../types';
+import type { GanttRow, WorkItem, ZoomLevel } from '../types';
+import type { SprintResponse } from '@/client';
 
 interface GanttChartProps {
   rows: GanttRow[];
@@ -17,7 +18,7 @@ interface GanttChartProps {
   dateToX: (date: Date) => number;
   headerHeight: number;
   chartHeight: number;
-  sprints: SprintBand[];
+  sprints: SprintResponse[];
   workItems: WorkItem[];
   scrollRef: React.RefObject<HTMLDivElement | null>;
   onSelectItem: (item: WorkItem) => void;

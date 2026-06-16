@@ -44,23 +44,3 @@ export interface WorkItem {
   completed_at?: string | null;
   estimated_hours?: number | null;
 }
-
-// Rich board-side sprint shape (the superset across the board's usages). The
-// thinner `{ id, name, status }` panel copy is migrated separately.
-export interface Sprint {
-  id: number;
-  name: string;
-  goal: string;
-  status: string;
-  start_date: string | null;
-  end_date: string | null;
-  capacity_hours: number | null;
-  velocity: number | null;
-  total_items: number;
-  todo_count: number;
-  in_progress_count: number;
-  done_count: number;
-  total_points: number;
-  completed_points: number;
-  completion_pct: number;
-}

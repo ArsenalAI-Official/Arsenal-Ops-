@@ -1,5 +1,6 @@
 import { lazy, Suspense, type ComponentProps } from 'react';
-import type { WorkItem, Sprint } from '@/types/workItems';
+import type { WorkItem } from '@/types/workItems';
+import type { SprintResponse } from '@/client';
 import type { Project } from '../hooks/useBoardData';
 // EditSprintModal's file also exports the CompleteSprintConfirm /
 // DeleteSprintConfirm confirmation modals as named exports, which must be
@@ -42,7 +43,7 @@ export interface BoardModalsProps {
   // sprint-confirm / create modals' rich shapes — exactly as inline before.
   selectedItem: WorkItem | null;
   workItems: WorkItem[];
-  sprints: Sprint[];
+  sprints: SprintResponse[];
   project: Project;
   allDevelopers: DrawerProps['allDevelopers'];
   id: DrawerProps['id'];

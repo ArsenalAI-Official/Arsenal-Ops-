@@ -1,10 +1,11 @@
 import { BarChart3, ChevronUp, ChevronDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import type { HoursAnalytics, Sprint } from '../types';
+import type { HoursAnalytics } from '../types';
+import type { SprintResponse } from '@/client';
 
 interface SprintOverviewProps {
-  sprints: Sprint[];
+  sprints: SprintResponse[];
   analytics: HoursAnalytics;
   progressExpanded: boolean;
   setProgressExpanded: React.Dispatch<React.SetStateAction<boolean>>;

@@ -15,29 +15,11 @@ import {
 } from 'recharts';
 import { TrendingUp, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import type { ProjectAnalyticsResponse } from '@/client';
-
-interface Sprint {
-  id: number;
-  name: string;
-  goal: string;
-  status: 'planned' | 'active' | 'completed';
-  start_date?: string;
-  end_date?: string;
-  capacity_hours: number;
-  velocity: number;
-  total_items: number;
-  todo_count: number;
-  in_progress_count: number;
-  done_count: number;
-  total_points: number;
-  completed_points: number;
-  completion_pct: number;
-}
+import type { ProjectAnalyticsResponse, SprintResponse } from '@/client';
 
 interface TrackerTabProps {
   hubLoading: boolean;
-  sprints: Sprint[];
+  sprints: SprintResponse[];
   analytics: ProjectAnalyticsResponse | null;
   sprintsExpanded: boolean;
   setSprintsExpanded: (updater: (prev: boolean) => boolean) => void;

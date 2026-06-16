@@ -2,7 +2,8 @@ import { useState, useRef } from 'react';
 import TicketContributors from '@/components/TicketContributors';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
-import type { WorkItem, Sprint, ProjectLite } from './types';
+import type { WorkItem, ProjectLite } from './types';
+import type { SprintResponse } from '@/client';
 import type { ProjectDeveloperEntry } from '@/client';
 import { AddSubtaskModal } from './AddSubtaskModal';
 import { useWorkItemPanel } from './hooks/useWorkItemPanel';
@@ -29,7 +30,7 @@ interface WorkItemPanelCommon {
 export interface WorkItemPanelFullProps extends WorkItemPanelCommon {
   variant: 'full';
   workItems: WorkItem[];
-  sprints: Sprint[];
+  sprints: SprintResponse[];
   project: ProjectLite | null;
   projectId: string | undefined;
   navigate: (path: string) => void;

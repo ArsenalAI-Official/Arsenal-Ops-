@@ -1,4 +1,4 @@
-import type { GoalResponse, MilestoneResponse } from '@/client';
+import type { GoalResponse, MilestoneResponse, SprintResponse } from '@/client';
 
 export interface WorkItem {
   id: string;
@@ -20,19 +20,11 @@ export interface WorkItem {
   dependencies?: { depends_on_id: number; dependency_type: string }[];
 }
 
-export interface SprintBand {
-  id: number;
-  name: string;
-  status: string;
-  start_date?: string;
-  end_date?: string;
-}
-
 export interface TimelineViewProps {
   workItems: WorkItem[];
   milestones?: MilestoneResponse[];
   goals?: GoalResponse[];
-  sprints?: SprintBand[];
+  sprints?: SprintResponse[];
   projectStartDate: string;
   projectId: number;
   onTaskClick?: (item: WorkItem) => void;

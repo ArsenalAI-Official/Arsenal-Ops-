@@ -1,10 +1,11 @@
 import { ArrowRight, Inbox } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { WorkItem, Sprint } from '../types';
+import type { WorkItem } from '../types';
+import type { SprintResponse } from '@/client';
 
 export interface WorkItemSprintActionsProps {
   item: WorkItem;
-  sprints: Sprint[];
+  sprints: SprintResponse[];
   onMoveToSprint: (itemId: string, targetSprintId: number | null) => void;
   getNextSprint: (currentSprintId: number | null) => number | null;
 }

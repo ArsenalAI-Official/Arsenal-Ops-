@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import type { Sprint } from '@/types/workItems';
+import type { SprintResponse } from '@/client';
 
 type ViewMode = 'board' | 'list' | 'epic';
 type SelectedSprintId = number | 'all' | 'unassigned';
@@ -31,7 +31,7 @@ export interface BoardToolbarProps {
   completedCount: number;
   remainingHours: number;
   // ── Sprint selector ─────────────────────────────────────────────────────────
-  sprints: Sprint[];
+  sprints: SprintResponse[];
   selectedSprintId: SelectedSprintId;
   setSelectedSprintId: Dispatch<SetStateAction<SelectedSprintId>>;
   showSprintMenu: boolean;

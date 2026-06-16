@@ -1,4 +1,4 @@
-import type { Sprint } from '@/types/workItems';
+import type { SprintResponse } from '@/client';
 import { parseLocalDate } from './listGrouping';
 
 export interface SprintFormValues {
@@ -10,7 +10,7 @@ export interface SprintFormValues {
 
 export interface ValidateSprintFormArgs {
   form: SprintFormValues;
-  sprints: Sprint[];
+  sprints: SprintResponse[];
   // When editing, exclude the sprint being edited from the duplicate-name and
   // overlap checks. Omit/undefined when creating.
   excludeSprintId?: number;

@@ -14,7 +14,8 @@ import {
   STATUS_CONFIG,
   PRIORITY_STYLE as PRIORITY_COLORS,
 } from '@/lib/workItemConfig';
-import type { WorkItem, Sprint } from '@/types/workItems';
+import type { WorkItem } from '@/types/workItems';
+import type { SprintResponse } from '@/client';
 import BoardView from './views/BoardView';
 import ListView from './views/ListView';
 import EpicView from './views/EpicView';
@@ -131,7 +132,7 @@ const ProjectBoard = () => {
   const [showCreateSprintModal, setShowCreateSprintModal] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showCompletedSprints, setShowCompletedSprints] = useState(false);
-  const [editingSprint, setEditingSprint] = useState<Sprint | null>(null);
+  const [editingSprint, setEditingSprint] = useState<SprintResponse | null>(null);
   const [deletingSprintId, setDeletingSprintId] = useState<number | null>(null);
   const [completingSprintId, setCompletingSprintId] = useState<number | null>(null);
 

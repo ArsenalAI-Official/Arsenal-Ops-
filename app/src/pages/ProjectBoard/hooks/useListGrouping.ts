@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { buildEpicGroups } from '@/lib/hierarchy/buildEpicGroups';
-import type { WorkItem, Sprint } from '@/types/workItems';
+import type { WorkItem } from '@/types/workItems';
+import type { SprintResponse } from '@/client';
 import { parseLocalDate, getWeekStart, formatWeekRange } from '../lib/listGrouping';
 import {
   isSprintCompleted as isSprintCompletedPure,
@@ -21,7 +22,7 @@ import {
 export function useListGrouping(params: {
   filteredItems: WorkItem[];
   workItems: WorkItem[];
-  sprints: Sprint[];
+  sprints: SprintResponse[];
   id: string | undefined;
   showCompletedSprints: boolean;
 }) {
@@ -68,11 +69,11 @@ export function useListGrouping(params: {
     return d.getTime();
   }, []);
   const isSprintCompleted = useCallback(
-    (s: Sprint) => isSprintCompletedPure(s, listViewToday),
+    (s: SprintResponse) => isSprintCompletedPure(s, listViewToday),
     [listViewToday],
   );
   const isSprintActive = useCallback(
-    (s: Sprint) => isSprintActivePure(s, listViewToday),
+    (s: SprintResponse) => isSprintActivePure(s, listViewToday),
     [listViewToday],
   );
 

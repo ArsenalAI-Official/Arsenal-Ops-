@@ -15,6 +15,7 @@ import type {
   ActivityResponse,
   ProjectAnalyticsResponse,
   ProjectLinkResponse,
+  SprintResponse,
 } from '@/client';
 
 export interface Architecture {
@@ -74,24 +75,6 @@ export interface PRDAnalysis {
   timeline: { phase: string; duration: string; tasks: string[] }[];
 }
 
-export interface Sprint {
-  id: number;
-  name: string;
-  goal: string;
-  status: 'planned' | 'active' | 'completed';
-  start_date?: string;
-  end_date?: string;
-  capacity_hours: number;
-  velocity: number;
-  total_items: number;
-  todo_count: number;
-  in_progress_count: number;
-  done_count: number;
-  total_points: number;
-  completed_points: number;
-  completion_pct: number;
-}
-
 export interface Project {
   id: number;
   name: string;
@@ -144,7 +127,7 @@ export interface HubWorkItem {
 // overview query primes their caches so they short-circuit on first paint.
 export interface ProjectOverview {
   project: Project;
-  sprints: Sprint[];
+  sprints: SprintResponse[];
   goals: GoalResponse[];
   milestones: MilestoneResponse[];
   activities: ActivityResponse[];

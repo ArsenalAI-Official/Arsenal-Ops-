@@ -4,5 +4,5 @@ export type {
   WorkItemPanelFullProps,
   WorkItemPanelCompactProps,
 } from './WorkItemPanel';
-export type { WorkItem, Sprint, AllDeveloper, ProjectLite } from './types';
+export type { WorkItem, AllDeveloper, ProjectLite } from './types';
 export { TYPE_CONFIG, STATUS_CONFIG, PRIORITY_COLOR } from './constants';

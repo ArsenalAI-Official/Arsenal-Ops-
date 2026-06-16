@@ -1,23 +1,9 @@
-export interface Sprint {
-  id: number;
-  name: string;
-  status: string;
-  start_date?: string;
-  end_date?: string;
-  goal?: string;
-  completion_pct: number;
-  capacity_hours: number;
-  velocity: number;
-  done_count: number;
-  total_items: number;
-  completed_points: number;
-  total_points: number;
-}
+import type { SprintResponse } from '@/client';
 
 export interface PMViewProps {
   projectId: string;
   token: string;
-  sprints?: Sprint[];
+  sprints?: SprintResponse[];
 }
 
 export interface HoursAnalytics {

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import type { Sprint } from '@/types/workItems';
+import type { SprintResponse } from '@/client';
 import { validateSprintForm } from './sprintValidation';
 
-const sprint = (over: Partial<Sprint>): Sprint =>
+const sprint = (over: Partial<SprintResponse>): SprintResponse =>
   ({
     id: 1,
     name: 'S',
@@ -20,7 +20,7 @@ const sprint = (over: Partial<Sprint>): Sprint =>
     completed_points: 0,
     completion_pct: 0,
     ...over,
-  }) as Sprint;
+  }) as SprintResponse;
 
 const OVERLAP = 'Sprint dates overlap with an existing sprint.';
 

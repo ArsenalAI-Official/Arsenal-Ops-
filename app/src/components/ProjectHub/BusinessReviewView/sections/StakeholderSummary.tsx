@@ -1,13 +1,12 @@
 import React from 'react';
 import { Activity } from 'lucide-react';
-import type { Sprint } from '../types';
-import type { ProjectAnalyticsResponse } from '@/client';
+import type { ProjectAnalyticsResponse, SprintResponse } from '@/client';
 
 interface StakeholderSummaryProps {
   completionPct: number;
-  activeSprint: Sprint | undefined;
+  activeSprint: SprintResponse | undefined;
   analytics: ProjectAnalyticsResponse | null;
-  sprints: Sprint[];
+  sprints: SprintResponse[];
 }
 
 const StakeholderSummary: React.FC<StakeholderSummaryProps> = ({
