@@ -90,13 +90,12 @@ changes a backend schema but doesn't commit the regenerated `backend/openapi.jso
     `ProjectOverview`, `HubWorkItem`, the per-view Hub WorkItem subsets, and the
     pulse `PulseData`/`Derived*` family. These compose or extend generated
     pieces; keep them.
-  - **Generated type too loose** — `Architecture`, `PRDAnalysis`, detail
-    `Project` stay hand-written because their backend models expose opaque JSON
-    (`cost_analysis`, `tools_recommended`) or omit fields (`architectures[]`) the
-    UI reads. Migrating would lose type info; revisit if those get richer
-    backend models.
-  - **Minor leftovers** — `ProjectMember` (its admin consumer types role/is_admin
-    optional; needs that query retyped first).
+    > Note: `Architecture`, `PRDAnalysis`, detail `Project`, and `ProjectMember`
+    > were previously kept but are now migrated — the backend models were
+    > tightened (nested `CostAnalysisResponse`, `pros`/`cons` → `list[str]`,
+    > `tools_recommended` → `dict[str, list[str]]`, `risks`/`timeline` nested) so
+    > the generated types are precise, and detail `Project`'s dead
+    > `architectures[]` field was dropped.
 - When you DO migrate one: prefer tightening the backend Pydantic model over FE
   null-guards (generated types are honestly nullable; if a field is always
   present, make it non-null in the response model and regenerate).
