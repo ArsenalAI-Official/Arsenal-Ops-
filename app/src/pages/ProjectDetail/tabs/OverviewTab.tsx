@@ -3,7 +3,8 @@ import PRDAnalysisSection from '../sections/PRDAnalysisSection';
 import ArchitectureSection from '../sections/ArchitectureSection';
 import TeamSection from '../sections/TeamSection';
 import LinksSection from '../sections/LinksSection';
-import type { Architecture, Developer, PRDAnalysis, Project, ProjectLink } from '../types';
+import type { Architecture, PRDAnalysis, Project } from '../types';
+import type { DeveloperResponse, ProjectLinkResponse } from '@/client';
 
 interface OverviewTabProps {
   /** While true, the full overview skeleton is shown until ALL hub data
@@ -12,8 +13,8 @@ interface OverviewTabProps {
   project: Project;
   prdAnalysis: PRDAnalysis | null;
   isCurrentUserAdmin: boolean;
-  availableDevelopers: Developer[];
-  links: ProjectLink[];
+  availableDevelopers: DeveloperResponse[];
+  links: ProjectLinkResponse[];
   linksLoading: boolean;
   onSaveEdit: (editForm: Partial<Project>) => void;
   onEditArchitecture: (arch: Architecture) => void;

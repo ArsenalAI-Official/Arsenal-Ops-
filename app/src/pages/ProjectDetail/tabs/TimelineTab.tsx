@@ -1,4 +1,5 @@
 import { TimelineView, CalendarView } from '@/components/ProjectHub';
+import type { GoalResponse, MilestoneResponse } from '@/client';
 
 interface HubWorkItem {
   id: string;
@@ -19,30 +20,11 @@ interface HubWorkItem {
   story_points?: number;
 }
 
-interface Goal {
-  id: number;
-  title: string;
-  description?: string;
-  status: string;
-  progress: number;
-  due_date?: string;
-  completed_at?: string;
-}
-
-interface Milestone {
-  id: number;
-  title: string;
-  description?: string;
-  due_date?: string;
-  completed_at?: string;
-  is_completed: boolean;
-}
-
 interface TimelineTabProps {
   hubLoading: boolean;
   hubWorkItems: HubWorkItem[];
-  milestones: Milestone[];
-  goals: Goal[];
+  milestones: MilestoneResponse[];
+  goals: GoalResponse[];
   projectStartDate: string;
   projectId: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

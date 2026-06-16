@@ -1,21 +1,9 @@
 import { ActivityFeed } from '@/components/ProjectHub';
-
-interface ActivityItem {
-  id: number;
-  action: string;
-  entity_type: string;
-  entity_id?: number;
-  title: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  details?: Record<string, any>;
-  created_at: string;
-  user_name: string;
-  user_email?: string;
-}
+import type { ActivityResponse } from '@/client';
 
 interface ActivityTabProps {
   hubLoading: boolean;
-  activities: ActivityItem[];
+  activities: ActivityResponse[];
 }
 
 const ActivityTab = ({ hubLoading, activities }: ActivityTabProps) => {

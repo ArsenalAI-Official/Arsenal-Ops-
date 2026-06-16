@@ -23,21 +23,10 @@ import {
   EmptyTitle,
   EmptyDescription,
 } from '@/components/ui/empty';
-
-interface ActivityItem {
-  id: number;
-  action: string;
-  entity_type: string;
-  entity_id?: number;
-  title: string;
-  details?: Record<string, any>;
-  created_at: string;
-  user_name: string;
-  user_email?: string;
-}
+import type { ActivityResponse } from '@/client';
 
 interface ActivityFeedProps {
-  activities: ActivityItem[];
+  activities: ActivityResponse[];
   maxItems?: number;
 }
 
@@ -88,7 +77,7 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities }) => {
   const filtered = searchQuery.trim()
     ? activities.filter(
         (a) =>
-          a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (a.title ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
           a.user_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           a.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
           a.entity_type.toLowerCase().includes(searchQuery.toLowerCase()),

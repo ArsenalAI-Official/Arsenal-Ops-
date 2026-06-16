@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { parseLocalDate } from '@/lib/dateUtils';
 import { isPastDue } from '@/components/ProjectsPage/utils';
 import { getStatusColor } from '@/lib/workItemConfig';
+import type { GoalResponse, MilestoneResponse } from '@/client';
 
 interface WorkItem {
   id: string;
@@ -20,28 +21,12 @@ interface WorkItem {
   assignee?: string;
 }
 
-interface Milestone {
-  id: number;
-  title: string;
-  due_date?: string;
-  completed_at?: string;
-  is_completed?: boolean;
-}
-
-interface Goal {
-  id: number;
-  title: string;
-  due_date?: string;
-  status: string;
-  progress: number;
-}
-
 interface CalendarViewProps {
   workItems: WorkItem[];
-  milestones?: Milestone[];
-  goals?: Goal[];
+  milestones?: MilestoneResponse[];
+  goals?: GoalResponse[];
   onTaskClick?: (item: WorkItem) => void;
-  onMilestoneClick?: (milestone: Milestone) => void;
+  onMilestoneClick?: (milestone: MilestoneResponse) => void;
 }
 
 interface CalendarEvent {

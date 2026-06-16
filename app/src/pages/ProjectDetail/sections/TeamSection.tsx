@@ -5,8 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
-import type { Developer } from '../types';
-import type { ProjectDeveloperEntry } from '@/client';
+import type { ProjectDeveloperEntry, DeveloperResponse } from '@/client';
 
 interface NewDeveloperForm {
   developer_id: string;
@@ -16,7 +15,7 @@ interface NewDeveloperForm {
 
 interface TeamSectionProps {
   developers: ProjectDeveloperEntry[];
-  availableDevelopers: Developer[];
+  availableDevelopers: DeveloperResponse[];
   isCurrentUserAdmin: boolean;
   onAddDeveloper: (form: NewDeveloperForm) => void;
   onRemoveDeveloper: (developerId: number) => void;

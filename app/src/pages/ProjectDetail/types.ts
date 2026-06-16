@@ -8,15 +8,14 @@
  * that fix, mirroring the precedent set by AdminDashboard/types.ts.)
  */
 
-import type { ProjectDeveloperEntry } from '@/client';
-
-export interface Developer {
-  id: number;
-  name: string;
-  email: string;
-  github_username: string;
-  avatar_url?: string;
-}
+import type {
+  ProjectDeveloperEntry,
+  GoalResponse,
+  MilestoneResponse,
+  ActivityResponse,
+  ProjectAnalyticsResponse,
+  ProjectLinkResponse,
+} from '@/client';
 
 export interface Architecture {
   id: number;
@@ -93,29 +92,6 @@ export interface Sprint {
   completion_pct: number;
 }
 
-export interface ProjectAnalytics {
-  total_items: number;
-  total_story_points: number;
-  completed_points: number;
-  status_distribution: Record<string, number>;
-  type_distribution: Record<string, number>;
-  priority_distribution: Record<string, number>;
-  velocity_data: {
-    sprint_name: string;
-    committed: number;
-    completed: number;
-    start_date: string;
-  }[];
-  burndown_data: { date: string; remaining: number; completed: number }[];
-  team_performance: {
-    name: string;
-    total_items: number;
-    completed_items: number;
-    total_points: number;
-    completed_points: number;
-  }[];
-}
-
 export interface Project {
   id: number;
   name: string;
@@ -162,44 +138,6 @@ export interface HubWorkItem {
   story_points?: number;
 }
 
-export interface Goal {
-  id: number;
-  title: string;
-  description?: string;
-  status: string;
-  progress: number;
-  due_date?: string;
-  completed_at?: string;
-}
-
-export interface Milestone {
-  id: number;
-  title: string;
-  description?: string;
-  due_date?: string;
-  completed_at?: string;
-  is_completed: boolean;
-}
-
-export interface ActivityItem {
-  id: number;
-  action: string;
-  entity_type: string;
-  entity_id?: number;
-  title: string;
-  details?: Record<string, any>;
-  created_at: string;
-  user_name: string;
-  user_email?: string;
-}
-
-export interface ProjectLink {
-  id: number;
-  name: string;
-  url: string;
-  created_at?: string;
-}
-
 // Shape returned by GET /api/projects/{id}/overview — bundles 8 previously
 // separate hub queries into one round trip. Individual useQuery hooks are
 // kept as fallback (for cache priming + invalidation routing), but the
@@ -207,10 +145,10 @@ export interface ProjectLink {
 export interface ProjectOverview {
   project: Project;
   sprints: Sprint[];
-  goals: Goal[];
-  milestones: Milestone[];
-  activities: ActivityItem[];
-  analytics: ProjectAnalytics;
+  goals: GoalResponse[];
+  milestones: MilestoneResponse[];
+  activities: ActivityResponse[];
+  analytics: ProjectAnalyticsResponse;
   prdAnalysis: PRDAnalysis;
-  links: ProjectLink[];
+  links: ProjectLinkResponse[];
 }

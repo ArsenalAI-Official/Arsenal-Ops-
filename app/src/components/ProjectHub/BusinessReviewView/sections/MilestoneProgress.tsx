@@ -1,10 +1,10 @@
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, AlertTriangle, Clock, Target } from 'lucide-react';
-import type { Milestone } from '../types';
+import type { MilestoneResponse } from '@/client';
 
 interface MilestoneProgressProps {
-  milestones: Milestone[];
+  milestones: MilestoneResponse[];
   completedMilestones: number;
   totalMilestones: number;
   milestonePct: number;

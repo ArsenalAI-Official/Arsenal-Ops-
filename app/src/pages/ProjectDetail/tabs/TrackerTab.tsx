@@ -15,6 +15,7 @@ import {
 } from 'recharts';
 import { TrendingUp, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import type { ProjectAnalyticsResponse } from '@/client';
 
 interface Sprint {
   id: number;
@@ -34,33 +35,10 @@ interface Sprint {
   completion_pct: number;
 }
 
-interface ProjectAnalytics {
-  total_items: number;
-  total_story_points: number;
-  completed_points: number;
-  status_distribution: Record<string, number>;
-  type_distribution: Record<string, number>;
-  priority_distribution: Record<string, number>;
-  velocity_data: {
-    sprint_name: string;
-    committed: number;
-    completed: number;
-    start_date: string;
-  }[];
-  burndown_data: { date: string; remaining: number; completed: number }[];
-  team_performance: {
-    name: string;
-    total_items: number;
-    completed_items: number;
-    total_points: number;
-    completed_points: number;
-  }[];
-}
-
 interface TrackerTabProps {
   hubLoading: boolean;
   sprints: Sprint[];
-  analytics: ProjectAnalytics | null;
+  analytics: ProjectAnalyticsResponse | null;
   sprintsExpanded: boolean;
   setSprintsExpanded: (updater: (prev: boolean) => boolean) => void;
 }

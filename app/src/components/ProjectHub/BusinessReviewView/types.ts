@@ -1,3 +1,5 @@
+import type { MilestoneResponse, ProjectAnalyticsResponse } from '@/client';
+
 export interface WorkItem {
   id: string;
   key: string;
@@ -7,14 +9,6 @@ export interface WorkItem {
   priority: string;
   assignee?: string;
   due_date?: string;
-}
-
-export interface Milestone {
-  id: number;
-  title: string;
-  description?: string;
-  due_date?: string;
-  is_completed: boolean;
 }
 
 export interface Sprint {
@@ -29,21 +23,6 @@ export interface Sprint {
   completed_points: number;
   start_date?: string | null;
   end_date?: string | null;
-}
-
-export interface ProjectAnalytics {
-  total_items: number;
-  total_story_points: number;
-  completed_points: number;
-  status_distribution: Record<string, number>;
-  velocity_data: { sprint_name: string; committed: number; completed: number }[];
-  team_performance: {
-    name: string;
-    total_items: number;
-    completed_items: number;
-    total_points: number;
-    completed_points: number;
-  }[];
 }
 
 export interface BusinessReviewComment {
@@ -63,8 +42,8 @@ export interface BusinessReviewComment {
 
 export interface BusinessReviewViewProps {
   project: any;
-  analytics: ProjectAnalytics | null;
+  analytics: ProjectAnalyticsResponse | null;
   sprints: Sprint[];
-  milestones: Milestone[];
+  milestones: MilestoneResponse[];
   workItems: WorkItem[];
 }

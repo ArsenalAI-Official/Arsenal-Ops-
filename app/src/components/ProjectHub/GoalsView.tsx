@@ -12,29 +12,11 @@ import {
   EmptyTitle,
   EmptyDescription,
 } from '@/components/ui/empty';
-
-interface Goal {
-  id: number;
-  title: string;
-  description?: string;
-  status: string;
-  progress: number;
-  due_date?: string;
-  completed_at?: string;
-}
-
-interface Milestone {
-  id: number;
-  title: string;
-  description?: string;
-  due_date?: string;
-  completed_at?: string;
-  is_completed: boolean;
-}
+import type { GoalResponse, MilestoneResponse } from '@/client';
 
 interface GoalsViewProps {
-  goals: Goal[];
-  milestones: Milestone[];
+  goals: GoalResponse[];
+  milestones: MilestoneResponse[];
   onAddGoal?: (goal: { title: string; description?: string; due_date?: string }) => void;
   onAddMilestone?: (milestone: { title: string; description?: string; due_date?: string }) => void;
   onUpdateGoalProgress?: (goalId: number, progress: number) => void;

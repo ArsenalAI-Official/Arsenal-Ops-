@@ -1,13 +1,13 @@
 import React from 'react';
 import { CheckCircle2, AlertTriangle, AlertCircle, HelpCircle } from 'lucide-react';
 import type { HealthMeta } from '../lib/health';
-import type { ProjectAnalytics } from '../types';
+import type { ProjectAnalyticsResponse } from '@/client';
 
 interface KpiCardsProps {
   health: HealthMeta;
   healthScore: number;
   onTimeDeliveryPct: number;
-  analytics: ProjectAnalytics | null;
+  analytics: ProjectAnalyticsResponse | null;
   overdueItems: number;
   openBugs: number;
   criticalOpen: number;

@@ -2,16 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { Link2, Plus, ExternalLink, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-
-interface ProjectLink {
-  id: number;
-  name: string;
-  url: string;
-  created_at?: string;
-}
+import type { ProjectLinkResponse } from '@/client';
 
 interface LinksSectionProps {
-  links: ProjectLink[];
+  links: ProjectLinkResponse[];
   isLoading: boolean;
   onAddLink: (link: { name: string; url: string }) => void;
   onDeleteLink: (linkId: number) => void;
