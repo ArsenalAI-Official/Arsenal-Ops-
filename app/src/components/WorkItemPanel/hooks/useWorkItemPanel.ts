@@ -4,8 +4,8 @@ import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
 import { useAllDevelopers } from '@/hooks/useAllDevelopers';
 import { toastErrorHandler } from '@/lib/mutationToast';
-import type { WorkItem, AllDeveloper } from '../types';
-import type { CommentResponse } from '@/client';
+import type { WorkItem } from '../types';
+import type { CommentResponse, DeveloperResponse } from '@/client';
 import type { AddSubtaskFormValues } from '../AddSubtaskModal';
 import type { WorkItemPanelProps } from '../WorkItemPanel';
 
@@ -63,7 +63,7 @@ export function useWorkItemPanel({
   });
   const comments = useMemo(() => commentsQuery.data ?? [], [commentsQuery.data]);
 
-  const developersQuery = useAllDevelopers<AllDeveloper>();
+  const developersQuery = useAllDevelopers<DeveloperResponse>();
   const allDevelopers = useMemo(() => developersQuery.data ?? [], [developersQuery.data]);
   const devMap = useMemo(() => new Map(allDevelopers.map((d) => [d.id, d.name])), [allDevelopers]);
 
