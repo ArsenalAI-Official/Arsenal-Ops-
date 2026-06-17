@@ -296,6 +296,16 @@ export type CommitArchitectureRequest = {
 };
 
 /**
+ * ConnectResponse
+ */
+export type ConnectResponse = {
+  /**
+   * Authorize Url
+   */
+  authorize_url: string;
+};
+
+/**
  * ConvertToTicketRequest
  */
 export type ConvertToTicketRequest = {
@@ -1609,6 +1619,20 @@ export type ProjectLinkCreate = {
 };
 
 /**
+ * ProjectLinkRequest
+ */
+export type ProjectLinkRequest = {
+  /**
+   * Workforce Client Id
+   */
+  workforce_client_id?: string | null;
+  /**
+   * Workforce Client Name
+   */
+  workforce_client_name?: string | null;
+};
+
+/**
  * ProjectLinkResponse
  */
 export type ProjectLinkResponse = {
@@ -1690,6 +1714,14 @@ export type ProjectResponse = {
    * Total Items
    */
   total_items: number;
+  /**
+   * Workforce Client Id
+   */
+  workforce_client_id?: string | null;
+  /**
+   * Workforce Client Name
+   */
+  workforce_client_name?: string | null;
 };
 
 /**
@@ -2217,6 +2249,22 @@ export type SprintVelocityPoint = {
    * Start Date
    */
   start_date?: string | null;
+};
+
+/**
+ * StatusResponse
+ */
+export type StatusResponse = {
+  /**
+   * Connected
+   */
+  connected: boolean;
+  /**
+   * Integration
+   */
+  integration?: {
+    [key: string]: unknown;
+  } | null;
 };
 
 /**
@@ -3011,6 +3059,46 @@ export type WorkItemUpdate = {
   type?: string | null;
 };
 
+/**
+ * WorkforceClient
+ */
+export type WorkforceClient = {
+  /**
+   * Id
+   */
+  id: string;
+  /**
+   * Name
+   */
+  name: string;
+};
+
+/**
+ * WorkforceClientsRefreshResult
+ */
+export type WorkforceClientsRefreshResult = {
+  /**
+   * Added
+   */
+  added: number;
+  /**
+   * Deactivated
+   */
+  deactivated: number;
+  /**
+   * Last Refreshed At
+   */
+  last_refreshed_at?: string | null;
+  /**
+   * Total Active
+   */
+  total_active: number;
+  /**
+   * Updated
+   */
+  updated: number;
+};
+
 export type RootGetData = {
   body?: never;
   path?: never;
@@ -3533,6 +3621,133 @@ export type ListTimeEntriesApiAdminTimeEntriesGetResponses = {
 
 export type ListTimeEntriesApiAdminTimeEntriesGetResponse =
   ListTimeEntriesApiAdminTimeEntriesGetResponses[keyof ListTimeEntriesApiAdminTimeEntriesGetResponses];
+
+export type ListClientsApiAdminWorkforceClientsGetData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/admin/workforce/clients';
+};
+
+export type ListClientsApiAdminWorkforceClientsGetResponses = {
+  /**
+   * Response List Clients Api Admin Workforce Clients Get
+   *
+   * Successful Response
+   */
+  200: Array<WorkforceClient>;
+};
+
+export type ListClientsApiAdminWorkforceClientsGetResponse =
+  ListClientsApiAdminWorkforceClientsGetResponses[keyof ListClientsApiAdminWorkforceClientsGetResponses];
+
+export type RefreshClientsEndpointApiAdminWorkforceClientsRefreshPostData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/admin/workforce/clients/refresh';
+};
+
+export type RefreshClientsEndpointApiAdminWorkforceClientsRefreshPostResponses = {
+  /**
+   * Successful Response
+   */
+  200: WorkforceClientsRefreshResult;
+};
+
+export type RefreshClientsEndpointApiAdminWorkforceClientsRefreshPostResponse =
+  RefreshClientsEndpointApiAdminWorkforceClientsRefreshPostResponses[keyof RefreshClientsEndpointApiAdminWorkforceClientsRefreshPostResponses];
+
+export type StartConnectApiAdminWorkforceConnectPostData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/admin/workforce/connect';
+};
+
+export type StartConnectApiAdminWorkforceConnectPostResponses = {
+  /**
+   * Successful Response
+   */
+  200: ConnectResponse;
+};
+
+export type StartConnectApiAdminWorkforceConnectPostResponse =
+  StartConnectApiAdminWorkforceConnectPostResponses[keyof StartConnectApiAdminWorkforceConnectPostResponses];
+
+export type DisconnectApiAdminWorkforceDisconnectPostData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/admin/workforce/disconnect';
+};
+
+export type DisconnectApiAdminWorkforceDisconnectPostResponses = {
+  /**
+   * Successful Response
+   */
+  200: unknown;
+};
+
+export type LinkProjectToClientApiAdminWorkforceProjectsProjectIdClientPutData = {
+  body: ProjectLinkRequest;
+  path: {
+    /**
+     * Project Id
+     */
+    project_id: number;
+  };
+  query?: never;
+  url: '/api/admin/workforce/projects/{project_id}/client';
+};
+
+export type LinkProjectToClientApiAdminWorkforceProjectsProjectIdClientPutErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type LinkProjectToClientApiAdminWorkforceProjectsProjectIdClientPutError =
+  LinkProjectToClientApiAdminWorkforceProjectsProjectIdClientPutErrors[keyof LinkProjectToClientApiAdminWorkforceProjectsProjectIdClientPutErrors];
+
+export type LinkProjectToClientApiAdminWorkforceProjectsProjectIdClientPutResponses = {
+  /**
+   * Successful Response
+   */
+  200: unknown;
+};
+
+export type GetStatusApiAdminWorkforceStatusGetData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/admin/workforce/status';
+};
+
+export type GetStatusApiAdminWorkforceStatusGetResponses = {
+  /**
+   * Successful Response
+   */
+  200: StatusResponse;
+};
+
+export type GetStatusApiAdminWorkforceStatusGetResponse =
+  GetStatusApiAdminWorkforceStatusGetResponses[keyof GetStatusApiAdminWorkforceStatusGetResponses];
+
+export type ManualSyncApiAdminWorkforceSyncPostData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/admin/workforce/sync';
+};
+
+export type ManualSyncApiAdminWorkforceSyncPostResponses = {
+  /**
+   * Successful Response
+   */
+  200: unknown;
+};
 
 export type CreateUserApiAuthAdminCreateUserPostData = {
   body: UserCreate;
@@ -4146,6 +4361,51 @@ export type GetMyCapabilitiesApiAuthMeCapabilitiesGetData = {
 };
 
 export type GetMyCapabilitiesApiAuthMeCapabilitiesGetResponses = {
+  /**
+   * Successful Response
+   */
+  200: unknown;
+};
+
+export type OauthCallbackApiAuthWorkforceCallbackGetData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Code
+     */
+    code?: string | null;
+    /**
+     * State
+     */
+    state?: string | null;
+    /**
+     * Realmid
+     */
+    realmId?: string | null;
+    /**
+     * Error
+     */
+    error?: string | null;
+    /**
+     * Error Description
+     */
+    error_description?: string | null;
+  };
+  url: '/api/auth/workforce/callback';
+};
+
+export type OauthCallbackApiAuthWorkforceCallbackGetErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type OauthCallbackApiAuthWorkforceCallbackGetError =
+  OauthCallbackApiAuthWorkforceCallbackGetErrors[keyof OauthCallbackApiAuthWorkforceCallbackGetErrors];
+
+export type OauthCallbackApiAuthWorkforceCallbackGetResponses = {
   /**
    * Successful Response
    */
