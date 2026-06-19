@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import type { EmployeeResponse } from '@/client';
 import type { ConfirmFn } from '@/components/ui/confirm-dialog';
 import { apiFetch } from '@/lib/api';
+import { toastErrorHandler } from '@/lib/mutationToast';
 import type { DeveloperCapacity } from '../types';
 import { ADMIN_REFETCH } from './adminRefetch';
 import { useEmployeesList } from './useEmployeesList';
@@ -128,7 +129,7 @@ export function useEmployeesAdmin(confirm: ConfirmFn) {
       toast.success(editingEmployee ? 'Employee updated!' : 'Employee created!');
       setShowEmployeeModal(false);
     },
-    onError: (err: any) => toast.error(err?.message || 'Failed to save employee'),
+    onError: toastErrorHandler('save employee'),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'employees'] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] });

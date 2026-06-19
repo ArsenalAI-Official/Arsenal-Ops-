@@ -57,10 +57,10 @@ export default defineConfig([
           alphabetize: { order: 'asc', caseInsensitive: true },
         },
       ],
-      // `any` is widely used in this codebase for legacy reasons (API response
-      // shapes, drag handlers, recharts payloads). Downgrade to warn so it
-      // stays visible without blocking CI.
-      '@typescript-eslint/no-explicit-any': 'warn',
+      // `any` is banned. The legacy backlog (API response shapes, recharts
+      // payloads, drag/calendar event types) was burned down and replaced with
+      // real types / `unknown` + narrowing, so this is an error to keep it gone.
+      '@typescript-eslint/no-explicit-any': 'error',
       // Keep stray debug logging out of production code; console.warn/error are
       // allowed for genuine diagnostics.
       'no-console': ['warn', { allow: ['warn', 'error'] }],

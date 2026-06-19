@@ -44,8 +44,8 @@ export function filterAndSortItems(
 
   // Sort
   items.sort((a, b) => {
-    let aVal: any = a[sortField];
-    let bVal: any = b[sortField];
+    let aVal: string | number | null | undefined = a[sortField];
+    let bVal: string | number | null | undefined = b[sortField];
 
     if (sortField === 'due_date') {
       aVal = a.due_date ? new Date(a.due_date).getTime() : Infinity;

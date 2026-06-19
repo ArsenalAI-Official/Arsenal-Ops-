@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CommentThreadDeveloper } from '@/components/CommentThread';
 import { ReviewerView, BlockedQueueView } from '@/components/ProjectHub';
 import { apiFetch } from '@/lib/api';
+import type { WorkItemUpdate } from '@/types/workItems';
 
 interface WorkItemIn {
   id: string;
@@ -30,8 +31,7 @@ export interface ReviewerPanelProps {
   projectId: string;
   token: string;
   onClose: () => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onTaskUpdate: (itemId: string, updates: any) => void;
+  onTaskUpdate: (itemId: string, updates: WorkItemUpdate) => void;
 }
 
 type QueueTab = 'review' | 'blocked';

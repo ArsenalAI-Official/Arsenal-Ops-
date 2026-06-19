@@ -247,13 +247,18 @@ try { ... } catch (err) { ... }     // err actually used
 The ESLint rule `@typescript-eslint/no-unused-vars` is configured to allow
 `_`-prefixed identifiers and to ignore caught-error params entirely.
 
-### `any` is a warning, not an error
+### `any` is banned (error)
 
-`@typescript-eslint/no-explicit-any` is downgraded to **warn** in
-`eslint.config.js`. Existing code uses `any` heavily for response payloads,
-recharts callbacks, and drag-drop event types. Don't add new `any`s —
-prefer `unknown` and narrow — but don't be forced into refactoring to
-land a feature.
+`@typescript-eslint/no-explicit-any` is an **error** in `eslint.config.js`.
+The legacy backlog (API response shapes, recharts payloads, drag/calendar
+event types — formerly ~62 `any`s) was burned down: replaced with real types,
+the canonical `WorkItem`/`WorkItemUpdate` shapes, library types (e.g.
+`react-big-calendar`'s `View`/`ToolbarProps`), and `unknown` + narrowing where
+the value is genuinely dynamic. For dynamic values prefer `unknown` + a type
+guard; for errors use `permissionAwareError(err, fallback)` (`@/lib/api`) or
+`toastErrorHandler(action)` (`@/lib/mutationToast`) — never `catch (e: any)`.
+Don't reintroduce `any`; there are no `eslint-disable` escape hatches for this
+rule, and any genuinely unavoidable case must be justified in review.
 
 ---
 

@@ -23,6 +23,7 @@ import {
   invalidateAdminMembershipImpact,
 } from '@/lib/invalidations';
 import { toastErrorHandler } from '@/lib/mutationToast';
+import type { WorkItem, WorkItemUpdate } from '@/types/workItems';
 import type { HubWorkItem, ProjectOverview } from '../types';
 
 /**
@@ -68,7 +69,7 @@ export interface UseProjectDetailDataResult {
   hubLoading: boolean;
   handleAddLink: (link: { name: string; url: string }) => void;
   handleDeleteLink: (linkId: number) => void;
-  handleTaskUpdate: (itemId: string, updates: any) => void;
+  handleTaskUpdate: (itemId: string, updates: WorkItemUpdate) => void;
   handleSaveEdit: (editForm: Partial<ProjectDetailResponse>) => void;
   handleAddDeveloper: (form: {
     developer_id: string;
@@ -270,8 +271,8 @@ export const useProjectDetailData = (
 
   // ── mutations: hub work items ───────────────────────────────────────────
   const taskUpdateMutation = useMutation({
-    mutationFn: ({ itemId, updates }: { itemId: string; updates: any }) =>
-      apiFetch<any>(`/api/workitems/${itemId}`, {
+    mutationFn: ({ itemId, updates }: { itemId: string; updates: WorkItemUpdate }) =>
+      apiFetch<WorkItem>(`/api/workitems/${itemId}`, {
         method: 'PUT',
         body: JSON.stringify(updates),
       }),
@@ -283,7 +284,7 @@ export const useProjectDetailData = (
   });
 
   // Task update handler for TimelineView
-  const handleTaskUpdate = (itemId: string, updates: any) => {
+  const handleTaskUpdate = (itemId: string, updates: WorkItemUpdate) => {
     taskUpdateMutation.mutate({ itemId, updates });
   };
 
@@ -291,7 +292,7 @@ export const useProjectDetailData = (
   const saveEditMutation = useMutation({
     mutationFn: (editForm: Partial<ProjectDetailResponse>) => {
       if (!project) throw new Error('No project');
-      const updateData: any = {
+      const updateData: Record<string, string | undefined> = {
         name: editForm.name || undefined,
         description: editForm.description || undefined,
         status: editForm.status || undefined,
@@ -310,10 +311,7 @@ export const useProjectDetailData = (
     onSuccess: () => {
       toast.success('Project updated!');
     },
-    onError: (err: any) => {
-      console.error('Error updating project:', err);
-      toast.error(err?.message || 'Failed to update project');
-    },
+    onError: toastErrorHandler('update project'),
     onSettled: () => {
       invalidateProjectScope(queryClient, id);
       queryClient.invalidateQueries({ queryKey: ['projects'] });

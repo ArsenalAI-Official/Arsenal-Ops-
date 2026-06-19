@@ -34,8 +34,8 @@ export function PasswordChange() {
     try {
       await changePassword(currentPassword, newPassword);
       toast.success('Password changed successfully!');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to change password');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to change password');
     } finally {
       setIsLoading(false);
     }

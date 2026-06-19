@@ -1,5 +1,6 @@
 import type { GoalResponse, MilestoneResponse } from '@/client';
 import { TimelineView, CalendarView } from '@/components/ProjectHub';
+import type { WorkItemUpdate } from '@/types/workItems';
 
 interface HubWorkItem {
   id: string;
@@ -27,8 +28,7 @@ interface TimelineTabProps {
   goals: GoalResponse[];
   projectStartDate: string;
   projectId: number;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onTaskUpdate: (itemId: string, updates: any) => void;
+  onTaskUpdate: (itemId: string, updates: WorkItemUpdate) => void;
 }
 
 const TimelineTab = ({

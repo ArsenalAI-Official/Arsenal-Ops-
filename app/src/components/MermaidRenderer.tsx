@@ -92,9 +92,9 @@ const MermaidRenderer = ({ code, className = '', showControls = true }: MermaidR
         // Parse and render
         const { svg } = await mermaid.render(id, cleanCode);
         setSvgContent(svg);
-      } catch (err: any) {
+      } catch (err) {
         console.error('Mermaid render error:', err);
-        setError(err.message || 'Failed to render diagram');
+        setError(err instanceof Error ? err.message : 'Failed to render diagram');
         setSvgContent('');
       } finally {
         setIsRendering(false);

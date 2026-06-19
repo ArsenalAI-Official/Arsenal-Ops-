@@ -1,4 +1,9 @@
-import type { MilestoneResponse, ProjectAnalyticsResponse, SprintResponse } from '@/client';
+import type {
+  MilestoneResponse,
+  ProjectAnalyticsResponse,
+  ProjectDetailResponse,
+  SprintResponse,
+} from '@/client';
 
 export interface WorkItem {
   id: string;
@@ -27,7 +32,7 @@ export interface BusinessReviewComment {
 }
 
 export interface BusinessReviewViewProps {
-  project: any;
+  project: ProjectDetailResponse;
   analytics: ProjectAnalyticsResponse | null;
   sprints: SprintResponse[];
   milestones: MilestoneResponse[];

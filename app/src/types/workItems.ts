@@ -61,3 +61,11 @@ export interface WorkItem {
    *  `POST /api/workitems/{id}/unblock`, which resolves all of them. */
   is_blocked?: boolean;
 }
+
+/**
+ * Partial work-item field update sent as the body of `PUT /api/workitems/{id}`.
+ * Used by the board / hub / timeline task-update handlers. A partial of the
+ * canonical `WorkItem` rather than a parallel shape, so it stays honest as the
+ * work-item type evolves.
+ */
+export type WorkItemUpdate = Partial<WorkItem>;

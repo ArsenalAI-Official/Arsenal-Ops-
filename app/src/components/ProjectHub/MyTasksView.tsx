@@ -29,13 +29,15 @@ interface Task {
   is_overdue?: boolean;
 }
 
+type TaskFilter = 'all' | 'today' | 'week' | 'overdue';
+
 interface MyTasksViewProps {
   tasks: Task[];
   onTaskClick?: (task: Task) => void;
 }
 
 const MyTasksView: React.FC<MyTasksViewProps> = ({ tasks, onTaskClick }) => {
-  const [filter, setFilter] = useState<'all' | 'today' | 'week' | 'overdue'>('all');
+  const [filter, setFilter] = useState<TaskFilter>('all');
 
   const filteredTasks = useMemo(() => {
     const now = new Date();
@@ -131,7 +133,7 @@ const MyTasksView: React.FC<MyTasksViewProps> = ({ tasks, onTaskClick }) => {
         </div>
 
         {/* Filters */}
-        <Tabs value={filter} onValueChange={(v) => setFilter(v as any)} className="mb-6">
+        <Tabs value={filter} onValueChange={(v) => setFilter(v as TaskFilter)} className="mb-6">
           <TabsList className="bg-[#0A0A14] border border-[rgba(255,255,255,0.05)]">
             <TabsTrigger value="all" className="data-[state=active]:bg-[#E0B954]">
               All ({tasks.length})

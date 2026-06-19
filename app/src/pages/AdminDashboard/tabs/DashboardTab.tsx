@@ -1,4 +1,5 @@
 import { Users, FolderKanban, Ticket, Calendar, ChevronRight } from 'lucide-react';
+import type { ElementType } from 'react';
 import {
   BarChart,
   Bar,
@@ -107,7 +108,7 @@ const DashboardTab = ({ stats, setActiveTab }: DashboardTabProps) => {
       <div className="grid grid-cols-4 gap-4">
         {kpis.map((stat, i) => {
           const clickable = !!stat.tab;
-          const Wrapper: any = clickable ? 'button' : 'div';
+          const Wrapper: ElementType = clickable ? 'button' : 'div';
           return (
             <Wrapper
               key={i}
