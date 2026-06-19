@@ -3,13 +3,29 @@
 import enum
 import sys
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Index, Integer, String, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 sys.path.append("..")
 from database import Base
 from models.developer import project_developers
+
+if TYPE_CHECKING:
+    from models.activity_log import ActivityLog
+    from models.architecture import Architecture, PRDAnalysis, RoadmapTemplate
+    from models.developer import Developer
+    from models.market_insight import MarketInsight
+    from models.milestone import Milestone
+    from models.persona import Persona
+    from models.project_category import ProjectCategory
+    from models.project_goal import ProjectGoal
+    from models.project_milestone import ProjectMilestone
+    from models.sprint import Sprint
+    from models.task import Task
+    from models.user_story import UserStory
+    from models.work_item import WorkItem
 
 
 class ProjectStatus(str, enum.Enum):  # noqa: UP042
@@ -24,70 +40,98 @@ class ProjectStatus(str, enum.Enum):  # noqa: UP042
 class Project(Base):
     __tablename__ = "projects"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
-    key_prefix = Column(String(10), default="PROJ")  # Short key for work items (e.g., PROJ-123)
-    description = Column(Text, nullable=False)
-    vision = Column(Text)
-    target_market = Column(String(255))
-    status = Column(String(50), default=ProjectStatus.IDEATION.value)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    key_prefix: Mapped[str] = mapped_column(
+        String(10), default="PROJ", nullable=True
+    )  # Short key for work items (e.g., PROJ-123)
+    description: Mapped[str] = mapped_column(Text)
+    vision: Mapped[str | None] = mapped_column(Text)
+    target_market: Mapped[str | None] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(
+        String(50), default=ProjectStatus.IDEATION.value, nullable=True
+    )
 
     # AI-generated fields
-    market_size = Column(String(100))
-    timeline_summary = Column(Text)
-    risk_assessment = Column(Text)
+    market_size: Mapped[str | None] = mapped_column(String(100))
+    timeline_summary: Mapped[str | None] = mapped_column(Text)
+    risk_assessment: Mapped[str | None] = mapped_column(Text)
 
     # GitHub integration
-    github_repo_url = Column(String(500))  # e.g., https://github.com/org/repo (primary/legacy)
-    github_repo_urls = Column(JSON, default=lambda: [])  # Multiple GitHub repo URLs
-    github_repo_name = Column(String(100))  # e.g., "org/repo"
-    github_token = Column(String(100))  # Project-specific GitHub token for invitations
+    github_repo_url: Mapped[str | None] = mapped_column(
+        String(500)
+    )  # e.g., https://github.com/org/repo (primary/legacy)
+    github_repo_urls: Mapped[list[str]] = mapped_column(
+        JSON, default=lambda: [], nullable=True
+    )  # Multiple GitHub repo URLs
+    github_repo_name: Mapped[str | None] = mapped_column(String(100))  # e.g., "org/repo"
+    github_token: Mapped[str | None] = mapped_column(
+        String(100)
+    )  # Project-specific GitHub token for invitations
 
     # Optional admin-managed category. ON DELETE SET NULL so removing a
     # category quietly unassigns its projects rather than blocking or cascading.
-    category_id = Column(
-        Integer,
+    category_id: Mapped[int | None] = mapped_column(
         ForeignKey("project_categories.id", ondelete="SET NULL"),
-        nullable=True,
         index=True,
     )
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    end_date = Column(DateTime, nullable=True)  # Project end date
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    end_date: Mapped[datetime | None] = mapped_column(DateTime)  # Project end date
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True
+    )
 
     # Relationships
-    tasks = relationship("Task", back_populates="project", cascade="all, delete-orphan")
-    milestones = relationship("Milestone", back_populates="project", cascade="all, delete-orphan")
-    personas = relationship("Persona", back_populates="project", cascade="all, delete-orphan")
-    user_stories = relationship("UserStory", back_populates="project", cascade="all, delete-orphan")
-    market_insights = relationship(
+    tasks: Mapped[list["Task"]] = relationship(
+        "Task", back_populates="project", cascade="all, delete-orphan"
+    )
+    milestones: Mapped[list["Milestone"]] = relationship(
+        "Milestone", back_populates="project", cascade="all, delete-orphan"
+    )
+    personas: Mapped[list["Persona"]] = relationship(
+        "Persona", back_populates="project", cascade="all, delete-orphan"
+    )
+    user_stories: Mapped[list["UserStory"]] = relationship(
+        "UserStory", back_populates="project", cascade="all, delete-orphan"
+    )
+    market_insights: Mapped[list["MarketInsight"]] = relationship(
         "MarketInsight", back_populates="project", cascade="all, delete-orphan"
     )
-    developers = relationship("Developer", secondary=project_developers, back_populates="projects")
-    work_items = relationship("WorkItem", back_populates="project", cascade="all, delete-orphan")
-    sprints = relationship("Sprint", back_populates="project", cascade="all, delete-orphan")
-    architectures = relationship(
+    developers: Mapped[list["Developer"]] = relationship(
+        "Developer", secondary=project_developers, back_populates="projects"
+    )
+    work_items: Mapped[list["WorkItem"]] = relationship(
+        "WorkItem", back_populates="project", cascade="all, delete-orphan"
+    )
+    sprints: Mapped[list["Sprint"]] = relationship(
+        "Sprint", back_populates="project", cascade="all, delete-orphan"
+    )
+    architectures: Mapped[list["Architecture"]] = relationship(
         "Architecture", back_populates="project", cascade="all, delete-orphan"
     )
-    prd_analyses = relationship(
+    prd_analyses: Mapped[list["PRDAnalysis"]] = relationship(
         "PRDAnalysis", back_populates="project", cascade="all, delete-orphan"
     )
-    roadmap_template = relationship(
+    roadmap_template: Mapped["RoadmapTemplate | None"] = relationship(
         "RoadmapTemplate",
         back_populates="project",
         cascade="all, delete-orphan",
         uselist=False,
     )
-    goals = relationship("ProjectGoal", back_populates="project", cascade="all, delete-orphan")
-    project_milestones = relationship(
+    goals: Mapped[list["ProjectGoal"]] = relationship(
+        "ProjectGoal", back_populates="project", cascade="all, delete-orphan"
+    )
+    project_milestones: Mapped[list["ProjectMilestone"]] = relationship(
         "ProjectMilestone", back_populates="project", cascade="all, delete-orphan"
     )
-    activity_logs = relationship(
+    activity_logs: Mapped[list["ActivityLog"]] = relationship(
         "ActivityLog", back_populates="project", cascade="all, delete-orphan"
     )
-    category = relationship("ProjectCategory", back_populates="projects", lazy="joined")
+    category: Mapped["ProjectCategory | None"] = relationship(
+        "ProjectCategory", back_populates="projects", lazy="joined"
+    )
 
     # Indexes for common queries
     __table_args__ = (

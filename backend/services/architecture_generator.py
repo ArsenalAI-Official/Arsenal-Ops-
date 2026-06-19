@@ -115,7 +115,7 @@ Return as valid JSON with these exact keys:
             )
             return json.loads(response.choices[0].message.content)
         except Exception as e:
-            print(f"[AI ERROR] analyze_prd failed: {str(e)}")
+            print(f"[AI ERROR] analyze_prd failed: {e!s}")
             return {
                 "error": str(e),
                 "summary": "Unable to analyze PRD",
@@ -278,7 +278,7 @@ Return as JSON with keys:
         project_name: str,
         start_date=None,
         end_date=None,
-        prd_analysis: dict[str, Any] = None,
+        prd_analysis: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Generate Jira tickets from selected architecture and PRD analysis
@@ -579,7 +579,7 @@ Return as JSON with keys:
                 "changes_applied": ["Unable to process changes"],
                 "pros": [],
                 "cons": [],
-                "ai_notes": f"AI processing failed: {str(e)}",
+                "ai_notes": f"AI processing failed: {e!s}",
             }
 
 

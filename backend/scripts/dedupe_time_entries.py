@@ -42,15 +42,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import func  # noqa: E402
+from sqlalchemy import func
 
-import models  # noqa: F401, E402
-from database import SessionLocal  # noqa: E402
-from models import activity_log as _activity_log  # noqa: F401, E402
-from models import architecture as _architecture  # noqa: F401, E402
-from models import user as _user  # noqa: F401, E402
-from models.time_entry import TimeEntry  # noqa: E402
-from models.work_item import WorkItem  # noqa: E402
+import models  # noqa: F401
+from database import SessionLocal
+from models import activity_log as _activity_log  # noqa: F401
+from models import architecture as _architecture  # noqa: F401
+from models import user as _user  # noqa: F401
+from models.time_entry import TimeEntry
+from models.work_item import WorkItem
 
 logger = logging.getLogger(__name__)
 

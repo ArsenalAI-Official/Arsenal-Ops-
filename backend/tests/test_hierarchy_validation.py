@@ -13,6 +13,7 @@ is rejected at the ``type_disallowed`` gate before reaching those checks.
 import os
 import sys
 from datetime import datetime
+from typing import cast
 
 import pytest
 from fastapi import HTTPException
@@ -21,8 +22,8 @@ from sqlalchemy.orm import sessionmaker
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from database import Base  # noqa: E402
-from models import (  # noqa: E402, F401
+from database import Base
+from models import (  # noqa: F401
     activity_log,
     architecture,
     developer,
@@ -41,9 +42,9 @@ from models import (  # noqa: E402, F401
     user_story,
     work_item,
 )
-from models.project import Project  # noqa: E402
-from models.work_item import WorkItem  # noqa: E402
-from services.hierarchy import validate_hierarchy  # noqa: E402
+from models.project import Project
+from models.work_item import WorkItem
+from services.hierarchy import validate_hierarchy
 
 
 @pytest.fixture
@@ -135,14 +136,16 @@ def test_epic_cannot_have_epic_id(db, seed):
     with pytest.raises(HTTPException) as exc:
         validate_hierarchy(db, item_type="epic", project_id=1, parent_id=None, epic_id=10)
     assert exc.value.status_code == 422
-    assert exc.value.detail["field"] == "epic_id"
-    assert exc.value.detail["code"] == "type_disallowed"
+    detail = cast(dict[str, str], exc.value.detail)
+    assert detail["field"] == "epic_id"
+    assert detail["code"] == "type_disallowed"
 
 
 def test_story_epic_id_must_point_to_epic(db, seed):
     with pytest.raises(HTTPException) as exc:
         validate_hierarchy(db, item_type="user_story", project_id=1, parent_id=None, epic_id=11)
-    assert exc.value.detail["code"] == "parent_type_invalid"
+    detail = cast(dict[str, str], exc.value.detail)
+    assert detail["code"] == "parent_type_invalid"
 
 
 # ---------- Type rules: parent_id ----------
@@ -151,28 +154,32 @@ def test_story_epic_id_must_point_to_epic(db, seed):
 def test_epic_cannot_have_parent_id(db, seed):
     with pytest.raises(HTTPException) as exc:
         validate_hierarchy(db, item_type="epic", project_id=1, parent_id=11, epic_id=None)
-    assert exc.value.detail["field"] == "parent_id"
-    assert exc.value.detail["code"] == "type_disallowed"
+    detail = cast(dict[str, str], exc.value.detail)
+    assert detail["field"] == "parent_id"
+    assert detail["code"] == "type_disallowed"
 
 
 def test_story_cannot_have_parent_id(db, seed):
     with pytest.raises(HTTPException) as exc:
         validate_hierarchy(db, item_type="user_story", project_id=1, parent_id=11, epic_id=None)
-    assert exc.value.detail["code"] == "type_disallowed"
+    detail = cast(dict[str, str], exc.value.detail)
+    assert detail["code"] == "type_disallowed"
 
 
 def test_bug_cannot_have_parent_id(db, seed):
     """Bug is leaf-only per the canonical model."""
     with pytest.raises(HTTPException) as exc:
         validate_hierarchy(db, item_type="bug", project_id=1, parent_id=11, epic_id=None)
-    assert exc.value.detail["code"] == "type_disallowed"
+    detail = cast(dict[str, str], exc.value.detail)
+    assert detail["code"] == "type_disallowed"
 
 
 def test_task_cannot_have_parent_id(db, seed):
     """Task is a sibling of Story/Bug under Epic; parent_id is disabled."""
     with pytest.raises(HTTPException) as exc:
         validate_hierarchy(db, item_type="task", project_id=1, parent_id=11, epic_id=None)
-    assert exc.value.detail["code"] == "type_disallowed"
+    detail = cast(dict[str, str], exc.value.detail)
+    assert detail["code"] == "type_disallowed"
 
 
 # ---------- Cross-cutting rules (exercised through epic_id while parent_id is disabled) ----------
@@ -181,13 +188,15 @@ def test_task_cannot_have_parent_id(db, seed):
 def test_epic_id_not_found(db, seed):
     with pytest.raises(HTTPException) as exc:
         validate_hierarchy(db, item_type="user_story", project_id=1, parent_id=None, epic_id=9999)
-    assert exc.value.detail["code"] == "parent_not_found"
+    detail = cast(dict[str, str], exc.value.detail)
+    assert detail["code"] == "parent_not_found"
 
 
 def test_epic_id_must_be_same_project(db, seed):
     with pytest.raises(HTTPException) as exc:
         validate_hierarchy(db, item_type="user_story", project_id=1, parent_id=None, epic_id=20)
-    assert exc.value.detail["code"] == "cross_project"
+    detail = cast(dict[str, str], exc.value.detail)
+    assert detail["code"] == "cross_project"
 
 
 def test_self_parent_rejected_for_epic_id(db, seed):
@@ -201,7 +210,8 @@ def test_self_parent_rejected_for_epic_id(db, seed):
             epic_id=11,
             item_id=11,
         )
-    assert exc.value.detail["code"] == "self_parent"
+    detail = cast(dict[str, str], exc.value.detail)
+    assert detail["code"] == "self_parent"
 
 
 # ---------- Clearing parents ----------

@@ -5,8 +5,7 @@ Database configuration and session management
 import os
 
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 # Use PostgreSQL if DATABASE_URL is set, otherwise fallback to SQLite
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -26,7 +25,11 @@ engine = create_engine(
     max_overflow=10,  # Allow 10 extra if needed
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+
+
+class Base(DeclarativeBase):
+    pass
+
 
 # Attach the perf query counter when PERF_LOG=1 (no-op otherwise).
 from middleware.perf import register_query_counter  # noqa: E402

@@ -5,12 +5,17 @@ User Model - Authentication and user management
 import enum
 import sys
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String
-from sqlalchemy.orm import relationship
+from sqlalchemy import DateTime, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 sys.path.append("..")
 from database import Base
+
+if TYPE_CHECKING:
+    from models.personal_task import PersonalTask
+    from models.role import Role
 
 
 class UserRole(str, enum.Enum):  # noqa: UP042
@@ -40,27 +45,35 @@ class User(Base):
 
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), unique=True, nullable=False, index=True)
-    name = Column(String(255), nullable=False)
-    hashed_password = Column(String(255), nullable=True)  # Nullable for SSO users
-    role = Column(String(255), default=UserRole.DEVELOPER.value)  # Supports comma-separated roles
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    hashed_password: Mapped[str | None] = mapped_column(String(255))  # Nullable for SSO users
+    # Nullable in the DB (legacy default) and the reconcile paths legitimately
+    # read/clear it, so it stays Optional despite the default.
+    role: Mapped[str | None] = mapped_column(
+        String(255), default=UserRole.DEVELOPER.value
+    )  # Supports comma-separated roles
 
     # Account status
-    is_active = Column(Boolean, default=True)
-    is_first_login = Column(Boolean, default=True)  # Must change password on first login
+    is_active: Mapped[bool] = mapped_column(default=True, nullable=True)
+    is_first_login: Mapped[bool] = mapped_column(
+        default=True, nullable=True
+    )  # Must change password on first login
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    last_login_at = Column(DateTime, nullable=True)
-    password_changed_at = Column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True
+    )
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
+    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # Relationships
-    personal_tasks = relationship(
+    personal_tasks: Mapped[list["PersonalTask"]] = relationship(
         "PersonalTask", back_populates="user", cascade="all, delete-orphan"
     )
-    roles = relationship(
+    roles: Mapped[list["Role"]] = relationship(
         "Role",
         secondary="user_roles",
         back_populates="users",

@@ -3,12 +3,22 @@
 import enum
 import sys
 from datetime import datetime
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Index, Integer, String, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 sys.path.append("..")
 from database import Base
+
+if TYPE_CHECKING:
+    from models.comment import Comment
+    from models.developer import Developer
+    from models.project import Project
+    from models.project_goal import ProjectGoal
+    from models.sprint import Sprint
+    from models.task_dependency import TaskDependency
+    from models.time_entry import TimeEntry
 
 
 class WorkItemType(str, enum.Enum):  # noqa: UP042
@@ -37,58 +47,72 @@ class WorkItemPriority(str, enum.Enum):  # noqa: UP042
 class WorkItem(Base):
     __tablename__ = "work_items"
 
-    id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(
-        Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
     )
-    sprint_id = Column(Integer, ForeignKey("sprints.id", ondelete="SET NULL"), index=True)
+    sprint_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sprints.id", ondelete="SET NULL"), index=True
+    )
 
     # Core fields
-    key = Column(String(50), unique=True, nullable=False, index=True)  # e.g., "PROJ-123"
-    type = Column(
-        String(20), default=WorkItemType.TASK.value, nullable=False
+    key: Mapped[str] = mapped_column(String(50), unique=True, index=True)  # e.g., "PROJ-123"
+    type: Mapped[str] = mapped_column(
+        String(20), default=WorkItemType.TASK.value
     )  # epic, user_story, task, bug
-    title = Column(String(255), nullable=False)
-    description = Column(Text)
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text)
 
     # Status & Priority
-    status = Column(String(50), default=WorkItemStatus.TODO.value, nullable=False, index=True)
-    priority = Column(String(20), default=WorkItemPriority.MEDIUM.value, nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default=WorkItemStatus.TODO.value, index=True)
+    priority: Mapped[str] = mapped_column(String(20), default=WorkItemPriority.MEDIUM.value)
 
     # Estimation
-    story_points = Column(Integer, default=0)
-    estimated_hours = Column(Integer)
-    remaining_hours = Column(Integer)
-    logged_hours = Column(Integer, default=0)  # Total hours logged by developers
+    story_points: Mapped[int] = mapped_column(default=0, nullable=True)
+    estimated_hours: Mapped[int | None] = mapped_column()
+    remaining_hours: Mapped[int | None] = mapped_column()
+    logged_hours: Mapped[int] = mapped_column(
+        default=0, nullable=True
+    )  # Total hours logged by developers
 
     # Assignment - linked to Developer model
-    assignee_id = Column(Integer, ForeignKey("developers.id", ondelete="SET NULL"), index=True)
-    reporter_id = Column(Integer, ForeignKey("developers.id", ondelete="SET NULL"))
+    assignee_id: Mapped[int | None] = mapped_column(
+        ForeignKey("developers.id", ondelete="SET NULL"), index=True
+    )
+    reporter_id: Mapped[int | None] = mapped_column(
+        ForeignKey("developers.id", ondelete="SET NULL")
+    )
 
     # Goal linkage
-    goal_id = Column(Integer, ForeignKey("project_goals.id", ondelete="SET NULL"), index=True)
+    goal_id: Mapped[int | None] = mapped_column(
+        ForeignKey("project_goals.id", ondelete="SET NULL"), index=True
+    )
 
     # Hierarchy
-    parent_id = Column(
-        Integer, ForeignKey("work_items.id", ondelete="CASCADE"), index=True
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_items.id", ondelete="CASCADE"), index=True
     )  # For subtasks
-    epic_id = Column(Integer, ForeignKey("work_items.id", ondelete="SET NULL"), index=True)
+    epic_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_items.id", ondelete="SET NULL"), index=True
+    )
 
     # Additional data
-    acceptance_criteria = Column(JSON, default=list)
-    tags = Column(JSON, default=list)
-    attachments = Column(JSON, default=list)
+    acceptance_criteria: Mapped[list[Any]] = mapped_column(JSON, default=list, nullable=True)
+    tags: Mapped[list[Any]] = mapped_column(JSON, default=list, nullable=True)
+    attachments: Mapped[list[Any]] = mapped_column(JSON, default=list, nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-    started_at = Column(DateTime)
-    completed_at = Column(DateTime)
-    last_assigned_at = Column(
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_assigned_at: Mapped[datetime | None] = mapped_column(
         DateTime
     )  # Set on create + every assignee_id change. Used for transfer-aware capacity.
-    due_date = Column(DateTime)
-    start_date = Column(DateTime)  # For Gantt chart - planned start date
+    due_date: Mapped[datetime | None] = mapped_column(DateTime)
+    start_date: Mapped[datetime | None] = mapped_column(DateTime)  # For Gantt - planned start date
 
     # Relationships
     #
@@ -100,32 +124,38 @@ class WorkItem(Base):
     # ``list_work_items`` and ``get_my_tasks`` in routers/workitems.py for the
     # pattern, and ``get_project_workload`` in routers/projects.py for the
     # same pattern outside the workitems router.
-    project = relationship("Project", back_populates="work_items")
-    sprint = relationship("Sprint", back_populates="work_items")
-    assignee = relationship(
+    project: Mapped["Project"] = relationship("Project", back_populates="work_items")
+    sprint: Mapped["Sprint | None"] = relationship("Sprint", back_populates="work_items")
+    assignee: Mapped["Developer | None"] = relationship(
         "Developer", foreign_keys=[assignee_id], back_populates="assigned_work_items"
     )
-    reporter = relationship("Developer", foreign_keys=[reporter_id])
-    parent = relationship(
+    reporter: Mapped["Developer | None"] = relationship("Developer", foreign_keys=[reporter_id])
+    parent: Mapped["WorkItem | None"] = relationship(
         "WorkItem", remote_side=[id], foreign_keys=[parent_id], back_populates="subtasks"
     )
-    subtasks = relationship("WorkItem", foreign_keys=[parent_id], back_populates="parent")
-    epic = relationship(
+    subtasks: Mapped[list["WorkItem"]] = relationship(
+        "WorkItem", foreign_keys=[parent_id], back_populates="parent"
+    )
+    epic: Mapped["WorkItem | None"] = relationship(
         "WorkItem", remote_side=[id], foreign_keys=[epic_id], back_populates="stories"
     )
-    stories = relationship("WorkItem", foreign_keys=[epic_id], back_populates="epic")
-    comments = relationship("Comment", back_populates="work_item", cascade="all, delete-orphan")
-    time_entries = relationship(
+    stories: Mapped[list["WorkItem"]] = relationship(
+        "WorkItem", foreign_keys=[epic_id], back_populates="epic"
+    )
+    comments: Mapped[list["Comment"]] = relationship(
+        "Comment", back_populates="work_item", cascade="all, delete-orphan"
+    )
+    time_entries: Mapped[list["TimeEntry"]] = relationship(
         "TimeEntry", back_populates="work_item", cascade="all, delete-orphan"
     )
-    goal = relationship("ProjectGoal", back_populates="work_items")
-    dependencies = relationship(
+    goal: Mapped["ProjectGoal | None"] = relationship("ProjectGoal", back_populates="work_items")
+    dependencies: Mapped[list["TaskDependency"]] = relationship(
         "TaskDependency",
         foreign_keys="TaskDependency.work_item_id",
         back_populates="work_item",
         cascade="all, delete-orphan",
     )
-    blocked_by = relationship(
+    blocked_by: Mapped[list["TaskDependency"]] = relationship(
         "TaskDependency",
         foreign_keys="TaskDependency.depends_on_id",
         back_populates="depends_on",

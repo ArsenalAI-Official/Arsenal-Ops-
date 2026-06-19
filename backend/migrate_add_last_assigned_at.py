@@ -16,7 +16,9 @@ from database import DATABASE_URL
 
 
 def migrate():
-    print(f"Connecting to database...")
+    print("Connecting to database...")
+    if not DATABASE_URL:
+        raise SystemExit("DATABASE_URL not set")
     engine = create_engine(DATABASE_URL)
     is_sqlite = DATABASE_URL.startswith("sqlite")
 

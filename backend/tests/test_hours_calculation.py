@@ -5,6 +5,7 @@ Tests all edge cases for time tracking accuracy
 
 import sys
 from datetime import datetime, timedelta
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
@@ -139,7 +140,7 @@ class TestHoursCalculation:
         ]
 
         # Group by developer
-        dev_hours = {}
+        dev_hours: dict[Any, Any] = {}
         for te in entries:
             dev_hours[te.developer_id] = dev_hours.get(te.developer_id, 0) + te.hours
 
@@ -206,7 +207,7 @@ class TestHoursAnalyticsEdgeCases:
     def test_no_time_entries(self):
         """Test calculation when developer has no time entries"""
         dev_id = 1
-        all_time_entries = []  # No entries
+        all_time_entries: list[Any] = []  # No entries
 
         dev_time_entries = [te for te in all_time_entries if te.developer_id == dev_id]
 
@@ -216,7 +217,7 @@ class TestHoursAnalyticsEdgeCases:
     def test_no_assigned_items(self):
         """Test calculation when developer has no assigned items"""
         dev_id = 1
-        items = []  # No items
+        items: list[Any] = []  # No items
 
         dev_items = [item for item in items if item.assignee_id == dev_id]
         allocated = sum(item.estimated_hours or 0 for item in dev_items)
@@ -357,7 +358,7 @@ class TestTicketTransferScenarios:
         ]
 
         # Calculate hours per developer
-        dev_hours = {}
+        dev_hours: dict[Any, Any] = {}
         for te in time_entries:
             dev_hours[te.developer_id] = dev_hours.get(te.developer_id, 0) + te.hours
 
@@ -558,7 +559,7 @@ class TestDataRepairScenarios:
         work_item.logged_hours = 10  # Should be 0
         work_item.estimated_hours = 20
 
-        time_entries = []  # No entries
+        time_entries: list[Any] = []  # No entries
 
         correct_logged = sum(te.hours for te in time_entries)
         work_item.logged_hours = correct_logged

@@ -2,12 +2,18 @@
 
 import sys
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 sys.path.append("..")
 from database import Base
+
+if TYPE_CHECKING:
+    from models.comment import Comment
+    from models.project import Project
+    from models.work_item import WorkItem
 
 # Association table for Project-Developer many-to-many relationship
 project_developers = Table(
@@ -25,26 +31,32 @@ project_developers = Table(
 class Developer(Base):
     __tablename__ = "developers"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
-    email = Column(String(255), unique=True, nullable=False)
-    github_username = Column(String(100), unique=True)  # GitHub username for invitations
-    avatar_url = Column(String(500))
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    email: Mapped[str] = mapped_column(String(255), unique=True)
+    github_username: Mapped[str | None] = mapped_column(
+        String(100), unique=True
+    )  # GitHub username for invitations
+    avatar_url: Mapped[str | None] = mapped_column(String(500))
 
     # External users (created via Admin → Users → Add User) are kept out of the
     # Employees tab, which surfaces only internal team members.
-    is_external = Column(Boolean, default=False, nullable=False)
+    is_external: Mapped[bool] = mapped_column(default=False)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True
+    )
 
     # Relationships
-    projects = relationship("Project", secondary=project_developers, back_populates="developers")
-    assigned_work_items = relationship(
+    projects: Mapped[list["Project"]] = relationship(
+        "Project", secondary=project_developers, back_populates="developers"
+    )
+    assigned_work_items: Mapped[list["WorkItem"]] = relationship(
         "WorkItem", foreign_keys="WorkItem.assignee_id", back_populates="assignee"
     )
-    reported_work_items = relationship(
+    reported_work_items: Mapped[list["WorkItem"]] = relationship(
         "WorkItem", foreign_keys="WorkItem.reporter_id", back_populates="reporter"
     )
-    comments = relationship("Comment", back_populates="author")
+    comments: Mapped[list["Comment"]] = relationship("Comment", back_populates="author")

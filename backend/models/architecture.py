@@ -3,23 +3,24 @@ Architecture Model - Stores generated architecture designs for projects
 """
 
 import sys
-from datetime import datetime
+from datetime import date, datetime
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     JSON,
-    Boolean,
-    Column,
     Date,
     DateTime,
     ForeignKey,
-    Integer,
     String,
     Text,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 sys.path.append("..")
 from database import Base
+
+if TYPE_CHECKING:
+    from models.project import Project
 
 
 class Architecture(Base):
@@ -27,40 +28,44 @@ class Architecture(Base):
 
     __tablename__ = "architectures"
 
-    id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(
-        Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
     )
 
     # Architecture details
-    name = Column(String(255), nullable=False)
-    description = Column(Text)
-    architecture_type = Column(String(50), default="recommended")  # recommended, alternative
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text)
+    architecture_type: Mapped[str] = mapped_column(
+        String(50), default="recommended", nullable=True
+    )  # recommended, alternative
 
     # Mermaid diagram
-    mermaid_code = Column(Text, nullable=False)
+    mermaid_code: Mapped[str] = mapped_column(Text)
 
     # Analysis results
-    cost_analysis = Column(JSON)  # Stores cost breakdown
-    tools_recommended = Column(JSON)  # Stores recommended tools
-    pros = Column(JSON)  # List of pros
-    cons = Column(JSON)  # List of cons
+    cost_analysis: Mapped[Any | None] = mapped_column(JSON)  # Stores cost breakdown
+    tools_recommended: Mapped[Any | None] = mapped_column(JSON)  # Stores recommended tools
+    pros: Mapped[Any | None] = mapped_column(JSON)  # List of pros
+    cons: Mapped[Any | None] = mapped_column(JSON)  # List of cons
 
     # Metadata
-    estimated_cost = Column(String(100))  # e.g., "$200-500/month"
-    complexity = Column(String(20))  # low, medium, high
-    time_to_implement = Column(String(50))  # e.g., "8-12 weeks"
+    estimated_cost: Mapped[str | None] = mapped_column(String(100))  # e.g., "$200-500/month"
+    complexity: Mapped[str | None] = mapped_column(String(20))  # low, medium, high
+    time_to_implement: Mapped[str | None] = mapped_column(String(50))  # e.g., "8-12 weeks"
 
     # Selection status
-    is_selected = Column(Boolean, default=False)
-    selected_at = Column(DateTime)
+    is_selected: Mapped[bool] = mapped_column(default=False, nullable=True)
+    selected_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True
+    )
 
     # Relationships
-    project = relationship("Project", back_populates="architectures")
+    project: Mapped["Project"] = relationship("Project", back_populates="architectures")
 
     def to_dict(self):
         return {
@@ -89,30 +94,30 @@ class PRDAnalysis(Base):
 
     __tablename__ = "prd_analyses"
 
-    id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(
-        Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
     )
 
     # Original PRD content
-    filename = Column(String(255))
-    prd_content = Column(Text)  # Extracted text from PRD
-    additional_context = Column(Text)  # User-provided context
+    filename: Mapped[str | None] = mapped_column(String(255))
+    prd_content: Mapped[str | None] = mapped_column(Text)  # Extracted text from PRD
+    additional_context: Mapped[str | None] = mapped_column(Text)  # User-provided context
 
     # Analysis results
-    summary = Column(Text)
-    key_features = Column(JSON)  # List of features
-    technical_requirements = Column(JSON)  # List of requirements
-    cost_analysis = Column(JSON)  # Cost breakdown object
-    recommended_tools = Column(JSON)  # Tools by category
-    risks = Column(JSON)  # List of risk objects
-    timeline = Column(JSON)  # List of phase objects
+    summary: Mapped[str | None] = mapped_column(Text)
+    key_features: Mapped[Any | None] = mapped_column(JSON)  # List of features
+    technical_requirements: Mapped[Any | None] = mapped_column(JSON)  # List of requirements
+    cost_analysis: Mapped[Any | None] = mapped_column(JSON)  # Cost breakdown object
+    recommended_tools: Mapped[Any | None] = mapped_column(JSON)  # Tools by category
+    risks: Mapped[Any | None] = mapped_column(JSON)  # List of risk objects
+    timeline: Mapped[Any | None] = mapped_column(JSON)  # List of phase objects
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
 
     # Relationships
-    project = relationship("Project", back_populates="prd_analyses")
+    project: Mapped["Project"] = relationship("Project", back_populates="prd_analyses")
 
     def to_dict(self):
         return {
@@ -140,28 +145,28 @@ class RoadmapTemplate(Base):
 
     __tablename__ = "roadmap_templates"
 
-    id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(
-        Integer,
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    project_id: Mapped[int] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"),
-        nullable=False,
         unique=True,
         index=True,
     )
 
     # Planning window the AI was asked to fit the roadmap into.
-    start_date = Column(Date, nullable=False)
-    end_date = Column(Date, nullable=False)
-    sprint_weeks = Column(Integer, nullable=False, default=2)
+    start_date: Mapped[date] = mapped_column(Date)
+    end_date: Mapped[date] = mapped_column(Date)
+    sprint_weeks: Mapped[int] = mapped_column(default=2)
 
     # Structured AI output (milestones, epics, tasks) — same shape the
     # renderer in services/roadmap_generator.py expects.
-    suggestions = Column(JSON, nullable=False)
+    suggestions: Mapped[dict[str, Any]] = mapped_column(JSON)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True
+    )
 
-    project = relationship("Project", back_populates="roadmap_template")
+    project: Mapped["Project"] = relationship("Project", back_populates="roadmap_template")
 
     def to_dict(self):
         suggestions = self.suggestions or {}

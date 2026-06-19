@@ -25,8 +25,8 @@ from sqlalchemy.orm import sessionmaker
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from database import Base  # noqa: E402
-from models import (  # noqa: E402, F401
+from database import Base
+from models import (  # noqa: F401
     activity_log,
     developer,
     market_insight,
@@ -45,11 +45,11 @@ from models import (  # noqa: E402, F401
     user_story,
     work_item,
 )
-from models.developer import Developer, project_developers  # noqa: E402
-from models.project import Project  # noqa: E402
-from models.project_pulse_override import ProjectPulseOverride  # noqa: E402
-from models.user import User  # noqa: E402
-from routers.pulse import (  # noqa: E402
+from models.developer import Developer, project_developers
+from models.project import Project
+from models.project_pulse_override import ProjectPulseOverride
+from models.user import User
+from routers.pulse import (
     PulseOverridePayload,
     get_pulse_overrides,
     put_pulse_overrides,

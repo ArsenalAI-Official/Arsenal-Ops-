@@ -59,7 +59,7 @@ ENDPOINTS = [
 ]
 
 
-@pytest.mark.parametrize("slug,path,params", ENDPOINTS, ids=[e[0] for e in ENDPOINTS])
+@pytest.mark.parametrize(("slug", "path", "params"), ENDPOINTS, ids=[e[0] for e in ENDPOINTS])
 def test_response_contract(client, slug, path, params):
     resp = client.get(path, params=params)
     assert resp.status_code == 200, f"{path} returned {resp.status_code}: {resp.text[:500]}"

@@ -28,14 +28,47 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-# E,W = pycodestyle  |  F = pyflakes  |  I = isort
-# UP  = pyupgrade    |  B = bugbear   |  SIM = simplify
-select = ["E", "W", "F", "I", "UP", "B", "SIM"]
+# E,W  = pycodestyle  |  F   = pyflakes  |  I   = isort
+# UP   = pyupgrade    |  B   = bugbear   |  SIM = simplify
+# C4   = comprehensions  |  RUF = Ruff-specific  |  PT  = pytest style
+# TID  = tidy imports    |  ASYNC = async correctness (FastAPI)
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "C4", "RUF", "PT", "TID", "ASYNC"]
 ignore = [
-    "E501",  # line too long — the formatter handles wrapping
-    "B008",  # do not perform function call in default args — required for FastAPI Depends(...)
+    "E501",     # line too long — the formatter handles wrapping
+    "B008",     # do not perform function call in default args — required for FastAPI Depends(...)
+    "RUF001",   # ambiguous unicode in strings — intentional typographic chars (curly quotes, en-dashes)
+    "RUF002",   # ambiguous unicode in docstrings — same, intentional prose punctuation
+    "RUF003",   # ambiguous unicode in comments — same, intentional prose punctuation
 ]
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+# ── mypy ────────────────────────────────────────────────────────────────────
+# Static type checking. Run from INSIDE backend/: ``cd backend && mypy .``
+# (exits 0 when clean). mypy only auto-discovers this config from the current
+# directory, so ``mypy backend/`` from the repo root runs UNCONFIGURED — CI uses
+# the backend job's working-directory for this reason. Baseline strictness only:
+# ``check_untyped_defs`` checks bodies of unannotated functions without requiring
+# every def to be annotated. Tightening toward ``strict`` /
+# ``disallow_untyped_defs`` is a deliberate later ratchet.
+[tool.mypy]
+python_version = "3.11"
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+plugins = ["pydantic.mypy"]
+exclude = ['(^|/)migrate_[^/]*\.py$', '(^|/)\.venv(/|$)']
+
+# Third-party modules that genuinely ship no type stubs — scoped per-module,
+# never globally. Everything else must type-check for real.
+[[tool.mypy.overrides]]
+module = ["openpyxl", "openpyxl.*", "googleapiclient", "googleapiclient.*"]
+ignore_missing_imports = true
+
+# `conftest` is imported by name from a sibling test module; pytest puts it on
+# sys.path at runtime but mypy's import resolver doesn't see it.
+[[tool.mypy.overrides]]
+module = ["conftest"]
+ignore_missing_imports = true

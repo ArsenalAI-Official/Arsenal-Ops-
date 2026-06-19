@@ -16,6 +16,7 @@ import random
 import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import requests
 
@@ -206,7 +207,7 @@ def get_project(token: str, project_id: int) -> dict:
 def create_sprint(token: str, project_id: int, name: str, offset_weeks: int) -> dict:
     start = datetime.now() + timedelta(weeks=offset_weeks)
     end = start + timedelta(weeks=2)
-    payload = {
+    payload: dict[str, Any] = {
         "name": name,
         "project_id": project_id,
         "goal": f"Deliver the key deliverables for {name}.",
@@ -289,8 +290,8 @@ def seed(token: str, project_id: int, sprint_ids: list[int], target_items: int):
                 "status": pick(STATUSES, STATUS_WEIGHTS),
                 "priority": pick(PRIORITIES, PRIORITY_WEIGHTS),
                 "project_id": project_id,
-                "sprint_id": pick(sprint_ids + [None], [0.3, 0.3, 0.3, 0.1]),
-                "epic_id": pick(epic_ids + [None], [0.7] * len(epic_ids) + [0.3 * len(epic_ids)]),
+                "sprint_id": pick([*sprint_ids, None], [0.3, 0.3, 0.3, 0.1]),
+                "epic_id": pick([*epic_ids, None], [0.7] * len(epic_ids) + [0.3 * len(epic_ids)]),
                 "story_points": random.choice([1, 2, 3, 5, 8, 13]),
                 "estimated_hours": random.randint(2, 16),
                 "remaining_hours": random.randint(0, 12),
@@ -316,7 +317,7 @@ def seed(token: str, project_id: int, sprint_ids: list[int], target_items: int):
             title = f"{title} (variant {i // len(TASK_TITLES) + 1})"
         start_date, due_date = random_dates()
         parent_id = (
-            pick(story_ids + [None], [0.6] * len(story_ids) + [0.4 * len(story_ids)])
+            pick([*story_ids, None], [0.6] * len(story_ids) + [0.4 * len(story_ids)])
             if story_ids
             else None
         )
@@ -329,7 +330,7 @@ def seed(token: str, project_id: int, sprint_ids: list[int], target_items: int):
                 "status": pick(STATUSES, STATUS_WEIGHTS),
                 "priority": pick(PRIORITIES, PRIORITY_WEIGHTS),
                 "project_id": project_id,
-                "sprint_id": pick(sprint_ids + [None], [0.35, 0.35, 0.25, 0.05]),
+                "sprint_id": pick([*sprint_ids, None], [0.35, 0.35, 0.25, 0.05]),
                 "parent_id": parent_id,
                 "story_points": random.choice([0, 1, 2, 3]),
                 "estimated_hours": random.randint(1, 8),
@@ -364,10 +365,10 @@ def seed(token: str, project_id: int, sprint_ids: list[int], target_items: int):
                 ),
                 "priority": pick(PRIORITIES, [0.1, 0.3, 0.4, 0.2]),
                 "project_id": project_id,
-                "sprint_id": pick(sprint_ids + [None], [0.3, 0.3, 0.2, 0.2]),
+                "sprint_id": pick([*sprint_ids, None], [0.3, 0.3, 0.2, 0.2]),
                 "story_points": random.choice([0, 1, 2]),
                 "estimated_hours": random.randint(1, 4),
-                "tags": random_tags() + ["bug"],
+                "tags": [*random_tags(), "bug"],
             },
         )
         created += 1

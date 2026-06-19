@@ -38,8 +38,8 @@ sys.path.insert(0, os.path.dirname(__file__))
 # Base.metadata so create_all() works. Using a package-level import keeps the
 # module names out of this file's scope so helper params like `project`,
 # `developer`, `work_item` don't shadow them.
-import models  # noqa: F401, E402
-from database import Base  # noqa: E402
+import models  # noqa: F401
+from database import Base
 
 # --------------- In-memory SQLite test DB ---------------
 TEST_DB_URL = "sqlite:///:memory:"

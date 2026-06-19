@@ -90,7 +90,7 @@ class MarketAnalysis(BaseModel):
 class LLMAgent:
     """Agentic LLM service for PM tasks using the OpenAI API"""
 
-    def __init__(self, model: str = None):
+    def __init__(self, model: str | None = None):
         self.model = model or MODEL_NAME
 
     @property
@@ -186,7 +186,7 @@ Return as JSON with keys: phases, total_weeks, critical_path, risks"""
         return json.loads(response.choices[0].message.content)
 
     async def analyze_market(
-        self, industry: str, product: str, competitors: list[str] = None
+        self, industry: str, product: str, competitors: list[str] | None = None
     ) -> dict[str, Any]:
         """Deep market research and competitor analysis"""
         competitor_text = ", ".join(competitors) if competitors else "Unknown competitors"
@@ -288,7 +288,7 @@ Return as JSON"""
         return json.loads(response.choices[0].message.content)
 
     async def generate_stakeholder_brief(
-        self, project: str, audience: str, key_metrics: dict = None
+        self, project: str, audience: str, key_metrics: dict | None = None
     ) -> dict[str, Any]:
         """Generate executive stakeholder communication"""
         metrics_text = json.dumps(key_metrics) if key_metrics else "{}"
@@ -320,7 +320,9 @@ Return as JSON"""
         )
         return json.loads(response.choices[0].message.content)
 
-    async def brainstorm_ideas(self, problem: str, constraints: list[str] = None) -> dict[str, Any]:
+    async def brainstorm_ideas(
+        self, problem: str, constraints: list[str] | None = None
+    ) -> dict[str, Any]:
         """Generate creative product ideas and scenarios"""
         constraints_text = ", ".join(constraints) if constraints else "None specified"
         prompt = f"""You are a Product Innovation expert. Brainstorm for:
@@ -376,7 +378,7 @@ Return as JSON with keys: ideas_grouped (list of {{category, ideas}}), concepts 
         return json.loads(response.choices[0].message.content)
 
     async def generate_market_sizing(
-        self, product: str, target_market: str, assumptions: list[str] = None
+        self, product: str, target_market: str, assumptions: list[str] | None = None
     ) -> dict[str, Any]:
         """Generate TAM/SAM/SOM market sizing"""
         assumptions_text = ", ".join(assumptions) if assumptions else "None"

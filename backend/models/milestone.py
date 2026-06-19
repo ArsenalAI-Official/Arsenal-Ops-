@@ -2,32 +2,38 @@
 
 import sys
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 sys.path.append("..")
 from database import Base
+
+if TYPE_CHECKING:
+    from models.project import Project
 
 
 class Milestone(Base):
     __tablename__ = "milestones"
 
-    id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
 
-    name = Column(String(255), nullable=False)
-    description = Column(Text)
-    phase = Column(String(100))  # Discovery, Build, Launch, Scale
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text)
+    phase: Mapped[str | None] = mapped_column(String(100))  # Discovery, Build, Launch, Scale
 
-    start_date = Column(DateTime)
-    end_date = Column(DateTime)
+    start_date: Mapped[datetime | None] = mapped_column(DateTime)
+    end_date: Mapped[datetime | None] = mapped_column(DateTime)
 
-    status = Column(String(50), default="planned")  # planned, in_progress, completed, delayed
-    progress_percent = Column(Integer, default=0)
+    status: Mapped[str] = mapped_column(
+        String(50), default="planned", nullable=True
+    )  # planned, in_progress, completed, delayed
+    progress_percent: Mapped[int] = mapped_column(default=0, nullable=True)
 
-    deliverables = Column(Text)  # JSON-serialized list
+    deliverables: Mapped[str | None] = mapped_column(Text)  # JSON-serialized list
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
 
-    project = relationship("Project", back_populates="milestones")
+    project: Mapped["Project"] = relationship("Project", back_populates="milestones")

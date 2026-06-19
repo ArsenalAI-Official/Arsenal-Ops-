@@ -16,7 +16,9 @@ Usage:
 
 import argparse
 import datetime
+import itertools
 import json
+from typing import Any
 
 import openpyxl
 
@@ -119,7 +121,7 @@ def calculate_sprints(week_dates: list, sprint_weeks: int, tickets: list) -> dic
     # sprint instead of letting a chunk span the gap.
     runs: list = []
     current_run: list = [week_dates[0]]
-    for prev, nxt in zip(week_dates, week_dates[1:], strict=False):
+    for prev, nxt in itertools.pairwise(week_dates):
         prev_date = datetime.date.fromisoformat(prev)
         next_date = datetime.date.fromisoformat(nxt)
         if (next_date - prev_date).days == 7:
@@ -221,9 +223,9 @@ def parse(filepath: str, sprint_weeks: int = 2) -> dict:
             if candidate_rows:
                 header_row = candidate_rows[0]
                 # Check if this sheet has the required columns (type and name)
-                header_lower = [str(h).strip().lower() if h else "" for h in header_row]
-                has_type = any("type" in h for h in header_lower)
-                has_name = any("name" in h or "title" in h for h in header_lower)
+                header_lower_list = [str(h).strip().lower() if h else "" for h in header_row]
+                has_type = any("type" in h for h in header_lower_list)
+                has_name = any("name" in h or "title" in h for h in header_lower_list)
 
                 if has_type and has_name:
                     ws = candidate_ws
@@ -376,7 +378,7 @@ def parse(filepath: str, sprint_weeks: int = 2) -> dict:
 
     # Hoisted up so the gap warnings appear before the row-level warnings
     # emitted in step 2 — structural concerns first, per-row second.
-    warnings = []
+    warnings: list[dict[str, str | int | None]] = []
     for wk in missing_weeks:
         warnings.append(
             {
@@ -528,7 +530,7 @@ def parse(filepath: str, sprint_weeks: int = 2) -> dict:
 
     # ── Step 3: per-assignee schedule ─────────────────────────────────────────
     # schedule[assignee][week_date] = { total_hrs, tasks: [name, ...] }
-    schedule = {}
+    schedule: dict[str, dict[str, dict[str, Any]]] = {}
 
     for t in tickets:
         if not t["assignee"]:
@@ -562,7 +564,7 @@ def parse(filepath: str, sprint_weeks: int = 2) -> dict:
 
     # ── Step 5: parallel tasks — different assignees, same week ──────────────
     # Build week → list of (task_name, assignee) for tasks with hours that week
-    week_task_map = {}
+    week_task_map: dict[str, list[tuple[str, str]]] = {}
     for t in tickets:
         if not t["assignee"]:
             continue
@@ -597,7 +599,7 @@ def parse(filepath: str, sprint_weeks: int = 2) -> dict:
                         )
 
     # ── Step 6: availability — first free week after last task ────────────────
-    availability = {}
+    availability: dict[str, dict[str, Any]] = {}
     for dev, weeks in schedule.items():
         busy_weeks = sorted(weeks.keys())
         if not busy_weeks:

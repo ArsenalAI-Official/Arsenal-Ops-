@@ -8,12 +8,16 @@ of all grants from all assigned roles.
 
 import sys
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 sys.path.append("..")
 from database import Base
+
+if TYPE_CHECKING:
+    from models.user import User
 
 user_roles = Table(
     "user_roles",
@@ -27,21 +31,23 @@ user_roles = Table(
 class Role(Base):
     __tablename__ = "roles"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(64), nullable=False, unique=True, index=True)
-    description = Column(String(255), nullable=True)
-    is_system = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    description: Mapped[str | None] = mapped_column(String(255))
+    is_system: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
-    capabilities = relationship(
+    capabilities: Mapped[list["RoleCapability"]] = relationship(
         "RoleCapability",
         back_populates="role",
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
 
-    users = relationship(
+    users: Mapped[list["User"]] = relationship(
         "User",
         secondary=user_roles,
         back_populates="roles",
@@ -57,14 +63,13 @@ class Role(Base):
 class RoleCapability(Base):
     __tablename__ = "role_capabilities"
 
-    role_id = Column(
-        Integer,
+    role_id: Mapped[int] = mapped_column(
         ForeignKey("roles.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    capability_key = Column(String(128), primary_key=True)
+    capability_key: Mapped[str] = mapped_column(String(128), primary_key=True)
 
-    role = relationship("Role", back_populates="capabilities")
+    role: Mapped["Role"] = relationship("Role", back_populates="capabilities")
 
     def __repr__(self) -> str:
         return f"<RoleCapability role_id={self.role_id} key={self.capability_key}>"

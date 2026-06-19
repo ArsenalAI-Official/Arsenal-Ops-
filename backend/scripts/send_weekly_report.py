@@ -18,8 +18,8 @@ import sys
 # Allow running as `python -m scripts.send_weekly_report` from /app
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database import SessionLocal  # noqa: E402
-from services.weekly_report_service import send_weekly_report  # noqa: E402
+from database import SessionLocal
+from services.weekly_report_service import send_weekly_report
 
 logging.basicConfig(
     level=os.getenv("WEEKLY_REPORT_LOG_LEVEL", "INFO"),
