@@ -30,18 +30,18 @@ class UserStory(Base):
     acceptance_criteria: Mapped[Any | None] = mapped_column(JSON)  # List of criteria
 
     # Estimation
-    story_points: Mapped[int] = mapped_column(default=1)
-    priority: Mapped[str] = mapped_column(String(20), default="medium")
+    story_points: Mapped[int] = mapped_column(default=1, nullable=True)
+    priority: Mapped[str] = mapped_column(String(20), default="medium", nullable=True)
 
     # Status
     status: Mapped[str] = mapped_column(
-        String(50), default="backlog"
+        String(50), default="backlog", nullable=True
     )  # backlog, ready, in_sprint, done
 
     # Jira fields
     jira_key: Mapped[str | None] = mapped_column(String(50))
     epic: Mapped[str | None] = mapped_column(String(100))
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
 
     project: Mapped["Project"] = relationship("Project", back_populates="user_stories")

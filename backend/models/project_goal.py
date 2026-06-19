@@ -28,7 +28,7 @@ class ProjectGoal(Base):
     status: Mapped[str] = mapped_column(
         String(20), default="active"
     )  # active, completed, cancelled
-    progress: Mapped[int] = mapped_column(default=0)  # 0-100 percentage
+    progress: Mapped[int] = mapped_column(default=0, nullable=True)  # 0-100 percentage
 
     due_date: Mapped[datetime | None] = mapped_column(DateTime)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime)

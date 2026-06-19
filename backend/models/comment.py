@@ -30,15 +30,15 @@ class Comment(Base):
     content: Mapped[str] = mapped_column(Text)
 
     # @mentions - list of developer IDs that were mentioned
-    mentions: Mapped[list[int]] = mapped_column(JSON, default=list)
+    mentions: Mapped[list[int]] = mapped_column(JSON, default=list, nullable=True)
 
     # Type: comment, blocker, update
     comment_type: Mapped[str] = mapped_column(
-        String(20), default="comment"
+        String(20), default="comment", nullable=True
     )  # comment, blocker, status_change, business_review
 
     # Resolution status for business review comments
-    is_resolved: Mapped[bool] = mapped_column(default=False)
+    is_resolved: Mapped[bool] = mapped_column(default=False, nullable=True)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

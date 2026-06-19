@@ -52,6 +52,6 @@ class MarketInsight(Base):
         String(50)
     )  # competitor, trend, opportunity, threat
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
 
     project: Mapped["Project"] = relationship("Project", back_populates="market_insights")

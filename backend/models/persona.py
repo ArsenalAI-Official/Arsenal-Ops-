@@ -41,6 +41,6 @@ class Persona(Base):
     bio: Mapped[str | None] = mapped_column(Text)
     quote: Mapped[str | None] = mapped_column(Text)  # Representative quote
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
 
     project: Mapped["Project"] = relationship("Project", back_populates="personas")

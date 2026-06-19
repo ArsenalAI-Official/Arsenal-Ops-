@@ -25,9 +25,11 @@ class PersonalTask(Base):
     # Task details
     title: Mapped[str] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text)
-    status: Mapped[str] = mapped_column(String(50), default="todo")  # todo, in_progress, done
+    status: Mapped[str] = mapped_column(
+        String(50), default="todo", nullable=True
+    )  # todo, in_progress, done
     priority: Mapped[str] = mapped_column(
-        String(50), default="medium"
+        String(50), default="medium", nullable=True
     )  # low, medium, high, critical
 
     # Optional project association (when converted to project ticket)
@@ -37,18 +39,18 @@ class PersonalTask(Base):
     )
 
     # Time tracking
-    estimated_hours: Mapped[int] = mapped_column(default=0)
+    estimated_hours: Mapped[int] = mapped_column(default=0, nullable=True)
     due_date: Mapped[datetime | None] = mapped_column(DateTime)
 
     # Metadata
-    tags: Mapped[list[Any]] = mapped_column(JSON, default=list)
-    is_converted: Mapped[bool] = mapped_column(default=False)
+    tags: Mapped[list[Any]] = mapped_column(JSON, default=list, nullable=True)
+    is_converted: Mapped[bool] = mapped_column(default=False, nullable=True)
     converted_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True
     )
 
     # Relationships

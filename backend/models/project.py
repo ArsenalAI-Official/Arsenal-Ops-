@@ -43,12 +43,14 @@ class Project(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(255))
     key_prefix: Mapped[str] = mapped_column(
-        String(10), default="PROJ"
+        String(10), default="PROJ", nullable=True
     )  # Short key for work items (e.g., PROJ-123)
     description: Mapped[str] = mapped_column(Text)
     vision: Mapped[str | None] = mapped_column(Text)
     target_market: Mapped[str | None] = mapped_column(String(255))
-    status: Mapped[str] = mapped_column(String(50), default=ProjectStatus.IDEATION.value)
+    status: Mapped[str] = mapped_column(
+        String(50), default=ProjectStatus.IDEATION.value, nullable=True
+    )
 
     # AI-generated fields
     market_size: Mapped[str | None] = mapped_column(String(100))
@@ -60,7 +62,7 @@ class Project(Base):
         String(500)
     )  # e.g., https://github.com/org/repo (primary/legacy)
     github_repo_urls: Mapped[list[str]] = mapped_column(
-        JSON, default=lambda: []
+        JSON, default=lambda: [], nullable=True
     )  # Multiple GitHub repo URLs
     github_repo_name: Mapped[str | None] = mapped_column(String(100))  # e.g., "org/repo"
     github_token: Mapped[str | None] = mapped_column(
@@ -75,10 +77,10 @@ class Project(Base):
     )
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
     end_date: Mapped[datetime | None] = mapped_column(DateTime)  # Project end date
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True
     )
 
     # Relationships

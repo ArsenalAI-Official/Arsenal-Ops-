@@ -68,10 +68,12 @@ class WorkItem(Base):
     priority: Mapped[str] = mapped_column(String(20), default=WorkItemPriority.MEDIUM.value)
 
     # Estimation
-    story_points: Mapped[int] = mapped_column(default=0)
+    story_points: Mapped[int] = mapped_column(default=0, nullable=True)
     estimated_hours: Mapped[int | None] = mapped_column()
     remaining_hours: Mapped[int | None] = mapped_column()
-    logged_hours: Mapped[int] = mapped_column(default=0)  # Total hours logged by developers
+    logged_hours: Mapped[int] = mapped_column(
+        default=0, nullable=True
+    )  # Total hours logged by developers
 
     # Assignment - linked to Developer model
     assignee_id: Mapped[int | None] = mapped_column(
@@ -95,9 +97,9 @@ class WorkItem(Base):
     )
 
     # Additional data
-    acceptance_criteria: Mapped[list[Any]] = mapped_column(JSON, default=list)
-    tags: Mapped[list[Any]] = mapped_column(JSON, default=list)
-    attachments: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    acceptance_criteria: Mapped[list[Any]] = mapped_column(JSON, default=list, nullable=True)
+    tags: Mapped[list[Any]] = mapped_column(JSON, default=list, nullable=True)
+    attachments: Mapped[list[Any]] = mapped_column(JSON, default=list, nullable=True)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

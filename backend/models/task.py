@@ -27,21 +27,21 @@ class Task(Base):
 
     # Status & Priority
     status: Mapped[str] = mapped_column(
-        String(50), default="todo"
+        String(50), default="todo", nullable=True
     )  # todo, in_progress, review, done
     priority: Mapped[str] = mapped_column(
-        String(20), default="medium"
+        String(20), default="medium", nullable=True
     )  # low, medium, high, critical
 
     # Estimation
-    story_points: Mapped[int] = mapped_column(default=1)
+    story_points: Mapped[int] = mapped_column(default=1, nullable=True)
     estimated_hours: Mapped[int | None] = mapped_column()
 
     # Assignment
     assignee: Mapped[str | None] = mapped_column(String(100))
 
     # Dependencies (JSON array of task IDs)
-    dependencies: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    dependencies: Mapped[list[Any]] = mapped_column(JSON, default=list, nullable=True)
 
     # Jira-style fields
     jira_key: Mapped[str | None] = mapped_column(String(50))
@@ -49,9 +49,9 @@ class Task(Base):
     sprint: Mapped[str | None] = mapped_column(String(100))
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True
     )
     due_date: Mapped[datetime | None] = mapped_column(DateTime)
 

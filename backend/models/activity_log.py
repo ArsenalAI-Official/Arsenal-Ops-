@@ -40,7 +40,7 @@ class ActivityLog(Base):
     # (PROJ-345 was the canonical example). See migrate_widen_activity_log_title.py.
     title: Mapped[str | None] = mapped_column(Text)  # Human-readable action title
     details: Mapped[dict[str, Any]] = mapped_column(
-        JSON, default=dict
+        JSON, default=dict, nullable=True
     )  # Additional context (old_value, new_value, etc.)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)

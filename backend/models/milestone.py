@@ -28,12 +28,12 @@ class Milestone(Base):
     end_date: Mapped[datetime | None] = mapped_column(DateTime)
 
     status: Mapped[str] = mapped_column(
-        String(50), default="planned"
+        String(50), default="planned", nullable=True
     )  # planned, in_progress, completed, delayed
-    progress_percent: Mapped[int] = mapped_column(default=0)
+    progress_percent: Mapped[int] = mapped_column(default=0, nullable=True)
 
     deliverables: Mapped[str | None] = mapped_column(Text)  # JSON-serialized list
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
 
     project: Mapped["Project"] = relationship("Project", back_populates="milestones")

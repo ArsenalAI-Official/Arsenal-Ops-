@@ -37,7 +37,7 @@ class Architecture(Base):
     name: Mapped[str] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text)
     architecture_type: Mapped[str] = mapped_column(
-        String(50), default="recommended"
+        String(50), default="recommended", nullable=True
     )  # recommended, alternative
 
     # Mermaid diagram
@@ -55,13 +55,13 @@ class Architecture(Base):
     time_to_implement: Mapped[str | None] = mapped_column(String(50))  # e.g., "8-12 weeks"
 
     # Selection status
-    is_selected: Mapped[bool] = mapped_column(default=False)
+    is_selected: Mapped[bool] = mapped_column(default=False, nullable=True)
     selected_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True
     )
 
     # Relationships
@@ -114,7 +114,7 @@ class PRDAnalysis(Base):
     timeline: Mapped[Any | None] = mapped_column(JSON)  # List of phase objects
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
 
     # Relationships
     project: Mapped["Project"] = relationship("Project", back_populates="prd_analyses")
@@ -161,9 +161,9 @@ class RoadmapTemplate(Base):
     # renderer in services/roadmap_generator.py expects.
     suggestions: Mapped[dict[str, Any]] = mapped_column(JSON)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True
     )
 
     project: Mapped["Project"] = relationship("Project", back_populates="roadmap_template")
