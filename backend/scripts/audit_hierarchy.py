@@ -19,6 +19,7 @@ Run from the backend dir:
 import argparse
 import os
 import sys
+from typing import cast
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -81,7 +82,8 @@ def _scan(db: Session) -> tuple[int, list[tuple[dict, dict]]]:
                 item_id=item["id"],
             )
         except HTTPException as exc:
-            violations.append((item, exc.detail))
+            # _reject() always builds detail as a dict (field/code/message).
+            violations.append((item, cast(dict, exc.detail)))
 
     return len(rows), violations
 

@@ -18,7 +18,7 @@ import os
 import sys
 
 import pytest
-from fastapi import HTTPException
+from fastapi import BackgroundTasks, HTTPException
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 
@@ -111,7 +111,7 @@ def test_logged_hours_field_in_put_is_stripped(db, seed):
     update_work_item(
         item_id=item.id,
         update=WorkItemUpdate(logged_hours=999, remaining_hours=999, title="renamed"),
-        background_tasks=None,
+        background_tasks=BackgroundTasks(),
         db=db,
         current_user=seed["user"],
     )

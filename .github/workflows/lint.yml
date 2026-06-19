@@ -46,7 +46,7 @@ jobs:
         run: ruff format --check backend/
 
   backend-tests:
-    name: Backend (pytest)
+    name: Backend (pytest + mypy)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -80,6 +80,13 @@ jobs:
             --deselect "tests/test_pulse_overrides.py::TestPutRoundTrip::test_put_records_updated_by_user" \
             --deselect "tests/test_pulse_overrides.py::TestUpsert::test_second_put_wins_and_updated_at_advances" \
             --deselect "tests/test_pulse_overrides.py::TestRoleGate::test_put_200_when_system_admin_without_membership"
+
+      - name: mypy
+        # Static type check. Config lives in backend/pyproject.toml; this job's
+        # working-directory is `backend`, so `mypy .` discovers it (equivalent to
+        # `mypy backend/` from the repo root, which would NOT find the config).
+        # Loud-but-not-blocking like the rest of this workflow.
+        run: mypy .
 
   frontend:
     name: Frontend (lint + types + tests)

@@ -144,6 +144,8 @@ async def parse_roadmap_file(
         raise HTTPException(status_code=400, detail="Sprint weeks must be between 1 and 6")
 
     # Validate file type
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Uploaded file must have a filename")
     if not file.filename.lower().endswith((".xlsx", ".xls")):
         raise HTTPException(status_code=400, detail="Please upload an Excel file (.xlsx or .xls)")
 
@@ -415,7 +417,7 @@ def commit_roadmap_tickets(
         task_map = {}  # task_name -> WorkItem
         for ticket in tickets:
             task_name = ticket.get("name")
-            task = (
+            existing_task = (
                 db.query(WorkItem)
                 .filter(
                     WorkItem.project_id == request.project_id,
@@ -424,8 +426,8 @@ def commit_roadmap_tickets(
                 )
                 .first()
             )
-            if task:
-                task_map[task_name] = task
+            if existing_task:
+                task_map[task_name] = existing_task
 
         # Assign tasks to sprints based on which sprints they span
         tasks_assigned_to_sprint = 0

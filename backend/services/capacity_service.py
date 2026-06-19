@@ -447,9 +447,9 @@ def compute_capacity_breakdowns_batch(
     for dev_id in dev_ids:
         item_by_id = dict(items_by_dev[dev_id])
         for ex_id in extra_ids_by_dev[dev_id]:
-            ex = extra_items_by_id.get(ex_id)
-            if ex is not None:
-                item_by_id[ex_id] = ex
+            extra_item = extra_items_by_id.get(ex_id)
+            if extra_item is not None:
+                item_by_id[ex_id] = extra_item
 
         # Per-dev view of this-week sums keyed by item.id, matching the shape
         # the shared aggregator expects.

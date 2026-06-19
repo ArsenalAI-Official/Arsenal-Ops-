@@ -44,3 +44,31 @@ ignore = [
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+# ── mypy ────────────────────────────────────────────────────────────────────
+# Static type checking. Run from INSIDE backend/: ``cd backend && mypy .``
+# (exits 0 when clean). mypy only auto-discovers this config from the current
+# directory, so ``mypy backend/`` from the repo root runs UNCONFIGURED — CI uses
+# the backend job's working-directory for this reason. Baseline strictness only:
+# ``check_untyped_defs`` checks bodies of unannotated functions without requiring
+# every def to be annotated. Tightening toward ``strict`` /
+# ``disallow_untyped_defs`` is a deliberate later ratchet.
+[tool.mypy]
+python_version = "3.11"
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+plugins = ["pydantic.mypy"]
+exclude = ['(^|/)migrate_[^/]*\.py$', '(^|/)\.venv(/|$)']
+
+# Third-party modules that genuinely ship no type stubs — scoped per-module,
+# never globally. Everything else must type-check for real.
+[[tool.mypy.overrides]]
+module = ["openpyxl", "openpyxl.*", "googleapiclient", "googleapiclient.*"]
+ignore_missing_imports = true
+
+# `conftest` is imported by name from a sibling test module; pytest puts it on
+# sys.path at runtime but mypy's import resolver doesn't see it.
+[[tool.mypy.overrides]]
+module = ["conftest"]
+ignore_missing_imports = true

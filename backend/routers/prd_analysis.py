@@ -275,6 +275,9 @@ async def analyze_prd_file(
             detail=f"File too large. Max {MAX_PRD_FILE_BYTES // (1024 * 1024)} MB.",
         )
 
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Uploaded file must have a filename")
+
     try:
         prd_data = prd_processor.process_prd(file_content, file.filename)
     except ValueError as e:
@@ -694,9 +697,9 @@ async def commit_architecture(
         # Get sprint name
         sprint_name = "Backlog"
         if work_item.sprint_id:
-            sprint = db.query(Sprint).filter(Sprint.id == work_item.sprint_id).first()
-            if sprint:
-                sprint_name = sprint.name
+            sprint_obj = db.query(Sprint).filter(Sprint.id == work_item.sprint_id).first()
+            if sprint_obj:
+                sprint_name = sprint_obj.name
 
         created_tickets.append(
             {

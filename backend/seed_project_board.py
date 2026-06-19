@@ -16,6 +16,7 @@ import random
 import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import requests
 
@@ -206,7 +207,7 @@ def get_project(token: str, project_id: int) -> dict:
 def create_sprint(token: str, project_id: int, name: str, offset_weeks: int) -> dict:
     start = datetime.now() + timedelta(weeks=offset_weeks)
     end = start + timedelta(weeks=2)
-    payload = {
+    payload: dict[str, Any] = {
         "name": name,
         "project_id": project_id,
         "goal": f"Deliver the key deliverables for {name}.",

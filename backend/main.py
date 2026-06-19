@@ -209,7 +209,7 @@ async def startup_event():
                 for email in admin_emails:
                     existing = db.query(User).filter(User.email == email).first()
                     if existing:
-                        legacy_already_admin = has_role(existing.role, UserRole.ADMIN.value)
+                        legacy_already_admin = has_role(existing.role or "", UserRole.ADMIN.value)
                         rbac_already_admin = admin_role is not None and admin_role in existing.roles
 
                         if legacy_already_admin and rbac_already_admin:

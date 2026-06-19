@@ -29,7 +29,8 @@ can bump the version and re-run. Keep `_v1` markers in place forever.
 import sys
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, String
+from sqlalchemy import DateTime, String
+from sqlalchemy.orm import Mapped, mapped_column
 
 sys.path.append("..")
 from database import Base
@@ -40,10 +41,10 @@ class AppliedMigration(Base):
 
     # Migration name is the natural primary key. One row per migration ever
     # run against this database. No deletes — the row IS the "applied" flag.
-    name = Column(String(255), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), primary_key=True)
     # When the migration was first applied. Not used by the gate logic but
     # invaluable for forensic "when did this DB get backfilled?" questions.
-    applied_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    applied_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     def __repr__(self) -> str:
         return f"<AppliedMigration name={self.name!r} applied_at={self.applied_at}>"

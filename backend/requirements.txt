@@ -30,3 +30,11 @@ ruff==0.15.12
 # from this file, so a floating pytest could fail CI on a release the author
 # never ran locally.
 pytest==8.3.4
+
+# Static type checking — pinned like ruff/pytest because the `mypy backend/` CI
+# step installs from this file; a floating mypy could surface new errors on a
+# release the author never ran. The two `types-*` stub packages give real typing
+# for the JWT (python-jose) and password-hashing (passlib) layers.
+mypy==2.1.0
+types-python-jose==3.5.0.20260408
+types-passlib==1.7.7.20260211

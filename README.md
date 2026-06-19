@@ -35,7 +35,7 @@ Monaco editor · Mermaid · ESLint flat config + Prettier
 ### Backend (`backend/`)
 FastAPI · SQLAlchemy 2.0 · Pydantic v2 · python-jose (JWT) · passlib +
 bcrypt · Azure OpenAI SDK · PyPDF2 / python-docx (PRD parsing) ·
-Alembic (migrations) · Ruff (lint + format)
+Alembic (migrations) · Ruff (lint + format) · mypy (type checking)
 
 ### Database
 PostgreSQL in production (Render-managed). SQLite locally — auto-created
@@ -69,8 +69,8 @@ for dev.
 │   ├── tests/contract/     Response byte-diff harness (gates response-model work)
 │   ├── openapi.json        Committed OpenAPI snapshot (source for FE type gen)
 │   ├── requirements.txt    Pinned deps (source of truth)
-│   └── pyproject.toml      Ruff config only
-├── .github/workflows/      CI (lint.yml runs tsc + eslint + prettier + ruff)
+│   └── pyproject.toml      Ruff + mypy config
+├── .github/workflows/      CI (lint.yml runs tsc + eslint + prettier + ruff + mypy)
 ├── .plans/                 Planning docs (kept in repo for context)
 ├── .env.example            Environment template — copy to .env
 ├── docker-compose.yml      Full-stack local dev via Docker
@@ -143,9 +143,32 @@ docker compose up --build
 | `ruff check backend/ --fix` | Lint + autofix |
 | `ruff format backend/` | Apply formatter |
 | `ruff format --check backend/` | Verify formatting (what CI runs) |
+| `cd backend && mypy .` | Static type check (what CI runs — see "Type checking") |
 | `python -m pytest` | Run tests (subset; see `backend/tests/`) |
 | `python scripts/export_openapi.py` | Dump the OpenAPI schema → `backend/openapi.json` |
 | `python scripts/export_openapi.py --check` | Fail if `openapi.json` is stale (what CI runs) |
+
+#### Type checking
+
+[mypy](https://mypy-lang.org/) statically type-checks the backend. Config lives
+in `backend/pyproject.toml` (`[tool.mypy]`). **Run it from inside `backend/`** —
+`cd backend && mypy .` — because mypy only auto-discovers config from the
+current directory, so `mypy backend/` from the repo root would silently run
+unconfigured. CI does this in the `Backend (pytest + mypy)` job; it's
+loud-but-not-blocking like the rest of the lint workflow.
+
+The models use SQLAlchemy 2.0 `Mapped[...]` typing (so no SQLAlchemy mypy
+plugin is needed) and the `pydantic.mypy` plugin is enabled. Third-party
+modules without stubs (`openpyxl`, `googleapiclient`) are scoped-ignored in
+`[[tool.mypy.overrides]]` — never globally.
+
+**Strictness ramp:** the current baseline is `check_untyped_defs` (bodies of
+unannotated functions are checked) but *not* `disallow_untyped_defs`/`strict` —
+so you don't have to annotate every function, but what's annotated must be
+correct. Tightening toward `strict` is a deliberate future ratchet; keep new
+code annotated so that step stays small. Use `# type: ignore[code]` only for
+genuine third-party/framework false positives, each with a one-line reason
+(`warn_unused_ignores` fails the build on stale ignores).
 
 ## API types (generated)
 

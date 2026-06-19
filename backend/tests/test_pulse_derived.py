@@ -681,6 +681,7 @@ class TestResponseShape:
         assert project_section["name"] == "Pulse Project"
         assert project_section["keyPrefix"] == "PP"
         assert project_section["contractStart"] == proj.created_at.isoformat()
+        assert proj.end_date is not None
         assert project_section["contractEnd"] == proj.end_date.isoformat()
         # Without a matching milestone, launchTarget falls back to contractEnd.
         assert project_section["launchTarget"] == proj.end_date.isoformat()
