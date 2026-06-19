@@ -2,7 +2,6 @@ export { default as AppHeader } from './AppHeader';
 export { default as DashboardStats } from './DashboardStats';
 export { default as MyTasksBox } from './MyTasksBox';
 export { default as ProjectsBox } from './ProjectsBox';
-export { default as OverviewBox } from './OverviewBox';
 export { default as QuickNotesPanel } from './QuickNotesPanel';
 export { default as TicketDetailPanel } from './TicketDetailPanel';
 export { default as AddPersonalTaskDialog } from './AddPersonalTaskDialog';

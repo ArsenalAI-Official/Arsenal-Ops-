@@ -3,10 +3,7 @@ import type {
   MyTaskResponse,
   PersonalTaskResponse,
   ProjectDetailResponse,
-  ProjectWorkItemStatsResponse,
 } from '@/client';
-
-export type ProjectStats = ProjectWorkItemStatsResponse;
 
 export type Developer = DeveloperResponse;
 

@@ -382,5 +382,3 @@ export function useAIPlanning({
     handleCommitRoadmap,
   };
 }
-
-export type AIPlanningViewModel = ReturnType<typeof useAIPlanning>;

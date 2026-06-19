@@ -115,6 +115,14 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: knip (dead code / exports / deps)
+        # Non-blocking for now: knip reports unused files, exports, and
+        # dependencies, but `continue-on-error` keeps it advisory so a new
+        # finding doesn't fail the frontend job. Promote to a hard failure
+        # (drop this line) once the team agrees to keep the baseline clean.
+        run: npm run lint:knip
+        continue-on-error: true
+
   api-types:
     name: API types (generated, in sync)
     # Regenerates the OpenAPI snapshot from the backend and the frontend types
