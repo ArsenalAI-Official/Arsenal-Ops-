@@ -1,115 +1,53 @@
-// @vitest-environment jsdom
-//
 // CHARACTERIZATION net for the ProjectBoard decomposition (see
 // .plans/projectboard-decomposition-20260611-1354.md). Pins the CURRENT
 // board's observable behavior so the multi-commit refactor stays behavior-
-// neutral. These tests treat the board as a black box (mock only the network
-// surface + auth + sonner) and must keep passing through every commit.
+// neutral. These tests treat the board as a black box and must keep passing
+// through every commit.
+//
+// The network surface is intercepted at the wire by MSW: the default handlers
+// serve the project, the board's two seeded items (Build login page / Wire up
+// API client), and empty sprints/developers. Auth comes from the global hoisted
+// mock (src/setupTests.ts), which grants every capability so the StatusDotMenu
+// write affordance renders. Only sonner is stubbed in-file — a UI side effect,
+// not the network boundary — so the reject case can assert the error toast.
 //
 // The highest-value case is `optimistic status change reverts on API reject`:
 // it's invisible to `tsc`, fine-in-demo / broken-in-prod, and survives the
 // refactor unchanged because it asserts board behavior, not internals.
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, screen, waitFor, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { renderWithProviders } from '@/test/renderWithProviders';
+import { http, HttpResponse } from 'msw';
 
-// ── Mocks (hoisted) ─────────────────────────────────────────────────────────
-const { apiFetchMock } = vi.hoisted(() => ({ apiFetchMock: vi.fn() }));
 const { toastErrorMock, toastSuccessMock } = vi.hoisted(() => ({
   toastErrorMock: vi.fn(),
   toastSuccessMock: vi.fn(),
-}));
-
-// Keep the real ApiError/permissionAwareError; override only the network fn.
-vi.mock('@/lib/api', async (orig) => {
-  const actual = await orig<typeof import('@/lib/api')>();
-  return { ...actual, apiFetch: apiFetchMock };
-});
-// can() === true so write affordances (StatusDotMenu etc.) render.
-vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({
-    user: { id: 1, name: 'Tester', email: 't@t.com' },
-    can: () => true,
-    refreshCapabilities: vi.fn(),
-  }),
 }));
 vi.mock('sonner', () => ({
   toast: { error: toastErrorMock, success: toastSuccessMock, message: vi.fn() },
   Toaster: () => null,
 }));
 
-import { ApiError } from '@/lib/api';
+import { server } from '@/mocks/node';
+import { API_BASE } from '@/mocks/handlers/constants';
+import { renderPage } from '@/test-utils/render';
 import ProjectBoard from './ProjectBoard';
 
-// ── Fixtures ────────────────────────────────────────────────────────────────
-const PROJECT = {
-  id: 1,
-  name: 'Test Project',
-  key_prefix: 'TP',
-  description: 'desc',
-  status: 'active',
-  created_at: '2026-01-01T00:00:00Z',
-  developers: [],
-  github_repo_url: null,
-  github_repo_urls: [],
-  github_repo_name: null,
-  has_github_token: false,
-};
-
-const baseItem = {
-  project_id: 1,
-  type: 'task',
-  priority: 'medium',
-  assignee_id: null,
-  assignee_name: null,
-  reporter_name: null,
-  story_points: null,
-  estimated_hours: null,
-  actual_hours: null,
-  due_date: null,
-  completed_at: null,
-  sprint_id: null,
-  parent_id: null,
-  tags: [],
-  description: '',
-  created_at: '2026-01-02T00:00:00Z',
-};
-const ITEMS = [
-  { ...baseItem, id: 'w1', key: 'TP-1', title: 'Build login page', status: 'todo' },
-  { ...baseItem, id: 'w2', key: 'TP-2', title: 'Wire up API client', status: 'in_progress' },
-];
-
-function setupApiFetch({ putRejects = false }: { putRejects?: boolean } = {}) {
-  apiFetchMock.mockImplementation((url: string, opts?: { method?: string }) => {
-    const method = opts?.method ?? 'GET';
-    if (url.startsWith('/api/workitems/') && (method === 'PUT' || method === 'PATCH')) {
-      return putRejects
-        ? Promise.reject(new ApiError(400, 'Subtask still open'))
-        : Promise.resolve({});
-    }
-    if (url.startsWith('/api/projects/')) return Promise.resolve(PROJECT);
-    if (url.startsWith('/api/workitems/board')) return Promise.resolve(ITEMS);
-    if (url.includes('/sprints')) return Promise.resolve([]);
-    if (url === '/api/developers/') return Promise.resolve([]);
-    return Promise.resolve([]);
-  });
+/** Make every work-item PUT reject so the optimistic write rolls back. */
+function rejectWorkItemPuts() {
+  server.use(
+    http.put(`${API_BASE}/workitems/:id`, () =>
+      HttpResponse.json({ detail: 'Subtask still open' }, { status: 400 }),
+    ),
+  );
 }
 
-function renderBoard(qc?: Parameters<typeof renderWithProviders>[1]) {
-  return renderWithProviders(<ProjectBoard />, {
+function renderBoard() {
+  return renderPage(<ProjectBoard />, {
     route: '/project/1/board',
     path: '/project/:id/board',
-    ...qc,
   });
 }
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  setupApiFetch();
-  window.localStorage.clear();
-});
-afterEach(() => cleanup());
 
 describe('ProjectBoard characterization', () => {
   it('renders seeded work items on the board', async () => {
@@ -144,7 +82,7 @@ describe('ProjectBoard characterization', () => {
 
   it('optimistic status change REVERTS on API reject + surfaces an error toast', async () => {
     const user = userEvent.setup();
-    setupApiFetch({ putRejects: true });
+    rejectWorkItemPuts();
     renderBoard();
     await screen.findByText('Build login page');
 

@@ -6,7 +6,14 @@
     // form / use-mobile imports they pull in are still counted as used. Plain
     // `ignore` would drop them from the graph and produce ~20 false-positive
     // "unused dependency" reports.
-    "src/components/ui/**"
+    "src/components/ui/**",
+    // Test scaffolding: the MSW mock backend and the render/auth toolkit
+    // (docs/frontend-testing-guide.md). These deliberately expose a broader API
+    // than any single test uses today (the full render ladder, auth overrides,
+    // per-domain stores), so their "unused" exports are intentional, while the
+    // generated-type and lib imports they pull in stay counted as used.
+    "src/test-utils/**",
+    "src/mocks/**"
   ],
   "project": ["src/**/*.{ts,tsx}"],
   "ignoreExportsUsedInFile": true,

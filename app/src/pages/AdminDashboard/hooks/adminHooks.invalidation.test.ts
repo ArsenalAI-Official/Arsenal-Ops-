@@ -1,30 +1,21 @@
-// @vitest-environment jsdom
-//
 // Pins the highest-drift-risk behavior of the extracted admin hooks: the
 // cross-cutting cache-invalidation sets (see app/CLAUDE.md "Cross-cutting
 // invalidation rule"). These have no other automated coverage — the extraction
 // was validated by manual diff-audit only — so a regression in an invalidation
 // key would otherwise merge silently. Uses createElement (not JSX) so the file
 // stays .ts and needs no JSX-transform config in vitest.config.ts.
+//
+// The network surface is intercepted at the wire by MSW; the default admin
+// handlers resolve the mutation acks so each mutation reaches its
+// onSettled/onSuccess invalidation. Auth comes from the global hoisted mock
+// (src/setupTests.ts), overridden below to a user id that never matches the
+// role-toggle target so the conditional self-refresh path stays out of the test.
 import { createElement, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// apiFetch is the only network surface these hooks touch — resolve it so the
-// mutations reach their onSettled/onSuccess invalidation. Resolve `[]` (not
-// `{}`): the list queries backing these hooks map over their data, so an array
-// keeps an incidental re-render from throwing before invalidation is asserted.
-vi.mock('@/lib/api', () => ({ apiFetch: vi.fn().mockResolvedValue([]) }));
-
-// useUserRoleAssignment reads the current user (to decide whether to refresh its
-// own caps) via useAuth. Mock it with an id that never matches the target user
-// below, so the conditional refreshCapsTwice/setTimeout path stays out of the
-// test and we assert only the invalidation set.
-vi.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({ user: { id: 999 }, refreshCapabilities: vi.fn() }),
-}));
-
+import { setMockAuthState } from '@/test-utils/authMocks';
 import { useProjectsAdmin } from './useProjectsAdmin';
 import { useUsersAdmin } from './useUsersAdmin';
 import { useEmployeesAdmin } from './useEmployeesAdmin';
@@ -48,7 +39,14 @@ const invalidatedKeys = (spy: { mock: { calls: unknown[][] } }) =>
     .filter(Boolean);
 
 describe('admin hook cache invalidation', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // id ≠ the role-toggle target (id 1) below, so useUserRoleAssignment skips
+    // the self-cap-refresh path and we assert only the invalidation set.
+    setMockAuthState({
+      user: { id: 999, name: 'Other', email: 'o@b.com', role: 'admin', is_first_login: false },
+    });
+  });
 
   it('category create invalidates the full category scope', async () => {
     const { wrapper, spy } = makeHarness();

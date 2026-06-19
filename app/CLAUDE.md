@@ -297,6 +297,38 @@ adds chunk-load latency for no benefit.
 
 ---
 
+## Frontend testing
+
+Full architecture + rationale: **`docs/frontend-testing-guide.md`**. The short
+version of what to do:
+
+- **Network is faked at the wire with MSW, never by mocking `apiFetch`.**
+  Components, hooks, and `apiFetch`'s real pipeline (token header, `ApiError`
+  mapping, 204 handling) run unmodified — only the server is fake. The mock
+  backend lives in `src/mocks/`: stateful per-domain stores (`data/`) + handlers
+  (`handlers/`), reset between every test. Fixtures are typed from the generated
+  `@/client` types, so a backend contract change breaks the mocks at compile
+  time (`tsc -b` / `tsconfig.test.json`).
+- **Don't mock `@/lib/api`.** To force an error/edge case in one test, override
+  the handler with `server.use(http.put(\`${API_BASE}/...\`, () => HttpResponse.json({ detail: '...' }, { status: 400 }))`.
+  An unhandled request **fails** the test (`onUnhandledRequest: 'error'`).
+- **Auth is mocked once, globally** in `src/setupTests.ts` (hoisted mock of
+  `@/contexts/AuthContext`, default = signed-in admin with all capabilities).
+  Override per-test via `setMockAuthState(...)` / `setupAuthenticatedTest(...)`
+  from `@/test-utils/authMocks`; it resets each `afterEach`.
+- **Render through `@/test-utils/render`** (`renderPage` / `renderWithRouter` /
+  `renderWithQueryClient` / `renderPlain`) — each gives a fresh `QueryClient`
+  (`retry: false`, `gcTime: 0`) so the cache never leaks across tests.
+- **What to test where:** pure logic → plain unit test (no render); hook
+  cache/invalidation → `renderHook` + a per-test `QueryClient` (+ MSW for the
+  request); one integration smoke per page → `renderPage` + MSW happy path.
+  Brittle visual/layout is **not** jsdom's job — defer to Playwright (a
+  follow-up PR). Colocate `*.test.ts(x)` next to the code; query by role/text.
+- **Scripts:** `npm test` (run once, CI), `npm run test:watch`,
+  `npm run test:coverage`. Root `just test` runs backend + frontend.
+
+---
+
 ## Dev login bypass
 
 `POST /api/auth/dev-login` issues a JWT for `dev@local` (admin role) when

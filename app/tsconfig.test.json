@@ -1,0 +1,19 @@
+{
+    // Type-checks the test code itself (run by Vitest's `typecheck` step). This
+    // is what makes generated-type fixtures load-bearing: if a mock fixture
+    // stops matching the shape in src/client/types.gen.ts, this fails — drift is
+    // caught at compile time, not as a runtime surprise. See
+    // docs/frontend-testing-guide.md §3.
+    "extends": "./tsconfig.app.json",
+    "compilerOptions": {
+        "composite": false,
+        "noEmit": true,
+        "types": [
+            "vitest/globals",
+            "@testing-library/jest-dom"
+        ]
+    },
+    "include": [
+        "src"
+    ]
+}
