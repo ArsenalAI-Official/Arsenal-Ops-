@@ -19,10 +19,10 @@ import sys
 # Allow running as `python -m scripts.sync_calendar_events` from /app
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database import SessionLocal  # noqa: E402
-from services.calendar_sync import sync_all_developers  # noqa: E402
-from services.capacity_service import week_boundaries  # noqa: E402
-from services.google_calendar_service import google_calendar_service  # noqa: E402
+from database import SessionLocal
+from services.calendar_sync import sync_all_developers
+from services.capacity_service import week_boundaries
+from services.google_calendar_service import google_calendar_service
 
 logging.basicConfig(
     level=os.getenv("CALENDAR_SYNC_LOG_LEVEL", "INFO"),

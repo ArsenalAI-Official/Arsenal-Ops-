@@ -28,6 +28,8 @@ INDEXES = [
 
 def migrate():
     print("Connecting to database...")
+    if not DATABASE_URL:
+        raise SystemExit("DATABASE_URL not set")
     engine = create_engine(DATABASE_URL)
 
     with engine.connect() as conn:

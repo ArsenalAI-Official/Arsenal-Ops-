@@ -1,27 +1,10 @@
 import PMView from '@/components/PMView';
-
-interface Sprint {
-  id: number;
-  name: string;
-  goal: string;
-  status: 'planned' | 'active' | 'completed';
-  start_date?: string;
-  end_date?: string;
-  capacity_hours: number;
-  velocity: number;
-  total_items: number;
-  todo_count: number;
-  in_progress_count: number;
-  done_count: number;
-  total_points: number;
-  completed_points: number;
-  completion_pct: number;
-}
+import type { SprintResponse } from '@/client';
 
 interface ProjectManagerTabProps {
   hubLoading: boolean;
   projectId: string;
-  sprints: Sprint[];
+  sprints: SprintResponse[];
 }
 
 const ProjectManagerTab = ({ hubLoading, projectId, sprints }: ProjectManagerTabProps) => {

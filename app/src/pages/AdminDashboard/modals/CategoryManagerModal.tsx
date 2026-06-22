@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Check, X, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
+import { Empty, EmptyDescription } from '@/components/ui/empty';
 
 /**
  * Shape returned by `GET /api/admin/project-categories`. Mirrored from
@@ -193,13 +195,13 @@ const CategoryManagerModal = ({
           <div className="max-h-[400px] overflow-y-auto -mx-6 px-6">
             {isLoading ? (
               <div className="flex items-center gap-2 text-sm text-[#737373] py-6 justify-center">
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Spinner size="xs" tone="muted" />
                 Loading categories…
               </div>
             ) : categories.length === 0 ? (
-              <div className="text-sm text-[#737373] py-6 text-center">
-                No categories yet. Add one above.
-              </div>
+              <Empty>
+                <EmptyDescription>No categories yet. Add one above.</EmptyDescription>
+              </Empty>
             ) : (
               <ul className="space-y-1.5">
                 {categories.map((cat) => {

@@ -20,14 +20,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # Import every model module so every SQLAlchemy mapper is registered
 # before the first query runs. Without this, lazy relationships fail
 # with InvalidRequestError because target classes are unknown to the registry.
-from sqlalchemy import func  # noqa: E402
+from sqlalchemy import func
 
-import models  # noqa: F401, E402
-from database import SessionLocal  # noqa: E402
-from models import activity_log as _activity_log  # noqa: F401, E402
-from models import architecture as _architecture  # noqa: F401, E402
-from models import user as _user  # noqa: F401, E402
-from models.work_item import WorkItem, WorkItemType  # noqa: E402
+import models  # noqa: F401
+from database import SessionLocal
+from models import activity_log as _activity_log  # noqa: F401
+from models import architecture as _architecture  # noqa: F401
+from models import user as _user  # noqa: F401
+from models.work_item import WorkItem, WorkItemType
 
 logger = logging.getLogger(__name__)
 

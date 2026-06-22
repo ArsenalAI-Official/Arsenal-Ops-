@@ -1,21 +1,8 @@
 import ArchitectureEditor from '@/components/ArchitectureEditor';
-
-interface Architecture {
-  id: number;
-  name: string;
-  description: string;
-  architecture_type: string;
-  mermaid_code: string;
-  pros: string[];
-  cons: string[];
-  estimated_cost: string;
-  complexity: string;
-  time_to_implement: string;
-  is_selected: boolean;
-}
+import type { ProjectArchitectureResponse } from '@/client';
 
 export interface ArchitectureEditorWrapperProps {
-  architecture: Architecture;
+  architecture: ProjectArchitectureResponse;
   onSave: (
     archId: number,
     updates: { mermaid_code?: string; name?: string; description?: string },

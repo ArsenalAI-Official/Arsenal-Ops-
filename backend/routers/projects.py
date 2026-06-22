@@ -5,11 +5,13 @@ Projects Router - CRUD operations for projects with work item stats
 import os
 import sys
 from datetime import datetime
+from typing import cast
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import insert, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -28,7 +30,7 @@ router = APIRouter(prefix="/api/projects", tags=["Projects"])
 def has_project_access(project: Project, user: User) -> bool:
     """Check if user has access to a project (admin or assigned developer)"""
     # Admin has access to all projects (roles are comma-separated)
-    if "admin" in user.role:
+    if user.role and "admin" in user.role:
         return True
 
     # Check if user is assigned as a developer to this project
@@ -38,17 +40,27 @@ def has_project_access(project: Project, user: User) -> bool:
 def is_project_admin(project_id: int, user: User, db: Session) -> bool:
     """Return True when the user can act as a project admin on this project.
 
-    Two paths grant project-admin rights, matching the frontend's
+    Three paths grant project-admin rights, matching the frontend's
     `isCurrentUserAdmin` semantics in `ProjectDetail.tsx`:
-      1. Capability-based: the user holds `admin.projects` (system admins via
-         `*`, or any custom role explicitly granted it). Replaces the legacy
-         `"admin" in user.role` substring check, which missed users whose
-         admin status came from the RBAC user_roles relationship rather than
-         the legacy comma-separated `users.role` column.
+      1. Capability-based (tool admin): the user holds `admin.projects`
+         (system admins via `*`, or any custom role explicitly granted it).
+         Replaces the legacy `"admin" in user.role` substring check, which
+         missed users whose admin status came from the RBAC user_roles
+         relationship rather than the legacy comma-separated `users.role`
+         column.
       2. Membership-based: the user appears in this project's developers
          list with the `is_admin` flag set on the join row.
+      3. Capability-based (overview write): the user holds the new
+         `project.overview_write` cap, which grants tool-wide ability to
+         edit Overview content (project info + team membership) on any
+         project they can otherwise see. Distinct from path 1 (which is
+         "admin everything") and path 2 (which is "this project only");
+         path 3 is "edit Overview on every project".
     """
     if user.has_capability("admin.projects"):
+        return True
+
+    if user.has_capability("project.overview_write"):
         return True
 
     result = db.execute(
@@ -65,7 +77,8 @@ def is_project_admin(project_id: int, user: User, db: Session) -> bool:
 
 
 def require_project_admin(project_id: int, user: User, db: Session):
-    """Require project admin access, raise 403 if denied"""
+    """Require project admin access (or the equivalent capabilities — see
+    `is_project_admin`), raise 403 if denied."""
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -73,7 +86,7 @@ def require_project_admin(project_id: int, user: User, db: Session):
     if not is_project_admin(project_id, user, db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You must be a project admin to perform this action",
+            detail="You don't have permission to edit this project",
         )
 
     return project
@@ -128,24 +141,124 @@ class ProjectUpdate(BaseModel):
     category_id: int | None = None
 
 
-class ProjectDeveloperResponse(BaseModel):
+# ---------------------------------------------------------------------------
+# OpenAPI response models for the projects list + detail endpoints.
+#
+# These describe the EXACT runtime shape produced by `format_projects_batch`
+# / `format_project` (see ~line 269 and ~325) so the frontend can generate a
+# type. They are attached to the routes via the `responses=` parameter ONLY —
+# never `response_model=` — so FastAPI does NOT re-serialize/filter the handler
+# output at runtime (which would, e.g., coerce an int `completion_pct: 0` into
+# `0.0` and break the contract tests). The handlers keep returning their plain
+# dicts unchanged on the wire.
+#
+# Names are intentionally distinct from the unrelated `ProjectResponse` in
+# `routers/admin.py` (a different, flat admin shape) to avoid OpenAPI component
+# collisions.
+# ---------------------------------------------------------------------------
+
+
+class ProjectWorkItemStatsResponse(BaseModel):
+    """Shape of the `work_item_stats` block, built by
+    `get_work_item_stats_batch` / `_empty_stats`."""
+
+    total: int
+    by_status: dict[str, int]
+    total_points: int
+    completed: int
+    # `round(..., 1)` returns a float for the non-empty path, but `_empty_stats`
+    # and the empty-project path emit an int `0` (see golden `Beta`). `float`
+    # validates both at the schema level; the wire value is whatever the handler
+    # produced (int or float) since we only use `responses=`, not `response_model=`.
+    completion_pct: float
+
+
+class ProjectDeveloperEntry(BaseModel):
+    """One entry in the `developers` list, built by `_developers_by_project`."""
+
     id: int
     name: str
     email: str
+    github_username: str | None = None
     role: str
-    responsibilities: str | None
+    responsibilities: str | None = None
     is_admin: bool
 
 
-class ProjectResponse(BaseModel):
+class CostBreakdownItem(BaseModel):
+    item: str | None = None
+    cost: str | None = None
+
+
+class InfrastructureCost(BaseModel):
+    monthly: str | None = None
+    annual: str | None = None
+    breakdown: list[CostBreakdownItem] | None = None
+
+
+class DevelopmentCost(BaseModel):
+    total: str | None = None
+    breakdown: list[CostBreakdownItem] | None = None
+
+
+class CostAnalysisResponse(BaseModel):
+    """AI-produced cost breakdown. Best-effort shape — the AI output isn't
+    validated, but these routes use `responses=` (not `response_model=`), so
+    this only types the generated client; it never validates/filters at runtime.
+    Shared by ProjectArchitectureResponse and PRDAnalysisResponse."""
+
+    infrastructure: InfrastructureCost | None = None
+    development: DevelopmentCost | None = None
+    total_estimated: str | None = None
+
+
+class ProjectArchitectureResponse(BaseModel):
+    """Shape of `selected_architecture` — the output of
+    `Architecture.to_dict()` (models/architecture.py). It is `null` in the
+    golden (no selected architecture), so field optionality is inferred from
+    `to_dict()` and the underlying nullable columns rather than the golden."""
+
+    id: int
+    project_id: int
+    name: str
+    description: str | None = None
+    architecture_type: str | None = None
+    mermaid_code: str
+    # JSON columns. `cost_analysis` (AI-produced) can be null; the others are
+    # coalesced to {}/[] in to_dict(). tools_recommended maps tech areas
+    # (frontend/backend/database/devops/...) → string lists.
+    cost_analysis: CostAnalysisResponse | None = None
+    tools_recommended: dict[str, list[str]]
+    pros: list[str]
+    cons: list[str]
+    estimated_cost: str | None = None
+    complexity: str | None = None
+    time_to_implement: str | None = None
+    is_selected: bool
+    selected_at: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class ProjectDetailResponse(BaseModel):
+    """Full project payload returned by the list (`GET /`) and detail
+    (`GET /{project_id}`) endpoints. Mirrors `format_projects_batch` exactly."""
+
     id: int
     name: str
-    description: str
+    description: str | None = None
     key_prefix: str
     status: str
+    github_repo_url: str | None = None
+    github_repo_urls: list[str]
+    github_repo_name: str | None = None
     created_at: str
-    work_item_stats: dict
-    developers: list[ProjectDeveloperResponse]
+    end_date: str | None = None
+    work_item_stats: ProjectWorkItemStatsResponse
+    developers: list[ProjectDeveloperEntry]
+    selected_architecture: ProjectArchitectureResponse | None = None
+    category_id: int | None = None
+    category_name: str | None = None
 
 
 def _empty_stats() -> dict:
@@ -316,6 +429,31 @@ def format_project(project: Project, db: Session) -> dict:
     return format_projects_batch([project], db)[0]
 
 
+@router.get("/categories")
+def list_project_categories_lite(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_capability("project.create")),
+):
+    """List project categories (id + name + description only) for users
+    creating projects. Gated on `project.create` because the only caller is
+    the Create Project dialog — admins fetch the richer category list
+    (with `project_count`) via `GET /api/admin/project-categories`.
+
+    Returned in alphabetical order so the picker stays predictable.
+    """
+    from models.project_category import ProjectCategory
+
+    categories = db.query(ProjectCategory).order_by(ProjectCategory.name.asc()).all()
+    return [
+        {
+            "id": c.id,
+            "name": c.name,
+            "description": c.description,
+        }
+        for c in categories
+    ]
+
+
 @router.post("/")
 def create_project(
     project: ProjectCreate,
@@ -419,10 +557,34 @@ def create_project(
             )
         db.commit()
 
+    # Log creation in the project's activity feed. Same shape as the other
+    # `created` / `entity_type` rows in this file (see milestone/goal create
+    # endpoints) so the Activity tab renders it consistently. Committed in
+    # its own transaction so a logging failure can't roll back the project.
+    try:
+        from models.activity_log import ActivityLog
+
+        db.add(
+            ActivityLog(
+                project_id=new_project.id,
+                user_id=current_user.id,
+                action="created",
+                entity_type="project",
+                entity_id=new_project.id,
+                title=f"Created project: {new_project.name}",
+            )
+        )
+        db.commit()
+    except Exception as e:
+        # Non-fatal: the project itself is already committed above. Log
+        # and keep going so the caller still gets a 200.
+        db.rollback()
+        print(f"[ActivityLog] Failed to log project creation for #{new_project.id}: {e}")
+
     return format_project(new_project, db)
 
 
-@router.get("/")
+@router.get("/", responses={200: {"model": list[ProjectDetailResponse]}})
 def list_projects(
     category_id: int | None = None,
     uncategorized: bool = False,
@@ -439,7 +601,7 @@ def list_projects(
     ``uncategorized`` wins (explicit "no category" beats a numeric id).
     """
     # Check if user has admin role (handles multi-role users like 'admin,developer')
-    user_roles = [role.strip() for role in current_user.role.split(",")]
+    user_roles = [role.strip() for role in (current_user.role or "").split(",")]
     is_admin = UserRole.ADMIN.value in user_roles
 
     if is_admin:
@@ -462,7 +624,7 @@ def list_projects(
     return format_projects_batch(projects, db)
 
 
-@router.get("/{project_id}")
+@router.get("/{project_id}", responses={200: {"model": ProjectDetailResponse}})
 def get_project(
     project_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
@@ -747,11 +909,14 @@ def remove_developer_from_project(
     require_project_admin(project_id, current_user, db)
 
     # Delete from association table
-    result = db.execute(
-        project_developers.delete().where(
-            project_developers.c.project_id == project_id,
-            project_developers.c.developer_id == developer_id,
-        )
+    result = cast(
+        CursorResult,
+        db.execute(
+            project_developers.delete().where(
+                project_developers.c.project_id == project_id,
+                project_developers.c.developer_id == developer_id,
+            )
+        ),
     )
 
     if result.rowcount == 0:
@@ -879,7 +1044,24 @@ class GoalUpdate(BaseModel):
     due_date: datetime | None = None
 
 
-@router.get("/{project_id}/goals")
+class GoalResponse(BaseModel):
+    """Shape of one project goal — mirrors `ProjectGoal.to_dict()`
+    (models/project_goal.py). OpenAPI/codegen typing only (attached via
+    `responses=`); the handler returns the plain dict unchanged."""
+
+    id: int
+    project_id: int
+    title: str
+    description: str | None = None
+    status: str
+    progress: int
+    due_date: str | None = None
+    completed_at: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@router.get("/{project_id}/goals", responses={200: {"model": list[GoalResponse]}})
 def get_project_goals(
     project_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
@@ -1019,7 +1201,22 @@ class MilestoneCreate(BaseModel):
     due_date: datetime | None = None
 
 
-@router.get("/{project_id}/milestones")
+class MilestoneResponse(BaseModel):
+    """Shape of one project milestone — mirrors `ProjectMilestone.to_dict()`
+    (models/project_milestone.py). OpenAPI/codegen typing only (attached via
+    `responses=`); the handler returns the plain dict unchanged."""
+
+    id: int
+    project_id: int
+    title: str
+    description: str | None = None
+    due_date: str | None = None
+    completed_at: str | None = None
+    created_at: str | None = None
+    is_completed: bool
+
+
+@router.get("/{project_id}/milestones", responses={200: {"model": list[MilestoneResponse]}})
 def get_project_milestones(
     project_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
@@ -1161,7 +1358,26 @@ def delete_project_milestone(
 # --- Activity Feed ---
 
 
-@router.get("/{project_id}/activity")
+class ActivityResponse(BaseModel):
+    """Shape of one activity-feed entry — mirrors `ActivityLog.to_dict()`
+    (models/activity_log.py). OpenAPI/codegen typing only (attached via
+    `responses=`); the handler returns the plain dict unchanged. `details` is
+    an opaque JSON column, so it is typed loosely as a dict."""
+
+    id: int
+    project_id: int
+    user_id: int | None = None
+    action: str
+    entity_type: str
+    entity_id: int | None = None
+    title: str | None = None
+    details: dict | None = None
+    created_at: str | None = None
+    user_name: str
+    user_email: str | None = None
+
+
+@router.get("/{project_id}/activity", responses={200: {"model": list[ActivityResponse]}})
 def get_project_activity(
     project_id: int,
     limit: int = 50,
@@ -1402,7 +1618,14 @@ async def upload_project_file(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload a file to a project"""
+    """Upload a file to a project.
+
+    Resource management (files + links) is part of the Overview section,
+    so it shares the same gate as other Overview writes — see
+    `is_project_admin` for the three accept paths (tool admin, overview
+    write cap, or per-project admin).
+    """
+    require_project_admin(project_id, current_user, db)
     from models.project_file import ProjectFile
 
     require_project_access(project_id, current_user, db)
@@ -1416,16 +1639,19 @@ async def upload_project_file(
     os.makedirs(project_upload_dir, exist_ok=True)
 
     # Save file
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Uploaded file must have a filename")
     file_path = os.path.join(project_upload_dir, file.filename)
     try:
-        with open(file_path, "wb") as f:
+        # small project-file upload; blocking write is acceptable here and avoids a threadpool hop
+        with open(file_path, "wb") as f:  # noqa: ASYNC230
             content = await file.read()
             f.write(content)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Failed to save file: {e!s}") from e
 
     # Get file size
-    file_size = os.path.getsize(file_path)
+    file_size = os.path.getsize(file_path)  # noqa: ASYNC240 — single stat() on a just-written local file; negligible blocking
 
     # Create database record
     db_file = ProjectFile(
@@ -1498,7 +1724,8 @@ def delete_project_file(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Delete a file from a project"""
+    """Delete a file from a project. Gated like other Overview writes."""
+    require_project_admin(project_id, current_user, db)
     from models.project_file import ProjectFile
 
     require_project_access(project_id, current_user, db)
@@ -1579,7 +1806,8 @@ def create_project_link(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Create a new link for a project"""
+    """Create a new link for a project. Gated like other Overview writes."""
+    require_project_admin(project_id, user, db)
     from models.project_link import ProjectLink
 
     require_project_access(project_id, user, db)
@@ -1605,7 +1833,8 @@ def delete_project_link(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Delete a link from a project"""
+    """Delete a link from a project. Gated like other Overview writes."""
+    require_project_admin(project_id, user, db)
     from models.project_link import ProjectLink
 
     require_project_access(project_id, user, db)

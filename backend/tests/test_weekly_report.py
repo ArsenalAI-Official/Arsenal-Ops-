@@ -18,8 +18,8 @@ from sqlalchemy.orm import sessionmaker
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-import models  # noqa: F401, E402 — registers tables with Base.metadata
-from database import Base  # noqa: E402
+import models  # noqa: F401 — registers tables with Base.metadata
+from database import Base
 
 TEST_DB_URL = "sqlite:///:memory:"
 engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
@@ -161,8 +161,10 @@ def test_report_includes_all_developers_with_hours(db):
     text = _TextExtractor.text_of(html)
 
     assert "Weekly Hours Report" in text
-    assert "Alice" in text and "Bob" in text
-    assert "alice@t.com" in text and "bob@t.com" in text
+    assert "Alice" in text
+    assert "Bob" in text
+    assert "alice@t.com" in text
+    assert "bob@t.com" in text
     assert "6h" in text
     assert "2h" in text
     # Team total = 6 + 2 = 8

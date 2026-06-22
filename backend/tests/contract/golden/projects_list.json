@@ -1,0 +1,73 @@
+[
+  {
+    "category_id": null,
+    "category_name": null,
+    "created_at": "2026-01-01T12:00:00",
+    "description": "Project with developers and work items",
+    "developers": [
+      {
+        "email": "admin@arsenalai.com",
+        "github_username": "adminhub",
+        "id": 1,
+        "is_admin": true,
+        "name": "Admin User",
+        "responsibilities": "Owns the project",
+        "role": "Lead"
+      },
+      {
+        "email": "dev@arsenalai.com",
+        "github_username": "devhub",
+        "id": 2,
+        "is_admin": false,
+        "name": "Other Dev",
+        "responsibilities": null,
+        "role": "Dev"
+      }
+    ],
+    "end_date": null,
+    "github_repo_name": "org/alpha",
+    "github_repo_url": "https://github.com/org/alpha",
+    "github_repo_urls": [
+      "https://github.com/org/alpha"
+    ],
+    "id": 1,
+    "key_prefix": "active",
+    "name": "Alpha",
+    "selected_architecture": null,
+    "status": "active",
+    "work_item_stats": {
+      "by_status": {
+        "done": 1,
+        "in_progress": 2,
+        "todo": 2
+      },
+      "completed": 1,
+      "completion_pct": 20.0,
+      "total": 5,
+      "total_points": 11
+    }
+  },
+  {
+    "category_id": null,
+    "category_name": null,
+    "created_at": "2026-01-01T12:00:00",
+    "description": "Empty project, no devs or items",
+    "developers": [],
+    "end_date": null,
+    "github_repo_name": null,
+    "github_repo_url": null,
+    "github_repo_urls": [],
+    "id": 2,
+    "key_prefix": "planning",
+    "name": "Beta",
+    "selected_architecture": null,
+    "status": "planning",
+    "work_item_stats": {
+      "by_status": {},
+      "completed": 0,
+      "completion_pct": 0,
+      "total": 0,
+      "total_points": 0
+    }
+  }
+]

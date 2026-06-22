@@ -12,6 +12,7 @@ export const ADMIN_CAPABILITIES = [
   'admin.dashboard',
   'admin.employees',
   'admin.projects',
+  'admin.time_entries',
   'admin.users',
   'admin.roles',
 ] as const;

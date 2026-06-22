@@ -3,12 +3,17 @@
 import enum
 import sys
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 sys.path.append("..")
 from database import Base
+
+if TYPE_CHECKING:
+    from models.project import Project
+    from models.work_item import WorkItem
 
 
 class SprintStatus(str, enum.Enum):  # noqa: UP042
@@ -21,33 +26,37 @@ class SprintStatus(str, enum.Enum):  # noqa: UP042
 class Sprint(Base):
     __tablename__ = "sprints"
 
-    id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(
-        Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
     )
 
     # Sprint details
-    name = Column(String(100), nullable=False)
-    goal = Column(Text)
-    status = Column(String(50), default=SprintStatus.PLANNING.value, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(100))
+    goal: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(50), default=SprintStatus.PLANNING.value, index=True)
 
     # Dates
-    start_date = Column(DateTime)
-    end_date = Column(DateTime)
+    start_date: Mapped[datetime | None] = mapped_column(DateTime)
+    end_date: Mapped[datetime | None] = mapped_column(DateTime)
 
     # Capacity planning
-    capacity_hours = Column(Integer)  # Total team capacity
-    velocity = Column(Integer)  # Points completed in previous sprints
+    capacity_hours: Mapped[int | None] = mapped_column()  # Total team capacity
+    velocity: Mapped[int | None] = mapped_column()  # Points completed in previous sprints
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-    activated_at = Column(DateTime)
-    completed_at = Column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    activated_at: Mapped[datetime | None] = mapped_column(DateTime)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # Relationships
-    project = relationship("Project", back_populates="sprints")
-    work_items = relationship("WorkItem", back_populates="sprint", cascade="all, delete-orphan")
+    project: Mapped["Project"] = relationship("Project", back_populates="sprints")
+    work_items: Mapped[list["WorkItem"]] = relationship(
+        "WorkItem", back_populates="sprint", cascade="all, delete-orphan"
+    )
 
     # Indexes for common queries
     __table_args__ = (

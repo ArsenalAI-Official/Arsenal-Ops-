@@ -400,7 +400,7 @@ def _derive_months(project: Project, db: Session) -> dict:
     out: list[dict] = []
     for idx, m in enumerate(months):
         key = (m.year, m.month)
-        dev_act = int(round(hours_by_ym.get(key, 0)))
+        dev_act = round(hours_by_ym.get(key, 0))
         is_actual = key < now_key
         is_partial = key == now_key
         if is_actual or is_partial:
@@ -420,9 +420,7 @@ def _derive_months(project: Project, db: Session) -> dict:
     next_som = _add_month(som)
     total_seconds = (next_som - som).total_seconds()
     elapsed = (now - som).total_seconds()
-    current_month_tracked_pct = (
-        int(round(elapsed / total_seconds * 100)) if total_seconds > 0 else 0
-    )
+    current_month_tracked_pct = round(elapsed / total_seconds * 100) if total_seconds > 0 else 0
 
     return {
         "months": out,
@@ -444,7 +442,7 @@ def _derive_included_services(project: Project, db: Session) -> list[dict]:
     out: list[dict] = []
     cumulative = 0
     for m in months:
-        cumulative += int(round(hours_by_ym.get((m.year, m.month), 0)))
+        cumulative += round(hours_by_ym.get((m.year, m.month), 0))
         out.append({"month": _month_label(m), "usedHours": cumulative})
     return out
 

@@ -38,20 +38,36 @@ export type ProjectTabId =
   | 'project_manager'
   | 'pulse_settings';
 
+/**
+ * Read/Write grants for a picker row. Each row may have:
+ *   - `readGrant` only       → read-only surface (e.g. Timeline, Activity)
+ *   - `writeGrant` only      → pure write action (e.g. AI Generators)
+ *   - both                   → tab with view + edit actions (e.g. Project Board)
+ *
+ * The role editor renders 0–2 checkboxes per row based on which grants are
+ * present, with a Write→Read dependency: ticking Write auto-ticks Read,
+ * unticking Read also unticks Write (otherwise you'd grant "edit without
+ * view," which is incoherent).
+ */
 export interface ProjectPickerChild {
   label: string;
-  grant: string;
   description: string;
+  readGrant?: string;
+  writeGrant?: string;
+  /** Small text under the row — e.g. "Edits handled by per-project admin role". */
+  footnote?: string;
 }
 
 export interface ProjectTabPickerSpec {
-  /** Capability key the role-editor checkbox toggles. Usually a wildcard
-   *  ('project.overview.*') for tabs with sub-caps; or a single key
-   *  ('project.calendar') for leaf tabs. */
-  grant: string;
   description: string;
+  /** Capability key that gates viewing the tab. Wildcard ok
+   *  (e.g. `project.overview.*`). */
+  readGrant?: string;
+  /** Capability key that gates write actions on the tab. */
+  writeGrant?: string;
   /** Optional sub-rows shown indented under this tab in the picker. */
   children?: readonly ProjectPickerChild[];
+  footnote?: string;
 }
 
 export interface ProjectTabSpec {
@@ -86,8 +102,14 @@ export const PROJECT_TABS: readonly ProjectTabSpec[] = [
       'project.overview.resources',
     ],
     picker: {
-      grant: 'project.overview.*',
-      description: 'Project overview tab (PRD, architecture, team, resources)',
+      readGrant: 'project.overview.*',
+      writeGrant: 'project.overview_write',
+      description: 'Project overview (PRD, architecture, team, resources)',
+      // Note: per-project admins and tool admins (`admin.projects` / `*`)
+      // can also edit Overview regardless of this capability, via
+      // `is_project_admin` in backend/routers/projects.py. The picker UI
+      // doesn't surface this in a footnote — it's documented here for
+      // anyone editing the registry.
     },
   },
   {
@@ -96,8 +118,12 @@ export const PROJECT_TABS: readonly ProjectTabSpec[] = [
     icon: BarChart3,
     capabilities: ['project.tracker.sprints', 'project.tracker.analytics'],
     picker: {
-      grant: 'project.tracker.*',
-      description: 'Sprints and tracker analytics',
+      // Tracker tab is the in-app sprints + analytics view — read-only.
+      // The kanban "Open Board" surface (a separate page) is a distinct
+      // picker entry hand-added in AdminDashboard so its R/W pairing maps
+      // cleanly to the `project.board` + `project.tracker_write` caps.
+      readGrant: 'project.tracker.*',
+      description: 'Project Tracker tab — sprints and analytics view',
     },
   },
   {
@@ -106,8 +132,8 @@ export const PROJECT_TABS: readonly ProjectTabSpec[] = [
     icon: Calendar,
     capabilities: ['project.calendar'],
     picker: {
-      grant: 'project.calendar',
-      description: 'Timeline tab',
+      readGrant: 'project.calendar',
+      description: 'Timeline view (read-only)',
     },
   },
   {
@@ -116,8 +142,8 @@ export const PROJECT_TABS: readonly ProjectTabSpec[] = [
     icon: TrendingUp,
     capabilities: ['project.pulse'],
     picker: {
-      grant: 'project.pulse',
-      description: 'Pulse tab',
+      readGrant: 'project.pulse',
+      description: 'Pulse data view',
     },
   },
   {
@@ -126,8 +152,8 @@ export const PROJECT_TABS: readonly ProjectTabSpec[] = [
     icon: Activity,
     capabilities: ['project.activity'],
     picker: {
-      grant: 'project.activity',
-      description: 'Activity feed tab',
+      readGrant: 'project.activity',
+      description: 'Activity feed (read-only)',
     },
   },
   {
@@ -137,22 +163,22 @@ export const PROJECT_TABS: readonly ProjectTabSpec[] = [
     capabilities: ['project.pm'],
     allowProjectAdmin: true,
     picker: {
-      grant: 'project.pm.*',
+      readGrant: 'project.pm.*',
       description: 'Project Manager tab — toggle subsections individually below',
       children: [
         {
           label: 'Access tab',
-          grant: 'project.pm',
+          readGrant: 'project.pm',
           description: 'Open the Project Manager tab itself',
         },
         {
           label: 'Summary cards',
-          grant: 'project.pm.summary_cards',
+          readGrant: 'project.pm.summary_cards',
           description: 'Headline metrics at the top of the tab',
         },
         {
           label: 'Developer hours',
-          grant: 'project.pm.developer_hours',
+          readGrant: 'project.pm.developer_hours',
           description: 'Per-developer hours summary',
         },
       ],
@@ -164,7 +190,11 @@ export const PROJECT_TABS: readonly ProjectTabSpec[] = [
     icon: DollarSign,
     capabilities: ['project.pulse.settings'],
     picker: {
-      grant: 'project.pulse.settings',
+      // Pulse Settings is purely a write surface (configure pulse overrides).
+      // Single cap gates both viewing the tab and submitting the form, so
+      // expressing as writeGrant-only is the honest framing — granting Read
+      // for it would be meaningless.
+      writeGrant: 'project.pulse.settings',
       description: 'Configure pulse data (admin)',
     },
   },

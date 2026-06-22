@@ -2,48 +2,58 @@
 
 import sys
 from datetime import datetime
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 sys.path.append("..")
 from database import Base
+
+if TYPE_CHECKING:
+    from models.project import Project
 
 
 class Task(Base):
     __tablename__ = "tasks"
 
-    id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
 
     # Core fields
-    title = Column(String(255), nullable=False)
-    description = Column(Text)
-    acceptance_criteria = Column(JSON)  # List of criteria
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text)
+    acceptance_criteria: Mapped[Any | None] = mapped_column(JSON)  # List of criteria
 
     # Status & Priority
-    status = Column(String(50), default="todo")  # todo, in_progress, review, done
-    priority = Column(String(20), default="medium")  # low, medium, high, critical
+    status: Mapped[str] = mapped_column(
+        String(50), default="todo", nullable=True
+    )  # todo, in_progress, review, done
+    priority: Mapped[str] = mapped_column(
+        String(20), default="medium", nullable=True
+    )  # low, medium, high, critical
 
     # Estimation
-    story_points = Column(Integer, default=1)
-    estimated_hours = Column(Integer)
+    story_points: Mapped[int] = mapped_column(default=1, nullable=True)
+    estimated_hours: Mapped[int | None] = mapped_column()
 
     # Assignment
-    assignee = Column(String(100))
+    assignee: Mapped[str | None] = mapped_column(String(100))
 
     # Dependencies (JSON array of task IDs)
-    dependencies = Column(JSON, default=[])
+    dependencies: Mapped[list[Any]] = mapped_column(JSON, default=list, nullable=True)
 
     # Jira-style fields
-    jira_key = Column(String(50))
-    epic = Column(String(100))
-    sprint = Column(String(100))
+    jira_key: Mapped[str | None] = mapped_column(String(50))
+    epic: Mapped[str | None] = mapped_column(String(100))
+    sprint: Mapped[str | None] = mapped_column(String(100))
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    due_date = Column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True
+    )
+    due_date: Mapped[datetime | None] = mapped_column(DateTime)
 
     # Relationships
-    project = relationship("Project", back_populates="tasks")
+    project: Mapped["Project"] = relationship("Project", back_populates="tasks")

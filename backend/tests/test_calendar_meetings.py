@@ -224,7 +224,7 @@ def test_meeting_hours_back_to_back():
 
 def test_meeting_hours_all_day_counts_zero():
     events = [_ev(datetime(2026, 6, 8, 0), datetime(2026, 6, 9, 0), is_all_day=True)]
-    total, out = meeting_breakdown(events, WS, WE)
+    total, _ = meeting_breakdown(events, WS, WE)
     assert total == 0
 
 
@@ -296,7 +296,8 @@ def test_reconcile_inserts_then_idempotent(db):
     # Re-run with the same data → updates in place, no duplicates.
     s2 = reconcile_developer_events(db, dev.id, events, WS, WE)
     db.commit()
-    assert s2["inserted"] == 0 and s2["deleted"] == 0
+    assert s2["inserted"] == 0
+    assert s2["deleted"] == 0
     assert db.query(CalendarEvent).count() == 2
 
 
@@ -335,7 +336,7 @@ def test_reconcile_deletes_cancelled_event(db):
 def test_capacity_includes_meeting_hours(db):
     from models.calendar_event import CalendarEvent as CE
 
-    week_start, week_end = week_boundaries()
+    week_start, _ = week_boundaries()
     dev = _make_dev(db, email="cap@arsenalai.com")
     # A 2h accepted meeting inside the current week.
     db.add(

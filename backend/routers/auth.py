@@ -84,6 +84,27 @@ class UserResponse(BaseModel):
     is_first_login: bool
 
 
+class UserListItemResponse(BaseModel):
+    """Rich admin user shape returned by GET /api/auth/admin/users.
+
+    Mirrors User.to_dict() plus the github_username joined from the linked
+    Developer row. Used for OpenAPI/TS typing only (no runtime serialization).
+    """
+
+    id: int
+    email: str
+    name: str
+    role: str
+    is_active: bool
+    is_first_login: bool
+    # Always present on a persisted user row (server-default timestamp); the
+    # to_dict() `else None` guard is defensive only. Typed non-null so the
+    # generated FE type doesn't force null-guards on a never-null field.
+    created_at: str
+    last_login_at: str | None = None
+    github_username: str | None = None
+
+
 class PasswordChange(BaseModel):
     current_password: str
     new_password: str
@@ -142,7 +163,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
+        user_id: str | None = payload.get("sub")
         if user_id is None:
             raise credentials_exception
     except JWTError:
@@ -267,7 +288,7 @@ def change_password(
 @router.post("/admin/create-user", response_model=dict)
 def create_user(
     user_data: UserCreate,
-    admin: User = Depends(require_capability("admin.users")),
+    admin: User = Depends(require_capability("admin.users_write")),
     db: Session = Depends(get_db),
 ):
     """Admin: Pre-register a user for Google SSO login.
@@ -334,7 +355,7 @@ def create_user(
     }
 
 
-@router.get("/admin/users", response_model=list)
+@router.get("/admin/users", responses={200: {"model": list[UserListItemResponse]}})
 def list_users(
     admin: User = Depends(require_capability("admin.users")),
     db: Session = Depends(get_db),
@@ -355,7 +376,7 @@ def list_users(
 @router.post("/admin/reset-password")
 def admin_reset_password(
     reset_data: PasswordReset,
-    admin: User = Depends(require_capability("admin.users")),
+    admin: User = Depends(require_capability("admin.users_write")),
     db: Session = Depends(get_db),
 ):
     """Admin: Reset a user's password"""
@@ -383,7 +404,7 @@ class UserProfileUpdate(BaseModel):
 def update_user_profile(
     user_id: int,
     payload: UserProfileUpdate,
-    admin: User = Depends(require_capability("admin.users")),
+    admin: User = Depends(require_capability("admin.users_write")),
     db: Session = Depends(get_db),
 ):
     """Admin: Update a user's profile (name, email, GitHub username).
@@ -463,7 +484,7 @@ class RoleUpdate(BaseModel):
 def update_user_role(
     user_id: int,
     role_data: RoleUpdate,
-    admin: User = Depends(require_capability("admin.roles")),
+    admin: User = Depends(require_capability("admin.roles_write")),
     db: Session = Depends(get_db),
 ):
     """Admin: Update a user's role"""
@@ -499,7 +520,7 @@ def update_user_role(
 @router.delete("/admin/users/{user_id}/")  # Support trailing slash
 def delete_user(
     user_id: int,
-    admin: User = Depends(require_capability("admin.users")),
+    admin: User = Depends(require_capability("admin.users_write")),
     db: Session = Depends(get_db),
 ):
     """Admin: Delete a user permanently"""
@@ -750,6 +771,23 @@ class RoleCapabilitiesRequest(BaseModel):
     capability_keys: list[str]
 
 
+class RoleResponse(BaseModel):
+    """Role shape produced by _role_to_dict().
+
+    Used for OpenAPI/TS typing only (no runtime serialization). user_count is
+    omitted by _role_to_dict when None, so it is optional/nullable here.
+    """
+
+    id: int
+    name: str
+    description: str | None = None
+    is_system: bool
+    capability_keys: list[str]
+    user_count: int | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
 def _role_to_dict(role: Role, user_count: int | None = None) -> dict:
     out = {
         "id": role.id,
@@ -851,7 +889,7 @@ def get_my_capabilities(current_user: User = Depends(get_current_user)):
     return payload
 
 
-@router.get("/admin/roles")
+@router.get("/admin/roles", responses={200: {"model": list[RoleResponse]}})
 def list_roles(
     db: Session = Depends(get_db), current_user: User = Depends(require_capability("admin.roles"))
 ):
@@ -863,15 +901,19 @@ def list_roles(
         .group_by(ur_table.c.role_id)
         .all()
     )
-    counts = {rid: c for rid, c in rows}
+    counts = dict(rows)
     return [_role_to_dict(r, user_count=counts.get(r.id, 0)) for r in roles]
 
 
-@router.post("/admin/roles", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/admin/roles",
+    status_code=status.HTTP_201_CREATED,
+    responses={201: {"model": RoleResponse}},
+)
 def create_role(
     req: RoleCreateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_capability("admin.roles")),
+    current_user: User = Depends(require_capability("admin.roles_write")),
 ):
     from models.role import RoleCapability
 
@@ -892,7 +934,7 @@ def create_role(
     return _role_to_dict(role, user_count=0)
 
 
-@router.get("/admin/roles/{role_id}")
+@router.get("/admin/roles/{role_id}", responses={200: {"model": RoleResponse}})
 def get_role(
     role_id: int,
     db: Session = Depends(get_db),
@@ -909,7 +951,7 @@ def update_role(
     role_id: int,
     req: RoleUpdateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_capability("admin.roles")),
+    current_user: User = Depends(require_capability("admin.roles_write")),
 ):
     role = db.query(Role).filter(Role.id == role_id).first()
     if not role:
@@ -945,7 +987,7 @@ def update_role(
 def delete_role(
     role_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_capability("admin.roles")),
+    current_user: User = Depends(require_capability("admin.roles_write")),
 ):
     role = db.query(Role).filter(Role.id == role_id).first()
     if not role:
@@ -971,7 +1013,7 @@ def replace_role_capabilities(
     role_id: int,
     req: RoleCapabilitiesRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_capability("admin.roles")),
+    current_user: User = Depends(require_capability("admin.roles_write")),
 ):
     from models.role import RoleCapability
 
@@ -1006,7 +1048,7 @@ def assign_role_to_user(
     user_id: int,
     role_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_capability("admin.roles")),
+    current_user: User = Depends(require_capability("admin.roles_write")),
 ):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -1030,7 +1072,7 @@ def remove_role_from_user(
     user_id: int,
     role_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_capability("admin.roles")),
+    current_user: User = Depends(require_capability("admin.roles_write")),
 ):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:

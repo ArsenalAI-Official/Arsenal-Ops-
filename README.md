@@ -35,7 +35,7 @@ Monaco editor · Mermaid · ESLint flat config + Prettier
 ### Backend (`backend/`)
 FastAPI · SQLAlchemy 2.0 · Pydantic v2 · python-jose (JWT) · passlib +
 bcrypt · Azure OpenAI SDK · PyPDF2 / python-docx (PRD parsing) ·
-Alembic (migrations) · Ruff (lint + format)
+Alembic (migrations) · Ruff (lint + format) · mypy (type checking)
 
 ### Database
 PostgreSQL in production (Render-managed). SQLite locally — auto-created
@@ -52,7 +52,9 @@ for dev.
 │   │   ├── components/     Shared components (ProjectHub, board/, ui/, ...)
 │   │   ├── hooks/          React hooks (auth, capabilities, queries)
 │   │   ├── lib/            queryClient, api helpers, utils
+│   │   ├── client/         Generated API types (from backend OpenAPI; do not edit)
 │   │   └── App.tsx         Route table
+│   ├── openapi-ts.config.ts  Type-generation config (@hey-api/openapi-ts)
 │   ├── CLAUDE.md           Frontend conventions (read before adding code)
 │   └── package.json
 ├── backend/                FastAPI service
@@ -63,9 +65,12 @@ for dev.
 │   ├── middleware/         Request-timing, auth
 │   ├── capabilities.py     Capability-based RBAC definitions
 │   ├── database.py         Engine + session factory
+│   ├── scripts/            export_openapi.py (dumps the OpenAPI schema)
+│   ├── tests/contract/     Response byte-diff harness (gates response-model work)
+│   ├── openapi.json        Committed OpenAPI snapshot (source for FE type gen)
 │   ├── requirements.txt    Pinned deps (source of truth)
-│   └── pyproject.toml      Ruff config only
-├── .github/workflows/      CI (lint.yml runs tsc + eslint + prettier + ruff)
+│   └── pyproject.toml      Ruff + mypy config
+├── .github/workflows/      CI (lint.yml runs tsc + eslint + prettier + ruff + mypy)
 ├── .plans/                 Planning docs (kept in repo for context)
 ├── .env.example            Environment template — copy to .env
 ├── docker-compose.yml      Full-stack local dev via Docker
@@ -127,6 +132,8 @@ docker compose up --build
 | `npm run format` | Prettier — write |
 | `npm run format:check` | Prettier — verify (what CI runs) |
 | `npm run preview` | Serve the built bundle locally |
+| `npm run gen:types` | Regenerate API types from the committed `backend/openapi.json` |
+| `npm run gen:api` | Re-dump the backend schema **and** regenerate API types |
 
 ### Backend (`backend/`)
 | Command | What it does |
@@ -136,13 +143,72 @@ docker compose up --build
 | `ruff check backend/ --fix` | Lint + autofix |
 | `ruff format backend/` | Apply formatter |
 | `ruff format --check backend/` | Verify formatting (what CI runs) |
+| `cd backend && mypy .` | Static type check (what CI runs — see "Type checking") |
 | `python -m pytest` | Run tests (subset; see `backend/tests/`) |
+| `python scripts/export_openapi.py` | Dump the OpenAPI schema → `backend/openapi.json` |
+| `python scripts/export_openapi.py --check` | Fail if `openapi.json` is stale (what CI runs) |
+
+#### Type checking
+
+[mypy](https://mypy-lang.org/) statically type-checks the backend. Config lives
+in `backend/pyproject.toml` (`[tool.mypy]`). **Run it from inside `backend/`** —
+`cd backend && mypy .` — because mypy only auto-discovers config from the
+current directory, so `mypy backend/` from the repo root would silently run
+unconfigured. CI does this in the `Backend (pytest + mypy)` job; it's
+loud-but-not-blocking like the rest of the lint workflow.
+
+The models use SQLAlchemy 2.0 `Mapped[...]` typing (so no SQLAlchemy mypy
+plugin is needed) and the `pydantic.mypy` plugin is enabled. Third-party
+modules without stubs (`openpyxl`, `googleapiclient`) are scoped-ignored in
+`[[tool.mypy.overrides]]` — never globally.
+
+**Strictness ramp:** the current baseline is `check_untyped_defs` (bodies of
+unannotated functions are checked) but *not* `disallow_untyped_defs`/`strict` —
+so you don't have to annotate every function, but what's annotated must be
+correct. Tightening toward `strict` is a deliberate future ratchet; keep new
+code annotated so that step stays small. Use `# type: ignore[code]` only for
+genuine third-party/framework false positives, each with a one-line reason
+(`warn_unused_ignores` fails the build on stale ignores).
+
+## API types (generated)
+
+The frontend's API request/response types are **generated from the backend's
+OpenAPI schema** — they are the single source of truth and are never
+hand-written. The pipeline (via [`@hey-api/openapi-ts`](https://heyapi.dev),
+types-only) is:
+
+```
+backend Pydantic response model   (referenced by a route via response_model= / responses=)
+  → backend/openapi.json           committed snapshot — `python backend/scripts/export_openapi.py`
+  → app/src/client/types.gen.ts    generated — `npm run gen:types`  (eslint-ignored, never hand-edited)
+  → feature code                   import the generated type, e.g. `import type { UserResponse } from '@/client'`
+```
+
+To change an API type, change the backend Pydantic schema and regenerate — don't
+edit `app/src/client`. A type only appears if some route references its schema.
+
+```bash
+# Frontend-only refresh (no backend needed): regenerate TS from the committed snapshot
+cd app && npm run gen:types
+
+# Full refresh: re-dump the schema from the backend, then regenerate types
+#   (needs the backend Python env importable; the dump is static — no DB/server)
+cd app && npm run gen:api
+```
+
+`backend/openapi.json` and `app/src/client` are committed; the CI `api-types`
+job regenerates both and fails on drift. Backend response shapes are typed in
+`backend/routers/*.py` and guarded by `backend/tests/contract/` (a byte-diff
+harness). Architecture + rollout: [`app/CLAUDE.md`](app/CLAUDE.md) → "API types"
+and [`.plans/type-generation-pipeline-20260615.md`](.plans/type-generation-pipeline-20260615.md).
 
 ## CI
 
 `.github/workflows/lint.yml` runs on every PR:
-- **Frontend** — `tsc --noEmit`, `eslint`, `prettier --check`
-- **Backend** — `ruff check`, `ruff format --check`
+- **Frontend** — `tsc --noEmit`, `eslint`, `prettier --check`, unit tests
+- **Backend** — `ruff check`, `ruff format --check`, `pytest`
+- **API types** — regenerate the OpenAPI snapshot + frontend types and fail if
+  they're out of date (the generated-types drift check)
 
 CI is informational unless branch protection requires it. Keep PRs green.
 
@@ -170,10 +236,12 @@ CI is informational unless branch protection requires it. Keep PRs green.
 ## Documentation pointers
 
 - **`app/CLAUDE.md`** — frontend conventions (React Query keys, mutation
-  patterns, route conventions, component layout). Required reading before
-  adding frontend code.
+  patterns, route conventions, component layout, **generated API types**).
+  Required reading before adding frontend code.
+- **`app/src/client/README.md`** — how the generated API types work and how to
+  consume them.
 - **`.plans/`** — design and migration plans (split-monoliths, perf passes,
-  lint setup, CI). Useful context for current refactors.
+  lint setup, CI, **type-generation pipeline**). Useful context for current refactors.
 - **`backend/pyproject.toml`** — ruff config + lint policy.
 
 ## License

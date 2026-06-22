@@ -25,8 +25,8 @@ from sqlalchemy.orm import sessionmaker
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-import models  # noqa: F401, E402 — registers tables with Base.metadata
-from database import Base, _reconcile_user_roles_impl  # noqa: E402
+import models  # noqa: F401 — registers tables with Base.metadata
+from database import Base, _reconcile_user_roles_impl
 
 TEST_DB_URL = "sqlite:///:memory:"
 engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})

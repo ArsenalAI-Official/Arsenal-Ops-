@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ZoomIn, ZoomOut, Maximize2, RotateCcw } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 
 // Lazy-loaded mermaid singleton — kept outside the component so the dynamic
 // import only happens once across all instances.
@@ -88,11 +89,8 @@ const MermaidRenderer = ({ code, className = '', showControls = true }: MermaidR
         mermaidIdCounter += 1;
         const id = `mermaid-${mermaidIdCounter}-${Date.now()}`;
 
-        console.log('Rendering mermaid diagram:', { id, codeLength: cleanCode.length });
-
         // Parse and render
         const { svg } = await mermaid.render(id, cleanCode);
-        console.log('Mermaid render successful, SVG length:', svg.length);
         setSvgContent(svg);
       } catch (err: any) {
         console.error('Mermaid render error:', err);
@@ -183,7 +181,7 @@ const MermaidRenderer = ({ code, className = '', showControls = true }: MermaidR
       <div
         className={`flex flex-col items-center justify-center p-8 bg-[rgba(255,255,255,0.02)] rounded-xl ${className}`}
       >
-        <div className="w-8 h-8 border-2 border-[#E0B954]/30 border-t-[#E0B954] rounded-full animate-spin mb-2" />
+        <Spinner size="md" className="mb-2" />
         <p className="text-xs text-[#737373]">Rendering diagram...</p>
       </div>
     );

@@ -1,6 +1,7 @@
 """Models package"""
 
 from models.activity_log import ActivityLog
+from models.applied_migration import AppliedMigration
 from models.architecture import Architecture
 from models.calendar_event import CalendarEvent
 from models.comment import Comment
@@ -27,35 +28,36 @@ from models.work_item import WorkItem, WorkItemPriority, WorkItemStatus, WorkIte
 from models.work_item_assignment_history import WorkItemAssignmentHistory
 
 __all__ = [
-    "Project",
-    "Task",
-    "Persona",
-    "UserStory",
+    "ActivityLog",
+    "AppliedMigration",
+    "Architecture",
+    "CalendarEvent",
+    "Comment",
+    "Developer",
     "MarketInsight",
     "Milestone",
-    "Developer",
-    "project_developers",
-    "WorkItem",
-    "WorkItemType",
-    "WorkItemStatus",
-    "WorkItemPriority",
-    "Sprint",
-    "Comment",
-    "TimeEntry",
-    "TaskDependency",
+    "Persona",
+    "PersonalTask",
+    "Project",
     "ProjectCategory",
+    "ProjectFile",
     "ProjectGoal",
+    "ProjectLink",
     "ProjectMilestone",
     "ProjectPulseOverride",
-    "ActivityLog",
-    "ProjectFile",
-    "ProjectLink",
-    "PersonalTask",
-    "WorkItemAssignmentHistory",
     "Role",
     "RoleCapability",
-    "user_roles",
-    "Architecture",
+    "Sprint",
+    "Task",
+    "TaskDependency",
+    "TimeEntry",
     "User",
-    "CalendarEvent",
+    "UserStory",
+    "WorkItem",
+    "WorkItemAssignmentHistory",
+    "WorkItemPriority",
+    "WorkItemStatus",
+    "WorkItemType",
+    "project_developers",
+    "user_roles",
 ]

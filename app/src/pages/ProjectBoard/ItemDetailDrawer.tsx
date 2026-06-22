@@ -1,16 +1,17 @@
 import { useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { WorkItemPanel } from '@/components/WorkItemPanel';
-import type { WorkItem, Sprint, AllDeveloper, ProjectLite } from '@/components/WorkItemPanel';
+import type { WorkItem, ProjectLite } from '@/components/WorkItemPanel';
+import type { SprintResponse, DeveloperResponse } from '@/client';
 
 export interface ItemDetailDrawerProps {
   selectedItem: WorkItem;
   workItems: WorkItem[];
-  sprints: Sprint[];
+  sprints: SprintResponse[];
   project: ProjectLite | null;
   // allDevelopers still accepted for backward compat with ProjectBoard call site;
   // WorkItemPanel fetches developers internally via ['developers'] query.
-  allDevelopers: AllDeveloper[];
+  allDevelopers: DeveloperResponse[];
   id: string | undefined;
   token: string;
   navigate: (path: string) => void;

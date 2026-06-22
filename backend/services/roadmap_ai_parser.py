@@ -212,11 +212,11 @@ Return ONLY the JSON object, no explanations."""
             return parsed
 
         except json.JSONDecodeError as e:
-            logger.error(f"JSON decode failed: {str(e)}")
-            raise ValueError(f"LLM returned invalid JSON: {str(e)}") from e
+            logger.error(f"JSON decode failed: {e!s}")
+            raise ValueError(f"LLM returned invalid JSON: {e!s}") from e
         except Exception as e:
-            logger.error(f"parse_excel_with_ai failed: {str(e)}")
-            raise ValueError(f"LLM parsing failed: {str(e)}") from e
+            logger.error(f"parse_excel_with_ai failed: {e!s}")
+            raise ValueError(f"LLM parsing failed: {e!s}") from e
 
 
 def excel_to_readable_text(filepath: str) -> str:
@@ -243,7 +243,7 @@ def excel_to_readable_text(filepath: str) -> str:
         return "\n".join(lines)
 
     except Exception as e:
-        raise ValueError(f"Failed to read Excel as text: {str(e)}") from e
+        raise ValueError(f"Failed to read Excel as text: {e!s}") from e
 
 
 # Singleton instance

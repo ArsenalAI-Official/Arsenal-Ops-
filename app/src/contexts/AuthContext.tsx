@@ -10,14 +10,13 @@ import {
 } from 'react';
 import { API_BASE_URL } from '@/config/api';
 import { matchesCapability } from '@/lib/capabilities';
+import type { UserResponse } from '@/client';
 
-interface User {
-  id: number;
-  email: string;
-  name: string;
-  role: string; // Comma-separated roles: 'admin', 'project_manager', 'developer', or 'admin,project_manager'
-  is_first_login: boolean;
-}
+// Sourced from the backend's `UserResponse` schema (generated from the FastAPI
+// `/api/auth/*` response_model). `role` is a comma-separated string —
+// 'admin', 'project_manager', 'developer', or 'admin,project_manager' — and is
+// preserved for display only; permission checks go through `can(...)`.
+type User = UserResponse;
 
 // Legacy role-string helpers (hasRole / hasAnyRole / isAdmin /
 // isProjectManager / isDeveloper) were removed in the RBAC consolidation.

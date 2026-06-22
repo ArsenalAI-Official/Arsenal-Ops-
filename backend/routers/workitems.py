@@ -5,6 +5,7 @@ Production-ready database storage
 
 import sys
 from datetime import datetime
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
@@ -30,6 +31,8 @@ def get_next_item_number(db: Session, key_prefix: str) -> int:
     """Get the next work item number for a key prefix — queries GLOBALLY.
     Caller MUST hold the advisory lock before calling this (Postgres only).
     """
+    if db.bind is None:
+        raise HTTPException(status_code=500, detail="Database session is not bound to an engine")
     dialect = db.bind.dialect.name
     if dialect == "postgresql":
         # Postgres: strict regex filter rules out non-numeric suffixes.
@@ -334,14 +337,58 @@ class SprintCreate(BaseModel):
     capacity_hours: int | None = None
 
 
-@router.get("/")
+class WorkItemListResponse(BaseModel):
+    """Response shape for ``GET /api/workitems/`` (one item per row).
+
+    Documents the wire format for OpenAPI/codegen only — the handler returns
+    plain dicts at runtime, so this is never used to re-serialize. Field
+    optionality mirrors the dict-building code in ``list_work_items``: the
+    numeric fields use an ``or 0`` default (never None), the string fields
+    ``assignee``/``sprint``/``epic``/``description`` use literal defaults
+    ("Unassigned"/"Backlog"/""), and the *_id / *_key / date fields are
+    nullable. ``id`` is stringified (matches ``SlimWorkItem.id``).
+    """
+
+    id: str
+    key: str
+    type: str
+    title: str
+    description: str = ""
+    status: str
+    priority: str
+    story_points: int = 0
+    assigned_hours: int = 0
+    estimated_hours: int = 0
+    remaining_hours: int = 0
+    logged_hours: int = 0
+    assignee: str = "Unassigned"
+    assignee_id: int | None = None
+    sprint: str = "Backlog"
+    sprint_id: int | None = None
+    epic: str = ""
+    tags: list[str] = []
+    acceptance_criteria: list = []
+    parent_id: int | None = None
+    epic_id: int | None = None
+    parent_key: str | None = None
+    epic_key: str | None = None
+    due_date: str | None = None
+    start_date: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@router.get("/", responses={200: {"model": list[WorkItemListResponse]}})
 def list_work_items(
-    response: Response = None,
-    project_id: int = None,
-    status: str = None,
-    type: str = None,
-    sprint_id: int = None,
-    assignee_id: int = None,
+    # FastAPI injects the real Response in-request (the type must be `Response`,
+    # not a Union, or FastAPI treats it as a body field); the None default only
+    # lets the test suite call this handler directly. Body guards `is not None`.
+    response: Response = None,  # type: ignore[assignment]
+    project_id: int | None = None,
+    status: str | None = None,
+    type: str | None = None,
+    sprint_id: int | None = None,
+    assignee_id: int | None = None,
     limit: int = Query(500, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -469,6 +516,10 @@ class SlimWorkItem(BaseModel):
     logged_hours: int = 0
     due_date: str | None = None
     completed_at: str | None = None
+    # True when the ticket has at least one unresolved blocker comment.
+    # Derived in the board endpoint via a single batch query — no per-row
+    # JOIN, so this stays O(1) extra round-trip regardless of item count.
+    is_blocked: bool = False
 
 
 @router.get("/board", response_model=list[SlimWorkItem])
@@ -476,7 +527,10 @@ def list_board_items(
     project_id: int = Query(..., description="Required: project to fetch board items for"),
     sprint_id: int | None = Query(None, description="Optional: filter to a single sprint"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    # Gated on `project.board` so the role editor's "Project Board · Read"
+    # toggle actually enforces — without this, hiding the Open Board button
+    # in the UI would be cosmetic only.
+    current_user: User = Depends(require_capability("project.board")),
 ):
     """Slim variant of ``GET /api/workitems/`` used by the Kanban board.
 
@@ -503,6 +557,27 @@ def list_board_items(
         related = db.query(WorkItem.id, WorkItem.key).filter(WorkItem.id.in_(all_lookup_ids)).all()
         id_to_key = {r.id: r.key for r in related}
 
+    # Batch query for "ticket has at least one unresolved blocker comment".
+    # One IN(...) over the comments table for every item on this board —
+    # cheap and avoids per-row joins. Resolved-blocker comments are
+    # excluded so a ticket whose blockers were all resolved isn't flagged.
+    from models.comment import Comment
+
+    item_ids = [item.id for item in items]
+    blocked_ids: set[int] = set()
+    if item_ids:
+        blocked_rows = (
+            db.query(Comment.work_item_id)
+            .filter(
+                Comment.work_item_id.in_(item_ids),
+                Comment.comment_type == "blocker",
+                Comment.is_resolved.is_(False),
+            )
+            .distinct()
+            .all()
+        )
+        blocked_ids = {r[0] for r in blocked_rows}
+
     return [
         SlimWorkItem(
             id=str(item.id),
@@ -525,12 +600,55 @@ def list_board_items(
             logged_hours=item.logged_hours or 0,
             due_date=item.due_date.isoformat() if item.due_date else None,
             completed_at=item.completed_at.isoformat() if item.completed_at else None,
+            is_blocked=item.id in blocked_ids,
         )
         for item in items
     ]
 
 
-@router.get("/my-tasks")
+class MyTaskResponse(BaseModel):
+    """Response shape for ``GET /api/workitems/my-tasks``.
+
+    OpenAPI/codegen documentation only — the handler returns plain dicts at
+    runtime. Overlaps heavily with ``WorkItemListResponse`` but is a distinct
+    shape: it adds ``is_overdue``/``project_id``/``project_name``/
+    ``reporter_name``/``completed_at``, drops ``start_date``/``created_at``/
+    ``updated_at``/``epic`` (string), and — unlike the list endpoint — passes
+    ``estimated_hours``/``logged_hours``/``remaining_hours`` straight from the
+    (nullable) columns without an ``or 0`` guard, so those are ``int | None``.
+    ``assigned_hours`` and ``story_points`` keep the ``or 0`` default.
+    """
+
+    id: str
+    key: str
+    title: str
+    type: str
+    status: str
+    priority: str
+    project_id: int | None = None
+    project_name: str = "Unknown"
+    due_date: str | None = None
+    estimated_hours: int | None = None
+    logged_hours: int | None = None
+    remaining_hours: int | None = None
+    is_overdue: bool
+    completed_at: str | None = None
+    story_points: int = 0
+    assigned_hours: int = 0
+    assignee: str
+    reporter_name: str | None = None
+    description: str = ""
+    tags: list[str] = []
+    acceptance_criteria: list = []
+    parent_id: int | None = None
+    parent_key: str | None = None
+    epic_id: int | None = None
+    epic_key: str | None = None
+    sprint_id: int | None = None
+    sprint: str = "Backlog"
+
+
+@router.get("/my-tasks", responses={200: {"model": list[MyTaskResponse]}})
 def get_my_tasks(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get all tasks assigned to the current user across all projects"""
     from models.developer import Developer
@@ -585,7 +703,9 @@ def get_my_tasks(db: Session = Depends(get_db), current_user: User = Depends(get
                 "logged_hours": item.logged_hours,
                 "remaining_hours": item.remaining_hours,
                 "is_overdue": bool(
-                    item.due_date and item.due_date < datetime.utcnow() and item.status != "done"
+                    item.due_date
+                    and item.due_date.date() < datetime.utcnow().date()
+                    and item.status != "done"
                 ),
                 "completed_at": item.completed_at.isoformat() if item.completed_at else None,
                 "story_points": item.story_points or 0,
@@ -607,7 +727,62 @@ def get_my_tasks(db: Session = Depends(get_db), current_user: User = Depends(get
     return result
 
 
-@router.get("/{item_id}")
+class WorkItemDetailResponse(BaseModel):
+    """Response shape for ``GET /api/workitems/{id}`` (the side-panel detail).
+
+    Documents the wire format for OpenAPI/codegen only — the handler returns a
+    plain column dict at runtime, so this is never used to re-serialize. Unlike
+    the list endpoints, this one returns the *raw* model columns with no
+    normalization: ``id`` stays an int (not stringified), dates are serialized
+    by FastAPI's jsonable_encoder, and there is no ``or 0`` / "Unassigned"
+    defaulting. Field nullability therefore mirrors the ORM columns directly —
+    only the ``nullable=False`` columns are non-optional. The two trailing
+    fields (``reporter_name``/``assignee_name``) are relation-derived and added
+    by the handler. Gated byte-for-byte by tests/contract (workitems_detail).
+    """
+
+    id: int
+    project_id: int
+    sprint_id: int | None = None
+    key: str
+    type: str
+    title: str
+    description: str | None = None
+    status: str
+    priority: str
+    # `default=0` at the ORM layer is a Python-side INSERT default, NOT a DB
+    # `nullable=False` / `server_default` — so the columns are genuinely
+    # DB-nullable and a non-ORM insert path could leave them NULL. The detail
+    # handler returns them raw (no `or 0` guard), so type them honestly as
+    # nullable; the FE mapper coerces to the non-null view-model.
+    story_points: int | None = 0
+    logged_hours: int | None = 0
+    # No column default — genuinely nullable.
+    estimated_hours: int | None = None
+    remaining_hours: int | None = None
+    assignee_id: int | None = None
+    reporter_id: int | None = None
+    goal_id: int | None = None
+    parent_id: int | None = None
+    epic_id: int | None = None
+    acceptance_criteria: list = []
+    # tags are string labels (matches WorkItemListResponse.tags); the other two
+    # JSON columns hold heterogeneous objects, so they stay untyped lists.
+    tags: list[str] = []
+    attachments: list = []
+    created_at: datetime
+    updated_at: datetime
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    last_assigned_at: datetime | None = None
+    due_date: datetime | None = None
+    start_date: datetime | None = None
+    # Relation-derived, appended by the handler (not table columns).
+    reporter_name: str | None = None
+    assignee_name: str | None = None
+
+
+@router.get("/{item_id}", responses={200: {"model": WorkItemDetailResponse}})
 def get_work_item(
     item_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
@@ -665,7 +840,7 @@ def create_work_item(
     # This serializes concurrent inserts for the same prefix across all Gunicorn workers,
     # making key collisions impossible without any retry logic. No-op on SQLite (local
     # dev), which is single-writer anyway so there's nothing to serialize.
-    if db.bind.dialect.name == "postgresql":
+    if db.bind is not None and db.bind.dialect.name == "postgresql":
         lock_id = abs(hash(key_prefix)) % 2_147_483_647
         db.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": lock_id})
 
@@ -920,11 +1095,11 @@ def update_work_item(
         )
 
     # Handle date fields - parse ISO strings to datetime
-    if "start_date" in update_data and update_data["start_date"]:
+    if update_data.get("start_date"):
         update_data["start_date"] = datetime.fromisoformat(
             update_data["start_date"].replace("Z", "+00:00")
         )
-    if "due_date" in update_data and update_data["due_date"]:
+    if update_data.get("due_date"):
         update_data["due_date"] = datetime.fromisoformat(
             update_data["due_date"].replace("Z", "+00:00")
         )
@@ -1201,7 +1376,9 @@ def update_work_item(
         "due_date": item.due_date.isoformat() if item.due_date else None,
         "start_date": item.start_date.isoformat() if item.start_date else None,
         "is_overdue": bool(
-            item.due_date and item.due_date < datetime.utcnow() and item.status != "done"
+            item.due_date
+            and item.due_date.date() < datetime.utcnow().date()
+            and item.status != "done"
         ),
         "started_at": item.started_at.isoformat() if item.started_at else None,
         "completed_at": item.completed_at.isoformat() if item.completed_at else None,
@@ -1350,6 +1527,71 @@ class LogHoursRequest(BaseModel):
     hours: int
     description: str | None = None
     developer_id: int | None = None  # Optional: specify who did the work (defaults to current user)
+
+
+@router.post("/{item_id}/unblock")
+def unblock_work_item(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_capability("project.tracker_write")),
+):
+    """Resolve every unresolved blocker comment on this ticket in one shot.
+
+    "Blocked" in Arsenal Ops isn't a separate work-item field — it's
+    derived from whether the ticket has any open `comment_type='blocker'`
+    comments. Unblocking flips them all to `is_resolved=True` so the
+    blocker chronology is preserved (the comment text + @mentions stay
+    visible, just marked as resolved). An activity row records the bulk
+    unblock so the audit trail captures who unblocked + when.
+
+    Returns the number of comments resolved — 0 is a legal response when
+    the ticket was already unblocked (idempotent).
+    """
+    from models.activity_log import ActivityLog
+    from models.comment import Comment
+
+    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Work item not found")
+
+    resolved_count = (
+        db.query(Comment)
+        .filter(
+            Comment.work_item_id == item_id,
+            Comment.comment_type == "blocker",
+            Comment.is_resolved.is_(False),
+        )
+        .update(
+            {"is_resolved": True, "updated_at": datetime.utcnow()},
+            synchronize_session=False,
+        )
+    )
+    db.commit()
+
+    # Log activity only when we actually resolved something — a no-op
+    # unblock (item wasn't blocked) shouldn't litter the feed.
+    if resolved_count:
+        try:
+            db.add(
+                ActivityLog(
+                    project_id=item.project_id,
+                    user_id=current_user.id,
+                    action="unblocked",
+                    entity_type="work_item",
+                    entity_id=item.id,
+                    title=(
+                        f"Unblocked {item.key}: resolved {resolved_count} "
+                        f"blocker comment{'s' if resolved_count != 1 else ''}"
+                    ),
+                )
+            )
+            db.commit()
+        except Exception as e:
+            # Non-fatal: the resolve already committed above.
+            db.rollback()
+            print(f"[ActivityLog] Failed to log unblock for #{item_id}: {e}")
+
+    return {"resolved_count": resolved_count}
 
 
 @router.post("/{item_id}/log-hours")
@@ -1554,7 +1796,13 @@ def get_work_item_time_entries(
     result = []
     for te in time_entries:
         # Filter by this week if requested
-        if this_week_only and te.logged_at and not (week_start <= te.logged_at <= week_end):
+        if (
+            this_week_only
+            and te.logged_at
+            and week_start is not None
+            and week_end is not None
+            and not (week_start <= te.logged_at <= week_end)
+        ):
             continue
 
         developer = devs_by_id.get(te.developer_id) if te.developer_id else None
@@ -1578,15 +1826,12 @@ def get_work_item_time_entries(
         )
 
     # Calculate this week's total
-    this_week_total = (
-        sum(
-            te.hours
-            for te in time_entries
-            if te.logged_at and week_start and week_end and week_start <= te.logged_at <= week_end
-        )
-        if week_start and week_end
-        else 0
-    )
+    this_week_hours = [
+        te.hours
+        for te in time_entries
+        if te.logged_at and week_start and week_end and week_start <= te.logged_at <= week_end
+    ]
+    this_week_total = sum(this_week_hours) if week_start and week_end else 0
 
     return {
         "work_item_id": item_id,
@@ -1609,19 +1854,20 @@ def get_work_item_time_entries(
 async def generate_work_items(
     request: GenerateStoriesRequest, current_user: User = Depends(get_current_user)
 ):
-    """Generate work items using LLM agent (requires auth)"""
-    global item_counter
+    """Generate work items using LLM agent (requires auth).
 
-    # Get project key prefix
+    Returns *unsaved* draft items for the client to review; nothing is
+    persisted here. Each draft gets a locally-unique placeholder key
+    (``{key_prefix}-{n}``) generated by an in-function counter.
+    """
+    # Local counter for placeholder keys on the generated (unsaved) drafts.
+    item_counter = 0
+
+    # Default key prefix. The product_id arriving here is a free-form client
+    # value, and this endpoint takes no DB session, so we use the generic
+    # "WI" prefix for the draft keys (the real prefix is applied when the
+    # client later persists each item via the create endpoint).
     key_prefix = "WI"
-    try:
-        from routers.projects import projects_db
-
-        project = next((p for p in projects_db if str(p["id"]) == request.product_id), None)
-        if project:
-            key_prefix = project.get("key_prefix", "WI")
-    except Exception:
-        pass
 
     try:
         result = await llm_agent.decompose_project(
@@ -1755,8 +2001,8 @@ def create_sprint(
 
 @router.get("/sprints/list")
 def list_sprints(
-    project_id: int = None,
-    status: str = None,
+    project_id: int | None = None,
+    status: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1953,7 +2199,81 @@ def move_ticket_to_sprint(
     }
 
 
-@router.get("/projects/{project_id}/sprints")
+class SprintResponse(BaseModel):
+    """OpenAPI response shape for the project sprints list (counts/points enriched).
+
+    Attached via ``responses=`` only — the handler still returns plain dicts, so
+    there is NO runtime re-serialization. Nullability mirrors the Sprint ORM model
+    and the dict builder in ``list_project_sprints``.
+    """
+
+    id: int
+    name: str
+    goal: str | None = None
+    status: str
+    start_date: str | None = None
+    end_date: str | None = None
+    capacity_hours: int | None = None
+    velocity: int | None = None
+    total_items: int
+    todo_count: int
+    in_progress_count: int
+    done_count: int
+    total_points: int
+    completed_points: int
+    completion_pct: float
+
+
+class SprintVelocityPoint(BaseModel):
+    """One sprint's committed/completed points for the analytics velocity chart."""
+
+    sprint_name: str
+    committed: int
+    completed: int
+    start_date: str | None = None
+
+
+class BurndownPoint(BaseModel):
+    """One day of the analytics burndown series."""
+
+    date: str
+    remaining: int
+    completed: int
+
+
+class TeamPerformanceEntry(BaseModel):
+    """Per-assignee rollup for the analytics team-performance section."""
+
+    name: str
+    total_items: int
+    completed_items: int
+    total_points: int
+    completed_points: int
+
+
+class ProjectAnalyticsResponse(BaseModel):
+    """OpenAPI response shape for the project analytics endpoint.
+
+    Attached via ``responses=`` only — the handler still returns a plain dict, so
+    there is NO runtime re-serialization. Distribution fields are ``dict[str, int]``
+    because the builders always emit integer counts.
+    """
+
+    total_items: int
+    total_story_points: int
+    completed_points: int
+    status_distribution: dict[str, int]
+    type_distribution: dict[str, int]
+    priority_distribution: dict[str, int]
+    velocity_data: list[SprintVelocityPoint]
+    burndown_data: list[BurndownPoint]
+    team_performance: list[TeamPerformanceEntry]
+
+
+@router.get(
+    "/projects/{project_id}/sprints",
+    responses={200: {"model": list[SprintResponse]}},
+)
 def list_project_sprints(
     project_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
@@ -2058,7 +2378,10 @@ def list_project_sprints(
     return result
 
 
-@router.get("/projects/{project_id}/analytics")
+@router.get(
+    "/projects/{project_id}/analytics",
+    responses={200: {"model": ProjectAnalyticsResponse}},
+)
 def get_project_analytics(
     project_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
@@ -2093,7 +2416,7 @@ def get_project_analytics(
             type_counts[item_type.value] = count
 
     # Priority distribution
-    priority_counts = {}
+    priority_counts: dict[str, int] = {}
     for item in items:
         priority_counts[item.priority] = priority_counts.get(item.priority, 0) + 1
 
@@ -2145,7 +2468,7 @@ def get_project_analytics(
         )
 
     # Team performance (by assignee)
-    assignee_stats = {}
+    assignee_stats: dict[int, dict[str, Any]] = {}
     for item in items:
         if item.assignee_id:
             if item.assignee_id not in assignee_stats:
@@ -2196,11 +2519,9 @@ def get_hours_analytics(
     project = db.query(Project).filter(Project.id == project_id).first()
 
     if not current_user.has_capability("project.pm"):
-        is_project_admin = bool(
-            project
-            and any(d.email == current_user.email and d.is_admin for d in project.developers)
-        )
-        if not is_project_admin:
+        from routers.projects import is_project_admin
+
+        if not (project and is_project_admin(project_id, current_user, db)):
             raise HTTPException(
                 status_code=403,
                 detail="Do not have permission",
@@ -2324,14 +2645,15 @@ def get_hours_analytics(
             my_hours_per_item[te.work_item_id] = my_hours_per_item.get(te.work_item_id, 0.0) + (
                 te.hours or 0
             )
-        allocated = sum(
+        allocated_per_item = [
             max(
-                0,
+                0.0,
                 (item.estimated_hours or 0)
-                - max(0, (item.logged_hours or 0) - my_hours_per_item.get(item.id, 0.0)),
+                - max(0.0, (item.logged_hours or 0) - my_hours_per_item.get(item.id, 0.0)),
             )
             for item in dev_items
-        )
+        ]
+        allocated_total = sum(allocated_per_item, 0.0)
 
         # Remaining = pending work on currently-assigned non-done tickets.
         # Use per-ticket (estimate - cumulative-logged), so:
@@ -2359,11 +2681,12 @@ def get_hours_analytics(
 
         current_week_start, current_week_end = week_boundaries()
 
-        current_week_logged = sum(
+        current_week_hours = [
             te.hours
             for te in dev_time_entries
             if te.logged_at and current_week_start <= te.logged_at <= current_week_end
-        )
+        ]
+        current_week_logged = sum(current_week_hours)
 
         # Weekly logged history — aggregate this developer's time entries by
         # Sat→Fri UTC week so the PM tab can drill into "Total Logged" and see
@@ -2435,7 +2758,7 @@ def get_hours_analytics(
         for te in dev_time_entries:
             wi = work_item_map.get(te.work_item_id)
             if wi and wi.assignee_id != dev.id:
-                assignee = dev_map.get(wi.assignee_id)
+                assignee = dev_map.get(wi.assignee_id) if wi.assignee_id else None
                 hours_on_others_tickets.append(
                     {
                         "ticket_key": wi.key,
@@ -2452,7 +2775,7 @@ def get_hours_analytics(
                 "developer_name": dev.name,
                 "developer_email": dev.email,
                 "role": dev.role if hasattr(dev, "role") else "Developer",
-                "allocated_hours": allocated,
+                "allocated_hours": allocated_total,
                 "logged_hours": logged,
                 "remaining_hours": remaining,
                 "current_week_logged": current_week_logged,
@@ -2914,11 +3237,12 @@ def debug_hours_calculation(
         # Time entries where this dev is the logger
         dev_entries = [te for te in all_time_entries if te.developer_id == dev.id]
         total_logged = sum(te.hours for te in dev_entries)
-        this_week_logged = sum(
+        this_week_hours = [
             te.hours
             for te in dev_entries
             if te.logged_at and week_start <= te.logged_at <= week_end
-        )
+        ]
+        this_week_logged = sum(this_week_hours)
 
         # Tickets assigned to this dev
         assigned_items = [wi for wi in items if wi.assignee_id == dev.id]
@@ -2933,7 +3257,7 @@ def debug_hours_calculation(
                 if te.work_item_id == wi.id and te.developer_id != dev.id
             ]
             for te in entries_on_my_ticket:
-                logger = dev_map.get(te.developer_id)
+                logger = dev_map.get(te.developer_id) if te.developer_id else None
                 others_on_my_tickets.append(
                     {
                         "ticket_key": wi.key,
@@ -2948,7 +3272,7 @@ def debug_hours_calculation(
         for te in dev_entries:
             wi = work_item_map.get(te.work_item_id)
             if wi and wi.assignee_id != dev.id:
-                assignee = dev_map.get(wi.assignee_id)
+                assignee = dev_map.get(wi.assignee_id) if wi.assignee_id else None
                 my_entries_on_others_tickets.append(
                     {
                         "ticket_key": wi.key,
@@ -2979,9 +3303,7 @@ def debug_hours_calculation(
             "i_logged_on_others_tickets": my_entries_on_others_tickets,
             "my_time_entries": [
                 {
-                    "ticket": work_item_map.get(te.work_item_id).key
-                    if work_item_map.get(te.work_item_id)
-                    else "Unknown",
+                    "ticket": wi.key if (wi := work_item_map.get(te.work_item_id)) else "Unknown",
                     "hours": te.hours,
                     "when": te.logged_at.isoformat() if te.logged_at else None,
                 }
@@ -3021,7 +3343,7 @@ def debug_hours_calculation(
             "total_hours_from_entries": sum(te.hours for te in all_time_entries),
             "total_hours_from_work_items": sum(wi.logged_hours or 0 for wi in items),
             "developers_with_entries": list(
-                set(te.developer_id for te in all_time_entries if te.developer_id)
+                {te.developer_id for te in all_time_entries if te.developer_id}
             ),
         },
     }
@@ -3045,8 +3367,10 @@ def repair_hours_calculation(
     """
     from models.time_entry import TimeEntry
 
-    # Check if user is admin
-    if not current_user.is_admin:
+    # Check if user is admin. This is a tool-wide maintenance endpoint that
+    # repairs time-entry/hours data, gated on the time-entries admin capability
+    # (system admins hold this via the "*" wildcard grant).
+    if not current_user.has_capability("admin.time_entries"):
         raise HTTPException(status_code=403, detail="Admin access required")
 
     # Verify project exists
@@ -3066,7 +3390,7 @@ def repair_hours_calculation(
     )
 
     # Group time entries by work item
-    entries_by_work_item = {}
+    entries_by_work_item: dict[int, list[TimeEntry]] = {}
     for te in all_time_entries:
         if te.work_item_id not in entries_by_work_item:
             entries_by_work_item[te.work_item_id] = []

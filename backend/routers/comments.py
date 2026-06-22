@@ -38,6 +38,11 @@ class CommentResponse(BaseModel):
     content: str
     mentions: list[int]
     comment_type: str
+    # Surfaces the resolution state of blocker / business-review comments
+    # so the frontend can render the BLOCKER → RESOLVED pill swap and
+    # gate the per-row "Resolve" affordance. Defaults to False on the
+    # model so this is always present.
+    is_resolved: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -111,6 +116,7 @@ def get_comments(
                 content=comment.content,
                 mentions=comment.mentions or [],
                 comment_type=comment.comment_type,
+                is_resolved=bool(comment.is_resolved),
                 created_at=comment.created_at,
                 updated_at=comment.updated_at,
             )
@@ -182,6 +188,7 @@ def create_comment(
         content=new_comment.content,
         mentions=new_comment.mentions or [],
         comment_type=new_comment.comment_type,
+        is_resolved=bool(new_comment.is_resolved),
         created_at=new_comment.created_at,
         updated_at=new_comment.updated_at,
     )
@@ -217,6 +224,7 @@ def update_comment(
         content=comment.content,
         mentions=comment.mentions or [],
         comment_type=comment.comment_type,
+        is_resolved=bool(comment.is_resolved),
         created_at=comment.created_at,
         updated_at=comment.updated_at,
     )
@@ -318,6 +326,7 @@ def toggle_comment_resolved(
         content=comment.content,
         mentions=comment.mentions or [],
         comment_type=comment.comment_type,
+        is_resolved=bool(comment.is_resolved),
         created_at=comment.created_at,
         updated_at=comment.updated_at,
     )

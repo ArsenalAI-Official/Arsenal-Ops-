@@ -9,14 +9,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { Project, ProjectMember, PersonalTask } from './types';
+import type { Project, PersonalTask } from './types';
+import type { ProjectDeveloperEntry } from '@/client';
 
 interface ConvertToTicketDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   convertingTask: PersonalTask | null;
   projects: Project[];
-  projectMembers: ProjectMember[];
+  projectMembers: ProjectDeveloperEntry[];
   convertProjectId: string;
   setConvertProjectId: (value: string) => void;
   convertAssigneeId: string;

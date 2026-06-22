@@ -19,6 +19,7 @@ explicitly (same trick the rest of the test suite uses — FastAPI's
 import os
 import sys
 from datetime import datetime, timedelta
+from typing import ClassVar
 
 import pytest
 from fastapi import HTTPException
@@ -27,8 +28,8 @@ from sqlalchemy.orm import sessionmaker
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from database import Base  # noqa: E402
-from models import (  # noqa: E402, F401
+from database import Base
+from models import (  # noqa: F401
     activity_log,
     architecture,
     developer,
@@ -47,14 +48,14 @@ from models import (  # noqa: E402, F401
     user_story,
     work_item,
 )
-from models.developer import Developer  # noqa: E402
-from models.project import Project  # noqa: E402
-from models.project_milestone import ProjectMilestone  # noqa: E402
-from models.time_entry import TimeEntry  # noqa: E402
-from models.user import User  # noqa: E402
-from models.work_item import WorkItem  # noqa: E402
-from routers import pulse as pulse_module  # noqa: E402
-from routers.pulse import get_pulse_derived  # noqa: E402
+from models.developer import Developer
+from models.project import Project
+from models.project_milestone import ProjectMilestone
+from models.time_entry import TimeEntry
+from models.user import User
+from models.work_item import WorkItem
+from routers import pulse as pulse_module
+from routers.pulse import get_pulse_derived
 
 
 @pytest.fixture
@@ -637,7 +638,7 @@ class TestResponseShape:
     that drops or renames a key fails this test loudly, which protects the
     frontend merge layer from silent contract drift."""
 
-    EXPECTED_TOP_KEYS = {
+    EXPECTED_TOP_KEYS: ClassVar[set[str]] = {
         "project",
         "summary",
         "months",
@@ -650,7 +651,13 @@ class TestResponseShape:
         "_meta",
     }
 
-    EXPECTED_PROJECT_KEYS = {"name", "keyPrefix", "contractStart", "contractEnd", "launchTarget"}
+    EXPECTED_PROJECT_KEYS: ClassVar[set[str]] = {
+        "name",
+        "keyPrefix",
+        "contractStart",
+        "contractEnd",
+        "launchTarget",
+    }
 
     def test_top_level_shape(self, db, admin_user):
         proj = _make_project(
@@ -674,6 +681,7 @@ class TestResponseShape:
         assert project_section["name"] == "Pulse Project"
         assert project_section["keyPrefix"] == "PP"
         assert project_section["contractStart"] == proj.created_at.isoformat()
+        assert proj.end_date is not None
         assert project_section["contractEnd"] == proj.end_date.isoformat()
         # Without a matching milestone, launchTarget falls back to contractEnd.
         assert project_section["launchTarget"] == proj.end_date.isoformat()
@@ -718,7 +726,7 @@ class TestNotFound:
 
 
 @pytest.mark.parametrize(
-    "section,helper_name,fallback_check",
+    ("section", "helper_name", "fallback_check"),
     [
         ("project", "_derive_project_meta", lambda v: v == {}),
         ("summary", "_derive_summary", lambda v: v == {}),

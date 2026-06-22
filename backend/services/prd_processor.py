@@ -25,7 +25,7 @@ class PRDProcessor:
 
             return "\n\n".join(text_parts)
         except Exception as e:
-            raise ValueError(f"Failed to extract text from PDF: {str(e)}") from e
+            raise ValueError(f"Failed to extract text from PDF: {e!s}") from e
 
     def extract_from_docx(self, file_content: bytes) -> str:
         """Extract text from Word document"""
@@ -51,7 +51,7 @@ class PRDProcessor:
 
             return "\n\n".join(text_parts)
         except Exception as e:
-            raise ValueError(f"Failed to extract text from Word document: {str(e)}") from e
+            raise ValueError(f"Failed to extract text from Word document: {e!s}") from e
 
     def extract_text(self, file_content: bytes, filename: str) -> str:
         """Extract text based on file extension"""

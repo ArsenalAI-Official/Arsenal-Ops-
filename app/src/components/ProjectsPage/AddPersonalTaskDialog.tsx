@@ -13,7 +13,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
-import type { Project, ProjectMember, NewPersonalTaskForm } from './types';
+import type { Project, NewPersonalTaskForm } from './types';
+import type { ProjectDeveloperEntry } from '@/client';
 import { clampNonNegInt, blockNegativeKey } from '@/lib/inputUtils';
 import { parseLocalDate, formatLocalDate } from './utils';
 import { CALENDAR_CLASS_NAMES } from './constants';
@@ -28,7 +29,7 @@ interface AddPersonalTaskDialogProps {
   showCalendar: boolean;
   setShowCalendar: (open: boolean) => void;
   projects: Project[];
-  projectMembers: ProjectMember[];
+  projectMembers: ProjectDeveloperEntry[];
   onProjectChange: (projectId: string) => void;
   addingTask: boolean;
   onCreate: () => void;

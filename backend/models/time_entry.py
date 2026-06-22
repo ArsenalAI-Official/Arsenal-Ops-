@@ -2,33 +2,40 @@
 
 import sys
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy import DateTime, ForeignKey, Index, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 sys.path.append("..")
 from database import Base
+
+if TYPE_CHECKING:
+    from models.developer import Developer
+    from models.work_item import WorkItem
 
 
 class TimeEntry(Base):
     __tablename__ = "time_entries"
 
-    id = Column(Integer, primary_key=True, index=True)
-    work_item_id = Column(
-        Integer, ForeignKey("work_items.id", ondelete="CASCADE"), nullable=False, index=True
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    work_item_id: Mapped[int] = mapped_column(
+        ForeignKey("work_items.id", ondelete="CASCADE"), index=True
     )
-    developer_id = Column(Integer, ForeignKey("developers.id", ondelete="SET NULL"), index=True)
+    developer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("developers.id", ondelete="SET NULL"), index=True
+    )
 
     # Time tracking
-    hours = Column(Integer, nullable=False)  # Hours logged in this entry
-    description = Column(Text)  # Optional description of work done
+    hours: Mapped[int] = mapped_column()  # Hours logged in this entry
+    description: Mapped[str | None] = mapped_column(Text)  # Optional description of work done
 
     # Timestamp
-    logged_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    logged_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
     # Relationships
-    work_item = relationship("WorkItem", back_populates="time_entries")
-    developer = relationship("Developer")
+    work_item: Mapped["WorkItem"] = relationship("WorkItem", back_populates="time_entries")
+    developer: Mapped["Developer | None"] = relationship("Developer")
 
     # Indexes for queries
     __table_args__ = (

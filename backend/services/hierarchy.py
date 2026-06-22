@@ -27,6 +27,8 @@ Cross-cutting rules:
       the tree at depth 2 (Epic -> Story/Task/Bug -> Subtask).
 """
 
+from typing import NoReturn
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
@@ -58,7 +60,7 @@ ALLOWED_PARENT_TYPES: dict[str, dict[str, tuple[str, ...]]] = {
 }
 
 
-def _reject(field: str, code: str, message: str) -> None:
+def _reject(field: str, code: str, message: str) -> NoReturn:
     raise HTTPException(
         status_code=422,
         detail={"field": field, "code": code, "message": message},

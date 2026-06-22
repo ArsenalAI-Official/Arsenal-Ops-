@@ -48,7 +48,37 @@ class ConvertToTicketRequest(BaseModel):
     assignee_developer_id: int | None = None  # Optional: who to assign the ticket to
 
 
-@router.get("/")
+class PersonalTaskResponse(BaseModel):
+    """OpenAPI/codegen response shape for a single personal task.
+
+    Mirrors PersonalTask.to_dict() exactly. Documentation only — the routes
+    keep returning their existing dicts unchanged at runtime (this is wired via
+    `responses=`, not `response_model=`, so there is no runtime re-serialization).
+    Nullability is taken from the to_dict serialization, not the DB columns:
+    `created_at`/`updated_at` are guarded with `... if ... else None`.
+    """
+
+    id: int
+    user_id: int
+    title: str
+    description: str | None = None
+    status: str
+    priority: str
+    project_id: int | None = None
+    work_item_id: int | None = None
+    estimated_hours: int
+    due_date: str | None = None
+    tags: list[str]
+    is_converted: bool
+    converted_at: str | None = None
+    # Always present on a persisted row (server-default timestamps); the
+    # to_dict() `else None` guards are defensive only. Typed non-null so the
+    # generated FE type doesn't force null-guards on never-null fields.
+    created_at: str
+    updated_at: str
+
+
+@router.get("/", responses={200: {"model": list[PersonalTaskResponse]}})
 def get_personal_tasks(
     status: str | None = None,
     db: Session = Depends(get_db),
@@ -89,7 +119,7 @@ def create_personal_task(
     return task.to_dict()
 
 
-@router.get("/{task_id}")
+@router.get("/{task_id}", responses={200: {"model": PersonalTaskResponse}})
 def get_personal_task(
     task_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
@@ -216,7 +246,7 @@ def convert_to_ticket(
 
     # Acquire the same advisory lock as create_work_item so concurrent
     # converters don't race on key numbering. No-op on SQLite.
-    if db.bind.dialect.name == "postgresql":
+    if db.bind is not None and db.bind.dialect.name == "postgresql":
         from sqlalchemy import text
 
         lock_id = abs(hash(key_prefix)) % 2_147_483_647

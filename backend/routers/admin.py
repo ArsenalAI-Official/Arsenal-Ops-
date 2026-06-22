@@ -55,8 +55,8 @@ class DashboardStats(BaseModel):
     total_projects: int
     total_tickets: int
     active_sprints: int
-    tickets_by_status: dict
-    tickets_by_priority: dict
+    tickets_by_status: dict[str, int]
+    tickets_by_priority: dict[str, int]
 
 
 # Developer specialization mapping
@@ -97,7 +97,7 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
 
     # Tickets by status (single GROUP BY replaces 5 separate COUNTs)
     status_rows = db.query(WorkItem.status, func.count(WorkItem.id)).group_by(WorkItem.status).all()
-    status_counts = {s: c for s, c in status_rows}
+    status_counts: dict[str, int] = {row[0]: row[1] for row in status_rows}
     tickets_by_status = {
         s: int(status_counts.get(s, 0))
         for s in ("backlog", "todo", "in_progress", "in_review", "done")
@@ -107,7 +107,7 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     priority_rows = (
         db.query(WorkItem.priority, func.count(WorkItem.id)).group_by(WorkItem.priority).all()
     )
-    priority_counts = {p: c for p, c in priority_rows}
+    priority_counts: dict[str, int] = {row[0]: row[1] for row in priority_rows}
     tickets_by_priority = {
         p: int(priority_counts.get(p, 0)) for p in ("low", "medium", "high", "critical")
     }
@@ -186,7 +186,7 @@ def get_developers_capacity(db: Session = Depends(get_db)):
 
     from models.project import Project
     from models.time_entry import TimeEntry
-    from services.capacity_service import compute_capacity_breakdown, week_boundaries
+    from services.capacity_service import compute_capacity_breakdowns_batch, week_boundaries
 
     week_start, week_end = week_boundaries()
 
@@ -215,18 +215,28 @@ def get_developers_capacity(db: Session = Depends(get_db)):
     )
     entries_by_dev: dict[int, list[TimeEntry]] = defaultdict(list)
     for te in all_entries:
+        if te.developer_id is None:
+            continue
         entries_by_dev[te.developer_id].append(te)
 
     # Resolve work_item → project_id and project_id → project_name in two cheap lookups.
     wi_ids = {te.work_item_id for te in all_entries}
-    wi_to_project = (
-        dict(db.query(WorkItem.id, WorkItem.project_id).filter(WorkItem.id.in_(wi_ids)).all())
+    wi_to_project: dict[int, int | None] = (
+        {
+            row[0]: row[1]
+            for row in db.query(WorkItem.id, WorkItem.project_id)
+            .filter(WorkItem.id.in_(wi_ids))
+            .all()
+        }
         if wi_ids
         else {}
     )
     project_ids = {pid for pid in wi_to_project.values() if pid is not None}
-    project_names = (
-        dict(db.query(Project.id, Project.name).filter(Project.id.in_(project_ids)).all())
+    project_names: dict[int, str] = (
+        {
+            row[0]: row[1]
+            for row in db.query(Project.id, Project.name).filter(Project.id.in_(project_ids)).all()
+        }
         if project_ids
         else {}
     )
@@ -276,14 +286,18 @@ def get_developers_capacity(db: Session = Depends(get_db)):
             )
         return out
 
+    # Compute every developer's breakdown in a fixed number of queries rather
+    # than ~5 per developer (the prior O(developers) N+1). Behaviour matches the
+    # old per-developer compute_capacity_breakdown with no project restriction.
+    breakdowns = compute_capacity_breakdowns_batch(developers, week_start, db=db)
+
     result = []
     for dev in developers:
-        breakdown = compute_capacity_breakdown(
-            dev.assigned_work_items or [],
-            week_start,
-            db=db,
-            developer_id=dev.id,
-        )
+        # Index, don't `.get(..., {})`: the batch returns an entry for every dev,
+        # so a miss is a regression in that invariant. Fail loud with a 500 rather
+        # than silently shipping a row missing every capacity field the frontend
+        # types expect.
+        breakdown = breakdowns[dev.id]
         result.append(
             {
                 "developer_id": dev.id,
@@ -381,7 +395,7 @@ def get_employee_in_progress_tickets(employee_id: int, db: Session = Depends(get
 @router.post(
     "/employees",
     response_model=EmployeeResponse,
-    dependencies=[Depends(require_capability("admin.employees"))],
+    dependencies=[Depends(require_capability("admin.employees_write"))],
 )
 def create_employee(employee: EmployeeCreate, db: Session = Depends(get_db)):
     """Create a new employee/developer"""
@@ -447,7 +461,7 @@ def create_employee(employee: EmployeeCreate, db: Session = Depends(get_db)):
 @router.put(
     "/employees/{employee_id}",
     response_model=EmployeeResponse,
-    dependencies=[Depends(require_capability("admin.employees"))],
+    dependencies=[Depends(require_capability("admin.employees_write"))],
 )
 def update_employee(employee_id: int, update: EmployeeUpdate, db: Session = Depends(get_db)):
     """Update an employee/developer"""
@@ -503,7 +517,7 @@ def update_employee(employee_id: int, update: EmployeeUpdate, db: Session = Depe
 
 @router.delete(
     "/employees/{employee_id}",
-    dependencies=[Depends(require_capability("admin.employees"))],
+    dependencies=[Depends(require_capability("admin.employees_write"))],
 )
 def delete_employee(employee_id: int, db: Session = Depends(get_db)):
     """Delete an employee/developer and their user account"""
@@ -691,9 +705,9 @@ def projects_weekly_report(
 
     # All four snapshot buckets default to 0 for projects with no matching
     # items so every row in the response is well-formed.
-    todo_backlog_by_project: dict[int, int] = {pid: 0 for pid in project_ids}
-    in_progress_by_project: dict[int, int] = {pid: 0 for pid in project_ids}
-    in_review_by_project: dict[int, int] = {pid: 0 for pid in project_ids}
+    todo_backlog_by_project: dict[int, int] = dict.fromkeys(project_ids, 0)
+    in_progress_by_project: dict[int, int] = dict.fromkeys(project_ids, 0)
+    in_review_by_project: dict[int, int] = dict.fromkeys(project_ids, 0)
     for row in active_rows:
         if row.status in ("backlog", "todo"):
             todo_backlog_by_project[row.project_id] += row.n
@@ -718,9 +732,9 @@ def projects_weekly_report(
         .group_by(WorkItem.project_id)
         .all()
     )
-    done_by_project: dict[int, int] = {pid: 0 for pid in project_ids}
-    for row in done_rows:
-        done_by_project[row.project_id] = row.n
+    done_by_project: dict[int, int] = dict.fromkeys(project_ids, 0)
+    for done_row in done_rows:
+        done_by_project[done_row.project_id] = done_row.n
 
     rows = [
         ProjectWeeklyReportRow(
@@ -854,7 +868,7 @@ def project_weekly_tickets(project_id: int, db: Session = Depends(get_db)):
 
 @router.put(
     "/projects/{project_id}/github",
-    dependencies=[Depends(require_capability("admin.projects"))],
+    dependencies=[Depends(require_capability("admin.projects_write"))],
 )
 def update_project_github(
     project_id: int, update: ProjectGitHubUpdate, db: Session = Depends(get_db)
@@ -881,3 +895,211 @@ def update_project_github(
         "github_repo_name": project.github_repo_name,
         "has_github_token": bool(project.github_token),
     }
+
+
+class ProjectCategoryAssignment(BaseModel):
+    """Body for the category-assignment endpoint. `null` clears the
+    category — making the project uncategorized."""
+
+    category_id: int | None
+
+
+@router.put(
+    "/projects/{project_id}/category",
+    dependencies=[Depends(require_capability("admin.projects_write"))],
+)
+def set_project_category(
+    project_id: int,
+    payload: ProjectCategoryAssignment,
+    db: Session = Depends(get_db),
+):
+    """Assign / change / clear a project's category from the admin Projects tab.
+
+    Gated separately on `admin.projects_write` rather than the general
+    `update_project` endpoint (which uses `require_project_admin`) so that
+    read-only admins and per-project admins can't reorganize the admin-wide
+    categorization. Body: ``{"category_id": <int> | null}``.
+    """
+    from models.project_category import ProjectCategory
+
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if payload.category_id is not None:
+        category = (
+            db.query(ProjectCategory).filter(ProjectCategory.id == payload.category_id).first()
+        )
+        if not category:
+            raise HTTPException(status_code=404, detail="Category not found")
+
+    project.category_id = payload.category_id
+    db.commit()
+    db.refresh(project)
+    return {
+        "id": project.id,
+        "name": project.name,
+        "category_id": project.category_id,
+        "category_name": project.category.name if project.category else None,
+    }
+
+
+# ───────────────────────────────────────────────────────────────────────────
+# Time Entries — admin-wide list with filters (project / developer / date).
+#
+# Powers the admin "Time Entries" tab, which mirrors the layout of an
+# industry-standard workforce time-tracking tool: filter bar on top, flat
+# list of entries below, totals strip. The capacity endpoint above already
+# pulls every entry but aggregates them — this endpoint returns the raw
+# rows so the admin can audit/export per-row.
+# ───────────────────────────────────────────────────────────────────────────
+
+
+class TimeEntryRow(BaseModel):
+    """One row in the admin time-entries grid. Flattens the WorkItem and
+    Developer joins so the frontend can render without nested lookups."""
+
+    id: int
+    hours: int
+    description: str | None
+    logged_at: datetime
+
+    work_item_id: int | None
+    work_item_key: str | None
+    work_item_title: str | None
+    work_item_type: str | None
+
+    project_id: int | None
+    project_name: str | None
+
+    developer_id: int | None
+    developer_name: str | None
+    developer_email: str | None
+    avatar_url: str | None
+
+    class Config:
+        from_attributes = True
+
+
+class TimeEntriesResponse(BaseModel):
+    """Wraps the rows with a totals strip and a truncation flag so the
+    frontend can warn when its filters return more than the cap."""
+
+    rows: list[TimeEntryRow]
+    total_hours: int
+    total_rows: int
+    truncated: bool
+
+
+# Hard cap to keep the response (and the in-browser table) bounded even
+# when an admin clears all filters. The frontend should show a "refine
+# your filters" hint when this fires.
+TIME_ENTRIES_MAX_ROWS = 2000
+
+
+@router.get(
+    "/time-entries",
+    response_model=TimeEntriesResponse,
+    dependencies=[Depends(require_capability("admin.time_entries"))],
+)
+def list_time_entries(
+    project_id: int | None = None,
+    developer_id: int | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """List time entries for the admin Time Entries tab.
+
+    Filters (all optional, combined with AND):
+      - project_id:  restrict to one project (joined via WorkItem.project_id)
+      - developer_id: restrict to one employee
+      - date_from / date_to: inclusive ISO date strings (YYYY-MM-DD). The
+        upper bound is treated as end-of-day, so `date_to=2026-06-08` keeps
+        entries logged at 23:59:59 that day.
+
+    Returns at most TIME_ENTRIES_MAX_ROWS rows ordered by logged_at DESC.
+    """
+    from datetime import date, time, timedelta
+
+    from models.time_entry import TimeEntry
+
+    # Parse date filters. We accept ISO date (no time component) and silently
+    # ignore malformed input rather than 400 — the UI's date pickers can't
+    # send anything malformed, so a 400 here would only fire for manual
+    # callers and offers them nothing useful over an empty result.
+    def _parse_date(s: str | None) -> date | None:
+        if not s:
+            return None
+        try:
+            return date.fromisoformat(s)
+        except ValueError:
+            return None
+
+    df = _parse_date(date_from)
+    dt = _parse_date(date_to)
+
+    query = (
+        db.query(TimeEntry)
+        .options(
+            joinedload(TimeEntry.work_item).joinedload(WorkItem.project),
+            joinedload(TimeEntry.developer),
+        )
+        .order_by(TimeEntry.logged_at.desc())
+    )
+
+    if developer_id is not None:
+        query = query.filter(TimeEntry.developer_id == developer_id)
+
+    if project_id is not None:
+        # Join WorkItem so we can filter by its project_id without
+        # round-tripping through the in-memory join load.
+        query = query.join(WorkItem, TimeEntry.work_item_id == WorkItem.id).filter(
+            WorkItem.project_id == project_id
+        )
+
+    if df is not None:
+        query = query.filter(TimeEntry.logged_at >= datetime.combine(df, time.min))
+    if dt is not None:
+        # Inclusive upper bound: end-of-day of dt = start-of-day of (dt + 1).
+        query = query.filter(
+            TimeEntry.logged_at < datetime.combine(dt + timedelta(days=1), time.min)
+        )
+
+    # +1 over the cap so we can detect truncation without a separate COUNT.
+    fetched = query.limit(TIME_ENTRIES_MAX_ROWS + 1).all()
+    truncated = len(fetched) > TIME_ENTRIES_MAX_ROWS
+    entries = fetched[:TIME_ENTRIES_MAX_ROWS]
+
+    rows: list[TimeEntryRow] = []
+    total_hours = 0
+    for te in entries:
+        wi = te.work_item
+        proj = wi.project if wi else None
+        dev = te.developer
+        total_hours += te.hours or 0
+        rows.append(
+            TimeEntryRow(
+                id=te.id,
+                hours=te.hours or 0,
+                description=te.description,
+                logged_at=te.logged_at,
+                work_item_id=wi.id if wi else None,
+                work_item_key=wi.key if wi else None,
+                work_item_title=wi.title if wi else None,
+                work_item_type=wi.type if wi else None,
+                project_id=proj.id if proj else None,
+                project_name=proj.name if proj else None,
+                developer_id=dev.id if dev else None,
+                developer_name=dev.name if dev else None,
+                developer_email=dev.email if dev else None,
+                avatar_url=dev.avatar_url if dev else None,
+            )
+        )
+
+    return TimeEntriesResponse(
+        rows=rows,
+        total_hours=total_hours,
+        total_rows=len(rows),
+        truncated=truncated,
+    )

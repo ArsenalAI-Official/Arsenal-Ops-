@@ -5,55 +5,39 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarIcon } from '@/components/ui/calendar';
-
-// Helper function to parse YYYY-MM-DD string to local Date object (avoids UTC timezone issues)
-const parseLocalDate = (dateString: string | undefined): Date | undefined => {
-  if (!dateString) return undefined;
-  const [year, month, day] = dateString.split('-');
-  return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-};
-
-interface ProjectDeveloper {
-  id: number;
-  name: string;
-  email: string;
-  github_username: string;
-  role: string;
-  responsibilities: string;
-  is_admin: boolean;
-}
-
-interface Project {
-  id: number;
-  name: string;
-  description: string;
-  key_prefix: string;
-  status: string;
-  github_repo_url: string;
-  github_repo_urls?: string[];
-  github_repo_name?: string;
-  created_at: string;
-  end_date?: string;
-  developers?: ProjectDeveloper[];
-}
+import { parseLocalDate } from '@/lib/dateUtils';
+import type { ProjectDetailResponse } from '@/client';
 
 interface ProjectInfoSectionProps {
-  project: Project;
+  project: ProjectDetailResponse;
   /** True when the current user is a project admin OR system admin.
    *  Mirrors `isCurrentUserAdmin()` from ProjectDetail. Drives the visibility
    *  of the inline Edit button; the matching backend gate lives on
    *  `PUT /api/projects/{id}` via `require_project_admin`. */
   isCurrentUserAdmin: boolean;
-  onSave: (updates: Partial<Project>) => void;
+  onSave: (updates: Partial<ProjectDetailResponse>) => void;
 }
 
 const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfoSectionProps) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<Partial<Project>>({});
+  const [editForm, setEditForm] = useState<Partial<ProjectDetailResponse>>({});
   const [showCalendarStartDate, setShowCalendarStartDate] = useState(false);
   const [showCalendarEndDate, setShowCalendarEndDate] = useState(false);
 
+  // Defense-in-depth: derive the effective edit mode from BOTH the local
+  // toggle and the current admin status. If admin status is revoked
+  // mid-session (caps refresh, demotion, etc.), the form + Save controls
+  // disappear immediately even though `isEditing` is still true in state.
+  // Backend independently enforces `require_project_admin` on the PUT, so
+  // this is purely a UI defense — but it stops the misleading "I see
+  // editable inputs that would 403 on Save" surface.
+  const effectiveIsEditing = isEditing && isCurrentUserAdmin;
+
   const handleSaveEdit = () => {
+    // Mirror of the UI gate — guards against a stale state where
+    // `effectiveIsEditing` was true on render but admin flipped before the
+    // click landed.
+    if (!isCurrentUserAdmin) return;
     onSave(editForm);
     setIsEditing(false);
   };
@@ -63,7 +47,7 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
       <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-white">Project Information</h2>
-          {!isEditing ? (
+          {!effectiveIsEditing ? (
             isCurrentUserAdmin && (
               <Button
                 variant="ghost"
@@ -104,7 +88,7 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
           )}
         </div>
 
-        {isEditing ? (
+        {effectiveIsEditing ? (
           <div className="space-y-4">
             <div>
               <label className="text-xs font-medium text-[#737373] block mb-1.5">

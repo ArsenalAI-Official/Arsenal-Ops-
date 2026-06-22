@@ -12,53 +12,33 @@ import {
   Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
+import type { ProjectArchitectureResponse } from '@/client';
 
 // MermaidRenderer is heavy; lazy-load only when this section renders.
 // ArchitectureEditor (the modal) stays lazy at the parent, since edit state lives there.
 const MermaidRenderer = lazy(() => import('@/components/MermaidRenderer'));
 
-interface Architecture {
-  id: number;
-  name: string;
-  description: string;
-  architecture_type: string;
-  mermaid_code: string;
-  pros: string[];
-  cons: string[];
-  estimated_cost: string;
-  complexity: string;
-  time_to_implement: string;
-  is_selected: boolean;
-  created_at: string;
-  updated_at: string;
-  cost_analysis?: {
-    infrastructure?: {
-      monthly: string;
-      annual: string;
-      breakdown: { item: string; cost: string }[];
-    };
-    development?: { total: string; breakdown: { item: string; cost: string }[] };
-    total_estimated?: string;
-  };
-  tools_recommended?: {
-    frontend?: string[];
-    backend?: string[];
-    database?: string[];
-    devops?: string[];
-    [key: string]: string[] | undefined;
-  };
-}
-
 interface ArchitectureSectionProps {
-  architecture: Architecture;
-  onEdit: (arch: Architecture) => void;
-  onOpenBoard: () => void;
+  architecture: ProjectArchitectureResponse;
+  onEdit: (arch: ProjectArchitectureResponse) => void;
+  /** Optional — when undefined the "AI Generate" button (which navigates to
+   *  the board) is hidden. Parent passes undefined when the user lacks the
+   *  `project.board` cap. */
+  onOpenBoard?: () => void;
+  /** Gates the inline Edit button. Mirrors `isCurrentUserAdmin()` from
+   *  ProjectDetail — true when the user is a tool admin, holds
+   *  `project.overview_write`, or is a per-project admin on this project.
+   *  Backend independently enforces the same predicate via
+   *  `require_project_admin` on PUT /api/prd/architectures/{id}. */
+  isCurrentUserAdmin: boolean;
 }
 
 const ArchitectureSection = ({
   architecture: arch,
   onEdit,
   onOpenBoard,
+  isCurrentUserAdmin,
 }: ArchitectureSectionProps) => {
   // Gate the diagram render — Mermaid is ~550KB gzipped and we only want to
   // load it when the user explicitly asks to see the diagram.
@@ -74,23 +54,27 @@ const ArchitectureSection = ({
           </div>
         </div>
         <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onEdit(arch)}
-            className="text-[#737373] hover:text-white"
-          >
-            <Pencil className="w-4 h-4 mr-2" />
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            onClick={onOpenBoard}
-            className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] hover:from-[#C79E3B] hover:to-[#B8872A] text-white"
-          >
-            <Sparkles className="w-4 h-4 mr-2" />
-            AI Generate
-          </Button>
+          {isCurrentUserAdmin && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onEdit(arch)}
+              className="text-[#737373] hover:text-white"
+            >
+              <Pencil className="w-4 h-4 mr-2" />
+              Edit
+            </Button>
+          )}
+          {onOpenBoard && (
+            <Button
+              size="sm"
+              onClick={onOpenBoard}
+              className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] hover:from-[#C79E3B] hover:to-[#B8872A] text-white"
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              AI Generate
+            </Button>
+          )}
         </div>
       </div>
       <div className="p-4 bg-[#080808] min-h-[400px]">
@@ -98,7 +82,7 @@ const ArchitectureSection = ({
           <Suspense
             fallback={
               <div className="flex items-center justify-center p-8">
-                <div className="w-8 h-8 border-2 border-[#E0B954]/30 border-t-[#E0B954] rounded-full animate-spin" />
+                <Spinner size="md" tone="gold" />
               </div>
             }
           >
@@ -177,17 +161,15 @@ const ArchitectureSection = ({
               <div className="mb-3">
                 <p className="text-xs text-[#737373] mb-2">Infrastructure Components</p>
                 <div className="space-y-1.5">
-                  {arch.cost_analysis.infrastructure.breakdown.map(
-                    (item: { item: string; cost: string }, idx: number) => (
-                      <div
-                        key={idx}
-                        className="flex items-center justify-between py-1 px-2 bg-[rgba(255,255,255,0.025)] rounded"
-                      >
-                        <span className="text-xs text-[#f5f5f5]">{item.item}</span>
-                        <span className="text-xs font-medium text-[#E0B954]">{item.cost}</span>
-                      </div>
-                    ),
-                  )}
+                  {arch.cost_analysis.infrastructure.breakdown.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between py-1 px-2 bg-[rgba(255,255,255,0.025)] rounded"
+                    >
+                      <span className="text-xs text-[#f5f5f5]">{item.item}</span>
+                      <span className="text-xs font-medium text-[#E0B954]">{item.cost}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
