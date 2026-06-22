@@ -37,9 +37,6 @@ export interface IncludedServicesRow {
   expectedRemaining: number; // forecasted billable hours remaining through contract end
 }
 
-/** Backwards-compat alias — old code referred to a single snapshot. */
-export type IncludedServices = IncludedServicesRow;
-
 export interface PulseRisk {
   severity: 'high' | 'medium' | 'low';
   title: string;

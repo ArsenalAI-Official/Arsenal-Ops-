@@ -2,49 +2,61 @@
 
 import sys
 from datetime import datetime
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 sys.path.append("..")
 from database import Base
+
+if TYPE_CHECKING:
+    from models.project import Project
+    from models.user import User
+    from models.work_item import WorkItem
 
 
 class PersonalTask(Base):
     __tablename__ = "personal_tasks"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
 
     # Task details
-    title = Column(String(255), nullable=False)
-    description = Column(Text)
-    status = Column(String(50), default="todo")  # todo, in_progress, done
-    priority = Column(String(50), default="medium")  # low, medium, high, critical
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(
+        String(50), default="todo", nullable=True
+    )  # todo, in_progress, done
+    priority: Mapped[str] = mapped_column(
+        String(50), default="medium", nullable=True
+    )  # low, medium, high, critical
 
     # Optional project association (when converted to project ticket)
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
-    work_item_id = Column(Integer, ForeignKey("work_items.id", ondelete="SET NULL"), nullable=True)
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"))
+    work_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("work_items.id", ondelete="SET NULL")
+    )
 
     # Time tracking
-    estimated_hours = Column(Integer, default=0)
-    due_date = Column(DateTime, nullable=True)
+    estimated_hours: Mapped[int] = mapped_column(default=0, nullable=True)
+    due_date: Mapped[datetime | None] = mapped_column(DateTime)
 
     # Metadata
-    tags = Column(JSON, default=list)
-    is_converted = Column(Boolean, default=False)
-    converted_at = Column(DateTime, nullable=True)
+    tags: Mapped[list[Any]] = mapped_column(JSON, default=list, nullable=True)
+    is_converted: Mapped[bool] = mapped_column(default=False, nullable=True)
+    converted_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True
+    )
 
     # Relationships
-    user = relationship("User", back_populates="personal_tasks")
-    project = relationship("Project")
-    work_item = relationship("WorkItem")
+    user: Mapped["User"] = relationship("User", back_populates="personal_tasks")
+    project: Mapped["Project | None"] = relationship("Project")
+    work_item: Mapped["WorkItem | None"] = relationship("WorkItem")
 
     def to_dict(self):
         return {

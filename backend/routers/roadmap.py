@@ -144,6 +144,8 @@ async def parse_roadmap_file(
         raise HTTPException(status_code=400, detail="Sprint weeks must be between 1 and 6")
 
     # Validate file type
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Uploaded file must have a filename")
     if not file.filename.lower().endswith((".xlsx", ".xls")):
         raise HTTPException(status_code=400, detail="Please upload an Excel file (.xlsx or .xls)")
 
@@ -178,9 +180,9 @@ async def parse_roadmap_file(
                 parser_used = "ai"
                 logger.debug(f"AI parser succeeded for {file.filename}")
             except Exception as ai_error:
-                logger.debug(f"AI parser failed: {str(ai_error)}")
+                logger.debug(f"AI parser failed: {ai_error!s}")
                 raise ValueError(
-                    f"Both structured and AI parsers failed. Standard: {parse_error}, AI: {str(ai_error)}"
+                    f"Both structured and AI parsers failed. Standard: {parse_error}, AI: {ai_error!s}"
                 ) from ai_error
 
         # Add parser metadata for debugging
@@ -196,7 +198,7 @@ async def parse_roadmap_file(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to parse roadmap: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Failed to parse roadmap: {e!s}") from e
 
     # Extract summary information
     tickets = parsed_result.get("tickets", [])
@@ -226,7 +228,7 @@ async def parse_roadmap_file(
         total_tasks=len(tickets),
         total_assignees=len(assignees),
         total_sprints=meta.get("total_sprints", 0),
-        assignees=sorted(list(assignees)),
+        assignees=sorted(assignees),
         timeline={
             "start": week_range.get("start"),
             "end": week_range.get("end"),
@@ -407,7 +409,7 @@ def commit_roadmap_tickets(
                     sprints_created += 1
                     logger.info(f"Created Sprint {sprint_num}: {start_week} to {end_week}")
                 except Exception as e:
-                    logger.warning(f"Failed to create sprint {sprint_num}: {str(e)}")
+                    logger.warning(f"Failed to create sprint {sprint_num}: {e!s}")
                     continue
 
         # Step 4: Assign tasks to sprints
@@ -415,7 +417,7 @@ def commit_roadmap_tickets(
         task_map = {}  # task_name -> WorkItem
         for ticket in tickets:
             task_name = ticket.get("name")
-            task = (
+            existing_task = (
                 db.query(WorkItem)
                 .filter(
                     WorkItem.project_id == request.project_id,
@@ -424,8 +426,8 @@ def commit_roadmap_tickets(
                 )
                 .first()
             )
-            if task:
-                task_map[task_name] = task
+            if existing_task:
+                task_map[task_name] = existing_task
 
         # Assign tasks to sprints based on which sprints they span
         tasks_assigned_to_sprint = 0
@@ -510,4 +512,4 @@ def commit_roadmap_tickets(
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to commit roadmap: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Failed to commit roadmap: {e!s}") from e

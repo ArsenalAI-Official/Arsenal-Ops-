@@ -21,10 +21,10 @@ from sqlalchemy.orm import sessionmaker
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from database import Base  # noqa: E402
+from database import Base
 
 # Importing every model side-effects table registration on Base.metadata
-from models import (  # noqa: E402, F401
+from models import (  # noqa: F401
     activity_log,
     architecture,
     developer,
@@ -43,11 +43,11 @@ from models import (  # noqa: E402, F401
     user_story,
     work_item,
 )
-from models.architecture import Architecture  # noqa: E402
-from models.developer import Developer, project_developers  # noqa: E402
-from models.project import Project  # noqa: E402
-from models.work_item import WorkItem  # noqa: E402
-from routers.projects import (  # noqa: E402
+from models.architecture import Architecture
+from models.developer import Developer, project_developers
+from models.project import Project
+from models.work_item import WorkItem
+from routers.projects import (
     format_project,
     format_projects_batch,
     get_work_item_stats_batch,

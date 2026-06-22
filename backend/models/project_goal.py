@@ -2,35 +2,44 @@
 
 import sys
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 sys.path.append("..")
 from database import Base
+
+if TYPE_CHECKING:
+    from models.project import Project
+    from models.work_item import WorkItem
 
 
 class ProjectGoal(Base):
     __tablename__ = "project_goals"
 
-    id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(
-        Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
     )
 
-    title = Column(String(255), nullable=False)
-    description = Column(Text)
-    status = Column(String(20), default="active", nullable=False)  # active, completed, cancelled
-    progress = Column(Integer, default=0)  # 0-100 percentage
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(
+        String(20), default="active"
+    )  # active, completed, cancelled
+    progress: Mapped[int] = mapped_column(default=0, nullable=True)  # 0-100 percentage
 
-    due_date = Column(DateTime)
-    completed_at = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    due_date: Mapped[datetime | None] = mapped_column(DateTime)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
     # Relationships
-    project = relationship("Project", back_populates="goals")
-    work_items = relationship("WorkItem", back_populates="goal")
+    project: Mapped["Project"] = relationship("Project", back_populates="goals")
+    work_items: Mapped[list["WorkItem"]] = relationship("WorkItem", back_populates="goal")
 
     __table_args__ = (
         Index("idx_project_goal_project", "project_id"),

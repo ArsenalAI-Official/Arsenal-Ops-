@@ -246,7 +246,7 @@ def convert_to_ticket(
 
     # Acquire the same advisory lock as create_work_item so concurrent
     # converters don't race on key numbering. No-op on SQLite.
-    if db.bind.dialect.name == "postgresql":
+    if db.bind is not None and db.bind.dialect.name == "postgresql":
         from sqlalchemy import text
 
         lock_id = abs(hash(key_prefix)) % 2_147_483_647

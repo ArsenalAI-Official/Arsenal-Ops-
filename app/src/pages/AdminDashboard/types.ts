@@ -13,14 +13,6 @@ export interface Capability {
 }
 
 export type AdminTab = 'dashboard' | 'employees' | 'projects' | 'time_entries' | 'users' | 'roles';
-export const VALID_ADMIN_TABS: AdminTab[] = [
-  'dashboard',
-  'employees',
-  'projects',
-  'time_entries',
-  'users',
-  'roles',
-];
 
 // Re-export the types owned by their component modules so downstream consumers
 // have a single `./types` import surface for everything admin.

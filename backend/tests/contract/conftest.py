@@ -24,11 +24,11 @@ from sqlalchemy.pool import StaticPool
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from database import Base, get_db  # noqa: E402
+from database import Base, get_db
 
 # Importing every model module side-effects table registration on
 # Base.metadata (copied from tests/test_projects_list.py).
-from models import (  # noqa: E402, F401
+from models import (  # noqa: F401
     activity_log,
     architecture,
     developer,
@@ -47,13 +47,13 @@ from models import (  # noqa: E402, F401
     user_story,
     work_item,
 )
-from models.developer import Developer, project_developers  # noqa: E402
-from models.personal_task import PersonalTask  # noqa: E402
-from models.project import Project  # noqa: E402
-from models.role import Role, RoleCapability  # noqa: E402
-from models.sprint import Sprint  # noqa: E402
-from models.user import User  # noqa: E402
-from models.work_item import WorkItem  # noqa: E402
+from models.developer import Developer, project_developers
+from models.personal_task import PersonalTask
+from models.project import Project
+from models.role import Role, RoleCapability
+from models.sprint import Sprint
+from models.user import User
+from models.work_item import WorkItem
 
 # Fixed clock so every captured golden is deterministic. NEVER use now()/random.
 NOW = datetime(2026, 1, 1, 12, 0, 0)

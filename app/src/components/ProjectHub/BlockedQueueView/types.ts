@@ -1,12 +1,9 @@
-import type { CommentThreadComment, CommentThreadDeveloper } from '@/components/CommentThread';
+import type { CommentThreadDeveloper } from '@/components/CommentThread';
 // Re-uses the same WorkItem shape as the Review queue — they're rendered side
 // by side in the same panel, so the underlying record is identical.
 import type { WorkItem } from '../ReviewerView/types';
 
 export type { WorkItem };
-
-/** Comments rendered in the blocked-queue cards reuse CommentThread's shape. */
-export type BlockerComment = CommentThreadComment;
 
 export interface BlockedQueueViewProps {
   workItems: WorkItem[];

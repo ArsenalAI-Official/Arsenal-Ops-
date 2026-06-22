@@ -112,7 +112,7 @@ class GitHubService:
                 }
 
         except httpx.RequestError as e:
-            return {"success": False, "message": f"Network error: {str(e)}"}
+            return {"success": False, "message": f"Network error: {e!s}"}
 
     def send_bulk_invitations(
         self, repo_name: str, github_usernames: list[str], role: str = "direct_member"

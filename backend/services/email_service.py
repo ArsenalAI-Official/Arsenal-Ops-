@@ -106,7 +106,7 @@ class EmailService:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to send email to {to_email}: {str(e)}")
+            logger.error(f"Failed to send email to {to_email}: {e!s}")
             return False
 
     def send_task_assignment_notification(

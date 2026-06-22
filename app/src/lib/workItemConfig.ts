@@ -88,7 +88,6 @@ export const PRIORITY_STYLE: Record<string, PriorityStyle> = {
   },
 };
 
-export type WorkItemTypeKey = keyof typeof TYPE_CONFIG;
 export type StatusKey = keyof typeof STATUS_CONFIG;
 
 /** Status → display color, falling back to the backlog grey for unknowns. */

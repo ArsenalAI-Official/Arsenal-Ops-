@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-//
 // Pins the highest-drift-risk behavior of the extracted board mutation hooks:
 // the cross-cutting cache-invalidation sets (see app/CLAUDE.md "Cross-cutting
 // invalidation rule" + plan R10). A work-item write must invalidate the
@@ -9,31 +7,27 @@
 // scope. These have no other automated coverage, so a regression would merge
 // silently. Mirrors AdminDashboard/hooks/adminHooks.invalidation.test.ts.
 // Uses createElement (not JSX) so the file stays .ts.
+//
+// The network surface is intercepted at the wire by MSW (the default board
+// handlers resolve 2xx). The optimistic tests inject a hanging or rejecting PUT
+// per-test with server.use(...) — exercising the real apiFetch pipeline
+// (ApiError mapping included) rather than a stubbed fetch fn.
 import { createElement, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { http, HttpResponse } from 'msw';
 
-// apiFetch is the only network surface these hooks touch. A hoisted mock lets
-// the optimistic tests make a PUT hang (observe the optimistic write) or reject
-// (observe rollback); every test's beforeEach resets it to resolve `[]` (an
-// array, not `{}`, so any incidental list re-render doesn't throw before the
-// assertion).
-const { apiFetchMock } = vi.hoisted(() => ({ apiFetchMock: vi.fn() }));
-vi.mock('@/lib/api', async (orig) => {
-  const actual = await orig<typeof import('@/lib/api')>();
-  return { ...actual, apiFetch: apiFetchMock };
-});
-
-// sonner toast + react-router navigate are fired by the mutation success/error
-// paths; stub them so the hooks run outside a real router/toaster.
+// sonner toast + react-router navigate are UI side effects (not the network
+// boundary); stub them so the hooks run outside a real router/toaster.
 vi.mock('sonner', () => ({
   toast: { error: vi.fn(), success: vi.fn(), message: vi.fn() },
 }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
 
-import { ApiError } from '@/lib/api';
 import { toast } from 'sonner';
+import { server } from '@/mocks/node';
+import { API_BASE } from '@/mocks/handlers/constants';
 import { invalidateProjectScope, invalidateWorkItemScope } from '@/lib/invalidations';
 import { useWorkItemMutations } from './useWorkItemMutations';
 import { useSprintMutations } from './useSprintMutations';
@@ -93,7 +87,6 @@ function sprintArgs(queryClient: QueryClient) {
 describe('board hook cache invalidation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    apiFetchMock.mockResolvedValue([]);
   });
 
   it('status change invalidates work-item scope + the item comments cache (R10)', async () => {
@@ -247,7 +240,6 @@ describe('board hook cache invalidation', () => {
 describe('board optimistic status cache (R2)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    apiFetchMock.mockResolvedValue([]);
   });
 
   const FILTERS = { project_id: ID };
@@ -265,7 +257,8 @@ describe('board optimistic status cache (R2)', () => {
   it('move: optimistic write flips the item at the exact board key', async () => {
     const { queryClient, wrapper } = makeHarness();
     seed(queryClient);
-    apiFetchMock.mockReturnValue(new Promise(() => {})); // never settles → stays optimistic
+    // PUT never settles → the optimistic write stays in place.
+    server.use(http.put(`${API_BASE}/workitems/:id`, () => new Promise(() => {})));
     const { result } = renderHook(
       () => useWorkItemMutations(ID, { ...workItemArgs(queryClient), workItemFilters: FILTERS }),
       { wrapper },
@@ -283,7 +276,12 @@ describe('board optimistic status cache (R2)', () => {
   it('move: rejected PUT rolls the exact board key back + toasts the error', async () => {
     const { queryClient, wrapper } = makeHarness();
     seed(queryClient);
-    apiFetchMock.mockRejectedValueOnce(new ApiError(400, 'Subtask still open'));
+    // PUT rejects → onError rolls the optimistic write back + toasts the detail.
+    server.use(
+      http.put(`${API_BASE}/workitems/:id`, () =>
+        HttpResponse.json({ detail: 'Subtask still open' }, { status: 400 }),
+      ),
+    );
     const { result } = renderHook(
       () => useWorkItemMutations(ID, { ...workItemArgs(queryClient), workItemFilters: FILTERS }),
       { wrapper },
@@ -300,7 +298,11 @@ describe('board optimistic status cache (R2)', () => {
   it('status change: rejected PUT rolls the exact board key back', async () => {
     const { queryClient, wrapper } = makeHarness();
     seed(queryClient);
-    apiFetchMock.mockRejectedValueOnce(new ApiError(400, 'nope'));
+    server.use(
+      http.put(`${API_BASE}/workitems/:id`, () =>
+        HttpResponse.json({ detail: 'nope' }, { status: 400 }),
+      ),
+    );
     const { result } = renderHook(
       () => useWorkItemMutations(ID, { ...workItemArgs(queryClient), workItemFilters: FILTERS }),
       { wrapper },

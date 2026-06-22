@@ -5,11 +5,13 @@ Projects Router - CRUD operations for projects with work item stats
 import os
 import sys
 from datetime import datetime
+from typing import cast
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import insert, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -28,7 +30,7 @@ router = APIRouter(prefix="/api/projects", tags=["Projects"])
 def has_project_access(project: Project, user: User) -> bool:
     """Check if user has access to a project (admin or assigned developer)"""
     # Admin has access to all projects (roles are comma-separated)
-    if "admin" in user.role:
+    if user.role and "admin" in user.role:
         return True
 
     # Check if user is assigned as a developer to this project
@@ -599,7 +601,7 @@ def list_projects(
     ``uncategorized`` wins (explicit "no category" beats a numeric id).
     """
     # Check if user has admin role (handles multi-role users like 'admin,developer')
-    user_roles = [role.strip() for role in current_user.role.split(",")]
+    user_roles = [role.strip() for role in (current_user.role or "").split(",")]
     is_admin = UserRole.ADMIN.value in user_roles
 
     if is_admin:
@@ -907,11 +909,14 @@ def remove_developer_from_project(
     require_project_admin(project_id, current_user, db)
 
     # Delete from association table
-    result = db.execute(
-        project_developers.delete().where(
-            project_developers.c.project_id == project_id,
-            project_developers.c.developer_id == developer_id,
-        )
+    result = cast(
+        CursorResult,
+        db.execute(
+            project_developers.delete().where(
+                project_developers.c.project_id == project_id,
+                project_developers.c.developer_id == developer_id,
+            )
+        ),
     )
 
     if result.rowcount == 0:
@@ -1634,16 +1639,19 @@ async def upload_project_file(
     os.makedirs(project_upload_dir, exist_ok=True)
 
     # Save file
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Uploaded file must have a filename")
     file_path = os.path.join(project_upload_dir, file.filename)
     try:
-        with open(file_path, "wb") as f:
+        # small project-file upload; blocking write is acceptable here and avoids a threadpool hop
+        with open(file_path, "wb") as f:  # noqa: ASYNC230
             content = await file.read()
             f.write(content)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Failed to save file: {e!s}") from e
 
     # Get file size
-    file_size = os.path.getsize(file_path)
+    file_size = os.path.getsize(file_path)  # noqa: ASYNC240 — single stat() on a just-written local file; negligible blocking
 
     # Create database record
     db_file = ProjectFile(
