@@ -42,7 +42,24 @@ def _is_internal_email(email: str | None) -> bool:
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 # Security configuration
-SECRET_KEY = "your-secret-key-change-in-production"  # Change this in production!
+#
+# SECRET_KEY is the symmetric key the app signs and verifies HS256 JWTs with.
+# It MUST come from the environment: the same key now also guards the /mcp
+# surface (fastmcp's JWTVerifier validates Bearer tokens against it), so a
+# publicly-known default would let anyone forge tokens for both REST and MCP.
+# We refuse to start on an unset key or the historical hardcoded literal.
+_LEGACY_DEFAULT_SECRET_KEY = "your-secret-key-change-in-production"
+_secret_key = os.getenv("SECRET_KEY")
+if not _secret_key or _secret_key == _LEGACY_DEFAULT_SECRET_KEY:
+    raise RuntimeError(
+        "SECRET_KEY must be set in the environment to a non-default value. "
+        "The app refuses to start on the legacy hardcoded default to avoid "
+        "trivial JWT forgery. Set SECRET_KEY in .env (local) or the Render "
+        "dashboard (prod). Note: changing it invalidates all live sessions."
+    )
+# Narrowed to `str` by the guard above so downstream jwt.encode/decode (and the
+# /mcp JWTVerifier that imports this) get a concrete key type.
+SECRET_KEY: str = _secret_key
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
@@ -155,6 +172,34 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 
+def load_user_from_claims(db: Session, claims: dict) -> User | None:
+    """Rehydrate a User (roles + capabilities eager-loaded) from validated JWT claims.
+
+    The identity half of `get_current_user`, extracted so callers that resolve
+    the token outside FastAPI's dependency system — namely the MCP tools, which
+    read claims from `fastmcp`'s `get_access_token()` — share the exact same
+    user-loading path as the REST API.
+
+    Assumes the token signature has already been verified by the caller
+    (`jwt.decode` here for REST, `JWTVerifier` for /mcp). Returns None when the
+    `sub` claim is missing/non-integer or no matching user row exists, so the
+    caller can map that to its own 401.
+    """
+    user_id = claims.get("sub")
+    if user_id is None:
+        return None
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return None
+    return (
+        db.query(User)
+        .options(selectinload(User.roles).selectinload(Role.capabilities))
+        .filter(User.id == uid)
+        .first()
+    )
+
+
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -163,18 +208,10 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str | None = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
     except JWTError:
         raise credentials_exception from None
 
-    user = (
-        db.query(User)
-        .options(selectinload(User.roles).selectinload(Role.capabilities))
-        .filter(User.id == int(user_id))
-        .first()
-    )
+    user = load_user_from_claims(db, payload)
     if user is None:
         raise credentials_exception
     return user
@@ -190,6 +227,21 @@ def _has_admin_role(user: User) -> bool:
     capabilities, not role names.
     """
     return any(r.name == "admin" for r in user.roles)
+
+
+def assert_capability(user: User, cap: str) -> None:
+    """Raise 403 unless `user`'s effective capabilities cover `cap`.
+
+    The permission-check half of `require_capability`, extracted so the MCP
+    tools (which hold a resolved User rather than a FastAPI dependency) enforce
+    the identical RBAC gate as the REST routes — an agent never exceeds its
+    user's UI permissions.
+    """
+    if not user.has_capability(cap):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Do not have permission",
+        )
 
 
 def require_capability(cap: str):
@@ -210,11 +262,7 @@ def require_capability(cap: str):
     """
 
     def _check(current_user: User = Depends(get_current_user)) -> User:
-        if not current_user.has_capability(cap):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Do not have permission",
-            )
+        assert_capability(current_user, cap)
         return current_user
 
     return _check

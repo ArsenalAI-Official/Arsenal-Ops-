@@ -7,6 +7,7 @@ import logging
 import os
 
 # Load environment variables
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -20,7 +21,10 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 logger = logging.getLogger(__name__)
 
-# Import routers (after load_dotenv so router-level env reads see the right values)
+# Imports below run after load_dotenv so module-level env reads (router-level
+# config; the MCP server's JWTVerifier reading the required SECRET_KEY) see the
+# right values. mcp_app is mounted at /mcp further down.
+from mcp_server import mcp_app  # noqa: E402
 from routers.admin import router as admin_router  # noqa: E402
 from routers.auth import router as auth_router  # noqa: E402
 from routers.comments import router as comments_router  # noqa: E402
@@ -34,8 +38,24 @@ from routers.pulse import router as pulse_router  # noqa: E402
 from routers.roadmap import router as roadmap_router  # noqa: E402
 from routers.workitems import router as workitems_router  # noqa: E402
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """App lifespan: run the existing DB/bootstrap startup, then enter the MCP
+    server's own lifespan so its (stateless) session manager is initialized.
+
+    Composing `mcp_app.lifespan` here is the one non-obvious mounting step —
+    without it the mounted /mcp app raises on the first request. `_run_startup`
+    holds the former `@app.on_event("startup")` body (defined below).
+    """
+    await _run_startup()
+    async with mcp_app.lifespan(app):
+        yield
+
+
 # Create FastAPI app
 app = FastAPI(
+    lifespan=lifespan,
     title="Arsenal Ops - AI Project Management",
     description="""
     AI-powered project management platform with Jira-like boards.
@@ -143,10 +163,15 @@ app.include_router(overview_router)
 app.include_router(pulse_router)
 app.include_router(project_categories_router)
 
+# Mount the MCP server as a sub-app. With http_app(path="/"), the streamable
+# HTTP endpoint is /mcp/ (clients connect to /mcp). Auth + RBAC are enforced
+# inside the MCP layer (JWTVerifier + per-tool capability checks), independent
+# of the REST routes above. Its lifespan is composed in `lifespan` above.
+app.mount("/mcp", mcp_app)
 
-# Startup event for database initialization
-@app.on_event("startup")
-async def startup_event():
+
+# Database/bootstrap initialization, invoked from the `lifespan` handler above.
+async def _run_startup():
     """Initialize database on startup"""
     try:
         from database import SessionLocal, engine, init_db

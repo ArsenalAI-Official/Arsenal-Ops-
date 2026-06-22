@@ -22,6 +22,11 @@ google-auth-oauthlib>=1.2.0
 google-api-python-client>=2.0.0
 cachetools>=5.3
 
+# MCP server. Mounts the Ops backend as an MCP server at /mcp (see
+# backend/mcp_server.py). Standalone fastmcp gives one-line FastAPI mounting,
+# an HS256 JWTVerifier, and get_access_token() inside tools.
+fastmcp>=2.11
+
 # Lint / formatting — pinned because CI runs `ruff check` + `ruff format
 # --check` and version drift would cause spurious failures.
 ruff==0.15.12
