@@ -270,7 +270,7 @@ class TestChangePassword:
 
         Uses admin_user fixture, POSTs wrong current_password, asserts 400.
         """
-        user, token = admin_user
+        _user, token = admin_user
 
         response = test_client.post(
             "/api/auth/change-password",

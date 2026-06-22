@@ -17,12 +17,21 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
 # Ensure `import main` resolves when run from anywhere (e.g. CI, or app/).
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_DIR))
+
+# `main.app` is imported below for pure schema introspection — it never
+# signs or verifies a JWT during this run. routers.auth raises at import
+# time if SECRET_KEY is unset, which breaks CI's gen:schema step without
+# any security benefit (the script doesn't read the value). Provide a
+# placeholder ONLY when the env var is genuinely missing — never override
+# a real one that may have been set by the caller.
+os.environ.setdefault("SECRET_KEY", "schema-export-placeholder-not-for-runtime-use")
 
 OUTPUT = BACKEND_DIR / "openapi.json"
 

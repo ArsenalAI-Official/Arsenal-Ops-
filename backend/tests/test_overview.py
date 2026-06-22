@@ -23,7 +23,7 @@ class TestOverviewAggregation:
         Seeds a project with developers and work items, GETs the overview endpoint,
         asserts 200 and response contains all expected top-level keys with sensible shapes.
         """
-        user, token = admin_user
+        _user, token = admin_user
 
         # Seed a project with developers
         project = seed_project(db, "Test Project", num_developers=2)
@@ -61,7 +61,7 @@ class TestOverviewAggregation:
 
         Confirms format_project is called and returns expected schema.
         """
-        user, token = admin_user
+        _user, token = admin_user
 
         project = seed_project(db, "Named Project", num_developers=1)
 
@@ -82,7 +82,7 @@ class TestOverviewAggregation:
         Creates a bare project with no sprints/goals/items, asserts empty sections
         return [] not None (for list sections).
         """
-        user, token = admin_user
+        _user, token = admin_user
 
         project = seed_project(db, "Empty Project", num_developers=1)
 
@@ -145,7 +145,7 @@ class TestOverviewAuthentication:
 
         Uses user, token = admin_user but omits 'Bearer' scheme.
         """
-        user, token = admin_user
+        _user, token = admin_user
         project = seed_project(db, "No Bearer", num_developers=1)
 
         response = test_client.get(
@@ -168,8 +168,8 @@ class TestOverviewAccessControl:
         Seeds a project assigned to admin only, attempts GET from dev_user,
         asserts 403 or 404.
         """
-        dev, dev_token = dev_user
-        admin, admin_token = admin_user
+        _dev, dev_token = dev_user
+        _admin, _admin_token = admin_user
 
         # Seed project (will be assigned to admin by default via seed_project)
         project = seed_project(db, "Protected Project", num_developers=2)
@@ -188,7 +188,7 @@ class TestOverviewAccessControl:
 
         Confirms admin has unrestricted access.
         """
-        user, token = admin_user
+        _user, token = admin_user
 
         project = seed_project(db, "Admin Access", num_developers=1)
 
@@ -205,7 +205,7 @@ class TestOverviewAccessControl:
 
         Attempts to GET a project that doesn't exist.
         """
-        user, token = admin_user
+        _user, token = admin_user
 
         response = test_client.get(
             "/api/projects/999999/overview",
@@ -228,7 +228,7 @@ class TestOverviewQueryOptimization:
         GETs /overview, asserts query count is reasonable (< 20 to account for
         the bundled nature of the endpoint with multiple sub-fetches).
         """
-        user, token = admin_user
+        _user, token = admin_user
 
         # Seed project with developers
         project = seed_project(db, "Query Test", num_developers=3)
@@ -264,7 +264,7 @@ class TestOverviewQueryOptimization:
         Seeds a single project, makes two GET requests, asserts query counts
         are similar (within 3 queries), indicating no N+1 issue.
         """
-        user, token = admin_user
+        _user, token = admin_user
 
         # Project: minimal setup
         project = seed_project(db, "Project", num_developers=2)
@@ -311,7 +311,7 @@ class TestOverviewErrorResilience:
         can't easily trigger a failure in a test, but we verify the endpoint
         succeeds even with minimal data.
         """
-        user, token = admin_user
+        _user, token = admin_user
 
         project = seed_project(db, "Resilience Test", num_developers=1)
 
@@ -342,7 +342,7 @@ class TestOverviewDataConsistency:
         Seeds a project with specific attributes, GETs overview, asserts
         project section reflects those attributes.
         """
-        user, token = admin_user
+        _user, token = admin_user
 
         project = seed_project(db, "Consistency Check", num_developers=2)
 
@@ -364,7 +364,7 @@ class TestOverviewDataConsistency:
 
         Confirms the _safe() wrapper returns [] as fallback, not None.
         """
-        user, token = admin_user
+        _user, token = admin_user
 
         project = seed_project(db, "List Types", num_developers=1)
 
@@ -389,7 +389,7 @@ class TestOverviewDataConsistency:
         Makes two requests to same project, asserts both responses have
         identical top-level keys.
         """
-        user, token = admin_user
+        _user, token = admin_user
 
         project = seed_project(db, "Stability", num_developers=1)
 

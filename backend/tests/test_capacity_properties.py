@@ -118,7 +118,7 @@ def compute_capacity(db, dev):
     """Replicate capacity calculation logic for property tests."""
     from models.work_item import WorkItem
 
-    week_start, week_end = week_boundaries()
+    week_start, _week_end = week_boundaries()
     dev_items = db.query(WorkItem).filter(WorkItem.assignee_id == dev.id).all()
 
     in_progress_hours = 0
