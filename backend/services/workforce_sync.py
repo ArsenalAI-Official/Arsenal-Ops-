@@ -119,7 +119,38 @@ def current_work_week_window(today: date | None = None) -> tuple[date, date]:
     return monday, friday
 
 
-# ── Lock helper ──────────────────────────────────────────────────────────
+# ── Lock helpers ─────────────────────────────────────────────────────────
+
+
+def is_sync_in_progress(db: Session) -> bool:
+    """Non-acquiring peek: is a workforce-sync advisory lock currently held?
+
+    Used by the manual-sync HTTP endpoint to short-circuit a duplicate
+    click BEFORE scheduling a background task — so the UI can show
+    "Sync already running" without ever queueing a second run that
+    would just hit the lock and exit.
+
+    Postgres only. Sqlite (tests, local dev fallback) has no advisory
+    lock primitive; this returns False there so the manual path
+    proceeds unblocked (single-process anyway).
+
+    Note the race window: between this peek and the background task
+    actually calling ``_try_advisory_lock`` a few hundred ms later, a
+    different process (the Saturday cron) could grab the lock. The
+    background task's own acquire-attempt is the authoritative gate;
+    this peek just avoids the common case of a user double-clicking.
+    """
+    bind = db.get_bind()
+    if bind.dialect.name != "postgresql":
+        return False
+    held = db.execute(
+        text(
+            "SELECT count(*) > 0 FROM pg_locks "
+            "WHERE locktype = 'advisory' AND objid = :k AND granted = true"
+        ),
+        {"k": ADVISORY_LOCK_KEY},
+    ).scalar()
+    return bool(held)
 
 
 def _try_advisory_lock(db: Session):
@@ -290,12 +321,20 @@ def run_workforce_sync(
     integration = db.query(WorkforceIntegration).first()
     if not integration:
         logger.info("[workforce_sync] %s: integration not connected", triggered_by)
-        return {**base_result, "status": "not_connected", "reason": "integration_not_connected"}
+        return {
+            **base_result,
+            "status": "not_connected",
+            "reason": "QuickBooks isn't connected. Click Connect QuickBooks in Admin → Integrations to set it up.",
+        }
 
     lock_conn = _try_advisory_lock(db)
     if lock_conn is False:
         logger.info("[workforce_sync] %s: another sync is already running", triggered_by)
-        return {**base_result, "status": "locked", "reason": "another_sync_running"}
+        return {
+            **base_result,
+            "status": "locked",
+            "reason": "Another sync is already running. The running run will email its result when it finishes.",
+        }
 
     try:
         return _run_inside_lock(
@@ -339,7 +378,7 @@ def _run_inside_lock(
                 integration,
                 base_result,
                 status="error",
-                reason=f"could_not_resolve_service_item: {e}",
+                reason=f"Couldn't look up the 'Hours' service item in QuickBooks: {e}",
                 triggered_by=triggered_by,
             )
         if not item:
@@ -348,7 +387,11 @@ def _run_inside_lock(
                 integration,
                 base_result,
                 status="error",
-                reason="'Hours' service item not found in QuickBooks. Create it in QB then retry.",
+                reason=(
+                    "Couldn't find a service item named 'Hours' in QuickBooks. "
+                    "Create one (Products and services → New → Service, name it "
+                    "exactly 'Hours') and click Sync Now again."
+                ),
                 triggered_by=triggered_by,
             )
         integration.service_item_id = item["id"]
@@ -365,7 +408,7 @@ def _run_inside_lock(
             integration,
             base_result,
             status="error",
-            reason=f"could_not_fetch_employees: {e}",
+            reason=f"Couldn't load the employee list from QuickBooks: {e}",
             triggered_by=triggered_by,
         )
 
@@ -406,7 +449,11 @@ def _run_inside_lock(
             integration,
             base_result,
             status="no_eligible",
-            reason="no_eligible_entries",
+            reason=(
+                "No eligible time entries for this week. "
+                "Either nothing was logged on QuickBooks-linked projects, "
+                "or every logged entry was already synced."
+            ),
             triggered_by=triggered_by,
         )
 
@@ -420,7 +467,7 @@ def _run_inside_lock(
             break
         email = (entry.developer.email or "").lower().strip() if entry.developer else ""
         if not email or email not in employee_map:
-            key = email or "<no-email>"
+            key = email or "(no email on record)"
             skip_summary[key] = skip_summary.get(key, 0) + 1
             skipped += 1
             continue
@@ -431,7 +478,9 @@ def _run_inside_lock(
             # Project must have been unlinked between query time and now,
             # or the row was inserted between query plan and execute.
             # Treat as skip (will retry next run if re-linked).
-            skip_summary["<project-unlinked>"] = skip_summary.get("<project-unlinked>", 0) + 1
+            skip_summary["(project unlinked from QuickBooks)"] = (
+                skip_summary.get("(project unlinked from QuickBooks)", 0) + 1
+            )
             skipped += 1
             continue
 
@@ -461,19 +510,29 @@ def _run_inside_lock(
             break
         except QBApiError as e:
             failed += 1
-            fail_summary.append(f"entry {entry.id}: {e}")
+            # Label the failure with something an executive can read:
+            # the work-item key (e.g. "PROJ-123") + developer email.
+            # `entry.id` (a DB pk) ends up in logs, not the user-facing
+            # last_sync_error column.
+            wi_key = entry.work_item.key if entry.work_item else f"entry#{entry.id}"
+            dev_email = entry.developer.email if entry.developer else "(unknown)"
+            fail_summary.append(f"{wi_key} ({dev_email}): {e}")
             logger.warning("[workforce_sync] entry id=%s failed: %s", entry.id, e)
         except WorkforceOAuthError as e:
             # OAuth refresh failed mid-run — the integration is
             # effectively disconnected. Stop the run cleanly.
             logger.error("[workforce_sync] OAuth failure mid-run: %s", e)
-            fail_summary.append(f"oauth_failed: {e}")
+            fail_summary.append(f"OAuth failed: {e}")
             return _finalize(
                 db,
                 integration,
                 {**base_result, "synced": synced, "failed": failed, "skipped": skipped},
                 status="error",
-                reason=str(e),
+                reason=(
+                    "QuickBooks authorization expired or was revoked. "
+                    "Go to Admin → Integrations, click Disconnect, then "
+                    f"Connect QuickBooks again. (Intuit reported: {e})"
+                ),
                 triggered_by=triggered_by,
             )
 
@@ -481,7 +540,10 @@ def _run_inside_lock(
     reason_parts: list[str] = []
     if rate_limited:
         status_str = "partial"
-        reason_parts.append("rate_limited; resumes next run")
+        reason_parts.append(
+            "Hit the QuickBooks rate limit before finishing. "
+            "The remaining entries will sync on the next run — no action needed."
+        )
     elif failed == 0 and skipped == 0:
         status_str = "ok"
     elif synced == 0 and failed == 0:
@@ -494,13 +556,15 @@ def _run_inside_lock(
     else:
         status_str = "partial"
     if skipped:
-        reason_parts.append(
-            "skipped: " + ", ".join(f"{k}={v}" for k, v in sorted(skip_summary.items()))
-        )
+        # Format: "Skipped (no matching QB employee): alice@arsenal.com (×3), bob@arsenal.com"
+        # — the (×N) suffix is hidden when N is 1 so single-skip cases
+        # read naturally; pluralised counts make a noisy week scannable.
+        items = ", ".join(f"{k} (×{v})" if v > 1 else k for k, v in sorted(skip_summary.items()))
+        reason_parts.append(f"Skipped (no matching QuickBooks employee): {items}")
     if fail_summary:
         # Cap fail_summary serialization so a flurry of per-entry errors
         # doesn't balloon the persisted last_sync_error column.
-        reason_parts.append("failures: " + "; ".join(fail_summary[:10]))
+        reason_parts.append("Failed entries: " + "; ".join(fail_summary[:10]))
     reason = " | ".join(reason_parts) if reason_parts else None
 
     return _finalize(

@@ -1572,6 +1572,36 @@
         "title": "LogHoursRequest",
         "type": "object"
       },
+      "ManualSyncResponse": {
+        "description": "Returned immediately from POST /sync.\n\nThe actual sync work happens in a FastAPI BackgroundTask after the\nresponse is sent; the admin gets a result email when it finishes.\nNo counts here on purpose \u2014 they wouldn't be known yet, and a busy\nweek's worth of entries can take long enough that holding the\nrequest open is bad UX.\n\nTwo states:\n  - ``started``         \u2192 the background task has been scheduled;\n                          an email will follow when it finishes.\n  - ``already_running`` \u2192 another sync is currently in progress\n                          (Saturday cron, or a prior click of the\n                          admin's that's still working). No new\n                          task scheduled, no email \u2014 the\n                          already-running sync will email its own\n                          trigger when it completes.",
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "notify_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notify Email"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "message"
+        ],
+        "title": "ManualSyncResponse",
+        "type": "object"
+      },
       "MilestoneCreate": {
         "properties": {
           "description": {
@@ -6654,13 +6684,15 @@
     },
     "/api/admin/workforce/sync": {
       "post": {
-        "description": "Run the sync inline, return its result, and email the clicker.\n\nSame code path as the Saturday cron \u2014 the only difference is\n`triggered_by=\"manual\"` for log distinction. Honors the same window\n(Mon\u2013Fri of the calendar week containing the click; see\n`services.workforce_sync.current_work_week_window`); does NOT\nexpand the scope based on what's queued. If the admin needs to push\nolder entries, that's a separate workflow that doesn't ship today.\n\nConcurrency: a manual click while the cron is still running will\nreturn `{\"status\": \"locked\"}` from the advisory lock, NOT 409 \u2014 the\nsemantics are \"your request was acknowledged but another sync was\nalready in progress, nothing extra to do.\" Same for a click while\nno integration is connected (`status: \"not_connected\"`); we don't\nraise HTTP errors for these expected outcomes.\n\nNotification: the user who triggered the click gets an email with\nthe result. Best-effort \u2014 if Gmail OAuth2 isn't configured, the\nfailure is logged and the API still returns the result so the UI\ntoast surfaces correctly.",
+        "description": "Kick off a manual sync in the background; return immediately.\n\nThe sync runs as a FastAPI BackgroundTask in the same worker process\nafter the response is sent. The clicker receives an email with the\nresult (Healthy / Partial / Error + per-status counts) using the\nsame template as the Saturday cron, so the two emails read as a\ncoherent series.\n\nWhy background rather than inline: a busy week can have hundreds of\neligible entries; pushing each one to QuickBooks plus the per-entry\ncommit can take minutes. Holding the HTTP request open that long is\npoor UX (browser spinner, ALB/proxy timeouts, no progress signal)\nand the result is far more useful in an inbox than a transient\ntoast that disappears in 6 seconds.\n\nDuplicate-click handling: if a sync is already in progress when the\nadmin clicks (their own earlier click is still running, or the\nSaturday cron is mid-run), the endpoint peeks at the advisory lock\nvia ``is_sync_in_progress`` and returns ``status=\"already_running\"``\nWITHOUT scheduling a second background task or sending an email.\nThe running sync will email its own trigger when it finishes; the\nre-clicker just gets a UI toast.\n\nThe peek is best-effort \u2014 there's a sub-second race window where\na different process could grab the lock between the peek and the\nbackground task starting. The background task's own lock-acquire\nattempt is the authoritative gate, and the \"locked\" result there\nsuppresses the email for that one status (see\n`_run_manual_sync_and_email`).",
         "operationId": "manual_sync_api_admin_workforce_sync_post",
         "responses": {
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ManualSyncResponse"
+                }
               }
             },
             "description": "Successful Response"

@@ -1,28 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
-import type { WorkforceClient, WorkforceStatus, WorkforceSyncResult } from '../types';
+import type { WorkforceClient, WorkforceStatus } from '../types';
 import { ADMIN_REFETCH } from './adminRefetch';
 
 /**
- * Format a `YYYY-MM-DD` window-edge date as `Mon D` (e.g. `Jun 8`).
+ * Shape of POST /api/admin/workforce/sync — the endpoint kicks the actual
+ * run off as a FastAPI BackgroundTask and returns 200 immediately. Two
+ * possible states:
  *
- * Parses the components manually (not via `new Date(iso)`) because JS
- * treats date-only ISO strings as UTC midnight, which then shifts to
- * the previous day for anyone west of Greenwich. Manual construction
- * builds a local-midnight Date so the rendered day matches the
- * literal string.
+ *  - "started"          → a new background task is now running; an email
+ *                         will follow with the counts when it finishes.
+ *  - "already_running"  → another sync was already in progress (the
+ *                         admin double-clicked, OR the Saturday cron is
+ *                         mid-run). No new task scheduled, no extra email
+ *                         — the running sync will email its own trigger
+ *                         when it completes.
  */
-function formatWindowDate(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  if (!y || !m || !d) return iso;
-  const dt = new Date(y, m - 1, d);
-  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-/** "2026-06-08, 2026-06-12" → "Jun 8 - Jun 12". */
-function formatWindowRange(startIso: string, endIso: string): string {
-  return `${formatWindowDate(startIso)} - ${formatWindowDate(endIso)}`;
+interface ManualSyncResponse {
+  status: 'started' | 'already_running';
+  message: string;
+  notify_email: string | null;
 }
 
 /**
@@ -83,37 +81,38 @@ export function useWorkforceAdmin() {
 
   const syncMutation = useMutation({
     mutationFn: () =>
-      apiFetch<WorkforceSyncResult>('/api/admin/workforce/sync', {
+      apiFetch<ManualSyncResponse>('/api/admin/workforce/sync', {
         method: 'POST',
       }),
     onSuccess: (result) => {
-      const { status, synced, failed, skipped, window_start, window_end } = result;
-      // Map every status to a meaningful toast — the API returns benign
-      // states (locked, no_eligible, not_connected) as 200, so we have to
-      // disambiguate here rather than relying on HTTP semantics.
-      const range = formatWindowRange(window_start, window_end);
-      switch (status) {
-        case 'ok':
-          toast.success(`Synced ${synced} entr${synced === 1 ? 'y' : 'ies'} for ${range}.`);
-          break;
-        case 'partial':
-          toast.warning(
-            `Partial sync for ${range}: ${synced} synced, ${failed} failed, ${skipped} skipped.`,
-          );
-          break;
-        case 'no_eligible':
-          toast.info(`Nothing to sync in ${range}.`);
-          break;
-        case 'locked':
-          toast.info('Another sync is already running. Try again in a moment.');
-          break;
-        case 'not_connected':
-          toast.error('QuickBooks is not connected.');
-          break;
-        default:
-          toast.error(`Sync failed for ${range}: ${result.reason ?? status}`);
+      // The sync runs as a FastAPI BackgroundTask after the response is
+      // sent — a busy week can take minutes and holding the browser open
+      // that long is poor UX. The clicker gets the actual counts + status
+      // by email; the Integrations card refreshes its `last_sync_*` fields
+      // once the run finishes (status query is invalidated below so the
+      // card eventually reflects the new state without a manual refresh).
+      if (result.status === 'already_running') {
+        // The admin double-clicked, or the Saturday cron is mid-run. No
+        // duplicate run scheduled, no extra email — just inform the user.
+        toast.info('A sync is already running. The email will arrive when it finishes.');
+        return;
       }
-      queryClient.invalidateQueries({ queryKey: ['admin', 'workforceStatus'] });
+
+      const inbox = result.notify_email;
+      toast.success(
+        inbox
+          ? `Sync started. You'll get an email at ${inbox} when it finishes.`
+          : "Sync started. You'll get an email when it finishes.",
+      );
+
+      // The background task is in the same worker process; invalidate the
+      // status query a short delay later so the card picks up the new
+      // last_sync_* fields without a manual refresh. Sync times vary from
+      // seconds (no eligible) to minutes (full week); polling for completion
+      // is out of scope for this PR.
+      window.setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['admin', 'workforceStatus'] });
+      }, 5000);
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Sync failed.'),
   });

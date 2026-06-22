@@ -135,16 +135,6 @@ export interface WorkforceClient {
   name: string;
 }
 
-export interface WorkforceSyncResult {
-  status: string;
-  synced: number;
-  failed: number;
-  skipped: number;
-  window_start: string;
-  window_end: string;
-  reason?: string | null;
-}
-
 // Re-export the types owned by their component modules so downstream consumers
 // have a single `./types` import surface for everything admin.
 export type { ProjectCategory, CategoryFormPayload } from './modals/CategoryManagerModal';

@@ -28,7 +28,7 @@ import sys
 from datetime import datetime, timedelta
 
 from cachetools import TTLCache
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -65,7 +65,7 @@ from services.workforce_qb_client import (
     fetch_company_info,
     resolve_service_item,
 )
-from services.workforce_sync import run_workforce_sync
+from services.workforce_sync import is_sync_in_progress, run_workforce_sync
 from services.workforce_sync_notify import send_sync_notification
 
 logger = logging.getLogger(__name__)
@@ -664,47 +664,133 @@ def link_project_to_client(
 # ── Manual sync trigger ──────────────────────────────────────────────────
 
 
-@router.post("/sync")
-def manual_sync(
-    current_user: User = Depends(require_capability("admin.workforce_connect")),
-    db: Session = Depends(get_db),
-):
-    """Run the sync inline, return its result, and email the clicker.
+def _run_manual_sync_and_email(
+    *,
+    triggered_by_email: str | None,
+    triggered_by_label: str,
+) -> None:
+    """Run the sync against a FRESH SessionLocal and email the clicker.
 
-    Same code path as the Saturday cron — the only difference is
-    `triggered_by="manual"` for log distinction. Honors the same window
-    (Mon–Fri of the calendar week containing the click; see
-    `services.workforce_sync.current_work_week_window`); does NOT
-    expand the scope based on what's queued. If the admin needs to push
-    older entries, that's a separate workflow that doesn't ship today.
+    Runs inside FastAPI's BackgroundTasks executor after the response
+    has been sent to the browser. Opens its own DB session so the
+    request's session can close normally on response — long-running
+    work must not piggy-back on the request session because FastAPI
+    closes it via the `get_db` dependency teardown.
 
-    Concurrency: a manual click while the cron is still running will
-    return `{"status": "locked"}` from the advisory lock, NOT 409 — the
-    semantics are "your request was acknowledged but another sync was
-    already in progress, nothing extra to do." Same for a click while
-    no integration is connected (`status: "not_connected"`); we don't
-    raise HTTP errors for these expected outcomes.
-
-    Notification: the user who triggered the click gets an email with
-    the result. Best-effort — if Gmail OAuth2 isn't configured, the
-    failure is logged and the API still returns the result so the UI
-    toast surfaces correctly.
+    Email semantics: we only notify when there's a real result to
+    report. ``status="locked"`` means another sync was already running
+    when this background task started (rare race past the endpoint's
+    preflight peek, e.g. the Saturday cron starting between the click
+    and the task's lock acquire) — that's not a result the user needs
+    to hear about, so we suppress the email for that one status.
     """
-    result = run_workforce_sync(db, triggered_by="manual")
+    from database import SessionLocal  # local import to avoid cycle at module load
 
-    # Best-effort post-run notification to the clicker. Wrapped in a
-    # broad try/except so any email-stack failure (mis-configured Gmail
-    # creds, transient SMTP error) doesn't turn a successful sync into
-    # a 500.
-    if current_user.email:
+    db = SessionLocal()
+    try:
+        result = run_workforce_sync(db, triggered_by="manual")
+    finally:
+        db.close()
+
+    if result.get("status") == "locked":
+        logger.info(
+            "[workforce_sync] manual run lost the lock race; skipping email. result=%s",
+            result,
+        )
+        return
+
+    # Best-effort notification — a misconfigured mailer must not turn
+    # a successful sync into an error the admin can't see (they already
+    # got the "started" toast and the API has 200ed).
+    if triggered_by_email:
         try:
             send_sync_notification(
-                [current_user.email],
+                [triggered_by_email],
                 result,
-                triggered_by_label=current_user.name or current_user.email,
-                triggered_by_email=current_user.email,
+                triggered_by_label=triggered_by_label,
+                triggered_by_email=triggered_by_email,
             )
         except Exception as e:
             logger.warning("Manual sync email notification failed: %s", e)
+    logger.info("[workforce_sync] manual run finished: %s", result)
 
-    return result
+
+class ManualSyncResponse(BaseModel):
+    """Returned immediately from POST /sync.
+
+    The actual sync work happens in a FastAPI BackgroundTask after the
+    response is sent; the admin gets a result email when it finishes.
+    No counts here on purpose — they wouldn't be known yet, and a busy
+    week's worth of entries can take long enough that holding the
+    request open is bad UX.
+
+    Two states:
+      - ``started``         → the background task has been scheduled;
+                              an email will follow when it finishes.
+      - ``already_running`` → another sync is currently in progress
+                              (Saturday cron, or a prior click of the
+                              admin's that's still working). No new
+                              task scheduled, no email — the
+                              already-running sync will email its own
+                              trigger when it completes.
+    """
+
+    status: str  # "started" | "already_running"
+    message: str
+    notify_email: str | None = None
+
+
+@router.post("/sync", response_model=ManualSyncResponse)
+def manual_sync(
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(require_capability("admin.workforce_connect")),
+    db: Session = Depends(get_db),
+):
+    """Kick off a manual sync in the background; return immediately.
+
+    The sync runs as a FastAPI BackgroundTask in the same worker process
+    after the response is sent. The clicker receives an email with the
+    result (Healthy / Partial / Error + per-status counts) using the
+    same template as the Saturday cron, so the two emails read as a
+    coherent series.
+
+    Why background rather than inline: a busy week can have hundreds of
+    eligible entries; pushing each one to QuickBooks plus the per-entry
+    commit can take minutes. Holding the HTTP request open that long is
+    poor UX (browser spinner, ALB/proxy timeouts, no progress signal)
+    and the result is far more useful in an inbox than a transient
+    toast that disappears in 6 seconds.
+
+    Duplicate-click handling: if a sync is already in progress when the
+    admin clicks (their own earlier click is still running, or the
+    Saturday cron is mid-run), the endpoint peeks at the advisory lock
+    via ``is_sync_in_progress`` and returns ``status="already_running"``
+    WITHOUT scheduling a second background task or sending an email.
+    The running sync will email its own trigger when it finishes; the
+    re-clicker just gets a UI toast.
+
+    The peek is best-effort — there's a sub-second race window where
+    a different process could grab the lock between the peek and the
+    background task starting. The background task's own lock-acquire
+    attempt is the authoritative gate, and the "locked" result there
+    suppresses the email for that one status (see
+    `_run_manual_sync_and_email`).
+    """
+    if is_sync_in_progress(db):
+        return ManualSyncResponse(
+            status="already_running",
+            message="A sync is already running. You'll get an email when it finishes.",
+            notify_email=current_user.email,
+        )
+
+    label = current_user.name or current_user.email or f"user_id={current_user.id}"
+    background_tasks.add_task(
+        _run_manual_sync_and_email,
+        triggered_by_email=current_user.email,
+        triggered_by_label=label,
+    )
+    return ManualSyncResponse(
+        status="started",
+        message="Sync started. You'll get an email when it finishes.",
+        notify_email=current_user.email,
+    )

@@ -891,6 +891,42 @@ export type LogHoursRequest = {
 };
 
 /**
+ * ManualSyncResponse
+ *
+ * Returned immediately from POST /sync.
+ *
+ * The actual sync work happens in a FastAPI BackgroundTask after the
+ * response is sent; the admin gets a result email when it finishes.
+ * No counts here on purpose — they wouldn't be known yet, and a busy
+ * week's worth of entries can take long enough that holding the
+ * request open is bad UX.
+ *
+ * Two states:
+ * - ``started``         → the background task has been scheduled;
+ * an email will follow when it finishes.
+ * - ``already_running`` → another sync is currently in progress
+ * (Saturday cron, or a prior click of the
+ * admin's that's still working). No new
+ * task scheduled, no email — the
+ * already-running sync will email its own
+ * trigger when it completes.
+ */
+export type ManualSyncResponse = {
+  /**
+   * Message
+   */
+  message: string;
+  /**
+   * Notify Email
+   */
+  notify_email?: string | null;
+  /**
+   * Status
+   */
+  status: string;
+};
+
+/**
  * MilestoneCreate
  */
 export type MilestoneCreate = {
@@ -3746,8 +3782,11 @@ export type ManualSyncApiAdminWorkforceSyncPostResponses = {
   /**
    * Successful Response
    */
-  200: unknown;
+  200: ManualSyncResponse;
 };
+
+export type ManualSyncApiAdminWorkforceSyncPostResponse =
+  ManualSyncApiAdminWorkforceSyncPostResponses[keyof ManualSyncApiAdminWorkforceSyncPostResponses];
 
 export type CreateUserApiAuthAdminCreateUserPostData = {
   body: UserCreate;

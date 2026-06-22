@@ -513,8 +513,10 @@ def test_unmatched_email_skips_entry(db, qb_doubles):
     assert result["synced"] == 0
     # No QB write attempted.
     assert qb_doubles["post_calls"] == []
-    # Status calls this out via reason.
-    assert "skipped" in (result.get("reason") or "")
+    # Status calls this out via reason — match case-insensitively
+    # because the user-facing literal is "Skipped (no matching QuickBooks
+    # employee): …".
+    assert "skipped" in (result.get("reason") or "").lower()
     assert "stranger@elsewhere.test" in (result.get("reason") or "")
 
 
@@ -530,7 +532,8 @@ def test_empty_email_skips_entry(db, qb_doubles):
     result = run_workforce_sync(db, today=SAT)
     assert result["skipped"] == 1
     assert qb_doubles["post_calls"] == []
-    assert "<no-email>" in (result.get("reason") or "")
+    # Placeholder label was rewritten to be human-readable.
+    assert "no email" in (result.get("reason") or "").lower()
 
 
 def test_email_lookup_is_case_insensitive(db, qb_doubles):
@@ -601,7 +604,8 @@ def test_rate_limit_stops_run_and_marks_partial(db, qb_doubles):
     assert result["synced"] == 1
     # Rate-limited entry not counted as failed (it's untried, queued for next run).
     assert result["failed"] == 0
-    assert "rate_limited" in (result.get("reason") or "")
+    # Reason is now executive-readable; "rate limit" is the user-facing phrase.
+    assert "rate limit" in (result.get("reason") or "").lower()
     # Exactly two attempts — the second raised, no third call queued.
     assert len(qb_doubles["post_calls"]) == 2
 
@@ -662,7 +666,10 @@ def test_resolve_service_item_api_error_aborts(db, qb_doubles):
     qb_doubles["resolve_item_raises"] = QBApiError("boom")
     result = run_workforce_sync(db, today=SAT)
     assert result["status"] == "error"
-    assert "could_not_resolve_service_item" in (result.get("reason") or "")
+    # Reason wraps the QBApiError in a user-readable lead-in.
+    reason = result.get("reason") or ""
+    assert "service item" in reason.lower()
+    assert "boom" in reason
 
 
 def test_fetch_employees_error_aborts(db, qb_doubles):
@@ -678,7 +685,10 @@ def test_fetch_employees_error_aborts(db, qb_doubles):
     qb_doubles["fetch_employees_raises"] = QBApiError("boom")
     result = run_workforce_sync(db, today=SAT)
     assert result["status"] == "error"
-    assert "could_not_fetch_employees" in (result.get("reason") or "")
+    # Reason wraps the QBApiError in a user-readable lead-in.
+    reason = result.get("reason") or ""
+    assert "employee" in reason.lower()
+    assert "boom" in reason
     assert qb_doubles["post_calls"] == []
 
 
