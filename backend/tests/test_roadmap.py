@@ -299,7 +299,7 @@ class TestRoadmapFileValidation:
 
     def _setup_project_with_user(self, db, admin_user):
         """Helper: create a project and ensure user is associated."""
-        user, token = admin_user
+        _user, token = admin_user
         project = seed_project(db, "Upload Test", num_developers=1)
         return project, token
 
@@ -416,7 +416,7 @@ class TestRoadmapParsing:
 
     def _setup_project_with_user(self, db, admin_user):
         """Helper: create project and return token."""
-        user, token = admin_user
+        _user, token = admin_user
         project = seed_project(db, "Parse Test", num_developers=2)
         return project, token
 
@@ -503,7 +503,7 @@ class TestSprintExtraction:
 
     def _setup_project_with_user(self, db, admin_user):
         """Helper: create project and return token."""
-        user, token = admin_user
+        _user, token = admin_user
         project = seed_project(db, "Sprint Test", num_developers=3)
         return project, token
 
@@ -687,7 +687,7 @@ class TestAIParserFallback:
 
     def _setup_project_with_user(self, db, admin_user):
         """Helper: create project and return token."""
-        user, token = admin_user
+        _user, token = admin_user
         project = seed_project(db, "AI Fallback Test", num_developers=2)
         return project, token
 
@@ -763,7 +763,7 @@ class TestConflictDetection:
 
     def _setup_project_with_user(self, db, admin_user):
         """Helper: create project and return token."""
-        user, token = admin_user
+        _user, token = admin_user
         project = seed_project(db, "Conflict Test", num_developers=2)
         return project, token
 

@@ -72,3 +72,10 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = ["conftest"]
 ignore_missing_imports = true
+
+# `hypothesis` is an optional test-only dependency: the property-based tests
+# guard it with `pytest.importorskip`, so it's intentionally not in
+# requirements.txt and isn't installed in the CI mypy environment.
+[[tool.mypy.overrides]]
+module = ["hypothesis", "hypothesis.*"]
+ignore_missing_imports = true

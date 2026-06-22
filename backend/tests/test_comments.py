@@ -518,8 +518,8 @@ class TestCommentsIDOR:
 
         Expected behavior (after IDOR fix): returns 404
         """
-        admin, admin_token = admin_user
-        dev, dev_token = dev_user
+        admin, _admin_token = admin_user
+        _dev, dev_token = dev_user
 
         # Create project A with admin only
         project_a = seed_project(db, name="Project A", num_developers=0)
@@ -579,7 +579,7 @@ class TestCommentsIDOR:
 
         Expected behavior (after IDOR fix): returns 404 and comment is NOT persisted
         """
-        admin, admin_token = admin_user
+        admin, _admin_token = admin_user
         dev, dev_token = dev_user
 
         # Create project A with admin only
@@ -693,7 +693,7 @@ class TestUpdateComment:
 
     def test_update_nonexistent_comment_returns_404(self, test_client, db, dev_user):
         """Verify PUT with nonexistent comment_id returns 404."""
-        user, token = dev_user
+        _user, token = dev_user
 
         response = test_client.put(
             "/api/comments/999999",
@@ -706,7 +706,7 @@ class TestUpdateComment:
 
     def test_update_comment_without_token_returns_401(self, test_client, db, dev_user):
         """Verify PUT without token returns 401."""
-        user, token = dev_user
+        _user, _token = dev_user
 
         # Create a comment to update
         project = seed_project(db, name="Test Project")
@@ -780,7 +780,7 @@ class TestDeleteComment:
 
     def test_delete_nonexistent_comment_returns_404(self, test_client, db, dev_user):
         """Verify DELETE with nonexistent comment_id returns 404."""
-        user, token = dev_user
+        _user, token = dev_user
 
         response = test_client.delete(
             "/api/comments/999999",
@@ -851,7 +851,7 @@ class TestToggleCommentResolved:
 
     def test_toggle_nonexistent_comment_returns_404(self, test_client, db, dev_user):
         """Verify PATCH with nonexistent comment_id returns 404."""
-        user, token = dev_user
+        _user, token = dev_user
 
         response = test_client.patch(
             "/api/comments/999999/resolve?is_resolved=true",
@@ -920,7 +920,7 @@ class TestGetBusinessReviewComments:
         self, test_client, db, admin_user
     ):
         """Verify GET for project with no business_review comments returns empty list."""
-        user, token = admin_user
+        _user, token = admin_user
 
         project = seed_project(db, name="Test Project")
 

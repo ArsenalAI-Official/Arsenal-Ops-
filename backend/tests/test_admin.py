@@ -136,7 +136,7 @@ class TestEmployeeCRUD:
         to confirm Developer record exists with correct fields.
         """
         self._setup_admin_with_capabilities(db, admin_user)
-        user, token = admin_user
+        _user, token = admin_user
 
         payload = {
             "name": "New Employee",
@@ -171,7 +171,7 @@ class TestEmployeeCRUD:
         asserts 400 + "Email already exists" message.
         """
         self._setup_admin_with_capabilities(db, admin_user)
-        user, token = admin_user
+        _user, token = admin_user
 
         payload = {
             "name": "Employee One",
@@ -205,7 +205,7 @@ class TestEmployeeCRUD:
         Creates employee, PUTs with updated name, GETs and asserts new name.
         """
         self._setup_admin_with_capabilities(db, admin_user)
-        user, token = admin_user
+        _user, token = admin_user
 
         # Create
         create_payload = {
@@ -241,7 +241,7 @@ class TestEmployeeCRUD:
         Creates employee, DELETEs, then attempts GET and asserts 404.
         """
         self._setup_admin_with_capabilities(db, admin_user)
-        user, token = admin_user
+        _user, token = admin_user
 
         # Create
         payload = {
@@ -274,7 +274,7 @@ class TestEmployeeCRUD:
         DELETEs a non-existent employee_id and asserts 404.
         """
         self._setup_admin_with_capabilities(db, admin_user)
-        user, token = admin_user
+        _user, token = admin_user
 
         response = test_client.delete(
             "/api/admin/employees/999999",
@@ -295,7 +295,7 @@ class TestEmployeeCRUD:
         Fix: add specialization column to Developer model or remove from API.
         """
         self._setup_admin_with_capabilities(db, admin_user)
-        user, token = admin_user
+        _user, token = admin_user
 
         payload = {
             "name": "Specialized Dev",
@@ -320,7 +320,7 @@ class TestEmployeeCRUD:
             headers={"Authorization": f"Bearer {token}"},
         )
 
-        created = [e for e in response.json() if e["email"] == "spec@test.local"][0]
+        created = next(e for e in response.json() if e["email"] == "spec@test.local")
         # This will fail because specialization is not persisted
         assert created["specialization"] == "frontend"
 
@@ -370,7 +370,7 @@ class TestCapacityEndpoints:
         asserts 200 and response contains developer data.
         """
         self._setup_admin_with_capabilities(db, admin_user)
-        user, token = admin_user
+        _user, token = admin_user
 
         # Seed a project with developers (side-effect: populates DB before the GET below)
         _project = seed_project(db, "Capacity Test", num_developers=2)
@@ -401,7 +401,7 @@ class TestCapacityEndpoints:
         Seeds developers, GETs /employees, asserts 200 + list of EmployeeResponse.
         """
         self._setup_admin_with_capabilities(db, admin_user)
-        user, token = admin_user
+        _user, token = admin_user
 
         # Seed developers directly
         for i in range(2):
@@ -480,7 +480,7 @@ class TestListEndpointQueryCount:
         This test guards against egregious N+1 patterns.
         """
         self._setup_admin_with_capabilities(db, admin_user)
-        user, token = admin_user
+        _user, token = admin_user
 
         # Seed 5 developers
         for i in range(5):
