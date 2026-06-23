@@ -1,15 +1,15 @@
-import React from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/spinner';
 import { MessageSquare, User, Calendar, Clock3, ShieldCheck, Ban } from 'lucide-react';
-import { PRIORITY_COLOR, STATUS_CONFIG } from '@/lib/workItemConfig';
+import React from 'react';
 import CommentThread, {
   type CommentThreadComment,
   type CommentThreadDeveloper,
   type CommentType,
 } from '@/components/CommentThread';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '@/contexts/AuthContext';
+import { PRIORITY_COLOR, STATUS_CONFIG } from '@/lib/workItemConfig';
 import type { WorkItem } from '../types';
 
 interface BlockedItemCardProps {

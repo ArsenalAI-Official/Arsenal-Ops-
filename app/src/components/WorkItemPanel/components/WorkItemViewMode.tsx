@@ -1,10 +1,10 @@
 import { Clock } from 'lucide-react';
+import { parseLocalDate } from '@/components/ProjectsPage/utils';
 import { Button } from '@/components/ui/button';
 import { NumberInput } from '@/components/ui/number-input';
-import { parseLocalDate } from '@/components/ProjectsPage/utils';
-import type { WorkItem } from '../types';
 import { STATUS_CONFIG, PRIORITY_COLOR } from '../constants';
 import { avatarColor, renderTextWithNewlines } from '../lib/renderContent';
+import type { WorkItem } from '../types';
 
 export interface WorkItemViewModeProps {
   item: WorkItem;

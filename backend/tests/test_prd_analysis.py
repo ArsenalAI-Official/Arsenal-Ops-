@@ -87,7 +87,7 @@ class TestAnalyzePRDFile:
         - Response contains architectures list with recommended and alternative
         - Both are persisted in DB
         """
-        user, token = admin_user
+        _user, token = admin_user
         project = seed_project(db, "Test PRD Project", num_developers=1)
 
         # Create minimal valid PDF bytes
@@ -166,7 +166,7 @@ class TestAnalyzePRDFile:
 
         POSTs .txt file, asserts 400 + error detail.
         """
-        user, token = admin_user
+        _user, token = admin_user
         project = seed_project(db, "Test Project", num_developers=1)
 
         with patch("services.prd_processor.prd_processor.process_prd") as mock_process:
@@ -187,7 +187,7 @@ class TestAnalyzePRDFile:
 
         POSTs empty PDF bytes, asserts 4xx error.
         """
-        user, token = admin_user
+        _user, token = admin_user
         project = seed_project(db, "Test Project", num_developers=1)
 
         with patch("services.prd_processor.prd_processor.process_prd") as mock_process:
@@ -223,7 +223,7 @@ class TestAnalyzePRDFile:
 
         POSTs with non-existent project ID, asserts 404.
         """
-        user, token = admin_user
+        _user, token = admin_user
 
         response = test_client.post(
             "/api/prd/analyze-file",
@@ -250,7 +250,7 @@ class TestAnalyzePRDText:
         - Response contains analysis and architectures
         - Both persist in DB
         """
-        user, token = admin_user
+        _user, token = admin_user
         project = seed_project(db, "Text Analysis Project", num_developers=1)
 
         prd_text = "Design a real-time collaboration tool with websockets and Redis."
@@ -310,7 +310,7 @@ class TestAnalyzePRDText:
 
     def test_analyze_text_nonexistent_project_returns_404(self, db, test_client, admin_user):
         """Verify POST analyze-text with bogus project_id → 404."""
-        user, token = admin_user
+        _user, token = admin_user
 
         response = test_client.post(
             "/api/prd/analyze-text",
@@ -347,7 +347,7 @@ class TestGetArchitectures:
 
         Creates 2 architectures, GETs them, asserts 200 + list of dicts.
         """
-        user, token = admin_user
+        _user, token = admin_user
         project = seed_project(db, "Arch Project", num_developers=1)
 
         arch1 = Architecture(
@@ -392,7 +392,7 @@ class TestGetArchitectures:
 
     def test_get_architectures_empty_returns_empty_list(self, db, test_client, admin_user):
         """Verify GET on project with no architectures → 200 + empty list."""
-        user, token = admin_user
+        _user, token = admin_user
         project = seed_project(db, "Empty Project", num_developers=1)
 
         response = test_client.get(
@@ -415,7 +415,7 @@ class TestGetProjectAnalysis:
 
         Creates 2 PRD analyses, GETs, asserts returns the latest.
         """
-        user, token = admin_user
+        _user, token = admin_user
         project = seed_project(db, "Analysis Project", num_developers=1)
 
         # Explicit, distinct created_at values so "latest" is unambiguous.
@@ -454,7 +454,7 @@ class TestGetProjectAnalysis:
 
     def test_get_analysis_returns_none_when_not_found(self, db, test_client, admin_user):
         """Verify GET analysis on project with no analysis → 200 + null."""
-        user, token = admin_user
+        _user, token = admin_user
         project = seed_project(db, "No Analysis Project", num_developers=1)
 
         response = test_client.get(
@@ -485,7 +485,7 @@ class TestUpdateArchitecture:
 
         Creates architecture, PUTs new mermaid_code, verifies in DB.
         """
-        user, token = admin_user
+        _user, token = admin_user
         project = seed_project(db, "Update Project", num_developers=1)
 
         arch = Architecture(
@@ -517,7 +517,7 @@ class TestUpdateArchitecture:
 
     def test_update_nonexistent_architecture_returns_404(self, db, test_client, admin_user):
         """Verify PUT on bogus architecture_id → 404."""
-        user, token = admin_user
+        _user, token = admin_user
 
         response = test_client.put(
             "/api/prd/architectures/999999",
@@ -558,7 +558,7 @@ class TestGetArchitecture:
 
         Creates architecture, GETs it, asserts all fields present.
         """
-        user, token = admin_user
+        _user, token = admin_user
         project = seed_project(db, "Get Project", num_developers=1)
 
         arch = Architecture(
@@ -585,7 +585,7 @@ class TestGetArchitecture:
 
     def test_get_nonexistent_architecture_returns_404(self, db, test_client, admin_user):
         """Verify GET on bogus architecture_id → 404."""
-        user, token = admin_user
+        _user, token = admin_user
 
         response = test_client.get(
             "/api/prd/architectures/999999",
@@ -622,7 +622,7 @@ class TestSelectArchitecture:
 
         Creates 2 architectures, selects one, verifies only that one is selected.
         """
-        user, token = admin_user
+        _user, token = admin_user
         project = seed_project(db, "Select Project", num_developers=1)
 
         arch1 = Architecture(
@@ -656,7 +656,7 @@ class TestSelectArchitecture:
 
     def test_select_nonexistent_architecture_returns_404(self, db, test_client, admin_user):
         """Verify POST select on bogus id → 404."""
-        user, token = admin_user
+        _user, token = admin_user
 
         response = test_client.post(
             "/api/prd/architectures/999999/select",
@@ -695,7 +695,7 @@ class TestAIRefineArchitecture:
         - Status 200
         - Architecture fields updated in DB
         """
-        user, token = admin_user
+        _user, token = admin_user
         project = seed_project(db, "Refine Project", num_developers=1)
 
         arch = Architecture(
@@ -737,11 +737,12 @@ class TestAIRefineArchitecture:
 
         db.refresh(arch)
         assert "Cache" in arch.mermaid_code
+        assert arch.description is not None
         assert "caching" in arch.description
 
     def test_ai_refine_nonexistent_architecture_returns_404(self, db, test_client, admin_user):
         """Verify POST ai-refine on bogus id → 404."""
-        user, token = admin_user
+        _user, token = admin_user
 
         response = test_client.post(
             "/api/prd/architectures/999999/ai-refine",
@@ -791,7 +792,7 @@ class TestCommitArchitecture:
         - Work items created in DB
         - Response includes tickets list
         """
-        user, token = admin_user
+        _user, token = admin_user
         project = seed_project(db, "Commit Project", num_developers=2)
 
         arch = Architecture(
@@ -842,7 +843,7 @@ class TestCommitArchitecture:
 
     def test_commit_architecture_nonexistent_project_returns_404(self, db, test_client, admin_user):
         """Verify POST commit on bogus project_id → 404."""
-        user, token = admin_user
+        _user, token = admin_user
 
         response = test_client.post(
             "/api/prd/projects/999999/commit-architecture",
@@ -877,7 +878,7 @@ class TestPreviewGeneratedTickets:
         - Status 200 + preview=True
         - Response contains tickets but DB is empty
         """
-        user, token = admin_user
+        _user, token = admin_user
         project = seed_project(db, "Preview Project", num_developers=1)
 
         arch = Architecture(
@@ -935,7 +936,7 @@ class TestPreviewGeneratedTickets:
 
     def test_preview_tickets_nonexistent_project_returns_404(self, db, test_client, admin_user):
         """Verify POST preview on bogus project_id → 404."""
-        user, token = admin_user
+        _user, token = admin_user
 
         response = test_client.post(
             "/api/prd/projects/999999/generate-tickets-preview",

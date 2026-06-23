@@ -1,5 +1,5 @@
-import { forwardRef, useRef } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { forwardRef, useRef } from 'react';
 import { cn } from '@/lib/utils';
 
 // React-compatible synthetic value update — avoids controlled-input staleness.

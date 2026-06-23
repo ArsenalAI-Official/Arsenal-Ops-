@@ -1,9 +1,9 @@
 import type { ConfirmFn } from '@/components/ui/confirm-dialog';
 import { useAuth } from '@/contexts/AuthContext';
-import { useProjectsList } from './useProjectsList';
 import { useMyTasks } from './useMyTasks';
-import { usePersonalTasksPanel } from './usePersonalTasksPanel';
 import { useNotepad } from './useNotepad';
+import { usePersonalTasksPanel } from './usePersonalTasksPanel';
+import { useProjectsList } from './useProjectsList';
 
 type AuthUser = ReturnType<typeof useAuth>['user'];
 

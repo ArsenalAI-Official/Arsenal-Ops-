@@ -1,9 +1,10 @@
-import { useState, useRef, Dispatch, SetStateAction } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState, useRef, Dispatch, SetStateAction } from 'react';
 import { toast } from 'sonner';
+import type { ProjectArchitectureResponse, PrdAnalysisResponse } from '@/client';
 import { apiFetch } from '@/lib/api';
 import { invalidateProjectScope } from '@/lib/invalidations';
-import type { ProjectArchitectureResponse, PrdAnalysisResponse } from '@/client';
+import { toastErrorHandler } from '@/lib/mutationToast';
 
 export interface GeneratedTicket {
   title: string;
@@ -31,6 +32,98 @@ export interface TicketsSummary {
   total_story_points: number;
   total_estimated_hours: number;
   sprint_recommendation: string;
+}
+
+// ── Roadmap parser shapes ───────────────────────────────────────────────────
+// The /api/roadmap/* and /api/prd/* endpoints return plain dicts (no
+// response_model, so nothing is generated into @/client). These are minimal
+// local interfaces covering the fields the wizard actually reads; backend
+// field names are inferred from usage, not a typed contract.
+export interface RoadmapTimeline {
+  start: string;
+  end: string;
+  duration_weeks: number;
+}
+
+export interface RoadmapWarning {
+  issue: string;
+  task: string;
+  detail: string;
+}
+
+export interface RoadmapConflict {
+  assignee: string;
+  week: number | string;
+  total_hrs: number;
+  tasks: string[];
+}
+
+export interface RoadmapSprint {
+  number: number;
+  start_week: string;
+  end_week: string;
+  duration_weeks: number;
+  task_count?: number;
+  tasks?: unknown[];
+  total_hours?: number;
+}
+
+export interface RoadmapTicket {
+  name: string;
+  description?: string;
+  priority?: string;
+  effort_hrs?: number;
+  assignee?: string;
+  milestone?: string;
+  epic?: string;
+}
+
+export interface RoadmapSummary {
+  total_epics: number;
+  total_tasks: number;
+  total_assignees: number;
+  total_sprints?: number;
+  timeline: RoadmapTimeline;
+  assignees?: string[];
+  warnings?: RoadmapWarning[];
+  conflicts?: RoadmapConflict[];
+}
+
+export interface RoadmapParsedData {
+  tickets?: RoadmapTicket[];
+  sprints?: RoadmapSprint[];
+  meta?: { missing_weeks?: unknown[] };
+}
+
+interface RoadmapParseResponse {
+  summary: RoadmapSummary;
+  parsed_data: RoadmapParsedData;
+}
+
+interface PrdAnalyzeResponse {
+  analysis: PrdAnalysisResponse;
+  architectures: ProjectArchitectureResponse[];
+}
+
+interface GenerateTicketsPreviewResponse {
+  tickets: GeneratedTicket[];
+  total_story_points: number;
+  total_estimated_hours: number;
+  sprint_recommendation: string;
+}
+
+interface CommitArchitectureResponse {
+  success: boolean;
+  tickets_created: number;
+  error?: string;
+  sprints?: unknown[];
+}
+
+interface RoadmapCommitResponse {
+  tickets_created: number;
+  epics_created: number;
+  sprints_created: number;
+  assignees_not_found: number;
 }
 
 interface UseAIPlanningArgs {
@@ -87,8 +180,8 @@ export function useAIPlanning({
   const [ticketsSummary, setTicketsSummary] = useState<TicketsSummary | null>(null);
   const [roadmapFile, setRoadmapFile] = useState<File | null>(null);
   const [sprintWeeks, setSprintWeeks] = useState<number>(2);
-  const [roadmapSummary, setRoadmapSummary] = useState<any>(null);
-  const [roadmapParsedData, setRoadmapParsedData] = useState<any>(null);
+  const [roadmapSummary, setRoadmapSummary] = useState<RoadmapSummary | null>(null);
+  const [roadmapParsedData, setRoadmapParsedData] = useState<RoadmapParsedData | null>(null);
   const [createdTicketCount, setCreatedTicketCount] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -138,16 +231,19 @@ export function useAIPlanning({
     setIsGenerating(true);
 
     try {
-      let data: any;
+      let data: PrdAnalyzeResponse;
       if (prdFile) {
         // File upload — apiFetch skips Content-Type for FormData
         const formData = new FormData();
         formData.append('file', prdFile);
         formData.append('project_id', String(project.id));
         formData.append('additional_context', additionalContext);
-        data = await apiFetch('/api/prd/analyze-file', { method: 'POST', body: formData });
+        data = await apiFetch<PrdAnalyzeResponse>('/api/prd/analyze-file', {
+          method: 'POST',
+          body: formData,
+        });
       } else {
-        data = await apiFetch('/api/prd/analyze-text', {
+        data = await apiFetch<PrdAnalyzeResponse>('/api/prd/analyze-text', {
           method: 'POST',
           body: JSON.stringify({
             project_id: project.id,
@@ -164,8 +260,8 @@ export function useAIPlanning({
       // closes this modal without going through preview/commit.
       invalidateProjectScope(queryClient, project.id);
       toast.success('PRD analyzed successfully!');
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to analyze PRD');
+    } catch (err) {
+      toastErrorHandler('analyze PRD')(err);
       setAiStep('upload');
     } finally {
       setIsGenerating(false);
@@ -188,7 +284,7 @@ export function useAIPlanning({
       formData.append('project_id', String(project.id));
       formData.append('sprint_weeks', String(sprintWeeks));
 
-      const data = await apiFetch<any>('/api/roadmap/parse-file', {
+      const data = await apiFetch<RoadmapParseResponse>('/api/roadmap/parse-file', {
         method: 'POST',
         body: formData,
       });
@@ -196,8 +292,8 @@ export function useAIPlanning({
       setRoadmapParsedData(data.parsed_data);
       setAiStep('architectures'); // Reuse architectures step for summary display
       toast.success('Roadmap parsed successfully!');
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to parse roadmap');
+    } catch (err) {
+      toastErrorHandler('parse roadmap')(err);
       setAiStep('upload');
     } finally {
       setIsGenerating(false);
@@ -238,10 +334,13 @@ export function useAIPlanning({
     setIsGenerating(true);
 
     try {
-      const data = await apiFetch<any>(`/api/prd/projects/${project.id}/generate-tickets-preview`, {
-        method: 'POST',
-        body: JSON.stringify({ architecture_id: selectedArchitectureId }),
-      });
+      const data = await apiFetch<GenerateTicketsPreviewResponse>(
+        `/api/prd/projects/${project.id}/generate-tickets-preview`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ architecture_id: selectedArchitectureId }),
+        },
+      );
       setGeneratedTickets(data.tickets);
       setTicketsSummary({
         total_story_points: data.total_story_points,
@@ -264,14 +363,17 @@ export function useAIPlanning({
     setIsGenerating(true);
 
     try {
-      const data = await apiFetch<any>(`/api/prd/projects/${project.id}/commit-architecture`, {
-        method: 'POST',
-        body: JSON.stringify({
-          architecture_id: selectedArchitectureId,
-          start_date: startDate || null,
-          end_date: endDate || null,
-        }),
-      });
+      const data = await apiFetch<CommitArchitectureResponse>(
+        `/api/prd/projects/${project.id}/commit-architecture`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            architecture_id: selectedArchitectureId,
+            start_date: startDate || null,
+            end_date: endDate || null,
+          }),
+        },
+      );
 
       // Check if AI actually created tickets
       if (!data.success || data.tickets_created === 0) {
@@ -293,8 +395,8 @@ export function useAIPlanning({
       setTimeout(() => {
         onClose();
       }, 2000);
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to commit architecture');
+    } catch (err) {
+      toastErrorHandler('commit architecture')(err);
       setAiStep('preview');
     } finally {
       setIsGenerating(false);
@@ -309,7 +411,7 @@ export function useAIPlanning({
     setIsGenerating(true);
 
     try {
-      const data = await apiFetch<any>('/api/roadmap/commit', {
+      const data = await apiFetch<RoadmapCommitResponse>('/api/roadmap/commit', {
         method: 'POST',
         body: JSON.stringify({ project_id: project.id, parsed_data: roadmapParsedData }),
       });
@@ -328,8 +430,8 @@ export function useAIPlanning({
       setTimeout(() => {
         onClose();
       }, 2000);
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to commit roadmap');
+    } catch (err) {
+      toastErrorHandler('commit roadmap')(err);
       setAiStep('preview');
     } finally {
       setIsGenerating(false);

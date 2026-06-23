@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Clock } from 'lucide-react';
-import { apiFetch } from '@/lib/api';
+import { useMemo, useState } from 'react';
+import type { TimeEntriesResponse } from '@/client';
 import { formatLocalDate } from '@/components/ProjectsPage/utils';
+import { apiFetch } from '@/lib/api';
 import TimeEntriesFilterBar from './TimeEntriesFilterBar';
 import TimeEntriesSummary from './TimeEntriesSummary';
 import TimeEntriesTable from './TimeEntriesTable';
@@ -15,7 +16,6 @@ import type {
   GroupBy,
   ProjectOption,
 } from './types';
-import type { TimeEntriesResponse } from '@/client';
 
 /**
  * Admin Time Entries tab — workforce-tool-style filterable grid of every

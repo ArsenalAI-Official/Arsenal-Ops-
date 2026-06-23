@@ -1,17 +1,17 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { hasAnyAdminCapability } from '@/lib/adminCaps';
-import { useConfirm } from '@/components/ui/confirm-dialog';
-import { useState } from 'react';
+import { usePersonalTasksData } from './hooks/usePersonalTasksData';
+import AddTaskDialog from './modals/AddTaskDialog';
+import ConvertToTicketDialog from './modals/ConvertToTicketDialog';
+import EditTaskDialog from './modals/EditTaskDialog';
 import PersonalTasksHeader from './sections/PersonalTasksHeader';
+import PersonalTasksList from './sections/PersonalTasksList';
 import PersonalTasksStatsBar from './sections/PersonalTasksStatsBar';
 import PersonalTasksToolbar from './sections/PersonalTasksToolbar';
-import PersonalTasksList from './sections/PersonalTasksList';
-import AddTaskDialog from './modals/AddTaskDialog';
-import EditTaskDialog from './modals/EditTaskDialog';
-import ConvertToTicketDialog from './modals/ConvertToTicketDialog';
-import { usePersonalTasksData } from './hooks/usePersonalTasksData';
 import type { PersonalTask } from './types';
 
 const PersonalTasksPage = () => {

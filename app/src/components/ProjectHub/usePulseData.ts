@@ -21,11 +21,11 @@
  * the merged value is exactly the manual data — the Pulse view stays fully
  * functional in the degraded path.
  */
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 // Note: `useRef` is used inside `usePulseManualData` to gate the one-shot
 // migration; reading refs during render is forbidden by react-hooks v6, but
 // reading them inside `useEffect` (where the migration fires) is fine.
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiFetch, ApiError } from '@/lib/api';
 import { DerivedPulseData, PulseData, mergePulseData } from './pulseData';

@@ -18,7 +18,9 @@ specifically.
 - TanStack Query v5 (`@tanstack/react-query`)
 - react-router-dom 7.13
 - Tailwind + shadcn/ui + sonner
-- ESLint flat config (`eslint.config.js`) + Prettier
+- ESLint flat config (`eslint.config.js`) + Prettier. Plugins: `typescript-eslint`,
+  `react-hooks`, `react-refresh`, **`jsx-a11y`** (accessibility) and
+  **`import-x`** (import ordering). See the ESLint posture note below.
 
 CI runs `tsc --noEmit`, `npm run lint`, `npm run format:check`, unit tests, and
 a generated-types drift check on every PR via `.github/workflows/lint.yml` (see
@@ -245,13 +247,49 @@ try { ... } catch (err) { ... }     // err actually used
 The ESLint rule `@typescript-eslint/no-unused-vars` is configured to allow
 `_`-prefixed identifiers and to ignore caught-error params entirely.
 
-### `any` is a warning, not an error
+### `any` is banned (error)
 
-`@typescript-eslint/no-explicit-any` is downgraded to **warn** in
-`eslint.config.js`. Existing code uses `any` heavily for response payloads,
-recharts callbacks, and drag-drop event types. Don't add new `any`s —
-prefer `unknown` and narrow — but don't be forced into refactoring to
-land a feature.
+`@typescript-eslint/no-explicit-any` is an **error** in `eslint.config.js`.
+The legacy backlog (API response shapes, recharts payloads, drag/calendar
+event types — formerly ~62 `any`s) was burned down: replaced with real types,
+the canonical `WorkItem`/`WorkItemUpdate` shapes, library types (e.g.
+`react-big-calendar`'s `View`/`ToolbarProps`), and `unknown` + narrowing where
+the value is genuinely dynamic. For dynamic values prefer `unknown` + a type
+guard; for errors use `permissionAwareError(err, fallback)` (`@/lib/api`) or
+`toastErrorHandler(action)` (`@/lib/mutationToast`) — never `catch (e: any)`.
+Don't reintroduce `any`; there are no `eslint-disable` escape hatches for this
+rule, and any genuinely unavoidable case must be justified in review.
+
+---
+
+## ESLint posture (a11y + import order)
+
+- **Accessibility (`jsx-a11y`)** — the flat-config recommended set runs, but
+  every rule is downgraded to **warn**. There's a known a11y backlog (the
+  keyboard-inaccessible Kanban board + modals in `ProjectBoard.tsx`); we want
+  it visible without turning CI red, and remediated in a dedicated follow-up.
+  **Don't add new a11y warnings** in code you touch; fixing the board itself is
+  out of scope until that follow-up. When a `jsx-a11y` rule genuinely fights a
+  shadcn primitive, relax it in the `src/components/ui/**` + `src/contexts/**`
+  override block, not globally.
+- **Import order (`import-x/order`)** — **error**, because it's fully
+  autofixable: run `eslint --fix`. Order is builtin → external → internal
+  (`@/*`) → relative, alphabetized within each group. `newlines-between` is
+  intentionally NOT enforced (it conflicts unfixably with side-effect CSS
+  imports like `import './App.css'`). Test files (`**/*.test.{ts,tsx}`,
+  `src/test/**`) disable the rule — they interleave `vi.mock()` between imports
+  (hoisted-mock pattern), which is semantic ordering the rule can't sort.
+
+## TypeScript strictness flags
+
+`tsconfig.app.json` enables, on top of `strict`: `noUnusedLocals`,
+`noUnusedParameters`, `noFallthroughCasesInSwitch`, **`noUncheckedIndexedAccess`**,
+and **`noImplicitReturns`**. The big one is `noUncheckedIndexedAccess`: `arr[i]`
+and `record[key]` are typed `T | undefined`. Prefer narrowing/guards (capture
+into a local, `??=` defaults) over `!`; reserve `!` for cases where the element
+is statically guaranteed (bounds-checked index, regex capture group, a config
+map's known fallback key). `exactOptionalPropertyTypes` is deliberately **off**
+for now — it surfaced ~34 findings and is deferred to a follow-up.
 
 ---
 

@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
 import { Link2, Plus, ExternalLink, Trash2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import type { ProjectLinkResponse } from '@/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import type { ProjectLinkResponse } from '@/client';
 
 interface LinksSectionProps {
   links: ProjectLinkResponse[];

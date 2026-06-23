@@ -1,8 +1,8 @@
 import React from 'react';
 import { PulseData } from '../pulseData';
+import { ForecastVsActualsCard } from './sections/ForecastVsActualsCard';
 import { ProjectHeroCard } from './sections/ProjectHeroCard';
 import { SpendingViewCard } from './sections/SpendingViewCard';
-import { ForecastVsActualsCard } from './sections/ForecastVsActualsCard';
 
 /* -------------------------------------------------------------------- */
 /*  PROJECT PULSE VIEW — Variant E (Combined / recommended)             */

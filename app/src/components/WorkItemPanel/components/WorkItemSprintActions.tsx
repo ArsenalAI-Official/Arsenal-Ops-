@@ -1,7 +1,7 @@
 import { ArrowRight, Inbox } from 'lucide-react';
+import type { SprintResponse } from '@/client';
 import { Button } from '@/components/ui/button';
 import type { WorkItem } from '../types';
-import type { SprintResponse } from '@/client';
 
 export interface WorkItemSprintActionsProps {
   item: WorkItem;

@@ -1,7 +1,7 @@
 import { Plus, X, FolderKanban, User, Trash2, Sparkles, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { Modal } from '@/components/ui/modal';
 import {
   Select,
   SelectContent,
@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Modal } from '@/components/ui/modal';
+import { Textarea } from '@/components/ui/textarea';
 import type { Developer, CreateProjectForm, SelectedDeveloper } from './types';
 
 /** Sentinel used by the shadcn Select to represent "no category". Lifted

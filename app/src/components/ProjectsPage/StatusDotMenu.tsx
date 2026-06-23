@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
+import { useState } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { STATUS_COLOR } from './constants';
 

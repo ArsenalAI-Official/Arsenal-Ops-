@@ -1,14 +1,14 @@
 import { Calendar } from 'lucide-react';
+import type { ProjectDeveloperEntry } from '@/client';
+import { parseLocalDate, formatLocalDate } from '@/components/ProjectsPage/utils';
 import { Button } from '@/components/ui/button';
+import { Calendar as CalendarIcon } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
 import { NumberInput } from '@/components/ui/number-input';
-import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarIcon } from '@/components/ui/calendar';
-import { parseLocalDate, formatLocalDate } from '@/components/ProjectsPage/utils';
-import type { WorkItem } from '../types';
-import type { ProjectDeveloperEntry } from '@/client';
+import { Textarea } from '@/components/ui/textarea';
 import { CALENDAR_CLASS_NAMES } from '../constants';
+import type { WorkItem } from '../types';
 
 export interface WorkItemCompactEditFormProps {
   item: WorkItem;

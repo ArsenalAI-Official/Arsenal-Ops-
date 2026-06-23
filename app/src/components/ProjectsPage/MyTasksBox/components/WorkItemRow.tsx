@@ -1,9 +1,9 @@
 import { X, Calendar } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarIcon } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import StatusDotMenu from '../../StatusDotMenu';
 import type { MyTask } from '../../types';
 import { parseLocalDate } from '../../utils';
-import StatusDotMenu from '../../StatusDotMenu';
 import { priorityColor, type MyTaskTab } from '../lib';
 
 interface WorkItemRowProps {

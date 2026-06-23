@@ -1,15 +1,15 @@
 // Thin container for the Projects admin tab: owns data, mutations, and modal
 // state via useProjectsAdmin (plus the employees list for the add-member
 // dropdown), then renders the tab and its three modals.
-import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { useAuth } from '@/contexts/AuthContext';
 import { AdminSpinner } from '../components/AdminSpinner';
-import { useProjectsAdmin } from '../hooks/useProjectsAdmin';
 import { useEmployeesList } from '../hooks/useEmployeesList';
-import ProjectsTab from '../tabs/ProjectsTab';
+import { useProjectsAdmin } from '../hooks/useProjectsAdmin';
+import CategoryManagerModal from '../modals/CategoryManagerModal';
 import GitHubModal from '../modals/GitHubModal';
 import ProjectMembersModal from '../modals/ProjectMembersModal';
-import CategoryManagerModal from '../modals/CategoryManagerModal';
+import ProjectsTab from '../tabs/ProjectsTab';
 
 export default function ProjectsContainer() {
   const { confirm, confirmDialog } = useConfirm();

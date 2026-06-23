@@ -1,10 +1,10 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { apiFetch, ApiError } from '@/lib/api';
+import CapacityModal from './components/CapacityModal';
+import CapacityTile from './components/CapacityTile';
 import type { MyCapacityResponse, ProjectGroup } from './types';
 import { WEEKLY_CAPACITY } from './types';
-import CapacityTile from './components/CapacityTile';
-import CapacityModal from './components/CapacityModal';
 
 /**
  * Compact dashboard tile showing the logged-in user's weekly capacity.

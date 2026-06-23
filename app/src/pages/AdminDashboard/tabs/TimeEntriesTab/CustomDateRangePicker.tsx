@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarIcon } from '@/components/ui/calendar';
-import { parseLocalDate, formatLocalDate } from '@/components/ProjectsPage/utils';
 import { CALENDAR_CLASS_NAMES } from '@/components/ProjectsPage/constants';
+import { parseLocalDate, formatLocalDate } from '@/components/ProjectsPage/utils';
+import { Button } from '@/components/ui/button';
+import { Calendar as CalendarIcon } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 /**
  * From / To calendar pair, modeled on the Personal Tasks due-date popover

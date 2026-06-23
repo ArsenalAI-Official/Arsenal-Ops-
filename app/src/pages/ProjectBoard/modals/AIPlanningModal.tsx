@@ -1,16 +1,16 @@
-import { Dispatch, SetStateAction } from 'react';
 import { Sparkles, CheckCircle2, X, ArrowRight, GitCommit } from 'lucide-react';
+import { Dispatch, SetStateAction } from 'react';
+import type { ProjectArchitectureResponse } from '@/client';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import GenerateRoadmapModal from '@/pages/ProjectDetail/modals/GenerateRoadmapModal';
-import { useAIPlanning, type Project } from './AIPlanning/useAIPlanning';
-import type { ProjectArchitectureResponse } from '@/client';
-import UploadStep from './AIPlanning/steps/UploadStep';
 import AnalyzingStep from './AIPlanning/steps/AnalyzingStep';
 import ArchitecturesStep from './AIPlanning/steps/ArchitecturesStep';
-import PreviewStep from './AIPlanning/steps/PreviewStep';
 import CommittingStep from './AIPlanning/steps/CommittingStep';
 import DoneStep from './AIPlanning/steps/DoneStep';
+import PreviewStep from './AIPlanning/steps/PreviewStep';
+import UploadStep from './AIPlanning/steps/UploadStep';
+import { useAIPlanning, type Project } from './AIPlanning/useAIPlanning';
 
 export interface AIPlanningModalProps {
   project: Project | null;

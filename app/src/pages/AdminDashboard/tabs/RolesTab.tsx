@@ -1,8 +1,8 @@
 import { Plus, Pencil, Trash2, KeyRound } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { toPascalCase } from '@/lib/stringUtils';
-import { Empty, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import type { RoleResponse } from '@/client';
+import { Button } from '@/components/ui/button';
+import { Empty, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
+import { toPascalCase } from '@/lib/stringUtils';
 
 interface RolesTabProps {
   roles: RoleResponse[];

@@ -9,11 +9,11 @@
 //
 // Each returns `{ user, queryClient, ...renderResult }` so a test gets a ready
 // userEvent handle and can inspect/seed the cache without re-instantiating.
-import { type ReactElement, type ReactNode } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, type RenderResult } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { type UserEvent } from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { type ReactElement, type ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { createTestQueryClient } from './queryClient';
 

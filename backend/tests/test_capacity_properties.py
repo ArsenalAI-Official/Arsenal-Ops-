@@ -22,10 +22,10 @@ import pytest
 # collection. Install it (pip install hypothesis) to exercise these property tests.
 pytest.importorskip("hypothesis")
 
-from hypothesis import HealthCheck, assume, given, settings  # noqa: E402
-from hypothesis import strategies as st  # noqa: E402
-from sqlalchemy import create_engine  # noqa: E402
-from sqlalchemy.orm import sessionmaker  # noqa: E402
+from hypothesis import HealthCheck, assume, given, settings
+from hypothesis import strategies as st
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 sys.path.insert(0, os.path.dirname(__file__) + "/..")
 
@@ -118,7 +118,7 @@ def compute_capacity(db, dev):
     """Replicate capacity calculation logic for property tests."""
     from models.work_item import WorkItem
 
-    week_start, week_end = week_boundaries()
+    week_start, _week_end = week_boundaries()
     dev_items = db.query(WorkItem).filter(WorkItem.assignee_id == dev.id).all()
 
     in_progress_hours = 0

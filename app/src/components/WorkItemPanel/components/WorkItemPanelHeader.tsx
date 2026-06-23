@@ -1,7 +1,7 @@
 import { Pencil, Trash2, X, Ban, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { WorkItem } from '../types';
 import { TYPE_CONFIG } from '../constants';
+import type { WorkItem } from '../types';
 
 export interface WorkItemPanelHeaderProps {
   item: WorkItem;

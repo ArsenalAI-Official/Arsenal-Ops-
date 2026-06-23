@@ -1,11 +1,11 @@
+import { Users, FolderKanban, ArrowLeft, BarChart3, Shield, KeyRound, Clock } from 'lucide-react';
 import { lazy, Suspense, useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Users, FolderKanban, ArrowLeft, BarChart3, Shield, KeyRound, Clock } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Toaster } from 'sonner';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import type { AdminTab } from './types';
 import { AdminSpinner } from './components/AdminSpinner';
+import type { AdminTab } from './types';
 
 // Each tab is a self-contained container that owns its own data hooks, mutations,
 // and modal/form state. Lazy-loading keeps every tab's chunk — and its heavy

@@ -145,7 +145,7 @@ export const BurnChart: React.FC<{ pulse: PulseData; width?: number; height?: nu
           return (
             <g key={i}>
               {CATEGORY_COLORS.map((s) => {
-                const v = (m as any)[s.key] || 0;
+                const v = m[s.key] || 0;
                 if (!v) return null;
                 const h = (v / yMaxBar) * H;
                 const y = yBar(acc) - h;

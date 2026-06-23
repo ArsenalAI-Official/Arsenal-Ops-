@@ -248,7 +248,7 @@ describe('buildPickerCatalog', () => {
       writeGrant: 'admin.users_write',
     });
     expect(byLabel['Time Entries']).toMatchObject({ readGrant: 'admin.time_entries' });
-    expect(byLabel['Time Entries'].writeGrant).toBeUndefined();
+    expect(byLabel['Time Entries']!.writeGrant).toBeUndefined();
   });
 
   it('project group includes the hand-added Project Board row (read + write)', () => {

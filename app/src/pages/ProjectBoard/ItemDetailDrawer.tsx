@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import type { SprintResponse, DeveloperResponse } from '@/client';
 import { WorkItemPanel } from '@/components/WorkItemPanel';
 import type { WorkItem, ProjectLite } from '@/components/WorkItemPanel';
-import type { SprintResponse, DeveloperResponse } from '@/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface ItemDetailDrawerProps {
   selectedItem: WorkItem;

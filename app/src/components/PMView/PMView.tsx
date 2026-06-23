@@ -3,10 +3,10 @@ import { Button } from '@/components/ui/button';
 import { API_BASE_URL } from '@/config/api';
 import { useAuth } from '@/contexts/AuthContext';
 import HoursDebugPanel from '../HoursDebugPanel';
-import type { HoursAnalytics, PMViewProps } from './types';
+import DeveloperHoursTable from './sections/DeveloperHoursTable';
 import PMSummaryCards from './sections/PMSummaryCards';
 import SprintOverview from './sections/SprintOverview';
-import DeveloperHoursTable from './sections/DeveloperHoursTable';
+import type { HoursAnalytics, PMViewProps } from './types';
 
 export default function PMView({ projectId, token, sprints = [] }: PMViewProps) {
   const { can } = useAuth();

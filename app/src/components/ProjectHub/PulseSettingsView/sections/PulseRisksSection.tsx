@@ -1,5 +1,5 @@
-import React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { PulseRisk } from '../../pulseData';
 import { Field, Section, TextInput } from '../inputs';

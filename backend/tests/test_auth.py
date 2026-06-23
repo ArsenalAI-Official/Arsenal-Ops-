@@ -270,7 +270,7 @@ class TestChangePassword:
 
         Uses admin_user fixture, POSTs wrong current_password, asserts 400.
         """
-        user, token = admin_user
+        _user, token = admin_user
 
         response = test_client.post(
             "/api/auth/change-password",
@@ -445,6 +445,7 @@ class TestPasswordUtilities:
 
         # Verify the hash was upgraded to bcrypt post-login
         db.refresh(user)
+        assert user.hashed_password is not None
         assert user.hashed_password.startswith("$2b$"), (
             f"Expected bcrypt hash after login, got {user.hashed_password}"
         )

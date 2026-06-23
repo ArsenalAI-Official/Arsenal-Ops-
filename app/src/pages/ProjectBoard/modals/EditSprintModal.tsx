@@ -1,12 +1,12 @@
-import { useState } from 'react';
 import { X, Calendar, CheckCircle2, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarIcon } from '@/components/ui/calendar';
-import { CALENDAR_CLASS_NAMES } from '@/lib/calendarClassNames';
+import { useState } from 'react';
 import type { SprintResponse } from '@/client';
+import { Button } from '@/components/ui/button';
+import { Calendar as CalendarIcon } from '@/components/ui/calendar';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Textarea } from '@/components/ui/textarea';
+import { CALENDAR_CLASS_NAMES } from '@/lib/calendarClassNames';
 
 export interface EditSprintFormValues {
   name: string;
@@ -36,8 +36,8 @@ const EditSprintModal = ({
   const [editSprintForm, setEditSprintForm] = useState<EditSprintFormValues>(() => ({
     name: editingSprint.name,
     goal: editingSprint.goal || '',
-    start_date: editingSprint.start_date ? editingSprint.start_date.split('T')[0] : '',
-    end_date: editingSprint.end_date ? editingSprint.end_date.split('T')[0] : '',
+    start_date: editingSprint.start_date ? editingSprint.start_date.split('T')[0]! : '',
+    end_date: editingSprint.end_date ? editingSprint.end_date.split('T')[0]! : '',
   }));
   const [showCalendarEditSprintStart, setShowCalendarEditSprintStart] = useState(false);
   const [showCalendarEditSprintEnd, setShowCalendarEditSprintEnd] = useState(false);

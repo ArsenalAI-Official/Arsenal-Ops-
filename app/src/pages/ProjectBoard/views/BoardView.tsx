@@ -56,7 +56,8 @@ const BoardView = ({
       className="flex gap-4 p-6 min-h-[calc(100vh-140px)]"
     >
       {BOARD_STATUS_ORDER.map((status) => {
-        const config = statusConfig[status];
+        // `status` comes from BOARD_STATUS_ORDER, so the config entry always exists.
+        const config = statusConfig[status]!;
         const columnItems = columnItemsByStatus[status] ?? [];
         const isDropTarget = dragOverColumn === status;
 

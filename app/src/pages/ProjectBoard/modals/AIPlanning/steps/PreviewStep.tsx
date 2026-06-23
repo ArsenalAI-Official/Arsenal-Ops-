@@ -2,14 +2,19 @@ import { Users, BarChart3, ClipboardList } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Empty, EmptyDescription } from '@/components/ui/empty';
 import GeneratedTicketCard from '../components/GeneratedTicketCard';
-import type { GeneratedTicket, TicketsSummary } from '../useAIPlanning';
+import type {
+  GeneratedTicket,
+  TicketsSummary,
+  RoadmapSummary,
+  RoadmapParsedData,
+} from '../useAIPlanning';
 
 interface PreviewStepProps {
   uploadMode: 'prd' | 'roadmap';
   generatedTickets: GeneratedTicket[];
   ticketsSummary: TicketsSummary | null;
-  roadmapSummary: any;
-  roadmapParsedData: any;
+  roadmapSummary: RoadmapSummary | null;
+  roadmapParsedData: RoadmapParsedData | null;
   sprintWeeks: number;
 }
 
@@ -136,7 +141,7 @@ const PreviewStep = ({
                 </EmptyDescription>
               </Empty>
             ) : (
-              roadmapParsedData.tickets.map((ticket: any, index: number) => (
+              roadmapParsedData.tickets.map((ticket, index) => (
                 <div
                   key={index}
                   className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] rounded-xl p-4"

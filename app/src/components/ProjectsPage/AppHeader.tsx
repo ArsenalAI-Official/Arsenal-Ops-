@@ -1,8 +1,8 @@
 import { Settings, LogOut } from 'lucide-react';
+import arsenalOpsLogo from '@/assets/images/arsenal-ops-logo.webp';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { hasAnyAdminCapability } from '@/lib/adminCaps';
-import arsenalOpsLogo from '@/assets/images/arsenal-ops-logo.webp';
 
 interface AppHeaderProps {
   user: { name: string; role: string } | null;

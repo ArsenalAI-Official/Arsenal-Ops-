@@ -58,7 +58,7 @@ class TestOwnTaskScoping:
         asserts only dev_user's tasks are returned.
         """
         dev, dev_token = dev_user
-        pm, pm_token = pm_user
+        _pm, pm_token = pm_user
 
         # Create task as dev_user
         dev_response = test_client.post(
@@ -103,8 +103,8 @@ class TestOwnTaskScoping:
         Creates task as dev_user, attempts to GET by id as pm_user,
         asserts 404 (task ownership validation).
         """
-        dev, dev_token = dev_user
-        pm, pm_token = pm_user
+        _dev, dev_token = dev_user
+        _pm, pm_token = pm_user
 
         # Create task as dev_user
         response = test_client.post(
@@ -141,7 +141,7 @@ class TestIDORMutations:
         Creates task as dev_user, PATCHes it with new title/status,
         asserts 200 and fields are updated.
         """
-        user, token = dev_user
+        _user, token = dev_user
 
         # Create task
         create_response = test_client.post(
@@ -178,8 +178,8 @@ class TestIDORMutations:
         Audit flag: convert_to_ticket has IDOR, but update endpoints
         appear to enforce own-task scoping. Lock current behavior.
         """
-        dev, dev_token = dev_user
-        pm, pm_token = pm_user
+        _dev, dev_token = dev_user
+        _pm, pm_token = pm_user
 
         # Create task as dev_user
         create_response = test_client.post(
@@ -215,8 +215,8 @@ class TestIDORMutations:
 
         Similar to update IDOR test; endpoints enforce own-task scoping.
         """
-        dev, dev_token = dev_user
-        pm, pm_token = pm_user
+        _dev, dev_token = dev_user
+        _pm, pm_token = pm_user
 
         # Create task as dev_user
         create_response = test_client.post(
@@ -256,7 +256,7 @@ class TestStatusTransitions:
         Creates task, PATCHes status to known-valid values (todo, in_progress, done),
         asserts 200 and status is updated.
         """
-        user, token = dev_user
+        _user, token = dev_user
 
         # Create task
         create_response = test_client.post(
@@ -286,7 +286,7 @@ class TestStatusTransitions:
         Sends garbage status value, asserts 4xx. Current behavior locked
         (may be 400 or 422; test does not assume specific code).
         """
-        user, token = dev_user
+        _user, token = dev_user
 
         # Create task
         create_response = test_client.post(
@@ -328,7 +328,7 @@ class TestConvertToTicket:
         Creates personal task as dev_user, converts to ticket in seeded project
         with assignee from project's developer list, asserts 200 and work_item created.
         """
-        dev, dev_token = dev_user
+        _dev, dev_token = dev_user
         project = seed_project(db)
 
         # Get first developer from project using direct SQL
@@ -399,8 +399,8 @@ class TestConvertToTicket:
 
         Expected behavior (after IDOR fix): 422 with message about project membership.
         """
-        dev, dev_token = dev_user
-        pm, pm_token = pm_user
+        _dev, dev_token = dev_user
+        pm, _pm_token = pm_user
         project1 = seed_project(db)
 
         # Create separate project with pm_user as developer
@@ -467,7 +467,7 @@ class TestConvertToTicket:
 
         Creates task, converts once, attempts second conversion, asserts 400.
         """
-        dev, dev_token = dev_user
+        _dev, dev_token = dev_user
         project = seed_project(db)
 
         # Get assignee from project
@@ -519,7 +519,7 @@ class TestConvertToTicket:
 
     def test_convert_to_nonexistent_project_fails(self, test_client, dev_user):
         """Verify convert_to_ticket with invalid project_id returns 404."""
-        dev, dev_token = dev_user
+        _dev, dev_token = dev_user
 
         # Create task
         task_response = test_client.post(
@@ -614,7 +614,7 @@ class TestEdgeCases:
 
     def test_create_task_with_due_date(self, test_client, dev_user, db):
         """Verify creating task with ISO format due_date is stored correctly."""
-        user, token = dev_user
+        _user, token = dev_user
 
         due_date_str = "2026-06-21T10:00:00"
 
@@ -637,7 +637,7 @@ class TestEdgeCases:
 
     def test_create_task_with_tags(self, test_client, dev_user):
         """Verify creating task with tags list is stored correctly."""
-        user, token = dev_user
+        _user, token = dev_user
 
         response = test_client.post(
             "/api/personal-tasks/",
@@ -658,7 +658,7 @@ class TestEdgeCases:
 
         Creates task, converts it, then tries to update, asserts 400.
         """
-        dev, dev_token = dev_user
+        _dev, dev_token = dev_user
         project = seed_project(db)
 
         # Get assignee
@@ -708,7 +708,7 @@ class TestEdgeCases:
 
     def test_filter_tasks_by_status(self, test_client, dev_user):
         """Verify GET /personal-tasks?status=X filters correctly."""
-        user, token = dev_user
+        _user, token = dev_user
 
         # Create tasks with different titles (all created as "todo" by POST)
         test_client.post(

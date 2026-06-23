@@ -1,5 +1,5 @@
-import { Dispatch, SetStateAction } from 'react';
 import { Upload, FileText, Download, X } from 'lucide-react';
+import { Dispatch, SetStateAction } from 'react';
 import { Button } from '@/components/ui/button';
 
 interface RoadmapUploadFormProps {
@@ -53,7 +53,12 @@ const RoadmapUploadForm = ({
             input.accept = '.xlsx,.xls';
             input.onchange = (e) => {
               const file = (e.target as HTMLInputElement).files?.[0];
-              if (file) onRoadmapFileUpload({ target: { files: [file] } } as any);
+              // Synthetic event: the upload handler only reads e.target.files?.[0],
+              // and there's no real <input> to dispatch from here.
+              if (file)
+                onRoadmapFileUpload({
+                  target: { files: [file] },
+                } as unknown as React.ChangeEvent<HTMLInputElement>);
             };
             input.click();
           }}

@@ -1,4 +1,3 @@
-import { lazy, Suspense, useState } from 'react';
 import {
   Layers,
   Pencil,
@@ -11,9 +10,10 @@ import {
   Wrench,
   Eye,
 } from 'lucide-react';
+import { lazy, Suspense, useState } from 'react';
+import type { ProjectArchitectureResponse } from '@/client';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
-import type { ProjectArchitectureResponse } from '@/client';
 
 // MermaidRenderer is heavy; lazy-load only when this section renders.
 // ArchitectureEditor (the modal) stays lazy at the parent, since edit state lives there.

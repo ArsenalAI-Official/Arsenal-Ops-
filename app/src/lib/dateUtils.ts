@@ -10,7 +10,7 @@
  */
 export function parseLocalDate(dateString: string | undefined | null): Date | undefined {
   if (!dateString) return undefined;
-  const datePart = String(dateString).split('T')[0];
+  const datePart = String(dateString).split('T')[0]!;
   const [year, month, day] = datePart.split('-').map(Number);
   if (!year || !month || !day) return undefined;
   return new Date(year, month - 1, day);
