@@ -1,21 +1,21 @@
 // Thin container for the Projects admin tab: owns data, mutations, and modal
 // state via useProjectsAdmin (plus the employees list for the add-member
 // dropdown), then renders the tab and its three modals.
-import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@/contexts/AuthContext';
+import { useMemo } from 'react';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
 import { AdminSpinner } from '../components/AdminSpinner';
 import { useEmployeesList } from '../hooks/useEmployeesList';
-import { useSetProjectWorkforceClient, useWorkforceClients } from '../hooks/useWorkforceAdmin';
 import { useProjectsAdmin } from '../hooks/useProjectsAdmin';
-import type { WorkforceStatus } from '../types';
-import ProjectsTab from '../tabs/ProjectsTab';
+import { useSetProjectWorkforceClient, useWorkforceClients } from '../hooks/useWorkforceAdmin';
 import CategoryManagerModal from '../modals/CategoryManagerModal';
 import GitHubModal from '../modals/GitHubModal';
 import ProjectMembersModal from '../modals/ProjectMembersModal';
 import ProjectsTab from '../tabs/ProjectsTab';
+import ProjectsTab from '../tabs/ProjectsTab';
+import type { WorkforceStatus } from '../types';
 
 export default function ProjectsContainer() {
   const { confirm, confirmDialog } = useConfirm();

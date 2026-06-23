@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { toast } from 'sonner';
 import { useSearchParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useRefreshWorkforceClients, useWorkforceAdmin } from '../hooks/useWorkforceAdmin';
 import IntegrationsTab from '../tabs/IntegrationsTab';

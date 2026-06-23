@@ -1,6 +1,4 @@
 import React, { useMemo, useState } from 'react';
-import type { ProjectCategory } from '../../modals/CategoryManagerModal';
-import type { WorkforceClient } from '../../types';
 import type { ProjectResponse, ProjectWeeklyReportResponse } from '@/client';
 import ProjectCardsView from './ProjectCardsView';
 import ProjectReportsView from './ProjectReportsView';
@@ -9,6 +7,8 @@ import ProjectsViewToggle from './ProjectsViewToggle';
 import { formatWeekRange } from './types';
 import type { ProjectsView } from './types';
 import type { ProjectCategory } from '../../modals/CategoryManagerModal';
+import type { ProjectCategory } from '../../modals/CategoryManagerModal';
+import type { WorkforceClient } from '../../types';
 
 interface ProjectsTabProps {
   /** Already filtered list — parent applies the category filter before
