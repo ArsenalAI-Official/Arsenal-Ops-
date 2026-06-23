@@ -1,6 +1,4 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { toast } from 'sonner';
 import {
   FileText,
   Target,
@@ -14,12 +12,14 @@ import {
   RefreshCw,
   Loader2,
 } from 'lucide-react';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import type { PrdAnalysisResponse } from '@/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { apiFetch, ApiError } from '@/lib/api';
 import { API_BASE_URL } from '@/config/api';
 import { useAuth } from '@/contexts/AuthContext';
-import type { PrdAnalysisResponse } from '@/client';
+import { apiFetch, ApiError } from '@/lib/api';
 import GenerateRoadmapModal from '../modals/GenerateRoadmapModal';
 
 interface RoadmapTemplateMeta {

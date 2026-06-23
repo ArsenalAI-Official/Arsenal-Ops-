@@ -1,15 +1,15 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api';
+import { useState } from 'react';
 import { toast } from 'sonner';
-import type { ConfirmFn } from '@/components/ui/confirm-dialog';
-import { usePersonalTaskMutations } from '@/hooks/usePersonalTaskMutations';
+import type { ProjectDeveloperEntry } from '@/client';
 import type {
   PersonalTask,
   NewPersonalTaskForm,
   EditPersonalTaskForm,
 } from '@/components/ProjectsPage';
-import type { ProjectDeveloperEntry } from '@/client';
+import type { ConfirmFn } from '@/components/ui/confirm-dialog';
+import { usePersonalTaskMutations } from '@/hooks/usePersonalTaskMutations';
+import { apiFetch } from '@/lib/api';
 
 const EMPTY_NEW_TASK: NewPersonalTaskForm = {
   title: '',

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { API_BASE_URL } from '@/config/api';
 import type { CommentThreadComment, CommentType } from '@/components/CommentThread';
+import { API_BASE_URL } from '@/config/api';
 import type { WorkItem } from '../types';
 
 interface UseReviewerActionsArgs {
@@ -66,7 +66,7 @@ export function useReviewerActions({ reviewItems, token, onTaskUpdate }: UseRevi
   };
 
   const handleLogHours = async (itemId: string) => {
-    const hours = parseFloat(logHoursInput[itemId]);
+    const hours = parseFloat(logHoursInput[itemId] ?? '');
     if (!hours || hours <= 0) {
       toast.error('Please enter valid hours');
       return;

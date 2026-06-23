@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
 import { ZoomIn, ZoomOut, Maximize2, RotateCcw } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { Spinner } from '@/components/ui/spinner';
 
 // Lazy-loaded mermaid singleton — kept outside the component so the dynamic
@@ -92,9 +92,9 @@ const MermaidRenderer = ({ code, className = '', showControls = true }: MermaidR
         // Parse and render
         const { svg } = await mermaid.render(id, cleanCode);
         setSvgContent(svg);
-      } catch (err: any) {
+      } catch (err) {
         console.error('Mermaid render error:', err);
-        setError(err.message || 'Failed to render diagram');
+        setError(err instanceof Error ? err.message : 'Failed to render diagram');
         setSvgContent('');
       } finally {
         setIsRendering(false);

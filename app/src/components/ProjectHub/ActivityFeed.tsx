@@ -1,7 +1,3 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Activity,
   GitBranch,
@@ -13,9 +9,11 @@ import {
   Trash2,
   Search,
 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { formatTimeAgo } from '@/lib/relativeTime';
-import { getInitials } from '@/lib/stringUtils';
+import React, { useState } from 'react';
+import type { ActivityResponse } from '@/client';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Empty,
   EmptyHeader,
@@ -23,7 +21,9 @@ import {
   EmptyTitle,
   EmptyDescription,
 } from '@/components/ui/empty';
-import type { ActivityResponse } from '@/client';
+import { Input } from '@/components/ui/input';
+import { formatTimeAgo } from '@/lib/relativeTime';
+import { getInitials } from '@/lib/stringUtils';
 
 interface ActivityFeedProps {
   activities: ActivityResponse[];

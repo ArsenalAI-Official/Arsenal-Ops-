@@ -1,6 +1,5 @@
-import React from 'react';
 import { RotateCcw, Settings, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import React from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,6 +11,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
 
 interface PulseSettingsHeaderProps {
   isSaving: boolean;

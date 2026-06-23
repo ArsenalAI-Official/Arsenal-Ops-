@@ -1,11 +1,10 @@
-import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import type { RoleResponse } from '@/client';
+import type { ConfirmFn } from '@/components/ui/confirm-dialog';
 import { apiFetch } from '@/lib/api';
 import { invalidateAdminRoles } from '@/lib/invalidations';
-import type { ConfirmFn } from '@/components/ui/confirm-dialog';
-import type { RoleResponse } from '@/client';
-import type { Capability } from '../types';
 import {
   type PickerChild,
   type PickerGroup,
@@ -15,9 +14,10 @@ import {
   applyTogglePickerCheckbox,
   buildPickerCatalog,
 } from '../lib/capabilityPicker';
+import type { Capability } from '../types';
 import { ADMIN_REFETCH } from './adminRefetch';
-import { useRolesList } from './useRolesList';
 import { useRefreshCapsTwice } from './useRefreshCapsTwice';
+import { useRolesList } from './useRolesList';
 
 /**
  * Owns the Roles-tab role-editor: the roles list (via useRolesList) + capability

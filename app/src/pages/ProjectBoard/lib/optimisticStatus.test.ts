@@ -43,7 +43,7 @@ describe('applyStatusChange', () => {
     expect(next).not.toBe(list); // new array
     expect(next[0]).not.toBe(item); // new object for the changed item
     expect(item.status).toBe('todo'); // original untouched
-    expect(list[0].status).toBe('todo');
+    expect(list[0]!.status).toBe('todo');
   });
 
   it('preserves item identity for unchanged items', () => {

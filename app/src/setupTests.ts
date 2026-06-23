@@ -3,12 +3,12 @@
 //
 // Order matters: extend assertions → mock auth at the module boundary →
 // polyfill jsdom gaps → install the MSW lifecycle + per-test reset chain.
-import { afterAll, afterEach, beforeAll, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import { afterAll, afterEach, beforeAll, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 
-import { authModuleMock, resetMockAuthState } from '@/test-utils/authMocks';
 import { resetMockServerState, server } from '@/mocks/node';
+import { authModuleMock, resetMockAuthState } from '@/test-utils/authMocks';
 
 // ── Auth: replace the real provider at the module boundary ──────────────────
 // The real AuthContext talks to the backend and runs idle-timeout effects.

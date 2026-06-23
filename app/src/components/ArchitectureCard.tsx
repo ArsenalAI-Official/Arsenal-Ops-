@@ -1,8 +1,8 @@
 import { CheckCircle2, Clock, DollarSign, Maximize2, Zap } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import MermaidRenderer from './MermaidRenderer';
 import type { ProjectArchitectureResponse } from '@/client';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import MermaidRenderer from './MermaidRenderer';
 
 interface ArchitectureCardProps {
   architecture: ProjectArchitectureResponse;

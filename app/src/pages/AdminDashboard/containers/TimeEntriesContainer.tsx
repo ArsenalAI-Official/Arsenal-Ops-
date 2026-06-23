@@ -2,13 +2,13 @@
 // employee option lists it filters by; the tab owns its own time-entries query,
 // date-range state, and table rendering. No `enabled` flag — this container only
 // mounts when the Time Entries tab is active, so mounting IS the fetch gate.
-import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api';
+import { useMemo } from 'react';
 import type { ProjectResponse } from '@/client';
+import { apiFetch } from '@/lib/api';
+import { AdminSpinner } from '../components/AdminSpinner';
 import { ADMIN_REFETCH } from '../hooks/adminRefetch';
 import { useEmployeesList } from '../hooks/useEmployeesList';
-import { AdminSpinner } from '../components/AdminSpinner';
 import TimeEntriesTab from '../tabs/TimeEntriesTab';
 
 export default function TimeEntriesContainer() {

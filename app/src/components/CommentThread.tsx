@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
 import { Send, MessageSquare, AlertCircle, Target, ShieldCheck } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -115,13 +115,13 @@ function renderCommentContent(
           key={`m-${idx++}`}
           className="bg-[rgba(224,185,84,0.2)] text-[#E0B954] px-1.5 py-0.5 rounded-md font-medium"
         >
-          @{devMap.get(parseInt(mm[1]))}
+          @{devMap.get(parseInt(mm[1]!))}
         </span>
       );
     }
     const um = part.match(/<<<U_(\d+)>>>/);
     if (um) {
-      const url = urls[parseInt(um[1])];
+      const url = urls[parseInt(um[1]!)];
       return (
         <a
           key={`u-${idx++}`}

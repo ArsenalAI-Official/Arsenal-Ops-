@@ -1,18 +1,18 @@
-import React, { useMemo } from 'react';
 import { Save } from 'lucide-react';
+import React, { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { PulseData, PulseMilestone } from '../pulseData';
 import { PulseOverridesUser } from '../usePulseData';
-import PulseSummarySection from './sections/PulseSummarySection';
-import PulseBudgetSection from './sections/PulseBudgetSection';
-import PulseMonthlyBurnSection from './sections/PulseMonthlyBurnSection';
-import PulseServicesSection from './sections/PulseServicesSection';
-import PulseRisksSection from './sections/PulseRisksSection';
-import PulseMilestonesFinancialSection from './sections/PulseMilestonesFinancialSection';
-import PulseSettingsHeader from './sections/PulseSettingsHeader';
 import { DerivedBanner, BannerLink } from './components/DerivedBanner';
-import { formatRelative } from './lib/formatRelative';
 import { usePulseSettingsForm } from './hooks/usePulseSettingsForm';
+import { formatRelative } from './lib/formatRelative';
+import PulseBudgetSection from './sections/PulseBudgetSection';
+import PulseMilestonesFinancialSection from './sections/PulseMilestonesFinancialSection';
+import PulseMonthlyBurnSection from './sections/PulseMonthlyBurnSection';
+import PulseRisksSection from './sections/PulseRisksSection';
+import PulseServicesSection from './sections/PulseServicesSection';
+import PulseSettingsHeader from './sections/PulseSettingsHeader';
+import PulseSummarySection from './sections/PulseSummarySection';
 
 interface PulseSettingsViewProps {
   projectId: string | number;

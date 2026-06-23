@@ -1,11 +1,4 @@
-import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { API_BASE_URL } from '@/config/api';
-import { invalidateProjectScope, invalidateWorkItemScope } from '@/lib/invalidations';
-import { useAuth } from '@/contexts/AuthContext';
 import {
   AlertTriangle,
   CheckCircle,
@@ -14,6 +7,13 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
+import { useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { API_BASE_URL } from '@/config/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { invalidateProjectScope, invalidateWorkItemScope } from '@/lib/invalidations';
 
 interface HoursDebugPanelProps {
   projectId: string;

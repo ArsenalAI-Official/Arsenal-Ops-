@@ -1,4 +1,3 @@
-import { useMemo, useState } from 'react';
 import {
   Shield,
   UserCog,
@@ -10,11 +9,12 @@ import {
   Trash2,
   Search,
 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import type { UserListItemResponse } from '@/client';
 import { Button } from '@/components/ui/button';
+import { Empty, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { toPascalCase } from '@/lib/stringUtils';
-import { Empty, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
-import type { UserListItemResponse } from '@/client';
 
 type UsersSortKey = 'created' | 'name' | 'status' | 'last_login';
 

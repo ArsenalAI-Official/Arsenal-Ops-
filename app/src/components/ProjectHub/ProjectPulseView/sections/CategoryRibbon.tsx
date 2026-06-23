@@ -13,7 +13,7 @@ export const CategoryRibbon: React.FC<{ pulse: PulseData; width?: number }> = Re
     const rowH = 40;
     const maxBy: Record<string, number> = {};
     cats.forEach((c) => {
-      maxBy[c.key] = Math.max(...pulse.months.map((m) => (m as any)[c.key] || 0), 1);
+      maxBy[c.key] = Math.max(...pulse.months.map((m) => m[c.key] || 0), 1);
     });
 
     return (
@@ -36,8 +36,9 @@ export const CategoryRibbon: React.FC<{ pulse: PulseData; width?: number }> = Re
               <span className="text-sm text-[#F4F6FF]">{c.label}</span>
             </div>
             {pulse.months.map((m, i) => {
-              const v = (m as any)[c.key] || 0;
-              const intensity = maxBy[c.key] ? v / maxBy[c.key] : 0;
+              const v = m[c.key] || 0;
+              const max = maxBy[c.key];
+              const intensity = max ? v / max : 0;
               const active = v > 0;
               return (
                 <div

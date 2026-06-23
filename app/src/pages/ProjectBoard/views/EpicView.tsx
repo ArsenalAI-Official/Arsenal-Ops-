@@ -3,11 +3,11 @@ import { Empty, EmptyTitle } from '@/components/ui/empty';
 import type { EpicGroup } from '@/lib/hierarchy/buildEpicGroups';
 import type { WorkItem } from '@/types/workItems';
 import type { ListSortKey } from '../lib/listSort';
+import ListSortHeader from './components/ListSortHeader';
 import WorkItemRow, {
   type WorkItemRowTypeConfig,
   type WorkItemRowPriorityStyle,
 } from './components/WorkItemRow';
-import ListSortHeader from './components/ListSortHeader';
 
 export interface EpicViewProps {
   /** Epic-grouped rows (from useListGrouping's buildEpicGroups memo). */
@@ -176,8 +176,8 @@ const EpicView = ({
                         .map((r) => ({ item: r.item, depth: 0 as const }))
                     : group.rows
                   ).map(({ item, depth }) => {
-                    const typeInfo = typeConfig[item.type] || typeConfig.task;
-                    const priorityStyle = priorityColors[item.priority] || priorityColors.medium;
+                    const typeInfo = typeConfig[item.type] || typeConfig.task!;
+                    const priorityStyle = priorityColors[item.priority] || priorityColors.medium!;
                     return (
                       <WorkItemRow
                         key={item.id}

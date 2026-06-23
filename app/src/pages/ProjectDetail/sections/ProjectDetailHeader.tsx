@@ -1,9 +1,9 @@
 import { ArrowLeft, LayoutGrid } from 'lucide-react';
 import type { NavigateFunction } from 'react-router-dom';
+import type { ProjectDetailResponse } from '@/client';
 import { Button } from '@/components/ui/button';
 import type { ProjectTabSpec, ProjectTabId } from '@/lib/projectTabs';
 import type { TabType } from '../types';
-import type { ProjectDetailResponse } from '@/client';
 
 interface ProjectDetailHeaderProps {
   project: ProjectDetailResponse;

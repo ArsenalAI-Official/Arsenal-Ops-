@@ -19,9 +19,9 @@
 // (the backend only emits the enumerated values) and, in dev builds, warns if
 // the backend ever emits an unknown value — so enum drift surfaces in QA
 // instead of silently mis-grouping a card.
+import type { SlimWorkItem, WorkItemDetailResponse } from '@/client';
 import type { WorkItem, WorkItemType, WorkItemStatus, WorkItemPriority } from './workItems';
 import { WORK_ITEM_TYPES, WORK_ITEM_STATUSES, WORK_ITEM_PRIORITIES } from './workItems';
-import type { SlimWorkItem, WorkItemDetailResponse } from '@/client';
 
 function narrow<T extends string>(value: string, allowed: readonly T[], field: string): T {
   if (import.meta.env.DEV && !(allowed as readonly string[]).includes(value)) {

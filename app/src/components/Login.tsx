@@ -1,13 +1,34 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle, Lock, Loader2 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { API_BASE_URL } from '@/config/api';
+import { useAuth } from '@/contexts/AuthContext';
+
+// Minimal local model of the Google Identity Services surface this component
+// actually uses: `window.google.accounts.id.{initialize,prompt}`.
+interface GoogleCredentialResponse {
+  credential: string;
+}
+
+interface GoogleAccountsId {
+  initialize(config: {
+    client_id: string;
+    callback: (response: GoogleCredentialResponse) => void;
+  }): void;
+  prompt(): void;
+}
+
+interface GoogleIdentityServices {
+  accounts: {
+    id: GoogleAccountsId;
+  };
+}
 
 declare global {
   interface Window {
-    google: any;
+    google?: GoogleIdentityServices;
+    GOOGLE_CLIENT_ID?: string;
   }
 }
 
@@ -34,7 +55,7 @@ export function Login() {
         const response = await fetch(`${API_BASE_URL}/api/auth/google/config`);
         if (response.ok) {
           const data = await response.json();
-          (window as any).GOOGLE_CLIENT_ID = data.client_id;
+          window.GOOGLE_CLIENT_ID = data.client_id;
 
           // Load Google Sign-In script
           if (!window.google) {
@@ -73,7 +94,7 @@ export function Login() {
   }, []);
 
   // Handle Google Sign-In callback
-  const handleGoogleSignIn = async (response: any) => {
+  const handleGoogleSignIn = async (response: GoogleCredentialResponse) => {
     if (response.credential) {
       setIsLoading(true);
       setError(null);
@@ -81,8 +102,8 @@ export function Login() {
         await loginWithGoogle(response.credential);
         toast.success('Login successful!');
         // The redirect will be handled by App.tsx useEffect
-      } catch (error: any) {
-        const errorMessage = error.message || 'Google login failed';
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Google login failed';
         setError(errorMessage);
         toast.error(errorMessage);
       } finally {

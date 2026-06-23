@@ -1,6 +1,6 @@
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
 import React from 'react';
 import { CardHeader, CardTitle } from '@/components/ui/card';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
 import type { ZoomLevel } from '../types';
 
 interface TimelineToolbarProps {

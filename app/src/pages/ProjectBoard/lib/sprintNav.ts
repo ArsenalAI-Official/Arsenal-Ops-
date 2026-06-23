@@ -10,7 +10,7 @@ export const getNextSprint = (
   if (!currentSprintId || sprints.length === 0) return null;
   const currentIndex = sprints.findIndex((s) => s.id === currentSprintId);
   if (currentIndex >= 0 && currentIndex < sprints.length - 1) {
-    return sprints[currentIndex + 1].id;
+    return sprints[currentIndex + 1]!.id;
   }
   return null;
 };

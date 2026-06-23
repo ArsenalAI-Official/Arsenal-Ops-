@@ -7,14 +7,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { apiFetch } from '@/lib/api';
 import { AdminSpinner } from '../components/AdminSpinner';
-import { useProjectsAdmin } from '../hooks/useProjectsAdmin';
 import { useEmployeesList } from '../hooks/useEmployeesList';
-import { useWorkforceClients, useSetProjectWorkforceClient } from '../hooks/useWorkforceAdmin';
+import { useSetProjectWorkforceClient, useWorkforceClients } from '../hooks/useWorkforceAdmin';
+import { useProjectsAdmin } from '../hooks/useProjectsAdmin';
 import type { WorkforceStatus } from '../types';
 import ProjectsTab from '../tabs/ProjectsTab';
+import CategoryManagerModal from '../modals/CategoryManagerModal';
 import GitHubModal from '../modals/GitHubModal';
 import ProjectMembersModal from '../modals/ProjectMembersModal';
-import CategoryManagerModal from '../modals/CategoryManagerModal';
+import ProjectsTab from '../tabs/ProjectsTab';
 
 export default function ProjectsContainer() {
   const { confirm, confirmDialog } = useConfirm();

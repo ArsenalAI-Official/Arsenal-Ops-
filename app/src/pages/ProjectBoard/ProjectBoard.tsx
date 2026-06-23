@@ -1,10 +1,11 @@
-import { useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, LayoutGrid, List, Target } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { toast, Toaster } from 'sonner';
+import type { SprintResponse, ProjectArchitectureResponse } from '@/client';
 import { Button } from '@/components/ui/button';
 import { useConfirm } from '@/components/ui/confirm-dialog';
-import { toast, Toaster } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
 // Canonical single source of truth for type/status/priority config — do NOT
@@ -15,30 +16,29 @@ import {
   PRIORITY_STYLE as PRIORITY_COLORS,
 } from '@/lib/workItemConfig';
 import type { WorkItem } from '@/types/workItems';
-import type { SprintResponse, ProjectArchitectureResponse } from '@/client';
-import BoardView from './views/BoardView';
-import ListView from './views/ListView';
-import EpicView from './views/EpicView';
-import BoardSkeleton from './components/BoardSkeleton';
-import BoardHeader from './components/BoardHeader';
-import BoardToolbar from './components/BoardToolbar';
 import BoardFilterMenu from './components/BoardFilterMenu';
+import BoardHeader from './components/BoardHeader';
 // The modal/panel render cluster (detail drawer + the four lazy modals + the
 // eagerly-imported EditSprint/Complete/Delete confirmations + Reviewer panel +
 // Architecture editor) lives in BoardModals. The lazy boundaries (R5) and the
 // EditSprintModal static import (R4) moved there intact.
 import BoardModals from './components/BoardModals';
+import BoardSkeleton from './components/BoardSkeleton';
+import BoardToolbar from './components/BoardToolbar';
+import { useBoardData } from './hooks/useBoardData';
+import { useBoardDnd } from './hooks/useBoardDnd';
+import { useBoardFilters } from './hooks/useBoardFilters';
+import { useBoardInvalidations } from './hooks/useBoardInvalidations';
+import { useCommentMutation } from './hooks/useCommentMutation';
+import { useListGrouping } from './hooks/useListGrouping';
+import { useListSort } from './hooks/useListSort';
+import { useSprintMutations } from './hooks/useSprintMutations';
+import { useWorkItemMutations } from './hooks/useWorkItemMutations';
 import { parseLocalDate } from './lib/listGrouping';
 import { getNextSprint as getNextSprintPure } from './lib/sprintNav';
-import { useBoardData } from './hooks/useBoardData';
-import { useBoardInvalidations } from './hooks/useBoardInvalidations';
-import { useWorkItemMutations } from './hooks/useWorkItemMutations';
-import { useBoardDnd } from './hooks/useBoardDnd';
-import { useSprintMutations } from './hooks/useSprintMutations';
-import { useCommentMutation } from './hooks/useCommentMutation';
-import { useBoardFilters } from './hooks/useBoardFilters';
-import { useListSort } from './hooks/useListSort';
-import { useListGrouping } from './hooks/useListGrouping';
+import BoardView from './views/BoardView';
+import EpicView from './views/EpicView';
+import ListView from './views/ListView';
 
 const ProjectBoard = () => {
   const { id, ticketId } = useParams<{ id: string; ticketId?: string }>();
@@ -89,10 +89,10 @@ const ProjectBoard = () => {
       const currentIndex = modes.indexOf(viewMode);
       if (e.key === 'ArrowRight') {
         e.preventDefault();
-        setViewMode(modes[(currentIndex + 1) % modes.length]);
+        setViewMode(modes[(currentIndex + 1) % modes.length]!);
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        setViewMode(modes[(currentIndex - 1 + modes.length) % modes.length]);
+        setViewMode(modes[(currentIndex - 1 + modes.length) % modes.length]!);
       } else if (e.key === 'Home') {
         e.preventDefault();
         setViewMode('board');
@@ -592,7 +592,9 @@ const ProjectBoard = () => {
         onCloseReviewer={() => setShowReviewer(false)}
         onReviewerTaskUpdate={(itemId, updates) => {
           queryClient.setQueryData<WorkItem[]>(['workItems', workItemFilters, 'board'], (old) =>
-            (old ?? []).map((item) => (item.id === itemId ? { ...item, ...updates } : item)),
+            (old ?? []).map((item) =>
+              item.id === itemId ? ({ ...item, ...updates } as WorkItem) : item,
+            ),
           );
           invalidateWorkItems();
         }}

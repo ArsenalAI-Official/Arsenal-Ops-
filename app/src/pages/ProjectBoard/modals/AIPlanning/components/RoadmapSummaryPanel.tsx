@@ -1,9 +1,10 @@
 import { Target } from 'lucide-react';
 import { formatSprintRange } from '../lib/formatSprintRange';
+import type { RoadmapParsedData, RoadmapSummary } from '../useAIPlanning';
 
 interface RoadmapSummaryPanelProps {
-  roadmapSummary: any;
-  roadmapParsedData: any;
+  roadmapSummary: RoadmapSummary;
+  roadmapParsedData: RoadmapParsedData | null;
 }
 
 const RoadmapSummaryPanel = ({ roadmapSummary, roadmapParsedData }: RoadmapSummaryPanelProps) => {
@@ -59,7 +60,7 @@ const RoadmapSummaryPanel = ({ roadmapSummary, roadmapParsedData }: RoadmapSumma
             <span className="text-[10px] text-[#525252]">Created on confirm</span>
           </div>
           <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
-            {roadmapParsedData.sprints.map((sprint: any) => (
+            {roadmapParsedData.sprints.map((sprint) => (
               <div
                 key={sprint.number}
                 className="flex items-center justify-between gap-3 text-xs bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] rounded-lg px-3 py-2"
@@ -128,7 +129,7 @@ const RoadmapSummaryPanel = ({ roadmapSummary, roadmapParsedData }: RoadmapSumma
             ⚠️ Warnings ({roadmapSummary.warnings.length})
           </p>
           <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-2">
-            {roadmapSummary.warnings.map((warning: any, i: number) => (
+            {roadmapSummary.warnings.map((warning, i) => (
               <div
                 key={i}
                 className="text-xs text-[#737373] bg-[rgba(245,158,11,0.08)] p-2 rounded"
@@ -150,7 +151,7 @@ const RoadmapSummaryPanel = ({ roadmapSummary, roadmapParsedData }: RoadmapSumma
             🔴 Conflicts ({roadmapSummary.conflicts.length})
           </p>
           <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-2">
-            {roadmapSummary.conflicts.map((conflict: any, i: number) => (
+            {roadmapSummary.conflicts.map((conflict, i) => (
               <div key={i} className="text-xs text-[#737373] bg-[rgba(239,68,68,0.08)] p-2 rounded">
                 <p className="font-medium text-[#ef4444]">
                   {conflict.assignee} - Week {conflict.week}

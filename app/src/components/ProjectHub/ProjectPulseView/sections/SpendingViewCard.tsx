@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
+import { BurnChart } from './BurnChart';
+import { BurnTable } from './BurnTable';
+import { CategoryRibbon } from './CategoryRibbon';
 import { PulseData } from '../../pulseData';
 import { Card } from '../components/Card';
-import { BurnChart } from './BurnChart';
-import { CategoryRibbon } from './CategoryRibbon';
-import { BurnTable } from './BurnTable';
 
 /* -------------------------------------------------------------------- */
 /*  SPENDING BY CATEGORY — 3-way toggle (timeline / chart / table)      */

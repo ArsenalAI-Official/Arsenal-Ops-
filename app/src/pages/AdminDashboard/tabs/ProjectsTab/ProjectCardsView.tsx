@@ -1,5 +1,3 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Users,
   Ticket,
@@ -13,8 +11,10 @@ import {
   Tag,
   Building2,
 } from 'lucide-react';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import type { ProjectResponse } from '@/client';
 import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/spinner';
 import { Empty, EmptyDescription } from '@/components/ui/empty';
 import {
   Select,
@@ -23,8 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Spinner } from '@/components/ui/spinner';
 import { UNCATEGORIZED_OPTION } from './types';
-import type { ProjectResponse } from '@/client';
 import type { ProjectCategory } from '../../modals/CategoryManagerModal';
 import type { WorkforceClient } from '../../types';
 

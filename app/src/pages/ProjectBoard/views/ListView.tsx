@@ -1,13 +1,13 @@
 import { Eye, EyeOff, CheckCircle2, Pencil, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { Empty, EmptyTitle } from '@/components/ui/empty';
 import type { WorkItem } from '@/types/workItems';
-import type { ListSortKey } from '../lib/listSort';
 import { parseLocalDate, formatWeekRange } from '../lib/listGrouping';
+import type { ListSortKey } from '../lib/listSort';
+import ListSortHeader from './components/ListSortHeader';
 import WorkItemRow, {
   type WorkItemRowTypeConfig,
   type WorkItemRowPriorityStyle,
 } from './components/WorkItemRow';
-import ListSortHeader from './components/ListSortHeader';
 
 /** Sprint-grouped bucket shape (from useListGrouping's listViewGroups memo). */
 export interface ListViewSprintGroup {
@@ -241,8 +241,8 @@ const ListView = ({
                       ? [...group.items].sort(listItemComparator)
                       : group.items
                     ).map((item) => {
-                      const typeInfo = typeConfig[item.type] || typeConfig.task;
-                      const priorityStyle = priorityColors[item.priority] || priorityColors.medium;
+                      const typeInfo = typeConfig[item.type] || typeConfig.task!;
+                      const priorityStyle = priorityColors[item.priority] || priorityColors.medium!;
                       const dueDate = item.due_date ? parseLocalDate(item.due_date) : null;
                       const isOverdue =
                         !!dueDate && !item.completed_at && dueDate.getTime() < todayMidnightMs;
@@ -346,8 +346,8 @@ const ListView = ({
                     ? [...group.items].sort(listItemComparator)
                     : group.items
                   ).map((item) => {
-                    const typeInfo = typeConfig[item.type] || typeConfig.task;
-                    const priorityStyle = priorityColors[item.priority] || priorityColors.medium;
+                    const typeInfo = typeConfig[item.type] || typeConfig.task!;
+                    const priorityStyle = priorityColors[item.priority] || priorityColors.medium!;
                     return (
                       <WorkItemRow
                         key={item.id}

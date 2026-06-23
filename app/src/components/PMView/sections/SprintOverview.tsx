@@ -1,8 +1,8 @@
 import { BarChart3, ChevronUp, ChevronDown } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import type { HoursAnalytics } from '../types';
 import type { SprintResponse } from '@/client';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { HoursAnalytics } from '../types';
 
 interface SprintOverviewProps {
   sprints: SprintResponse[];

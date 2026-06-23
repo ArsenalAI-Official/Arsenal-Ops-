@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ComponentProps } from 'react';
-import type { WorkItem } from '@/types/workItems';
 import type { SprintResponse } from '@/client';
+import type { WorkItem } from '@/types/workItems';
+import ArchitectureEditorWrapper from '../ArchitectureEditorWrapper';
 import type { Project } from '../hooks/useBoardData';
 // EditSprintModal's file also exports the CompleteSprintConfirm /
 // DeleteSprintConfirm confirmation modals as named exports, which must be
@@ -21,7 +22,6 @@ const CreateItemModal = lazy(() => import('../modals/CreateItemModal'));
 const CreateSprintModal = lazy(() => import('../modals/CreateSprintModal'));
 const ItemDetailDrawer = lazy(() => import('../ItemDetailDrawer'));
 import ReviewerPanel from '../ReviewerPanel';
-import ArchitectureEditorWrapper from '../ArchitectureEditorWrapper';
 
 // Prop types are derived from the rendered components so the contract stays
 // byte-identical to the inline JSX it replaced — no hand-rolled shapes that
