@@ -1130,7 +1130,7 @@
           "estimated_hours": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -1144,7 +1144,7 @@
           },
           "logged_hours": {
             "title": "Logged Hours",
-            "type": "integer"
+            "type": "number"
           },
           "priority": {
             "title": "Priority",
@@ -1733,7 +1733,7 @@
           "assigned_hours": {
             "default": 0,
             "title": "Assigned Hours",
-            "type": "integer"
+            "type": "number"
           },
           "assignee": {
             "title": "Assignee",
@@ -4138,7 +4138,7 @@
           },
           "total_hours": {
             "title": "Total Hours",
-            "type": "integer"
+            "type": "number"
           },
           "total_rows": {
             "title": "Total Rows",
@@ -4218,7 +4218,7 @@
           },
           "hours": {
             "title": "Hours",
-            "type": "integer"
+            "type": "number"
           },
           "id": {
             "title": "Id",
@@ -4720,7 +4720,7 @@
           "estimated_hours": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -4746,7 +4746,7 @@
           "logged_hours": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -10886,7 +10886,7 @@
     },
     "/api/time-blocks": {
       "get": {
-        "description": "All of the current developer's positioned blocks that START within the\n7-day window beginning at ``week_start`` (UTC). Legacy entries without a\n``start_time`` are excluded \u2014 the UI surfaces those in its unscheduled tray\nvia the per-ticket time-entries endpoint.",
+        "description": "All of the current developer's positioned blocks that START within the\n5-day (Mon\u2013Fri) window beginning at ``week_start`` \u2014 matching the columns the\nUI renders. Legacy entries without a ``start_time`` are excluded; the UI\nsurfaces those via the per-ticket time-entries endpoint.",
         "operationId": "list_week_blocks_api_time_blocks_get",
         "parameters": [
           {

@@ -10,12 +10,17 @@ changes back it:
    ``time_entries.hours`` and ``work_items.{logged,estimated,remaining}_hours``
    from INTEGER to NUMERIC so sums of fractional entries stay exact.
 
-On Postgres: ``ALTER COLUMN ... TYPE NUMERIC`` is a safe widening (no data loss,
-existing integer values become e.g. 4 → 4.00) and ``ADD COLUMN`` is non-blocking
-for nullable columns. On SQLite column types aren't enforced (it already stores
-floats fine), so only the ADD COLUMN steps run there.
+On Postgres: ``ALTER COLUMN ... TYPE NUMERIC`` converts losslessly (existing
+integer values become e.g. 4 → 4.00), but it is NOT a metadata-only change like
+VARCHAR→TEXT — it rewrites the whole table under an ACCESS EXCLUSIVE lock. That's
+fine at current scale (seconds) but blocks reads/writes for the duration, so be
+deliberate running it against a large table. ``ADD COLUMN`` for nullable columns
+is non-blocking. On SQLite column types aren't enforced (it already stores floats
+fine), so only the ADD COLUMN steps run there.
 
-Idempotent — safe to run repeatedly.
+Idempotent — safe to run repeatedly. NOTE: ``database.run_migrations()`` now
+applies the same changes on startup for existing databases; this standalone
+script remains for manual/out-of-band runs and as the documented record.
 
 Usage:
     cd backend

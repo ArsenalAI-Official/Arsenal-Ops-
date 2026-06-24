@@ -25,7 +25,8 @@ export const timeBlockHandlers = [
   http.get(`${API_BASE}/time-blocks`, ({ request }) => {
     const url = new URL(request.url);
     const weekStart = new Date(url.searchParams.get('week_start') ?? new Date().toISOString());
-    const weekEnd = new Date(weekStart.getTime() + 7 * 86_400_000);
+    // Mon–Fri (5-day) window, matching the real endpoint + the rendered grid.
+    const weekEnd = new Date(weekStart.getTime() + 5 * 86_400_000);
     const inWeek = blocks.filter((b) => {
       if (!b.start_time) return false;
       const t = new Date(b.start_time);

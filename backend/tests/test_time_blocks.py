@@ -12,7 +12,7 @@ Covers the invariants the week-calendar UI depends on:
 
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import HTTPException
@@ -305,3 +305,139 @@ def test_week_query_returns_only_in_window_for_caller(db, seed):
         .scalar()
     )
     assert total == 2
+
+
+def test_delete_rejects_other_users_block(db, seed):
+    item = seed["item"]
+    block = create_time_block(
+        request=CreateTimeBlockRequest(work_item_id=item.id, start_time=_at(0), end_time=_at(1)),
+        db=db,
+        current_user=seed["user"],
+    )
+    with pytest.raises(HTTPException) as exc:
+        delete_time_block(entry_id=block.id, db=db, current_user=seed["other_user"])
+    assert exc.value.status_code == 403
+    # Block survives.
+    assert db.query(TimeEntry).filter(TimeEntry.id == block.id).first() is not None
+
+
+def test_reassign_to_unowned_target_rejected(db, seed):
+    """Reassigning a block onto a ticket the caller isn't assigned to is blocked
+    (the security-critical reassign path)."""
+    item = seed["item"]
+    foreign = WorkItem(
+        project_id=item.project_id,
+        type="task",
+        key="P-9",
+        title="Someone else's",
+        status="in_progress",
+        priority="medium",
+        estimated_hours=8,
+        remaining_hours=8,
+        logged_hours=0,
+        assignee_id=seed["other_dev"].id,
+    )
+    db.add(foreign)
+    db.commit()
+    block = create_time_block(
+        request=CreateTimeBlockRequest(work_item_id=item.id, start_time=_at(0), end_time=_at(1)),
+        db=db,
+        current_user=seed["user"],
+    )
+    with pytest.raises(HTTPException) as exc:
+        update_time_block(
+            entry_id=block.id,
+            request=UpdateTimeBlockRequest(work_item_id=foreign.id),
+            db=db,
+            current_user=seed["user"],
+        )
+    assert exc.value.status_code == 403
+
+
+def test_patch_null_position_block_requires_both_times(db, seed):
+    """A legacy entry with no start/end can't be half-positioned via PATCH."""
+    item = seed["item"]
+    legacy = TimeEntry(
+        work_item_id=item.id,
+        developer_id=seed["dev"].id,
+        hours=2,
+        start_time=None,
+        end_time=None,
+    )
+    db.add(legacy)
+    db.commit()
+    with pytest.raises(HTTPException) as exc:
+        update_time_block(
+            entry_id=legacy.id,
+            request=UpdateTimeBlockRequest(end_time=_at(2)),
+            db=db,
+            current_user=seed["user"],
+        )
+    assert exc.value.status_code == 400
+
+
+def test_aware_datetime_is_stored_as_naive_utc(db, seed):
+    """The frontend sends tz-aware UTC ISO; it must be normalized to naive-UTC to
+    match the naive DB columns (no offset drift, no aware/naive comparison error)."""
+    item = seed["item"]
+    aware_start = datetime(2026, 6, 22, 9, 0, 0, tzinfo=UTC)
+    aware_end = datetime(2026, 6, 22, 11, 30, 0, tzinfo=UTC)
+    block = create_time_block(
+        request=CreateTimeBlockRequest(
+            work_item_id=item.id, start_time=aware_start, end_time=aware_end
+        ),
+        db=db,
+        current_user=seed["user"],
+    )
+    assert block.hours == 2.5
+    entry = db.query(TimeEntry).filter(TimeEntry.id == block.id).first()
+    assert entry is not None
+    assert entry.start_time.tzinfo is None, "stored start_time must be naive"
+    assert entry.start_time == datetime(2026, 6, 22, 9, 0, 0)
+    assert entry.end_time == datetime(2026, 6, 22, 11, 30, 0)
+
+
+def test_week_window_is_five_days_and_excludes_weekend(db, seed):
+    """The window is Mon–Fri (5 days); a Saturday block is not returned."""
+    item = seed["item"]
+    # Mon 9-10 (in window).
+    create_time_block(
+        request=CreateTimeBlockRequest(work_item_id=item.id, start_time=_at(0), end_time=_at(1)),
+        db=db,
+        current_user=seed["user"],
+    )
+    # Saturday (5 days after Monday) 9-10 — outside the 5-day window.
+    create_time_block(
+        request=CreateTimeBlockRequest(
+            work_item_id=item.id, start_time=_at(24 * 5), end_time=_at(24 * 5 + 1)
+        ),
+        db=db,
+        current_user=seed["user"],
+    )
+    resp = list_week_blocks(
+        week_start=datetime(2026, 6, 22, 0, 0, 0),
+        db=db,
+        current_user=seed["user"],
+    )
+    assert len(resp.blocks) == 1
+
+
+def test_week_boundary_inclusive_start_exclusive_end(db, seed):
+    """start_time == week_start is included; a block on the exclusive end is not."""
+    item = seed["item"]
+    # Exactly at week_start (Mon 00:00) — inclusive.
+    create_time_block(
+        request=CreateTimeBlockRequest(
+            work_item_id=item.id,
+            start_time=datetime(2026, 6, 22, 0, 0, 0),
+            end_time=datetime(2026, 6, 22, 1, 0, 0),
+        ),
+        db=db,
+        current_user=seed["user"],
+    )
+    resp = list_week_blocks(
+        week_start=datetime(2026, 6, 22, 0, 0, 0),
+        db=db,
+        current_user=seed["user"],
+    )
+    assert len(resp.blocks) == 1

@@ -41,8 +41,11 @@ export interface UseCalendarDragArgs {
 /**
  * Pointer-driven interaction model for the grid. Owns the column-area ref and a
  * transient "draft" block so a drag tracks instantly without touching the
- * server; commits via callbacks on pointer-up. Native Pointer Events (with
- * setPointerCapture) cover mouse/touch/pen in one path and survive fast drags.
+ * server; commits via callbacks on pointer-up. Tracking uses pointermove/
+ * pointerup listeners bound on `document` (one code path for mouse/touch/pen),
+ * so a drag keeps following the pointer even when it leaves the originating
+ * element or moves fast. `callbacks` must be referentially stable (the caller
+ * memoizes it) so these listeners bind once rather than re-binding each render.
  */
 export function useCalendarDrag({ cfg, activeTicket, callbacks }: UseCalendarDragArgs) {
   const colsRef = useRef<HTMLDivElement | null>(null);
@@ -114,7 +117,9 @@ export function useCalendarDrag({ cfg, activeTicket, callbacks }: UseCalendarDra
           title: g.ticket.title,
           type: g.ticket.type,
           status: g.ticket.status,
-          dayIdx: g.anchor !== undefined ? (grab.current?.origin?.dayIdx ?? p.dayIdx) : p.dayIdx,
+          // A draw stays in the column it started in (origin.dayIdx), set on
+          // pointer-down; it does not jump columns as the pointer moves.
+          dayIdx: g.origin?.dayIdx ?? p.dayIdx,
           start,
           end,
         });
@@ -227,6 +232,9 @@ export function useCalendarDrag({ cfg, activeTicket, callbacks }: UseCalendarDra
 
   const onBlockPointerDown = useCallback(
     (block: CalendarBlock, e: React.PointerEvent) => {
+      // Optimistic (negative id) and draft (DRAFT_ID) blocks have no server row
+      // yet — dragging one would PATCH a non-existent id. Ignore until persisted.
+      if (block.id <= 0) return;
       e.preventDefault();
       e.stopPropagation();
       const p = getPos(e.clientX, e.clientY);
@@ -248,6 +256,7 @@ export function useCalendarDrag({ cfg, activeTicket, callbacks }: UseCalendarDra
 
   const onResizePointerDown = useCallback(
     (block: CalendarBlock, edge: 'top' | 'bottom', e: React.PointerEvent) => {
+      if (block.id <= 0) return; // not yet persisted — see onBlockPointerDown
       e.preventDefault();
       e.stopPropagation();
       grab.current = {

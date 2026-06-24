@@ -19,6 +19,8 @@ interface TimeBlockProps {
   confirmingDelete: boolean;
   ticketOptions: PaletteTicket[];
   onPointerDown: (e: React.PointerEvent) => void;
+  /** Keyboard select (Enter/Space) so the grid's arrow/Delete model is reachable. */
+  onSelect: () => void;
   onResizePointerDown: (edge: 'top' | 'bottom', e: React.PointerEvent) => void;
   onReassign: (workItemId: number) => void;
   onDuplicate: () => void;
@@ -40,6 +42,7 @@ export function TimeBlock({
   confirmingDelete,
   ticketOptions,
   onPointerDown,
+  onSelect,
   onResizePointerDown,
   onReassign,
   onDuplicate,
@@ -61,6 +64,12 @@ export function TimeBlock({
       tabIndex={0}
       aria-label={`${block.ticketKey} ${formatClock(block.start)} to ${formatClock(block.end)}`}
       onPointerDown={onPointerDown}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
       style={{
         position: 'absolute',
         top: hourToY(block.start, cfg),

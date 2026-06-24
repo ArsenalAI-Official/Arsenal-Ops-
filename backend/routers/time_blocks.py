@@ -11,9 +11,16 @@ Lives in its own router (prefix ``/api/time-blocks``) rather than under
 ``/api/workitems/{item_id}`` path (``"time-blocks"`` would 422 against the int
 converter). Hours rollups reuse the workitems helpers so the self-healing
 ``logged_hours = SUM(TimeEntry.hours)`` invariant stays in one place.
+
+Intentional v1 scope decisions:
+  - Overlapping blocks are allowed (a calendar lays concurrent blocks side by
+    side); there is no per-day total cap — only the per-block 24h sanity cap.
+  - Block create/move/delete do NOT emit a "Logged Nh" ticket comment the way
+    POST /log-hours does. Positioned blocks are a planning surface, not discrete
+    log events, so they'd flood the comment feed; the hours still roll up.
 """
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -85,6 +92,20 @@ MAX_BLOCK_HOURS = 24
 def _hours_between(start: datetime, end: datetime) -> float:
     """Block duration in hours, rounded to 2dp (quarter-hours are exact)."""
     return round((end - start).total_seconds() / 3600.0, 2)
+
+
+def _naive_utc(dt: datetime) -> datetime:
+    """Normalize an inbound datetime to naive-UTC.
+
+    The frontend sends tz-aware UTC ISO timestamps (e.g. ``2026-06-22T09:00:00Z``)
+    but the ``time_entries`` columns are naive ``TIMESTAMP`` (consistent with
+    ``logged_at``). Storing/comparing aware values against naive columns is a
+    Postgres footgun (session-TZ-dependent implicit casts), so we strip tzinfo
+    at the boundary after converting to UTC. Naive inputs pass through unchanged.
+    """
+    if dt.tzinfo is not None:
+        return dt.astimezone(UTC).replace(tzinfo=None)
+    return dt
 
 
 def _require_caller_developer(current_user: User, db: Session) -> Developer:
@@ -178,11 +199,15 @@ def list_week_blocks(
     current_user: User = Depends(get_current_user),
 ):
     """All of the current developer's positioned blocks that START within the
-    7-day window beginning at ``week_start`` (UTC). Legacy entries without a
-    ``start_time`` are excluded — the UI surfaces those in its unscheduled tray
-    via the per-ticket time-entries endpoint."""
+    5-day (Mon–Fri) window beginning at ``week_start`` — matching the columns the
+    UI renders. Legacy entries without a ``start_time`` are excluded; the UI
+    surfaces those via the per-ticket time-entries endpoint."""
     caller_dev = _require_caller_developer(current_user, db)
-    week_end = week_start + timedelta(days=7)
+    # The UI renders Mon–Fri only; return exactly that window (5 days) so no
+    # block is fetched into a column the client can't show. week_start is the
+    # client's local Monday-midnight as UTC ISO.
+    week_start = _naive_utc(week_start)
+    week_end = week_start + timedelta(days=5)
 
     entries = (
         db.query(TimeEntry)
@@ -224,15 +249,17 @@ def create_time_block(
     if not item:
         raise HTTPException(status_code=404, detail="Work item not found")
     _authorize_block_on_item(item, caller_dev)
-    hours = _validate_interval(request.start_time, request.end_time)
+    start = _naive_utc(request.start_time)
+    end = _naive_utc(request.end_time)
+    hours = _validate_interval(start, end)
 
     entry = TimeEntry(
         work_item_id=item.id,
         developer_id=caller_dev.id,
         hours=hours,
         description=request.description,
-        start_time=request.start_time,
-        end_time=request.end_time,
+        start_time=start,
+        end_time=end,
     )
     db.add(entry)
     db.flush()
@@ -274,9 +301,12 @@ def update_time_block(
     else:
         _authorize_block_on_item(original_item, caller_dev)
 
-    # Move / resize.
-    new_start = request.start_time or entry.start_time
-    new_end = request.end_time or entry.end_time
+    # Move / resize. Explicit None checks (not `or`) so a falsy-but-valid value
+    # is never mistaken for "omitted"; inbound aware datetimes are normalized.
+    new_start = (
+        _naive_utc(request.start_time) if request.start_time is not None else entry.start_time
+    )
+    new_end = _naive_utc(request.end_time) if request.end_time is not None else entry.end_time
     if new_start is None or new_end is None:
         raise HTTPException(
             status_code=400,

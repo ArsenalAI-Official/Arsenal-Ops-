@@ -26,12 +26,27 @@ const cfg = DEFAULT_GRID;
 const WeekCalendar = () => {
   const navigate = useNavigate();
   const [weekStart, setWeekStart] = useState(() => startOfWeekMonday(new Date()));
-  const [now] = useState(() => new Date());
+  const [now, setNow] = useState(() => new Date());
   const [activeTicket, setActiveTicket] = useState<PaletteTicket | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
+  // Advance the "now" line / today highlight so a long-lived tab doesn't freeze
+  // at the mount time (and rolls over local midnight). new Date() lives in the
+  // interval callback, not render, per react-hooks/purity.
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const { myTasks, myTasksLoading } = useMyTasks();
-  const { blocks, createBlock, updateBlock, deleteBlock } = useWeekBlocks(weekStart);
+  const {
+    blocks,
+    isLoading: blocksLoading,
+    isError: blocksError,
+    createBlock,
+    updateBlock,
+    deleteBlock,
+  } = useWeekBlocks(weekStart);
 
   // Palette: the user's assigned work items (personal tasks excluded — you can't
   // log developer hours against them).
@@ -113,11 +128,12 @@ const WeekCalendar = () => {
     [updateBlock, weekStart],
   );
 
-  const drag = useCalendarDrag({
-    cfg,
-    activeTicket,
-    callbacks: { onCreate: commitCreate, onUpdate: commitUpdate },
-  });
+  // Stable so useCalendarDrag's document listeners bind once, not per render.
+  const dragCallbacks = useMemo(
+    () => ({ onCreate: commitCreate, onUpdate: commitUpdate }),
+    [commitCreate, commitUpdate],
+  );
+  const drag = useCalendarDrag({ cfg, activeTicket, callbacks: dragCallbacks });
 
   // Keyboard: nudge/resize/move-day the selected block, Esc to deselect, Del to
   // confirm deletion. (Matches the on-screen hint in the toolbar.)
@@ -222,6 +238,19 @@ const WeekCalendar = () => {
         />
 
         <div className="flex-1 min-w-0 flex flex-col">
+          {blocksError && (
+            <div
+              role="alert"
+              className="flex-none px-[18px] py-1.5 text-[11px] text-[#EF4444] bg-[#EF4444]/10 border-b border-[#EF4444]/20"
+            >
+              Couldn&apos;t load this week&apos;s time blocks. Try switching weeks or reloading.
+            </div>
+          )}
+          {blocksLoading && !blocksError && (
+            <div className="flex-none px-[18px] py-1.5 text-[11px] text-[#737373] border-b border-white/[0.06]">
+              Loading time blocks…
+            </div>
+          )}
           <WeekGrid
             cfg={cfg}
             days={weekDays(weekStart)}
@@ -243,6 +272,7 @@ const WeekCalendar = () => {
               setConfirmDeleteId(null);
               drag.onBlockPointerDown(b, e);
             }}
+            onSelectBlock={drag.select}
             onResizePointerDown={drag.onResizePointerDown}
             onReassign={(b, workItemId) => updateBlock({ id: b.id, workItemId })}
             onDuplicate={handleDuplicate}

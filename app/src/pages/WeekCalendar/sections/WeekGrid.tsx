@@ -8,6 +8,7 @@ import {
   gridHeight,
   hourToY,
 } from '../lib/calendar';
+import { CALENDAR } from '../lib/calendarTheme';
 import { layoutDay } from '../lib/layout';
 import type { CalendarBlock, PaletteTicket } from '../types';
 
@@ -29,6 +30,7 @@ interface WeekGridProps {
   onColumnPointerDown: (dayIdx: number, e: React.PointerEvent) => void;
   onColumnDoubleClick: (dayIdx: number, e: React.MouseEvent) => void;
   onBlockPointerDown: (block: CalendarBlock, e: React.PointerEvent) => void;
+  onSelectBlock: (id: number) => void;
   onResizePointerDown: (
     block: CalendarBlock,
     edge: 'top' | 'bottom',
@@ -56,6 +58,7 @@ export function WeekGrid({
   onColumnPointerDown,
   onColumnDoubleClick,
   onBlockPointerDown,
+  onSelectBlock,
   onResizePointerDown,
   onReassign,
   onDuplicate,
@@ -87,7 +90,7 @@ export function WeekGrid({
           const over = total > DAY_CAP_HOURS + 1e-9;
           const warn = !over && total > DAY_CAP_HOURS * 0.875 + 1e-9;
           const isToday = day.dayIdx === nowDayIdx;
-          const totalColor = over ? '#EF4444' : warn ? '#F59E0B' : '#737373';
+          const totalColor = over ? CALENDAR.over : warn ? CALENDAR.warn : CALENDAR.muted;
           return (
             <div
               key={day.dayIdx}
@@ -96,13 +99,13 @@ export function WeekGrid({
               <div className="flex items-baseline gap-1.5">
                 <span
                   className="text-[11px] font-semibold uppercase tracking-wide"
-                  style={{ color: isToday ? '#E0B954' : '#a3a3a3' }}
+                  style={{ color: isToday ? CALENDAR.accent : '#a3a3a3' }}
                 >
                   {day.name}
                 </span>
                 <span
                   className="text-[14px] font-semibold"
-                  style={{ color: isToday ? '#E0B954' : '#f5f5f5' }}
+                  style={{ color: isToday ? CALENDAR.accent : '#f5f5f5' }}
                 >
                   {day.date}
                 </span>
@@ -161,6 +164,7 @@ export function WeekGrid({
                       confirmingDelete={confirmDeleteId === item.id}
                       ticketOptions={ticketOptions}
                       onPointerDown={(e) => onBlockPointerDown(item, e)}
+                      onSelect={() => onSelectBlock(item.id)}
                       onResizePointerDown={(edge, e) => onResizePointerDown(item, edge, e)}
                       onReassign={(workItemId) => onReassign(item, workItemId)}
                       onDuplicate={() => onDuplicate(item)}

@@ -634,7 +634,7 @@ class MyTaskResponse(BaseModel):
     is_overdue: bool
     completed_at: str | None = None
     story_points: int = 0
-    assigned_hours: int = 0
+    assigned_hours: float = 0
     assignee: str
     reporter_name: str | None = None
     description: str = ""

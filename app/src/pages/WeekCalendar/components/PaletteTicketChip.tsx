@@ -1,5 +1,6 @@
 import { STATUS_CONFIG, TYPE_CONFIG } from '@/lib/workItemConfig';
 import { formatHours } from '../lib/calendar';
+import { CALENDAR } from '../lib/calendarTheme';
 import type { PaletteTicket } from '../types';
 
 interface PaletteTicketChipProps {
@@ -40,6 +41,7 @@ export function PaletteTicketChip({
     : remaining <= 1e-9 && scheduledHours > 0
       ? 'fully scheduled'
       : `${formatHours(Math.max(0, remaining))} left`;
+  const remColor = over ? CALENDAR.over : accent;
 
   return (
     <div
@@ -79,13 +81,10 @@ export function PaletteTicketChip({
         <div className="flex-1 h-[3px] bg-white/[0.06] rounded-sm overflow-hidden">
           <div
             className="h-full rounded-sm"
-            style={{ width: `${pct.toFixed(1)}%`, background: over ? '#EF4444' : accent }}
+            style={{ width: `${pct.toFixed(1)}%`, background: remColor }}
           />
         </div>
-        <span
-          className="text-[9px] font-semibold whitespace-nowrap"
-          style={{ color: over ? '#EF4444' : accent }}
-        >
+        <span className="text-[9px] font-semibold whitespace-nowrap" style={{ color: remColor }}>
           {remLabel}
         </span>
       </div>
