@@ -1,4 +1,4 @@
-import { CalendarRange, Settings, LogOut } from 'lucide-react';
+import { Settings, LogOut } from 'lucide-react';
 import arsenalOpsLogo from '@/assets/images/arsenal-ops-logo.webp';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,10 +8,9 @@ interface AppHeaderProps {
   user: { name: string; role: string } | null;
   onAdminClick: () => void;
   onLogout: () => void;
-  onWeekClick?: () => void;
 }
 
-const AppHeader = ({ user, onAdminClick, onLogout, onWeekClick }: AppHeaderProps) => {
+const AppHeader = ({ user, onAdminClick, onLogout }: AppHeaderProps) => {
   const { can } = useAuth();
   return (
     <header className="border-b border-[rgba(255,255,255,0.05)] bg-[#080808]/90 backdrop-blur-xl sticky top-0 z-50">
@@ -28,16 +27,6 @@ const AppHeader = ({ user, onAdminClick, onLogout, onWeekClick }: AppHeaderProps
           decoding="async"
         />
         <div className="flex items-center gap-3">
-          {onWeekClick && (
-            <Button
-              variant="ghost"
-              onClick={onWeekClick}
-              className="text-[#737373] hover:text-white hover:bg-[rgba(244,246,255,0.05)] rounded-xl px-3"
-            >
-              <CalendarRange className="w-4 h-4 mr-2" />
-              My Week
-            </Button>
-          )}
           {user && (
             <div className="flex items-center gap-2 mr-2">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center text-[#080808] text-sm font-medium">

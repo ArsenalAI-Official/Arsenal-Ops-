@@ -100,12 +100,7 @@ const ProjectsPage = () => {
       <Toaster position="top-right" theme="dark" richColors />
       {confirmDialog}
 
-      <AppHeader
-        user={user}
-        onAdminClick={() => navigate('/admin')}
-        onLogout={logout}
-        onWeekClick={() => navigate('/week')}
-      />
+      <AppHeader user={user} onAdminClick={() => navigate('/admin')} onLogout={logout} />
 
       <div className="flex-1 min-h-0 flex flex-col max-w-[1400px] mx-auto px-8 py-8 w-full">
         <div className="flex-shrink-0">
@@ -114,6 +109,7 @@ const ProjectsPage = () => {
             myTasks={myTasks}
             myTasksLoading={myTasksLoading}
             onTabChange={setMyTaskTab}
+            onOpenWeek={() => navigate('/week')}
           />
         </div>
 
