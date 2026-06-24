@@ -340,52 +340,56 @@ def run_migrations():
         # Migration: positioned calendar blocks + fractional hours.
         # For EXISTING databases (the create-table block above only fires on a
         # fresh DB), add the nullable start_time/end_time columns and widen the
-        # hours columns INTEGER -> NUMERIC so fractional (15/30-min) blocks
-        # aren't truncated. Idempotent: guarded on information_schema so a second
-        # run is a no-op. NOTE: ALTER COLUMN ... TYPE NUMERIC rewrites the table
-        # under an ACCESS EXCLUSIVE lock — fine at current scale, but not the
-        # metadata-only change that VARCHAR->TEXT was.
+        # hours columns INTEGER -> NUMERIC so fractional (15/30-min) blocks aren't
+        # truncated. Engine-agnostic: column/index existence is checked via the
+        # SQLAlchemy inspector so this also migrates an existing SQLite dev DB
+        # (ADD COLUMN works on both). The NUMERIC widening is Postgres-only —
+        # SQLite is typeless and already stores floats. Idempotent. NOTE: on
+        # Postgres, ALTER COLUMN ... TYPE NUMERIC rewrites the table under an
+        # ACCESS EXCLUSIVE lock — fine at current scale.
         try:
-            for col in ("start_time", "end_time"):
-                exists = conn.execute(
-                    text(
-                        "SELECT 1 FROM information_schema.columns "
-                        "WHERE table_name = 'time_entries' AND column_name = :c"
-                    ),
-                    {"c": col},
-                ).fetchone()
-                if not exists:
-                    print(f"[MIGRATION] Adding time_entries.{col}...")
-                    conn.execute(text(f"ALTER TABLE time_entries ADD COLUMN {col} TIMESTAMP"))
-            conn.execute(
-                text(
-                    "CREATE INDEX IF NOT EXISTS idx_time_entry_start_time ON time_entries(start_time)"
-                )
-            )
+            from sqlalchemy import inspect as _sa_inspect
 
-            # Widen hours columns to NUMERIC where they're still integer.
-            numeric_cols = [
-                ("time_entries", "hours", "NUMERIC(6,2)"),
-                ("work_items", "logged_hours", "NUMERIC(7,2)"),
-                ("work_items", "estimated_hours", "NUMERIC(7,2)"),
-                ("work_items", "remaining_hours", "NUMERIC(7,2)"),
-            ]
-            for table, column, target in numeric_cols:
-                row = conn.execute(
-                    text(
-                        "SELECT data_type FROM information_schema.columns "
-                        "WHERE table_name = :t AND column_name = :c"
-                    ),
-                    {"t": table, "c": column},
-                ).fetchone()
-                if row is not None and row[0] != "numeric":
-                    print(f"[MIGRATION] Widening {table}.{column} {row[0]} -> {target}...")
+            insp = _sa_inspect(conn)
+            if "time_entries" in insp.get_table_names():
+                existing_cols = {c["name"] for c in insp.get_columns("time_entries")}
+                for col in ("start_time", "end_time"):
+                    if col not in existing_cols:
+                        print(f"[MIGRATION] Adding time_entries.{col}...")
+                        conn.execute(text(f"ALTER TABLE time_entries ADD COLUMN {col} TIMESTAMP"))
+                idx_names = {ix["name"] for ix in insp.get_indexes("time_entries")}
+                if "idx_time_entry_start_time" not in idx_names:
                     conn.execute(
                         text(
-                            f"ALTER TABLE {table} ALTER COLUMN {column} "
-                            f"TYPE {target} USING {column}::numeric"
+                            "CREATE INDEX IF NOT EXISTS idx_time_entry_start_time "
+                            "ON time_entries(start_time)"
                         )
                     )
+
+            # Widen hours columns to NUMERIC (Postgres only; SQLite is typeless).
+            if conn.dialect.name != "sqlite":
+                numeric_cols = [
+                    ("time_entries", "hours", "NUMERIC(6,2)"),
+                    ("work_items", "logged_hours", "NUMERIC(7,2)"),
+                    ("work_items", "estimated_hours", "NUMERIC(7,2)"),
+                    ("work_items", "remaining_hours", "NUMERIC(7,2)"),
+                ]
+                for table, column, target in numeric_cols:
+                    row = conn.execute(
+                        text(
+                            "SELECT data_type FROM information_schema.columns "
+                            "WHERE table_name = :t AND column_name = :c"
+                        ),
+                        {"t": table, "c": column},
+                    ).fetchone()
+                    if row is not None and row[0] != "numeric":
+                        print(f"[MIGRATION] Widening {table}.{column} {row[0]} -> {target}...")
+                        conn.execute(
+                            text(
+                                f"ALTER TABLE {table} ALTER COLUMN {column} "
+                                f"TYPE {target} USING {column}::numeric"
+                            )
+                        )
             conn.commit()
         except Exception as e:
             print(f"[MIGRATION ERROR] {e}")
