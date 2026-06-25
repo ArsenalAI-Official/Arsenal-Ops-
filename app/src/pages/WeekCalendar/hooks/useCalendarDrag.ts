@@ -58,6 +58,21 @@ export function useCalendarDrag({ cfg, activeTicket, callbacks }: UseCalendarDra
   const [ghost, setGhost] = useState<Ghost | null>(null);
   const [preview, setPreview] = useState<CalendarBlock | null>(null);
 
+  // Mirror preview/draft into refs so `finish` can read the committed geometry
+  // WITHOUT calling onCreate/onUpdate inside a setState updater. React StrictMode
+  // (dev) invokes updaters twice; running the mutation there fired it twice and
+  // created duplicate overlapping blocks (and double-counted hours).
+  const previewRef = useRef<CalendarBlock | null>(null);
+  const draftRef = useRef<CalendarBlock | null>(null);
+  const applyPreview = useCallback((v: CalendarBlock | null) => {
+    previewRef.current = v;
+    setPreview(v);
+  }, []);
+  const applyDraft = useCallback((v: CalendarBlock | null) => {
+    draftRef.current = v;
+    setDraft(v);
+  }, []);
+
   const getPos = useCallback(
     (cx: number, cy: number) => {
       const el = colsRef.current;
@@ -87,7 +102,7 @@ export function useCalendarDrag({ cfg, activeTicket, callbacks }: UseCalendarDra
         if (p.inside) {
           const start = snapHour(p.time, cfg);
           const end = Math.min(cfg.endHour, start + 1);
-          setPreview({
+          applyPreview({
             id: DRAFT_ID,
             workItemId: g.ticket.workItemId,
             ticketKey: g.ticket.key,
@@ -99,7 +114,7 @@ export function useCalendarDrag({ cfg, activeTicket, callbacks }: UseCalendarDra
             end,
           });
         } else {
-          setPreview(null);
+          applyPreview(null);
         }
         return;
       }
@@ -113,7 +128,7 @@ export function useCalendarDrag({ cfg, activeTicket, callbacks }: UseCalendarDra
         let end = Math.max(g.anchor, t);
         if (end - start < step) end = Math.min(cfg.endHour, start + step);
         if (end - start < step) start = Math.max(cfg.startHour, end - step);
-        setDraft({
+        applyDraft({
           id: DRAFT_ID,
           workItemId: g.ticket.workItemId,
           ticketKey: g.ticket.key,
@@ -135,7 +150,7 @@ export function useCalendarDrag({ cfg, activeTicket, callbacks }: UseCalendarDra
         g.started = true;
         let start = snapHour(p.time - g.offset, cfg);
         start = Math.max(cfg.startHour, Math.min(start, cfg.endHour - g.dur));
-        setDraft({
+        applyDraft({
           ...g.origin,
           dayIdx: p.inside ? p.dayIdx : g.origin.dayIdx,
           start,
@@ -145,15 +160,15 @@ export function useCalendarDrag({ cfg, activeTicket, callbacks }: UseCalendarDra
         g.started = true;
         let start = snapHour(p.time, cfg);
         start = Math.max(cfg.startHour, Math.min(start, g.origin.end - step));
-        setDraft({ ...g.origin, start });
+        applyDraft({ ...g.origin, start });
       } else if (g.mode === 'resizeBottom') {
         g.started = true;
         let end = snapHour(p.time, cfg);
         end = Math.min(cfg.endHour, Math.max(end, g.origin.start + step));
-        setDraft({ ...g.origin, end });
+        applyDraft({ ...g.origin, end });
       }
     },
-    [cfg, getPos],
+    [cfg, getPos, applyPreview, applyDraft],
   );
 
   const finish = useCallback(() => {
@@ -162,26 +177,26 @@ export function useCalendarDrag({ cfg, activeTicket, callbacks }: UseCalendarDra
     setGhost(null);
     if (!g) return;
 
+    // Read committed geometry from refs and reset state, THEN fire the callback
+    // exactly once. (Calling it inside a setState updater double-fires under
+    // StrictMode → duplicate blocks.)
     if (g.mode === 'palette' && g.ticket) {
-      setPreview((p) => {
-        if (p) callbacks.onCreate(p.dayIdx, p.start, p.end, g.ticket!);
-        return null;
-      });
+      const p = previewRef.current;
+      applyPreview(null);
+      if (p) callbacks.onCreate(p.dayIdx, p.start, p.end, g.ticket);
       return;
     }
     if (g.mode === 'draw') {
-      setDraft((d) => {
-        if (d && g.started && g.ticket) callbacks.onCreate(d.dayIdx, d.start, d.end, g.ticket);
-        return null;
-      });
+      const d = draftRef.current;
+      applyDraft(null);
+      if (d && g.started && g.ticket) callbacks.onCreate(d.dayIdx, d.start, d.end, g.ticket);
       return;
     }
     // move / resize
-    setDraft((d) => {
-      if (d && g.started && g.origin) callbacks.onUpdate(d.id, d.dayIdx, d.start, d.end);
-      return null;
-    });
-  }, [callbacks]);
+    const d = draftRef.current;
+    applyDraft(null);
+    if (d && g.started && g.origin) callbacks.onUpdate(d.id, d.dayIdx, d.start, d.end);
+  }, [callbacks, applyPreview, applyDraft]);
 
   // Global pointer listeners — bound once.
   useEffect(() => {
