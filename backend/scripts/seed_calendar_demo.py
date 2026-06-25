@@ -82,6 +82,32 @@ def _ensure_people(db) -> dict[str, Developer]:
     return devs
 
 
+def _grant_admin_role(db, user: User) -> None:
+    """Give dev@local the canonical admin Role + capabilities so the demo can
+    exercise capability-gated actions (status flip, create ticket, admin
+    employee picker). Production seed_rbac() backfills this from the legacy
+    `role` column, but it's Postgres-only and dev@local is created lazily on
+    dev-login, so a local SQLite dev never gets it. Engine-agnostic + idempotent;
+    mirrors tests/conftest.assign_system_role."""
+    from database import SYSTEM_ROLES
+    from models.role import Role, RoleCapability
+
+    spec = next((s for s in SYSTEM_ROLES if s[0] == user.role), None)
+    if spec is None:
+        return
+    name, desc, caps = spec
+    role = db.query(Role).filter(Role.name == name).first()
+    if role is None:
+        role = Role(name=name, description=desc, is_system=True)
+        db.add(role)
+        db.flush()
+        for cap in caps:
+            db.add(RoleCapability(role_id=role.id, capability_key=cap))
+        db.flush()
+    if role not in user.roles:
+        user.roles.append(role)
+
+
 def _delete_demo_projects(db) -> int:
     """Delete demo projects; cascades remove their work items + time entries."""
     projects = db.query(Project).filter(Project.key_prefix.in_(DEMO_PREFIXES)).all()
@@ -103,6 +129,11 @@ def seed(reset: bool = False) -> None:
 
         devs = _ensure_people(db)
         dev_local = devs["dev@local"]
+        # Make dev@local a full admin so the demo can exercise capability-gated
+        # actions (status flip, create ticket, admin employee picker).
+        dev_local_user = db.query(User).filter(User.email == "dev@local").first()
+        if dev_local_user:
+            _grant_admin_role(db, dev_local_user)
         dana = devs["dana@arsenalai.com"]
         sam = devs["sam@arsenalai.com"]
 

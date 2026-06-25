@@ -166,7 +166,16 @@ const WeekCalendarView = ({
       // A tray entry being placed PATCHes its existing row; a palette ticket
       // creates a new block. Single source of truth: placing never adds a row.
       if (ticket.placingEntryId != null) {
-        placeBlock({ id: ticket.placingEntryId, startISO, endISO });
+        // Preserve the already-logged duration — placing only sets WHEN, not how
+        // long. Override the 1h drop default with the entry's real hours.
+        const dur = ticket.placingDurationHours ?? end - start;
+        const placedEnd = blockToInterval(
+          weekStart,
+          dayIdx,
+          start,
+          Math.min(cfg.endHour, start + dur),
+        );
+        placeBlock({ id: ticket.placingEntryId, startISO, endISO: placedEnd.endISO });
       } else {
         createBlock({
           workItemId: ticket.workItemId,
@@ -469,6 +478,7 @@ const WeekCalendarView = ({
                           status: b.work_item_status,
                           remainingHours: 0,
                           placingEntryId: b.id,
+                          placingDurationHours: b.hours,
                         },
                         e,
                       )

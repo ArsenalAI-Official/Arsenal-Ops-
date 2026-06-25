@@ -28,6 +28,10 @@ export interface PaletteTicket {
    *  onto the grid: drop PATCHes this existing TimeEntry's position instead of
    *  creating a new block (keeps single-source-of-truth — no new row). */
   placingEntryId?: number;
+  /** The unplaced entry's already-logged hours. Placing must preserve this
+   *  duration (a 2h logged entry stays 2h) rather than collapsing to the 1h
+   *  drop default. */
+  placingDurationHours?: number;
 }
 
 /** Wire block whose start_time fell outside the rendered Mon–Fri window, or a

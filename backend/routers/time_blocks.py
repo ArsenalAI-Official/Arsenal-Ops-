@@ -192,11 +192,12 @@ def _assert_no_overlap(
             db.query(WorkItem.key).filter(WorkItem.id == conflict.work_item_id).scalar()
             or "a block"
         )
+        # Don't include the conflict's clock time: it's stored UTC and would
+        # display in the wrong timezone for the viewer. Name the ticket instead.
         raise HTTPException(
             status_code=409,
             detail=(
-                f"This overlaps {key} "
-                f"({conflict.start_time:%a %H:%M}–{conflict.end_time:%H:%M}). "
+                f"This overlaps an existing {key} block. "
                 "Time blocks can't overlap — pick a free slot."
             ),
         )
