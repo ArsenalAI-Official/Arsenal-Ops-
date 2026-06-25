@@ -38,19 +38,22 @@ export function PaletteTicketChip({
   const status = statusOf(ticket.status);
   const accent = status?.color ?? '#737373';
 
-  const remaining = ticket.remainingHours - scheduledHours;
+  // A calendar block IS a logged TimeEntry, so the backend's remaining_hours
+  // already nets out every scheduled block — do NOT subtract scheduledHours
+  // again (that double-counts: a 1h block would read as -2h remaining).
+  const remaining = ticket.remainingHours;
   const over = remaining < -1e-9;
-  const pct =
-    ticket.remainingHours > 0
-      ? Math.min(100, (scheduledHours / ticket.remainingHours) * 100)
-      : scheduledHours > 0
-        ? 100
-        : 0;
+  // Bar shows this week's scheduled hours as a fraction of the work still in
+  // play (this week's scheduled + what's left to do).
+  const base = scheduledHours + Math.max(0, remaining);
+  const pct = base > 0 ? Math.min(100, (scheduledHours / base) * 100) : scheduledHours > 0 ? 100 : 0;
   const remLabel = over
     ? `${formatHours(-remaining)} over`
-    : remaining <= 1e-9 && scheduledHours > 0
-      ? 'fully scheduled'
-      : `${formatHours(Math.max(0, remaining))} left`;
+    : remaining <= 1e-9
+      ? scheduledHours > 0
+        ? 'fully scheduled'
+        : 'no time left'
+      : `${formatHours(remaining)} left`;
   const remColor = over ? CALENDAR.over : accent;
 
   return (
