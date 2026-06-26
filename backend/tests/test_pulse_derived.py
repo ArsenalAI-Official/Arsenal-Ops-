@@ -56,6 +56,7 @@ from models.user import User
 from models.work_item import WorkItem
 from routers import pulse as pulse_module
 from routers.pulse import get_pulse_derived
+from tests.conftest import assign_system_role
 
 
 @pytest.fixture
@@ -70,7 +71,12 @@ def db():
 
 @pytest.fixture
 def admin_user(db):
-    """A system-admin user — bypasses per-project membership checks."""
+    """A system-admin user — bypasses per-project membership checks.
+
+    Holds the RBAC ``admin`` Role (granting ``*``) like a real production
+    admin; ``get_pulse_derived`` gates on ``require_project_access``, which
+    reads the RBAC capability set rather than the legacy ``role`` string.
+    """
     u = User(
         id=1,
         email="admin@x.com",
@@ -81,6 +87,7 @@ def admin_user(db):
     )
     db.add(u)
     db.commit()
+    assign_system_role(db, u)
     return u
 
 

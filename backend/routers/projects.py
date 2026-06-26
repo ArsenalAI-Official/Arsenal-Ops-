@@ -20,7 +20,7 @@ from database import get_db
 from models.architecture import Architecture
 from models.developer import Developer, project_developers
 from models.project import Project
-from models.user import User, UserRole
+from models.user import User
 from routers.auth import get_current_user, require_capability
 from services.github_service import GitHubService, github_service
 
@@ -28,12 +28,29 @@ router = APIRouter(prefix="/api/projects", tags=["Projects"])
 
 
 def has_project_access(project: Project, user: User) -> bool:
-    """Check if user has access to a project (admin or assigned developer)"""
-    # Admin has access to all projects (roles are comma-separated)
-    if user.role and "admin" in user.role:
+    """Check if a user has read access to a project.
+
+    Access is granted to:
+      1. System/tool admins — the RBAC `admin.projects` capability (held by
+         system admins via `*`), NOT the legacy `users.role` string. (Replaces
+         the retired `"admin" in user.role` substring check.)
+      2. Holders of `project.overview_write` — they can edit Overview content on
+         any project via `is_project_admin`, so they must be able to *read* it
+         too (no write-without-read).
+      3. Any developer assigned to this project.
+
+    Paths 1 and 2 are exactly the capability paths in `is_project_admin` (the
+    write gate), so the two gates agree on capability-based access and read is a
+    superset of write: the write gate additionally requires the membership row
+    to carry `is_admin`, whereas any assigned developer can read here.
+    """
+    if user.has_capability("admin.projects"):
         return True
 
-    # Check if user is assigned as a developer to this project
+    if user.has_capability("project.overview_write"):
+        return True
+
+    # Any developer assigned to this project can read it.
     return any(dev.email == user.email for dev in project.developers)
 
 
@@ -600,11 +617,13 @@ def list_projects(
     The two flags are mutually exclusive; if both are supplied,
     ``uncategorized`` wins (explicit "no category" beats a numeric id).
     """
-    # Check if user has admin role (handles multi-role users like 'admin,developer')
-    user_roles = [role.strip() for role in (current_user.role or "").split(",")]
-    is_admin = UserRole.ADMIN.value in user_roles
-
-    if is_admin:
+    # Admin-sees-all is keyed on the RBAC `admin.projects` capability (system
+    # admins via `*`), the SAME gate as `has_project_access` / `is_project_admin`
+    # — not the legacy `users.role` string. Keeping these consistent is the whole
+    # point: otherwise an RBAC admin whose legacy string drifted would under-see
+    # the list, and a legacy `role="admin"` user with no capability would see
+    # projects every per-project gate then 403s them from opening.
+    if current_user.has_capability("admin.projects"):
         query = db.query(Project)
     else:
         query = (
