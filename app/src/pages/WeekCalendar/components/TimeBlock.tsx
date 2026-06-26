@@ -14,6 +14,9 @@ interface TimeBlockProps {
   selected: boolean;
   /** True while this block is being dragged/resized — shows the live time label. */
   active: boolean;
+  /** Project filter is active and this block isn't in it — render faded (still
+   *  visible and interactive). */
+  dimmed?: boolean;
   /** Side to anchor the toolbar/confirm popover so it doesn't clip off-screen. */
   popoverSide: 'left' | 'right';
   confirmingDelete: boolean;
@@ -40,6 +43,7 @@ export function TimeBlock({
   lanes,
   selected,
   active,
+  dimmed = false,
   popoverSide,
   confirmingDelete,
   ticketOptions,
@@ -98,6 +102,9 @@ export function TimeBlock({
         outline: selected ? `2px solid ${accent}` : 'none',
         boxShadow: selected ? '0 6px 18px rgba(0,0,0,0.55)' : '0 1px 3px rgba(0,0,0,0.45)',
         overflow: 'visible',
+        // Faded when outside the active project filter — but full strength once
+        // selected so editing it stays legible.
+        opacity: dimmed && !selected ? 0.3 : 1,
       }}
     >
       <div style={{ overflow: 'hidden', height: '100%' }}>

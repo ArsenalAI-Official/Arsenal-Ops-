@@ -19,6 +19,8 @@ interface WeekGridProps {
   cfg: GridConfig;
   days: WeekDay[];
   blocks: CalendarBlock[];
+  /** Soft project filter: return true to render a block dimmed (still visible). */
+  isDimmed?: (block: CalendarBlock) => boolean;
   draft: CalendarBlock | null;
   preview: CalendarBlock | null;
   selectedId: number | null;
@@ -48,6 +50,7 @@ export function WeekGrid({
   cfg,
   days,
   blocks,
+  isDimmed,
   draft,
   preview,
   selectedId,
@@ -162,6 +165,7 @@ export function WeekGrid({
                       lanes={lanes}
                       selected={selectedId === item.id && item.id !== DRAFT_ID}
                       active={draft?.id === item.id}
+                      dimmed={item.id !== DRAFT_ID && (isDimmed?.(item) ?? false)}
                       popoverSide={day.dayIdx <= 2 ? 'right' : 'left'}
                       confirmingDelete={confirmDeleteId === item.id}
                       ticketOptions={ticketOptions}

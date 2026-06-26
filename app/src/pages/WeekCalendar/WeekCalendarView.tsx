@@ -74,6 +74,8 @@ const WeekCalendarView = ({
   const [detailTask, setDetailTask] = useState<MyTask | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createSlot, setCreateSlot] = useState<{ dayIdx: number; start: number } | null>(null);
+  // Per-project filter (own calendar only). null = all projects.
+  const [projectFilter, setProjectFilter] = useState<number | null>(null);
   const readOnly = viewingEmployeeId != null; // viewing someone else's calendar
 
   const { data: developers = [] } = useAllDevelopers<{ id: number; name: string; email: string }>();
@@ -120,6 +122,56 @@ const WeekCalendarView = ({
   );
 
   const ticketByKey = useMemo(() => new Map(tickets.map((t) => [t.key, t])), [tickets]);
+
+  // --- per-project filter ---
+  // Projects the user is assigned to, derived from their own tickets (so the
+  // dropdown only ever lists projects relevant to this person). The work-item
+  // key prefix ("SB" in "SB-12") maps 1:1 to a project and is the only project
+  // signal a calendar block carries (blocks have no project_id), so it's how we
+  // resolve a block's project for the grid dimming below.
+  const { projectOptions, prefixToProjectId } = useMemo(() => {
+    const names = new Map<number, string>();
+    const prefixes = new Map<string, number>();
+    for (const t of myTasks) {
+      if (t.is_personal || t.project_id == null) continue;
+      names.set(t.project_id, t.project_name ?? `Project ${t.project_id}`);
+      const prefix = t.key.split('-')[0];
+      if (prefix) prefixes.set(prefix, t.project_id);
+    }
+    const options = [...names.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return { projectOptions: options, prefixToProjectId: prefixes };
+  }, [myTasks]);
+
+  // Ignore a filter pointing at a project that's no longer assigned.
+  const activeProjectFilter =
+    projectFilter != null && projectOptions.some((p) => p.id === projectFilter)
+      ? projectFilter
+      : null;
+
+  const projectIdForKey = useCallback(
+    (key: string) => prefixToProjectId.get(key.split('-')[0] ?? '') ?? null,
+    [prefixToProjectId],
+  );
+
+  // Sidebar palette: HARD filter — show only the selected project's tickets.
+  const visibleTickets = useMemo(
+    () =>
+      activeProjectFilter == null
+        ? tickets
+        : tickets.filter((t) => projectIdForKey(t.key) === activeProjectFilter),
+    [tickets, activeProjectFilter, projectIdForKey],
+  );
+
+  // Calendar: SOFT filter — blocks outside the selected project stay rendered
+  // but dimmed. Never dims while an admin views someone else's calendar (the
+  // filter is built from the viewer's own projects, not the viewed person's).
+  const isKeyDimmed = useCallback(
+    (key: string) =>
+      !readOnly && activeProjectFilter != null && projectIdForKey(key) !== activeProjectFilter,
+    [readOnly, activeProjectFilter, projectIdForKey],
+  );
 
   // Wire blocks → grid coords. Blocks outside the rendered Mon–Fri window drop
   // into the "unscheduled" tray rather than a fabricated slot.
@@ -366,6 +418,25 @@ const WeekCalendarView = ({
     };
   }, [now, weekStart]);
 
+  // Per-project filter (own calendar only). Hidden when there's nothing to
+  // choose between (≤1 project) or when viewing another person's calendar.
+  const projectPicker =
+    !readOnly && projectOptions.length > 1 ? (
+      <select
+        aria-label="Filter by project"
+        value={activeProjectFilter ?? ''}
+        onChange={(e) => setProjectFilter(e.target.value ? Number(e.target.value) : null)}
+        className="h-[30px] bg-[#222] text-[#f5f5f5] border border-white/[0.12] rounded-md text-[11px] px-2"
+      >
+        <option value="">All projects</option>
+        {projectOptions.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+    ) : null;
+
   // Admin-only employee picker (role-based visibility). Non-admins never see it
   // and are pinned to their own calendar by the backend regardless.
   const adminPicker = isAdmin ? (
@@ -414,7 +485,12 @@ const WeekCalendarView = ({
         onPrev={() => setWeekStart((w) => addDays(w, -7))}
         onToday={() => setWeekStart(startOfWeekMonday(new Date()))}
         onNext={() => setWeekStart((w) => addDays(w, 7))}
-        slot={adminPicker ?? toolbarSlot}
+        slot={
+          <>
+            {projectPicker}
+            {adminPicker ?? toolbarSlot}
+          </>
+        }
       />
 
       <div className="flex flex-1 min-h-0">
@@ -423,7 +499,7 @@ const WeekCalendarView = ({
             own tickets there is confusing and they can't be dragged anyway. */}
         {!readOnly && (
           <TicketPalette
-            tickets={tickets}
+            tickets={visibleTickets}
             activeTicketId={activeTicket?.workItemId ?? null}
             scheduledByTicket={scheduledByTicket}
             readOnly={readOnly}
@@ -458,6 +534,7 @@ const WeekCalendarView = ({
             cfg={cfg}
             days={weekDays(weekStart)}
             blocks={rendered}
+            isDimmed={(b) => isKeyDimmed(b.ticketKey)}
             draft={drag.draft}
             preview={drag.preview}
             selectedId={drag.selectedId}
@@ -517,6 +594,7 @@ const WeekCalendarView = ({
                         e,
                       )
                     }
+                    style={{ opacity: isKeyDimmed(b.work_item_key) ? 0.4 : 1 }}
                     className="flex items-center gap-2 bg-white/[0.04] border border-white/[0.06] rounded-md px-2.5 py-1.5 text-[11px] cursor-grab hover:border-[#E0B954]/40"
                   >
                     <span className="font-mono text-[10px] font-semibold text-[#E0B954]">
