@@ -86,10 +86,7 @@ export function TicketPalette({
             </div>
             <div className="flex flex-col gap-1">
               {weekByProject.map((p) => (
-                <div
-                  key={p.label}
-                  className="flex items-center justify-between text-[10px] gap-2"
-                >
+                <div key={p.label} className="flex items-center justify-between text-[10px] gap-2">
                   <span className="text-[#a3a3a3] truncate">{p.label}</span>
                   <span className="text-[#737373] tabular-nums whitespace-nowrap">
                     {formatDuration(p.hours)}
