@@ -15,6 +15,24 @@ describe('stripMarkdown', () => {
     expect(stripMarkdown('**bold** and _italic_ and *em*')).toBe('bold and italic and em');
   });
 
+  it('handles multiple emphasis spans on one line', () => {
+    expect(stripMarkdown('**a** and **b**')).toBe('a and b');
+  });
+
+  it('unwraps nested emphasis without leaving a stray marker', () => {
+    expect(stripMarkdown('***both***')).toBe('both');
+  });
+
+  it('preserves intra-word underscores (snake_case identifiers)', () => {
+    expect(stripMarkdown('set user_name and file_path')).toBe('set user_name and file_path');
+    expect(stripMarkdown('a_b_c_d_e')).toBe('a_b_c_d_e');
+  });
+
+  it('leaves unmatched/lone markers intact', () => {
+    expect(stripMarkdown('compute 2 * 3 = 6')).toBe('compute 2 * 3 = 6');
+    expect(stripMarkdown('a * b')).toBe('a * b');
+  });
+
   it('strips inline code backticks', () => {
     expect(stripMarkdown('use `apiFetch` here')).toBe('use apiFetch here');
   });
