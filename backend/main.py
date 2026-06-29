@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # Imports below run after load_dotenv so module-level env reads (router-level
 # config; the MCP server's JWTVerifier reading the required SECRET_KEY) see the
 # right values. mcp_app is mounted at /mcp further down.
-from mcp_server import mcp_app  # noqa: E402
+from mcp_server import mcp_app, oauth_well_known_routes  # noqa: E402
 from routers.admin import router as admin_router  # noqa: E402
 from routers.auth import router as auth_router  # noqa: E402
 from routers.comments import router as comments_router  # noqa: E402
@@ -168,6 +168,13 @@ app.include_router(project_categories_router)
 # inside the MCP layer (JWTVerifier + per-tool capability checks), independent
 # of the REST routes above. Its lifespan is composed in `lifespan` above.
 app.mount("/mcp", mcp_app)
+
+# Expose the OAuth discovery (well-known) metadata at the ROOT, where the 401
+# challenge advertises it (RFC 9728). The mounted sub-app serves these under
+# /mcp, so without this the OAuth discovery first hop 404s. No-op when OAuth is
+# disabled. See mcp_server.oauth_well_known_routes.
+for _wk_route in oauth_well_known_routes("/"):
+    app.router.routes.append(_wk_route)
 
 
 # Database/bootstrap initialization, invoked from the `lifespan` handler above.

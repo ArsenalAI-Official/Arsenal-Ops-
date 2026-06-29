@@ -8,10 +8,12 @@ Design (see .plans/enable-mcp-server-20260622-0945.md):
 - **Transport:** stateless streamable HTTP (`stateless_http=True, json_response=True`)
   so there is no long-lived SSE connection held open against the single Render
   worker.
-- **Auth:** the same HS256 JWT the REST API issues. `JWTVerifier` makes ``/mcp``
-  an OAuth2.1 resource server that rejects un-tokened calls with 401. This is
-  NOT token passthrough — we are the resource server, we issued the token, we
-  validate it locally and never forward it upstream.
+- **Auth:** two paths on one endpoint via `MultiAuth`. (1) Bearer HS256 JWT —
+  the token the REST API issues — for Claude Code / API connector / custom
+  agents, validated locally by `JWTVerifier` (not token passthrough: we issued
+  it and verify it ourselves). (2) OAuth 2.1 via fastmcp's `GoogleProvider` for
+  Claude Desktop, delegating login to the app's existing Google SSO. Un-tokened
+  calls get 401. OAuth is enabled only when GOOGLE_CLIENT_ID/SECRET are set.
 - **RBAC bridge:** inside each tool we read the validated token's claims, load
   the `User` via the shared `load_user_from_claims`, and enforce the existing
   capabilities + per-project access via `assert_capability` /
@@ -28,12 +30,15 @@ Design (see .plans/enable-mcp-server-20260622-0945.md):
   connections from the (5 + 10 overflow) pool.
 """
 
+import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 
 from fastapi import BackgroundTasks, HTTPException
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
+from fastmcp.server.auth import AuthProvider, MultiAuth
+from fastmcp.server.auth.providers.google import GoogleProvider
 from fastmcp.server.auth.providers.jwt import JWTVerifier
 from fastmcp.server.dependencies import get_access_token
 from sqlalchemy.orm import Session
@@ -43,7 +48,13 @@ from models.activity_log import ActivityLog
 from models.developer import Developer
 from models.user import User
 from models.work_item import WorkItem
-from routers.auth import ALGORITHM, SECRET_KEY, assert_capability, load_user_from_claims
+from routers.auth import (
+    ALGORITHM,
+    SECRET_KEY,
+    assert_capability,
+    load_or_provision_user_by_email,
+    load_user_from_claims,
+)
 from routers.developers import get_my_capacity, list_developers
 from routers.projects import get_project, list_projects, require_project_access
 from routers.pulse import get_pulse_derived
@@ -59,16 +70,44 @@ from routers.workitems import (
 )
 from services.capacity_service import compute_capacity_breakdown, week_boundaries
 
-# Validate the same HS256 JWT the REST API issues. `SECRET_KEY` is required from
-# the environment (routers.auth fails import if it is unset/default), so by the
-# time this runs we have a real signing secret to verify against.
+# --- Authentication ----------------------------------------------------------
+# Two client families share one /mcp endpoint via MultiAuth:
+#   1. Bearer HS256 JWT (Claude Code, API connector, custom agents) — the same
+#      token the REST API issues, validated locally by JWTVerifier.
+#   2. Claude Desktop — OAuth 2.1 (DCR + metadata + PKCE), handled by fastmcp's
+#      GoogleProvider, which delegates the actual login to the Google SSO the app
+#      already uses.
+# MultiAuth: the OAuth server supplies routes/metadata; the JWTVerifier stays as
+# an additional verifier. OAuth is OPT-IN via MCP_OAUTH_ENABLED — it must not turn
+# on just because the app's Google SSO creds happen to be in the env (they almost
+# always are), so tests/local stay JWT-only unless the flag is explicitly set.
 _jwt_verifier = JWTVerifier(public_key=SECRET_KEY, algorithm=ALGORITHM)
+
+_oauth_enabled = os.getenv("MCP_OAUTH_ENABLED", "").lower() in ("1", "true", "yes")
+_google_client_id = os.getenv("GOOGLE_CLIENT_ID")
+_google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+# Public base URL of the mounted MCP server, used to build OAuth metadata +
+# redirect URIs. For the /mcp mount this should include the mount path, e.g.
+# http://localhost:8000/mcp locally, or https://<render-host>/mcp in prod.
+_mcp_base_url = os.getenv("MCP_BASE_URL", "http://localhost:8000/mcp")
+
+_auth: AuthProvider
+if _oauth_enabled and _google_client_id and _google_client_secret:
+    _google_provider = GoogleProvider(
+        client_id=_google_client_id,
+        client_secret=_google_client_secret,
+        base_url=_mcp_base_url,
+        required_scopes=["openid", "email", "profile"],
+        redirect_path="/auth/callback",
+    )
+    _auth = MultiAuth(server=_google_provider, verifiers=[_jwt_verifier])
+else:
+    _auth = _jwt_verifier  # JWT-only (OAuth flag off, or creds missing)
 
 # mask_error_details=True: only *intentional* ToolError messages reach the agent;
 # any other (unexpected) exception is replaced with a generic message instead of
 # leaking internal details — stack frames, SQL, file paths — to the MCP client.
-# Our deliberate 403/404 ToolErrors (raised in _caller_session) are unaffected.
-mcp: FastMCP = FastMCP("Arsenal Ops", auth=_jwt_verifier, mask_error_details=True)
+mcp: FastMCP = FastMCP("Arsenal Ops", auth=_auth, mask_error_details=True)
 
 
 @contextmanager
@@ -86,9 +125,15 @@ def _caller_session() -> Iterator[tuple[Session, User]]:
     claims = access_token.claims if access_token else {}
     try:
         with SessionLocal() as db:
-            user = load_user_from_claims(db, claims)
+            # OAuth tokens (Claude Desktop, via GoogleProvider) carry a verified
+            # `email` claim; our own Bearer JWTs carry `sub` (the Ops user id).
+            # Resolve by whichever is present so both paths feed the same RBAC.
+            if claims.get("email"):
+                user = load_or_provision_user_by_email(db, claims["email"], claims.get("name"))
+            else:
+                user = load_user_from_claims(db, claims)
             if user is None:
-                raise ToolError("Token is valid but does not map to a known user")
+                raise ToolError("Token is valid but does not map to a known/authorized user")
             yield db, user
     except HTTPException as exc:
         raise ToolError(f"{exc.status_code}: {exc.detail}") from exc
@@ -446,3 +491,21 @@ def workitem_log_hours(
 # means the endpoint is the mount root (i.e. /mcp/). main.py must adopt
 # `mcp_app.lifespan` so the session manager is initialized on startup.
 mcp_app = mcp.http_app(path="/", stateless_http=True, json_response=True)
+
+
+def oauth_well_known_routes(mcp_path: str = "/") -> list:
+    """OAuth discovery (well-known) routes to register on the PARENT app's root.
+
+    When the MCP app is mounted under a sub-path, fastmcp serves its well-known
+    metadata *under* that sub-path — but RFC 9728 (and our 401 challenge) advertise
+    the protected-resource metadata at the host ROOT (e.g.
+    /.well-known/oauth-protected-resource/mcp/). Without this, an OAuth client's
+    first discovery hop 404s. main.py registers these on the root app so discovery
+    resolves. No-op when OAuth is disabled (JWTVerifier has no such routes).
+
+    `mcp_path` is the streamable endpoint path *within* the MCP app — "/" here,
+    matching `http_app(path="/")` — NOT the "/mcp" mount prefix (the resource
+    identifier already comes from `MCP_BASE_URL`; passing "/mcp" double-counts it).
+    """
+    getter = getattr(_auth, "get_well_known_routes", None)
+    return list(getter(mcp_path=mcp_path)) if getter is not None else []

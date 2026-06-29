@@ -200,6 +200,65 @@ def load_user_from_claims(db: Session, claims: dict) -> User | None:
     )
 
 
+def load_or_provision_user_by_email(
+    db: Session, email: str, name: str | None = None
+) -> User | None:
+    """Resolve (or provision) an Ops User from a verified Google email.
+
+    The OAuth counterpart to `load_user_from_claims`: the MCP OAuth flow
+    (fastmcp's GoogleProvider, used by Claude Desktop) hands us a verified Google
+    identity (email) rather than an Ops user id, so we map it to a `User` by
+    email, applying the SAME policy as `google_login`:
+
+      - existing active user      -> returned (Developer row ensured)
+      - existing inactive user    -> None (rejected)
+      - unknown internal-domain   -> auto-provisioned (User + developer role + Developer)
+      - unknown external-domain   -> None (rejected; an admin must pre-register them)
+
+    Returns the user with roles + capabilities eager-loaded (so RBAC checks work),
+    or None for the caller to map to a 401/403. Assumes the email was already
+    verified by the OAuth provider.
+    """
+    from models.developer import Developer
+
+    is_internal = _is_internal_email(email)
+    user = db.query(User).filter(User.email == email).first()
+
+    if user is None:
+        if not is_internal:
+            return None  # external + not pre-registered -> rejected, like google_login
+        # Provision an internal-domain user (mirrors google_login's new-user branch).
+        user = User(
+            email=email,
+            name=name or email.split("@")[0],
+            hashed_password="",
+            role=UserRole.DEVELOPER.value,
+            is_active=True,
+            is_first_login=False,
+            last_login_at=datetime.utcnow(),
+        )
+        db.add(user)
+        db.flush()  # populate user.id for the role m2m link
+        _link_roles_from_string(user, UserRole.DEVELOPER.value, db)
+        db.commit()
+    elif not user.is_active:
+        return None  # disabled account -> rejected
+
+    # Ensure a Developer row exists (matches google_login; needed for capacity /
+    # assignment features and for per-project membership lookups).
+    if not db.query(Developer).filter(Developer.email == email).first():
+        db.add(Developer(name=user.name, email=email, is_external=not is_internal))
+        db.commit()
+
+    # Re-load with roles + capabilities eager-loaded, exactly like load_user_from_claims.
+    return (
+        db.query(User)
+        .options(selectinload(User.roles).selectinload(Role.capabilities))
+        .filter(User.id == user.id)
+        .first()
+    )
+
+
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
