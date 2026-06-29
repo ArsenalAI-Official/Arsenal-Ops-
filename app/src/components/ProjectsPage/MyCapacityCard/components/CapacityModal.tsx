@@ -35,15 +35,37 @@ const CapacityModal = ({
   // change handler (not a setState-in-effect, which the React 19 hooks
   // rules disallow).
   const [view, setView] = useState<ModalView>('summary');
+  // Lifted from ReviewSubmitView so we can lock the dialog while the
+  // QuickBooks submit/sync is mid-flight. Closing mid-sync risks the
+  // dev not seeing the success/partial-failure banner, and (worse) a
+  // partial failure becoming invisible to them.
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const handleOpenChange = (next: boolean) => {
+    // Block close while the submit/sync mutation is running. The
+    // Syncing… spinner on the Submit button is the user's signal that
+    // something's in flight; they get the dialog back automatically
+    // when the mutation resolves.
+    if (!next && isSyncing) return;
     if (!next) setView('summary');
     onOpenChange(next);
   };
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="bg-[#0d0d0d] border-[rgba(255,255,255,0.07)] w-[92vw] max-w-[900px] sm:max-w-[900px] h-[90vh] max-h-[90vh] flex flex-col overflow-hidden">
+      <DialogContent
+        className="bg-[#0d0d0d] border-[rgba(255,255,255,0.07)] w-[92vw] max-w-[900px] sm:max-w-[900px] h-[90vh] max-h-[90vh] flex flex-col overflow-hidden"
+        // Hide the close X while syncing AND block the Radix-default
+        // outside-click + Escape paths so the user can't dismiss the
+        // dialog mid-sync no matter how they try.
+        showCloseButton={!isSyncing}
+        onPointerDownOutside={(e) => {
+          if (isSyncing) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isSyncing) e.preventDefault();
+        }}
+      >
         <DialogHeader className="pb-2 shrink-0">
           <DialogTitle className="text-white flex items-center gap-2.5 text-lg">
             <Activity className="w-5 h-5 text-[#E0B954]" />
@@ -70,7 +92,9 @@ const CapacityModal = ({
           )}
         </DialogHeader>
 
-        {view === 'review' && <ReviewSubmitView onBack={() => setView('summary')} />}
+        {view === 'review' && (
+          <ReviewSubmitView onBack={() => setView('summary')} onSyncingChange={setIsSyncing} />
+        )}
 
         {view === 'summary' && data && (
           <div className="flex flex-col flex-1 min-h-0 gap-6 mt-4">

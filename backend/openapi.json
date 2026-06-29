@@ -1564,6 +1564,17 @@
           "hours": {
             "title": "Hours",
             "type": "integer"
+          },
+          "logged_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logged At"
           }
         },
         "required": [
@@ -4453,6 +4464,35 @@
           "projects"
         ],
         "title": "TimesheetClientResponse",
+        "type": "object"
+      },
+      "TimesheetEntryEditRequest": {
+        "description": "Patch body for editing a draft time entry.\n\nAll fields optional; client sends only what's changing. `hours` is\nbounded the same way as `log-hours` (>0, \u226424) so dev typo'd 220h\nentries can't slip through here either.",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours"
+          }
+        },
+        "title": "TimesheetEntryEditRequest",
         "type": "object"
       },
       "TimesheetEntryResponse": {
@@ -8519,6 +8559,101 @@
           }
         ],
         "summary": "Get My Timesheet",
+        "tags": [
+          "Developers"
+        ]
+      }
+    },
+    "/api/developers/me/timesheet/entries/{entry_id}": {
+      "delete": {
+        "description": "Delete a draft TimeEntry the caller logged.\n\nSame lock rules as the PATCH route \u2014 only entries that haven't\nbeen submitted to QuickBooks (and haven't synced) can be deleted.\nThe work item's hours are recomputed after the delete so the\nboard/capacity card/work-item detail panel all reflect the new\ntotal immediately.",
+        "operationId": "delete_my_timesheet_entry_api_developers_me_timesheet_entries__entry_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Delete My Timesheet Entry",
+        "tags": [
+          "Developers"
+        ]
+      },
+      "patch": {
+        "description": "Edit hours and/or description on the caller's own draft TimeEntry.\n\nLocked when ``submitted_at IS NOT NULL`` or ``workforce_entry_id IS\nNOT NULL`` (see :func:`_resolve_editable_entry`). After applying the\nchange, the work item's ``logged_hours``/``remaining_hours`` are\nrecomputed and the rollup propagates to the parent (subtasks) and\nepic, keeping every view that reads these columns in sync.",
+        "operationId": "edit_my_timesheet_entry_api_developers_me_timesheet_entries__entry_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimesheetEntryEditRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Edit My Timesheet Entry",
         "tags": [
           "Developers"
         ]

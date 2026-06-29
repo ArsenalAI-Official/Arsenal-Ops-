@@ -29,3 +29,65 @@ export function submitMyTimesheet(): Promise<SubmitTimesheetResponse> {
     method: 'POST',
   });
 }
+
+export interface EditTimesheetEntryBody {
+  hours?: number;
+  description?: string | null;
+}
+
+/**
+ * Edit a draft time entry. Locked entries (submitted or already synced)
+ * return 403 from the backend — surfaced as ApiError(.status=403).
+ */
+export function editMyTimesheetEntry(entryId: number, body: EditTimesheetEntryBody): Promise<void> {
+  return apiFetch(`/api/developers/me/timesheet/entries/${entryId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * Delete a draft time entry. Same lock rules as edit. Returns 204 from
+ * the backend, which apiFetch normalizes to `undefined`.
+ */
+export function deleteMyTimesheetEntry(entryId: number): Promise<void> {
+  return apiFetch(`/api/developers/me/timesheet/entries/${entryId}`, {
+    method: 'DELETE',
+  });
+}
+
+export interface AddTimesheetEntryBody {
+  /** Work item / ticket id the entry belongs to. */
+  workItemId: number;
+  /** Hours (1-24, integer; matches the log-hours endpoint's sanity cap). */
+  hours: number;
+  /** Free-text note. Optional. */
+  description?: string | null;
+  /** ISO date (YYYY-MM-DD) of the weekday to book this entry on. Must
+   *  fall within the current Mon-Fri review window — the backend
+   *  rejects out-of-window or future dates with a 400. */
+  loggedAt: string;
+}
+
+/**
+ * Add a new time entry for a ticket on a specific day of the current
+ * week. Reuses the existing `POST /api/workitems/{id}/log-hours`
+ * endpoint with the new optional `logged_at` field, so the work item's
+ * `logged_hours` recompute and auto-comment side effects all happen
+ * the same way as a regular Log Hours click.
+ */
+export function addMyTimesheetEntry({
+  workItemId,
+  hours,
+  description,
+  loggedAt,
+}: AddTimesheetEntryBody): Promise<unknown> {
+  return apiFetch(`/api/workitems/${workItemId}/log-hours`, {
+    method: 'POST',
+    body: JSON.stringify({
+      hours,
+      description: description ?? null,
+      logged_at: loggedAt,
+    }),
+  });
+}

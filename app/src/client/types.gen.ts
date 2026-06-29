@@ -888,6 +888,10 @@ export type LogHoursRequest = {
    * Hours
    */
   hours: number;
+  /**
+   * Logged At
+   */
+  logged_at?: string | null;
 };
 
 /**
@@ -2552,6 +2556,26 @@ export type TimesheetClientResponse = {
    * Subtotal Hours
    */
   subtotal_hours: number;
+};
+
+/**
+ * TimesheetEntryEditRequest
+ *
+ * Patch body for editing a draft time entry.
+ *
+ * All fields optional; client sends only what's changing. `hours` is
+ * bounded the same way as `log-hours` (>0, ≤24) so dev typo'd 220h
+ * entries can't slip through here either.
+ */
+export type TimesheetEntryEditRequest = {
+  /**
+   * Description
+   */
+  description?: string | null;
+  /**
+   * Hours
+   */
+  hours?: number | null;
 };
 
 /**
@@ -4882,6 +4906,67 @@ export type GetMyTimesheetApiDevelopersMeTimesheetGetResponses = {
 
 export type GetMyTimesheetApiDevelopersMeTimesheetGetResponse =
   GetMyTimesheetApiDevelopersMeTimesheetGetResponses[keyof GetMyTimesheetApiDevelopersMeTimesheetGetResponses];
+
+export type DeleteMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdDeleteData = {
+  body?: never;
+  path: {
+    /**
+     * Entry Id
+     */
+    entry_id: number;
+  };
+  query?: never;
+  url: '/api/developers/me/timesheet/entries/{entry_id}';
+};
+
+export type DeleteMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdDeleteErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type DeleteMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdDeleteError =
+  DeleteMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdDeleteErrors[keyof DeleteMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdDeleteErrors];
+
+export type DeleteMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdDeleteResponses = {
+  /**
+   * Successful Response
+   */
+  204: void;
+};
+
+export type DeleteMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdDeleteResponse =
+  DeleteMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdDeleteResponses[keyof DeleteMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdDeleteResponses];
+
+export type EditMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdPatchData = {
+  body: TimesheetEntryEditRequest;
+  path: {
+    /**
+     * Entry Id
+     */
+    entry_id: number;
+  };
+  query?: never;
+  url: '/api/developers/me/timesheet/entries/{entry_id}';
+};
+
+export type EditMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdPatchErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type EditMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdPatchError =
+  EditMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdPatchErrors[keyof EditMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdPatchErrors];
+
+export type EditMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdPatchResponses = {
+  /**
+   * Successful Response
+   */
+  200: unknown;
+};
 
 export type SubmitMyTimesheetApiDevelopersMeTimesheetSubmitPostData = {
   body?: never;

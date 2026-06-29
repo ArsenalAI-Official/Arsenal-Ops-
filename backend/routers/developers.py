@@ -255,6 +255,192 @@ def submit_my_timesheet(
     )
 
 
+class TimesheetEntryEditRequest(BaseModel):
+    """Patch body for editing a draft time entry.
+
+    All fields optional; client sends only what's changing. `hours` is
+    bounded the same way as `log-hours` (>0, ≤24) so dev typo'd 220h
+    entries can't slip through here either.
+    """
+
+    hours: int | None = None
+    description: str | None = None
+
+
+def _recompute_work_item_hours(work_item, db: Session) -> None:
+    """Recompute `work_items.logged_hours` from the live sum of TimeEntry
+    rows and propagate the change to subtask parents / epics.
+
+    Mirrors the recompute block in :func:`routers.workitems.log_hours`
+    (lines 1718-1742 at the time of writing). Factored here only as an
+    inline helper — same logic, called from the edit/delete paths so the
+    rollup always runs after a TimeEntry mutation. If a third call site
+    appears, lift this into `services/`.
+    """
+    from sqlalchemy import func as _func
+
+    from models.time_entry import TimeEntry
+    from models.work_item import WorkItemType
+    from routers.workitems import propagate_from_subtask, update_epic_hours
+
+    work_item.logged_hours = (
+        db.query(_func.coalesce(_func.sum(TimeEntry.hours), 0))
+        .filter(TimeEntry.work_item_id == work_item.id)
+        .scalar()
+    ) or 0
+    work_item.remaining_hours = max(
+        0, (work_item.estimated_hours or 0) - (work_item.logged_hours or 0)
+    )
+    work_item.updated_at = datetime.utcnow()
+    db.commit()
+
+    # Roll up:
+    # - Subtasks bubble through to parent and (transitively) the epic
+    #   via the subtask propagator.
+    # - 2nd-level items (story/task/bug) bubble straight to their epic.
+    # - Top-level epics are themselves the rollup target, no parent.
+    if work_item.type == WorkItemType.SUBTASK.value and work_item.parent_id:
+        propagate_from_subtask(work_item, db)
+        db.commit()
+    elif work_item.epic_id:
+        # Hours change on a 2nd-level item still affects its epic's
+        # rollup of "direct" hours.
+        update_epic_hours(work_item.epic_id, db)
+        db.commit()
+
+
+def _resolve_editable_entry(entry_id: int, current_user: User, db: Session):
+    """Common gate for PATCH/DELETE on a developer's own time entry.
+
+    Returns the TimeEntry on success. Raises 404/403 on the failure
+    paths the two routes share so the policy is in one place:
+
+      - 404: entry doesn't exist, OR the user has no Developer profile.
+      - 403: entry doesn't belong to this developer.
+      - 403 (locked): entry is submitted_at SET or workforce_entry_id SET
+        — the dev has already committed it to the QB pipeline. Editing
+        post-submit would diverge from QuickBooks; editing post-sync
+        would orphan a TimeActivity in QB.
+    """
+    from models.time_entry import TimeEntry
+
+    entry = db.query(TimeEntry).filter(TimeEntry.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Time entry not found")
+
+    dev = db.query(Developer).filter(Developer.email == current_user.email).first()
+    if not dev:
+        raise HTTPException(status_code=404, detail="No developer profile for this user")
+    if entry.developer_id != dev.id:
+        raise HTTPException(status_code=403, detail="You can only edit your own time entries.")
+
+    if entry.workforce_entry_id is not None:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "This entry is already synced to QuickBooks and can't be edited "
+                "here. Ask an admin to adjust it in QB if it's wrong."
+            ),
+        )
+    if entry.submitted_at is not None:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "This entry was already submitted for sync and is locked. "
+                "Wait for it to finish syncing, then ask an admin to fix it in QuickBooks."
+            ),
+        )
+    return entry
+
+
+@router.patch("/me/timesheet/entries/{entry_id}")
+def edit_my_timesheet_entry(
+    entry_id: int,
+    body: TimesheetEntryEditRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Edit hours and/or description on the caller's own draft TimeEntry.
+
+    Locked when ``submitted_at IS NOT NULL`` or ``workforce_entry_id IS
+    NOT NULL`` (see :func:`_resolve_editable_entry`). After applying the
+    change, the work item's ``logged_hours``/``remaining_hours`` are
+    recomputed and the rollup propagates to the parent (subtasks) and
+    epic, keeping every view that reads these columns in sync.
+    """
+    entry = _resolve_editable_entry(entry_id, current_user, db)
+
+    if body.hours is not None:
+        if body.hours <= 0:
+            raise HTTPException(status_code=400, detail="Hours must be greater than 0")
+        if body.hours > 24:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Hours per entry ({body.hours}) exceeds the 24h sanity cap. "
+                    "Split into multiple entries if you genuinely worked more."
+                ),
+            )
+        entry.hours = body.hours
+        # Keep the auto-comment created by `POST /log-hours` in sync —
+        # otherwise the work-item side panel keeps showing "Logged 2h"
+        # after we edit to 6h. The link is via `Comment.time_entry_id`
+        # (added in this branch); a loop tolerates the rare edge case
+        # of multiple linked comments. Manual comments stay untouched
+        # because they have `time_entry_id IS NULL`.
+        from models.comment import Comment as _LinkedComment
+
+        for linked_comment in (
+            db.query(_LinkedComment).filter(_LinkedComment.time_entry_id == entry.id).all()
+        ):
+            linked_comment.content = f"Logged {entry.hours}h"
+
+    if body.description is not None:
+        # Allow clearing the description by passing an empty string —
+        # backend stores it as NULL to match log-hours' convention.
+        entry.description = body.description.strip() or None
+
+    db.flush()
+
+    # Recompute rollup on the parent work item. If the entry got
+    # detached from its work item somehow (shouldn't happen — FK is
+    # NOT NULL), skip the rollup gracefully.
+    if entry.work_item is not None:
+        _recompute_work_item_hours(entry.work_item, db)
+    else:
+        db.commit()
+
+    db.refresh(entry)
+    return entry.to_dict()
+
+
+@router.delete("/me/timesheet/entries/{entry_id}", status_code=204)
+def delete_my_timesheet_entry(
+    entry_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a draft TimeEntry the caller logged.
+
+    Same lock rules as the PATCH route — only entries that haven't
+    been submitted to QuickBooks (and haven't synced) can be deleted.
+    The work item's hours are recomputed after the delete so the
+    board/capacity card/work-item detail panel all reflect the new
+    total immediately.
+    """
+    entry = _resolve_editable_entry(entry_id, current_user, db)
+    work_item = entry.work_item  # capture before delete
+
+    db.delete(entry)
+    db.flush()
+
+    if work_item is not None:
+        _recompute_work_item_hours(work_item, db)
+    else:
+        db.commit()
+    return None
+
+
 @router.get("/{developer_id}", response_model=DeveloperResponse)
 def get_developer(
     developer_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)

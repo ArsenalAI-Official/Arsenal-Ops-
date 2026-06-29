@@ -751,6 +751,32 @@ def run_migrations():
         except Exception as e:
             print(f"[MIGRATION ERROR] time_entries.submitted_at: {e}")
 
+        # `comments.time_entry_id` for keeping the auto-generated
+        # "Logged Xh" comment in sync with the TimeEntry it describes.
+        # See `models/comment.py` docstring and the dev Review-and-Submit
+        # edit/delete endpoints in `routers/developers.py`. CASCADE on
+        # delete means removing a TimeEntry also removes the linked
+        # comment — no orphaned "Logged Xh" rows in the side panel.
+        try:
+            exists = conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = :t AND column_name = :c"
+                ),
+                {"t": "comments", "c": "time_entry_id"},
+            ).fetchone()
+            if not exists:
+                print("[MIGRATION] Adding comments.time_entry_id...")
+                conn.execute(
+                    text(
+                        "ALTER TABLE comments ADD COLUMN time_entry_id INTEGER NULL "
+                        "REFERENCES time_entries(id) ON DELETE CASCADE"
+                    )
+                )
+                conn.commit()
+        except Exception as e:
+            print(f"[MIGRATION ERROR] comments.time_entry_id: {e}")
+
         # Indexes for the sync worker's queue queries — match the SQLAlchemy
         # `index=True` on these columns. Skipped silently on SQLite (the
         # CREATE INDEX IF NOT EXISTS is Postgres syntax) since dev tooling
@@ -759,6 +785,7 @@ def run_migrations():
             ("idx_projects_workforce_client_id", "projects", "workforce_client_id"),
             ("idx_time_entries_workforce_entry_id", "time_entries", "workforce_entry_id"),
             ("idx_time_entries_submitted_at", "time_entries", "submitted_at"),
+            ("idx_comments_time_entry_id", "comments", "time_entry_id"),
         ]:
             try:
                 conn.execute(text(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table} ({column})"))

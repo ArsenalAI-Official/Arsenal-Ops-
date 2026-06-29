@@ -1,16 +1,42 @@
-import { AlertCircle, ArrowLeft, CheckCircle2, Clock, FileWarning, Loader2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  FileWarning,
+  Loader2,
+  Lock,
+  Pencil,
+  Plus,
+  Save,
+  Trash2,
+  X,
+} from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import type {
   MyTimesheetResponse,
   SubmitTimesheetResponse,
   TimesheetEntryResponse,
 } from '@/client';
 import { Button } from '@/components/ui/button';
-import { useMyTimesheetQuery, useSubmitTimesheetMutation } from '@/hooks/useMyTimesheet';
-import { ApiError, permissionAwareError } from '@/lib/api';
+import { useConfirm } from '@/components/ui/confirm-dialog';
+import {
+  useAddTimesheetEntryMutation,
+  useDeleteTimesheetEntryMutation,
+  useEditTimesheetEntryMutation,
+  useMyTimesheetQuery,
+  useSubmitTimesheetMutation,
+} from '@/hooks/useMyTimesheet';
+import { ApiError, apiFetch, permissionAwareError } from '@/lib/api';
+import type { MyCapacityResponse } from '../types';
 
 interface ReviewSubmitViewProps {
   onBack: () => void;
+  /** Notified whenever the QuickBooks submit/sync mutation is in flight.
+   *  CapacityModal uses this to lock the dialog (block X, outside-click,
+   *  and Escape) while the user is waiting on the QB POST. */
+  onSyncingChange?: (syncing: boolean) => void;
 }
 
 // Date-only ISO ("YYYY-MM-DD") parses as UTC; rendering through toLocale*
@@ -107,9 +133,63 @@ const groupByDay = (data: MyTimesheetResponse): DayGroup[] => {
   return Array.from(days.values());
 };
 
-const ReviewSubmitView = ({ onBack }: ReviewSubmitViewProps) => {
+const ReviewSubmitView = ({ onBack, onSyncingChange }: ReviewSubmitViewProps) => {
   const timesheetQuery = useMyTimesheetQuery();
   const submitMutation = useSubmitTimesheetMutation();
+  // Bubble the submit mutation's pending flag up to CapacityModal so it
+  // can lock the dialog while QB is being POSTed to.
+  const submitPending = submitMutation.isPending;
+  useEffect(() => {
+    onSyncingChange?.(submitPending);
+    // On unmount, make sure the parent's lock is released even if the
+    // mutation finished mid-teardown.
+    return () => onSyncingChange?.(false);
+  }, [submitPending, onSyncingChange]);
+  const editMutation = useEditTimesheetEntryMutation();
+  const deleteMutation = useDeleteTimesheetEntryMutation();
+  const addMutation = useAddTimesheetEntryMutation();
+  // Pull the dev's assignable tickets from the existing capacity endpoint.
+  // The home card's MyCapacityCard already populates this cache, so it's
+  // usually free (warm-cache hit) by the time the modal opens.
+  const capacityQuery = useQuery<MyCapacityResponse>({
+    queryKey: ['myCapacity'],
+    queryFn: () => apiFetch<MyCapacityResponse>('/api/developers/me/capacity'),
+    retry: false,
+  });
+  const assignableTickets = useMemo(() => capacityQuery.data?.tickets ?? [], [capacityQuery.data]);
+  const { confirm, confirmDialog } = useConfirm();
+
+  const handleEditEntry = (
+    entryId: number,
+    body: { hours?: number; description?: string | null },
+  ) => editMutation.mutateAsync({ entryId, body });
+
+  const handleAddEntry = (body: {
+    workItemId: number;
+    hours: number;
+    description?: string | null;
+    loggedAt: string;
+  }) => addMutation.mutateAsync(body);
+
+  const handleDeleteEntry = async (entryId: number) => {
+    const ok = await confirm({
+      title: 'Delete this entry?',
+      description:
+        "This removes the hours from the work item's total. You can always log them again. " +
+        "Locked entries (submitted or already synced to QuickBooks) can't be deleted here.",
+      confirmText: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await deleteMutation.mutateAsync(entryId);
+      toast.success('Entry deleted.');
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError && err.message ? err.message : "Couldn't delete the entry.",
+      );
+    }
+  };
   // Last submit response — drives banner state and per-row error annotations.
   // Cleared whenever the user clicks Submit again so a fresh result replaces
   // the stale banner instead of stacking.
@@ -202,7 +282,6 @@ const ReviewSubmitView = ({ onBack }: ReviewSubmitViewProps) => {
     return <BackHeader onBack={onBack} />;
   }
 
-  const hasAnyEntries = data.clients.length > 0 || data.unlinked_projects.length > 0;
   const submitDisabled = data.syncable_unsubmitted_count === 0 || submitMutation.isPending;
   // Unlinked-project hours can never sync — surface them in the pinned
   // header chip AND at the top of the scroll area so the dev can't miss
@@ -212,116 +291,151 @@ const ReviewSubmitView = ({ onBack }: ReviewSubmitViewProps) => {
   const hasUnlinked = data.unlinked_projects.length > 0;
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 gap-4">
-      {/* Pinned header bar — Back arrow, submit totals/button, and the
+    <>
+      <div className="flex flex-col flex-1 min-h-0 gap-4">
+        {/* Pinned header bar — Back arrow, submit totals/button, and the
           result banner all stay visible while the day list scrolls. */}
-      <div className="flex flex-col gap-4 shrink-0">
-        <BackHeader onBack={onBack} />
+        <div className="flex flex-col gap-4 shrink-0">
+          <BackHeader onBack={onBack} />
 
-        {/* Submit bar — totals row + Submit button + the weekly-by-client
+          {/* Submit bar — totals row + Submit button + the weekly-by-client
             stacked bar all live in one card so the "where am I, what's
             ready, what's the split" read is one glance, not three. */}
-        <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-baseline gap-3 flex-wrap">
-              <span className="text-2xl font-bold text-white tabular-nums">
-                {data.total_hours}h
-              </span>
-              <span className="text-xs text-[#737373]">total this week</span>
-              {data.syncable_unsubmitted_count > 0 && (
-                <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-[rgba(224,185,84,0.12)] text-[#E0B954] font-semibold">
-                  {data.syncable_unsubmitted_count} ready to submit
+          <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <span className="text-2xl font-bold text-white tabular-nums">
+                  {data.total_hours}h
                 </span>
-              )}
-              {hasUnlinked && (
-                <span
-                  className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-[rgba(245,158,11,0.12)] text-[#F59E0B] font-semibold flex items-center gap-1"
-                  title="Hours on projects with no QuickBooks customer can't sync. Scroll down for details."
-                >
-                  <FileWarning className="w-3 h-3" />
-                  {unlinkedHours}h won't sync
-                </span>
-              )}
+                <span className="text-xs text-[#737373]">total this week</span>
+                {data.syncable_unsubmitted_count > 0 && (
+                  <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-[rgba(224,185,84,0.12)] text-[#E0B954] font-semibold">
+                    Not yet submitted
+                  </span>
+                )}
+                {hasUnlinked && (
+                  <span
+                    className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-[rgba(245,158,11,0.12)] text-[#F59E0B] font-semibold flex items-center gap-1"
+                    title="Hours on projects with no QuickBooks customer can't sync. Scroll down for details."
+                  >
+                    <FileWarning className="w-3 h-3" />
+                    {unlinkedHours}h won't sync
+                  </span>
+                )}
+              </div>
+              <Button
+                type="button"
+                onClick={handleSubmit}
+                disabled={submitDisabled}
+                className="bg-[#E0B954] text-[#0d0d0d] hover:bg-[#d4ab47] disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+              >
+                {submitMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" />
+                    Syncing…
+                  </>
+                ) : (
+                  'Submit & Sync to QuickBooks'
+                )}
+              </Button>
             </div>
-            <Button
-              type="button"
-              onClick={handleSubmit}
-              disabled={submitDisabled}
-              className="bg-[#E0B954] text-[#0d0d0d] hover:bg-[#d4ab47] disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
-            >
-              {submitMutation.isPending ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" />
-                  Syncing…
-                </>
-              ) : (
-                'Submit & Sync to QuickBooks'
-              )}
-            </Button>
+
+            {weeklyByClient.length > 0 && (
+              <div className="pt-3 border-t border-[rgba(255,255,255,0.05)]">
+                <WeeklyClientSummary clients={weeklyByClient} totalHours={data.total_hours} />
+              </div>
+            )}
           </div>
 
-          {weeklyByClient.length > 0 && (
-            <div className="pt-3 border-t border-[rgba(255,255,255,0.05)]">
-              <WeeklyClientSummary clients={weeklyByClient} totalHours={data.total_hours} />
-            </div>
-          )}
+          <ResultBanner result={lastResult} error={lastError} />
         </div>
 
-        <ResultBanner result={lastResult} error={lastError} />
-      </div>
-
-      {/* Scrollable region — unlinked-projects warning (TOP, so a dev
+        {/* Scrollable region — unlinked-projects warning (TOP, so a dev
           with a busy week can't miss it), then day cards, then empty
           state. Only this scrolls so the submit button never disappears. */}
-      <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-4">
-        {hasUnlinked && (
-          <div className="bg-[rgba(245,158,11,0.05)] border border-[rgba(245,158,11,0.25)] rounded-2xl p-4">
-            <div className="flex items-start gap-2 mb-3 pb-3 border-b border-[rgba(245,158,11,0.15)]">
-              <FileWarning className="w-4 h-4 text-[#F59E0B] shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-[#F59E0B]">
-                  {unlinkedHours}h won't sync — {data.unlinked_projects.length} unlinked project
-                  {data.unlinked_projects.length === 1 ? '' : 's'}
-                </p>
-                <p className="text-[11px] text-[#a3a3a3] mt-0.5">
-                  These projects aren't linked to a QuickBooks customer, so their hours can't be
-                  submitted. Ask an admin to link them.
-                </p>
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-4">
+          {hasUnlinked && (
+            <div className="bg-[rgba(245,158,11,0.05)] border border-[rgba(245,158,11,0.25)] rounded-2xl p-4">
+              <div className="flex items-start gap-2 mb-3 pb-3 border-b border-[rgba(245,158,11,0.15)]">
+                <FileWarning className="w-4 h-4 text-[#F59E0B] shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-[#F59E0B]">
+                    {unlinkedHours}h won't sync — {data.unlinked_projects.length} unlinked project
+                    {data.unlinked_projects.length === 1 ? '' : 's'}
+                  </p>
+                  <p className="text-[11px] text-[#a3a3a3] mt-0.5">
+                    These projects aren't linked to a QuickBooks customer, so their hours can't be
+                    submitted. Ask an admin to link them.
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-4">
+                {data.unlinked_projects.map((project) => (
+                  <ProjectBlock
+                    key={project.project_id}
+                    name={project.project_name}
+                    subtotal={project.subtotal_hours}
+                    entries={project.entries}
+                    failedById={failedById}
+                    onEdit={handleEditEntry}
+                    onDelete={handleDeleteEntry}
+                    muted
+                  />
+                ))}
               </div>
             </div>
-            <div className="space-y-4">
-              {data.unlinked_projects.map((project) => (
-                <ProjectBlock
-                  key={project.project_id}
-                  name={project.project_name}
-                  subtotal={project.subtotal_hours}
-                  entries={project.entries}
-                  failedById={failedById}
-                  muted
-                />
-              ))}
-            </div>
-          </div>
-        )}
+          )}
 
-        {data.clients.length > 0 &&
-          days.map((day) => <DayBlock key={day.iso} day={day} failedById={failedById} />)}
-
-        {!hasAnyEntries && (
-          <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl p-10 text-center">
-            <Clock className="w-8 h-8 text-[#525252] mx-auto mb-2.5" />
-            <p className="text-sm text-[#a3a3a3] font-medium">Nothing logged this week yet</p>
-            <p className="text-xs text-[#525252] mt-1">
-              Log hours from a work item's detail panel — they'll show up here for review.
-            </p>
-          </div>
-        )}
+          {/* Always render Mon-Fri day cards (even when empty), so the
+              dev has a "+ Add entry" affordance on every weekday — not
+              just the days they happened to log on. Each empty day
+              still says "Nothing logged" inside the card. */}
+          {days.map((day) => (
+            <DayBlock
+              key={day.iso}
+              day={day}
+              failedById={failedById}
+              assignableTickets={assignableTickets}
+              onEdit={handleEditEntry}
+              onDelete={handleDeleteEntry}
+              onAdd={handleAddEntry}
+            />
+          ))}
+        </div>
       </div>
-    </div>
+      {confirmDialog}
+    </>
   );
 };
 
 // ── Subcomponents ──────────────────────────────────────────────────────
+
+/** Editing & deletion callbacks plumbed from ReviewSubmitView down to each
+ *  EntryRow. Defined here so DayBlock and ProjectBlock can re-export the
+ *  same shape and we only declare the contract once. */
+type EditEntryHandler = (
+  entryId: number,
+  body: { hours?: number; description?: string | null },
+) => Promise<void>;
+type DeleteEntryHandler = (entryId: number) => Promise<void>;
+type AddEntryHandler = (body: {
+  workItemId: number;
+  hours: number;
+  description?: string | null;
+  loggedAt: string;
+}) => Promise<unknown>;
+
+/** Shape of a row in `myCapacity.tickets[]` that we need for the picker.
+ *  Just the fields the AddEntryForm reads — keeps the prop surface tight
+ *  and tolerates the wider CapacityTicket shape from the home card. */
+interface PickableTicket {
+  id: number;
+  key: string;
+  title: string;
+  project_id: number;
+  project_name: string | null;
+  status: string;
+}
 
 // Stable per-client tint for the weekly bar — same palette as the
 // capacity-card pie. Hash by qb_customer_id so the same client always
@@ -393,10 +507,35 @@ const WeeklyClientSummary = ({ clients, totalHours }: WeeklyClientSummaryProps) 
 interface DayBlockProps {
   day: DayGroup;
   failedById: Map<number, string>;
+  assignableTickets: PickableTicket[];
+  onEdit: EditEntryHandler;
+  onDelete: DeleteEntryHandler;
+  onAdd: AddEntryHandler;
 }
 
-const DayBlock = ({ day, failedById }: DayBlockProps) => {
+/** Today's date in the user's local zone, formatted as ISO YYYY-MM-DD.
+ *  Compared lexicographically against `day.iso` to gate the "+ Add entry"
+ *  affordance — devs can only log on today or earlier, not future days
+ *  (the backend rejects future-dated entries; this matches the UI). */
+const todayIso = (): string => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const DayBlock = ({
+  day,
+  failedById,
+  assignableTickets,
+  onEdit,
+  onDelete,
+  onAdd,
+}: DayBlockProps) => {
   const hasEntries = day.clients.length > 0;
+  const [addingOpen, setAddingOpen] = useState(false);
+  // Only allow adding entries on today or earlier — matches the backend's
+  // "logged_at can't be in the future" rule and avoids a confusing UX
+  // where a Wednesday "+ Add entry" click fails with a 400 on Monday.
+  const isFutureDay = day.iso > todayIso();
   return (
     <div
       className={`rounded-2xl p-4 ${
@@ -415,16 +554,44 @@ const DayBlock = ({ day, failedById }: DayBlockProps) => {
             <span className="text-sm font-semibold text-white">{weekdayName(day.iso)}</span>
             <span className="text-[11px] font-mono text-[#737373]">{dayDateLabel(day.iso)}</span>
           </div>
-          <span
-            className={`text-base font-mono font-semibold tabular-nums shrink-0 ${
-              hasEntries ? 'text-[#E0B954]' : 'text-[#525252]'
-            }`}
-          >
-            {day.subtotal_hours}h
-          </span>
+          <div className="flex items-center gap-3 shrink-0">
+            {/* "+ Add entry" pinned in the day header. Toggles the inline
+                form below; defaults to collapsed so the empty-week case
+                isn't visually noisy. Hidden on future days — devs can
+                only log on today or earlier. */}
+            {!addingOpen && !isFutureDay && (
+              <button
+                type="button"
+                onClick={() => setAddingOpen(true)}
+                className="flex items-center gap-1 text-[11px] text-[#737373] hover:text-[#E0B954] transition-colors"
+                aria-label={`Add entry on ${weekdayName(day.iso)}`}
+              >
+                <Plus className="w-3 h-3" />
+                Add entry
+              </button>
+            )}
+            <span
+              className={`text-base font-mono font-semibold tabular-nums ${
+                hasEntries ? 'text-[#E0B954]' : 'text-[#525252]'
+              }`}
+            >
+              {day.subtotal_hours}h
+            </span>
+          </div>
         </div>
 
-        {!hasEntries && <p className="text-xs text-[#525252] italic">Nothing logged.</p>}
+        {addingOpen && (
+          <AddEntryForm
+            isoDate={day.iso}
+            assignableTickets={assignableTickets}
+            onAdd={onAdd}
+            onClose={() => setAddingOpen(false)}
+          />
+        )}
+
+        {!hasEntries && !addingOpen && (
+          <p className="text-xs text-[#525252] italic">Nothing logged.</p>
+        )}
 
         {hasEntries && (
           <div className="space-y-4">
@@ -459,6 +626,8 @@ const DayBlock = ({ day, failedById }: DayBlockProps) => {
                         subtotal={subtotal}
                         entries={project.entries}
                         failedById={failedById}
+                        onEdit={onEdit}
+                        onDelete={onDelete}
                       />
                     );
                   })}
@@ -468,6 +637,153 @@ const DayBlock = ({ day, failedById }: DayBlockProps) => {
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+interface AddEntryFormProps {
+  isoDate: string; // YYYY-MM-DD of the day this form will book against
+  assignableTickets: PickableTicket[];
+  onAdd: AddEntryHandler;
+  onClose: () => void;
+}
+
+/**
+ * Inline form rendered inside a DayBlock when the dev clicks "+ Add
+ * entry". Picks a ticket from `assignableTickets` (sourced from
+ * `/api/developers/me/capacity`), captures hours, and fires the add
+ * mutation. Description is intentionally omitted — the ticket title
+ * shows in the row by fallback, so a free-text note is redundant
+ * noise for the add flow. (Edit still allows description changes.)
+ */
+const AddEntryForm = ({ isoDate, assignableTickets, onAdd, onClose }: AddEntryFormProps) => {
+  // `done` tickets reject log-hours server-side — exclude them from the
+  // picker so the dev doesn't pick one and get a 403.
+  const tickets = useMemo(
+    () => assignableTickets.filter((t) => t.status !== 'done'),
+    [assignableTickets],
+  );
+  const [workItemId, setWorkItemId] = useState<number | ''>('');
+  const [hours, setHours] = useState<string>('1');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const hoursInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Focus the hours input once the form is open and the dev has picked
+  // a ticket from the dropdown. Quality-of-life so two presses (pick +
+  // type) flow naturally.
+  useEffect(() => {
+    if (workItemId !== '') hoursInputRef.current?.focus();
+  }, [workItemId]);
+
+  const handleSave = async () => {
+    if (workItemId === '') {
+      setError('Pick a ticket.');
+      return;
+    }
+    const parsed = Number(hours);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setError('Hours must be greater than 0.');
+      return;
+    }
+    if (parsed > 24) {
+      setError('Hours per entry caps at 24.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await onAdd({
+        workItemId,
+        hours: parsed,
+        loggedAt: isoDate,
+      });
+      onClose();
+    } catch (err) {
+      setError(
+        err instanceof ApiError && err.message
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Add failed.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (tickets.length === 0) {
+    return (
+      <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-md p-3 my-2 flex items-start justify-between gap-3">
+        <p className="text-xs text-[#a3a3a3]">
+          You're not assigned to any tickets — ask a PM to assign you, then come back to log hours.
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-[#737373] hover:text-white p-1 shrink-0"
+          aria-label="Close"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-[rgba(224,185,84,0.05)] border border-[rgba(224,185,84,0.25)] rounded-md p-3 my-2 space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <select
+          value={workItemId}
+          onChange={(e) => setWorkItemId(e.target.value === '' ? '' : Number(e.target.value))}
+          disabled={saving}
+          aria-label="Ticket"
+          className="flex-1 min-w-[200px] text-xs text-[#d4d4d4] bg-[rgba(0,0,0,0.4)] border border-[rgba(255,255,255,0.1)] rounded px-2 py-1.5 focus:outline-none focus:border-[#E0B954]"
+        >
+          <option value="">Pick a ticket…</option>
+          {tickets.map((t) => (
+            <option key={t.id} value={t.id}>
+              [{t.key}] {t.title}
+              {t.project_name ? ` — ${t.project_name}` : ''}
+            </option>
+          ))}
+        </select>
+        <input
+          ref={hoursInputRef}
+          type="number"
+          min="0.25"
+          max="24"
+          step="0.25"
+          value={hours}
+          onChange={(e) => setHours(e.target.value)}
+          disabled={saving}
+          aria-label="Hours"
+          className="w-20 text-xs font-mono tabular-nums text-white bg-[rgba(0,0,0,0.4)] border border-[rgba(255,255,255,0.1)] rounded px-2 py-1.5 focus:outline-none focus:border-[#E0B954]"
+        />
+        <button
+          type="button"
+          onClick={() => void handleSave()}
+          disabled={saving}
+          aria-label="Save"
+          className="text-[#34D399] hover:text-[#86efac] disabled:opacity-50 p-1"
+        >
+          {saving ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Save className="w-3.5 h-3.5" />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={saving}
+          aria-label="Cancel"
+          className="text-[#737373] hover:text-white disabled:opacity-50 p-1"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      {error && <p className="text-[11px] text-[#EF4444]">{error}</p>}
     </div>
   );
 };
@@ -491,10 +807,20 @@ interface ProjectBlockProps {
   subtotal: number;
   entries: TimesheetEntryResponse[];
   failedById: Map<number, string>;
+  onEdit: EditEntryHandler;
+  onDelete: DeleteEntryHandler;
   muted?: boolean;
 }
 
-const ProjectBlock = ({ name, subtotal, entries, failedById, muted }: ProjectBlockProps) => (
+const ProjectBlock = ({
+  name,
+  subtotal,
+  entries,
+  failedById,
+  onEdit,
+  onDelete,
+  muted,
+}: ProjectBlockProps) => (
   <div>
     {/* Project header (level 2). The entries (level 3) below are
         indented one step further with a thinner guide line so the
@@ -505,7 +831,13 @@ const ProjectBlock = ({ name, subtotal, entries, failedById, muted }: ProjectBlo
     </div>
     <ul className="space-y-1.5 pl-4 border-l border-[rgba(255,255,255,0.06)] ml-1">
       {entries.map((entry) => (
-        <EntryRow key={entry.id} entry={entry} failureMsg={failedById.get(entry.id)} />
+        <EntryRow
+          key={entry.id}
+          entry={entry}
+          failureMsg={failedById.get(entry.id)}
+          onEdit={onEdit}
+          onDelete={onDelete}
+        />
       ))}
     </ul>
   </div>
@@ -514,19 +846,143 @@ const ProjectBlock = ({ name, subtotal, entries, failedById, muted }: ProjectBlo
 interface EntryRowProps {
   entry: TimesheetEntryResponse;
   failureMsg?: string;
+  onEdit: EditEntryHandler;
+  onDelete: DeleteEntryHandler;
 }
 
-const EntryRow = ({ entry, failureMsg }: EntryRowProps) => {
+const EntryRow = ({ entry, failureMsg, onEdit, onDelete }: EntryRowProps) => {
   const isSynced = entry.synced;
   const isSubmittedUnsynced = !!entry.submitted_at && !isSynced;
+  const isLocked = isSynced || isSubmittedUnsynced;
   const hasFailure = !!failureMsg;
+
+  // Edit-in-place state. Stays local to each row so opening one row's
+  // editor doesn't disturb anyone else's. `error` carries a per-row
+  // server message when the save fails (e.g., 400 if hours > 24).
+  const [editing, setEditing] = useState(false);
+  const [editHours, setEditHours] = useState<string>(String(entry.hours));
+  const [editDescription, setEditDescription] = useState<string>(entry.description ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const hoursInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Focus the hours input when entering edit mode — the dev's most
+  // common edit is "fix the hours" so let them start typing immediately.
+  useEffect(() => {
+    if (editing) hoursInputRef.current?.select();
+  }, [editing]);
+
+  const cancelEdit = () => {
+    setEditing(false);
+    setEditHours(String(entry.hours));
+    setEditDescription(entry.description ?? '');
+    setError(null);
+  };
+
+  const saveEdit = async () => {
+    const parsedHours = Number(editHours);
+    if (!Number.isFinite(parsedHours) || parsedHours <= 0) {
+      setError('Hours must be greater than 0.');
+      return;
+    }
+    if (parsedHours > 24) {
+      setError('Hours per entry caps at 24.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await onEdit(entry.id, {
+        hours: parsedHours,
+        description: editDescription,
+      });
+      setEditing(false);
+    } catch (err) {
+      setError(
+        err instanceof ApiError && err.message
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Save failed.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      void saveEdit();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelEdit();
+    }
+  };
+
+  if (editing) {
+    return (
+      <li className="flex items-center gap-2 text-xs leading-tight rounded-md px-2 py-2 bg-[rgba(224,185,84,0.05)] border border-[rgba(224,185,84,0.25)]">
+        <input
+          ref={hoursInputRef}
+          type="number"
+          min="0.25"
+          max="24"
+          step="0.25"
+          value={editHours}
+          onChange={(e) => setEditHours(e.target.value)}
+          onKeyDown={onKeyDown}
+          disabled={saving}
+          aria-label="Hours"
+          className="w-16 font-mono tabular-nums text-white bg-[rgba(0,0,0,0.4)] border border-[rgba(255,255,255,0.1)] rounded px-2 py-1 focus:outline-none focus:border-[#E0B954]"
+        />
+        <input
+          type="text"
+          value={editDescription}
+          onChange={(e) => setEditDescription(e.target.value)}
+          onKeyDown={onKeyDown}
+          disabled={saving}
+          aria-label="Description"
+          placeholder={entry.work_item_title || 'Description'}
+          className="flex-1 text-[#d4d4d4] bg-[rgba(0,0,0,0.4)] border border-[rgba(255,255,255,0.1)] rounded px-2 py-1 focus:outline-none focus:border-[#E0B954]"
+        />
+        {error && (
+          <span className="text-[10px] text-[#EF4444] max-w-[180px] truncate" title={error}>
+            {error}
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => void saveEdit()}
+          disabled={saving}
+          aria-label="Save"
+          className="text-[#34D399] hover:text-[#86efac] disabled:opacity-50 p-1"
+        >
+          {saving ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Save className="w-3.5 h-3.5" />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={cancelEdit}
+          disabled={saving}
+          aria-label="Cancel"
+          className="text-[#737373] hover:text-white disabled:opacity-50 p-1"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </li>
+    );
+  }
 
   return (
     <li
-      className={`flex items-center gap-3 text-xs leading-tight rounded-md px-2 py-2 ${
+      className={`group flex items-center gap-3 text-xs leading-tight rounded-md px-2 py-2 ${
         hasFailure
           ? 'bg-[rgba(239,68,68,0.06)] border border-[rgba(239,68,68,0.15)]'
-          : 'border border-transparent'
+          : 'border border-transparent hover:bg-[rgba(255,255,255,0.02)]'
       }`}
     >
       <span className="font-mono tabular-nums text-white shrink-0 w-14 font-semibold">
@@ -558,6 +1014,43 @@ const EntryRow = ({ entry, failureMsg }: EntryRowProps) => {
           title={failureMsg}
         >
           {failureMsg}
+        </span>
+      )}
+      {/* Per-row affordances. Locked rows (submitted or already synced)
+          can't be touched here — the dev edits in QB instead. Draft rows
+          get hover-revealed Edit + Delete icons; on touch they stay
+          dim-visible so the affordance isn't accidentally hidden. */}
+      {isLocked ? (
+        <span
+          className="text-[#525252] shrink-0 p-1"
+          title={
+            isSynced
+              ? 'Synced to QuickBooks — fix it there if needed.'
+              : 'Submitted for sync — locked until it lands in QuickBooks.'
+          }
+        >
+          <Lock className="w-3.5 h-3.5" />
+        </span>
+      ) : (
+        <span className="flex items-center gap-0.5 shrink-0 opacity-40 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            aria-label="Edit entry"
+            title="Edit hours / description"
+            className="text-[#a3a3a3] hover:text-[#E0B954] p-1"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => void onDelete(entry.id)}
+            aria-label="Delete entry"
+            title="Delete this entry"
+            className="text-[#a3a3a3] hover:text-[#EF4444] p-1"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
         </span>
       )}
     </li>
