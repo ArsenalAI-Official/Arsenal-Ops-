@@ -50,6 +50,16 @@ const weekdayName = (iso: string): string =>
 const dayDateLabel = (iso: string): string =>
   parseDateOnly(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
+// Compact day label for entry rows that aren't already grouped under a
+// day card (the unlinked-projects section lists a project's whole-week
+// entries together, so each row needs to say which day it was logged).
+const shortDayLabel = (iso: string): string =>
+  parseDateOnly(iso).toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+
 // ── Day grouping ─────────────────────────────────────────────────────────
 
 interface DayClientGroup {
@@ -380,6 +390,7 @@ const ReviewSubmitView = ({ onBack, onSyncingChange }: ReviewSubmitViewProps) =>
                     onEdit={handleEditEntry}
                     onDelete={handleDeleteEntry}
                     muted
+                    showDay
                   />
                 ))}
               </div>
@@ -822,6 +833,9 @@ interface ProjectBlockProps {
   onEdit: EditEntryHandler;
   onDelete: DeleteEntryHandler;
   muted?: boolean;
+  // Show a per-row day label. Used by the unlinked-projects section,
+  // whose entries span the whole week rather than sitting under a day card.
+  showDay?: boolean;
 }
 
 const ProjectBlock = ({
@@ -832,6 +846,7 @@ const ProjectBlock = ({
   onEdit,
   onDelete,
   muted,
+  showDay,
 }: ProjectBlockProps) => (
   <div>
     {/* Project header (level 2). The entries (level 3) below are
@@ -849,6 +864,7 @@ const ProjectBlock = ({
           failureMsg={failedById.get(entry.id)}
           onEdit={onEdit}
           onDelete={onDelete}
+          showDay={showDay}
         />
       ))}
     </ul>
@@ -860,9 +876,10 @@ interface EntryRowProps {
   failureMsg?: string;
   onEdit: EditEntryHandler;
   onDelete: DeleteEntryHandler;
+  showDay?: boolean;
 }
 
-const EntryRow = ({ entry, failureMsg, onEdit, onDelete }: EntryRowProps) => {
+const EntryRow = ({ entry, failureMsg, onEdit, onDelete, showDay }: EntryRowProps) => {
   const isSynced = entry.synced;
   const isSubmittedUnsynced = !!entry.submitted_at && !isSynced;
   const isLocked = isSynced || isSubmittedUnsynced;
@@ -1000,6 +1017,14 @@ const EntryRow = ({ entry, failureMsg, onEdit, onDelete }: EntryRowProps) => {
       <span className="font-mono tabular-nums text-white shrink-0 w-14 font-semibold">
         {entry.hours}h
       </span>
+      {/* Day label — only when the row isn't already under a day card
+          (the unlinked-projects section). Keeps the whole-week unlinked
+          list legible by saying which weekday each entry belongs to. */}
+      {showDay && entry.logged_at && (
+        <span className="text-[11px] text-[#737373] shrink-0 w-24 tabular-nums">
+          {shortDayLabel(entry.logged_at)}
+        </span>
+      )}
       {/* Description column. Falls back to the ticket title when the dev
           didn't type a free-text note. Em-dash only if neither exists
           (shouldn't happen — work items always have a title). */}
