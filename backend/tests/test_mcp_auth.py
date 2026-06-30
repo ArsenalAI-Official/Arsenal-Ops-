@@ -63,7 +63,10 @@ def mcp_db(monkeypatch):
 
 
 def _seed_user(
-    session_factory, email: str = "dev@test.local", caps: tuple[str, ...] = ("project.pulse",)
+    session_factory,
+    email: str = "dev@test.local",
+    caps: tuple[str, ...] = ("project.pulse",),
+    active: bool = True,
 ) -> int:
     """Create a User linked to a developer Role granting `caps`. Returns the id."""
     db = session_factory()
@@ -78,7 +81,7 @@ def _seed_user(
             name="Dev",
             hashed_password="x",
             role="developer",
-            is_active=True,
+            is_active=active,
             is_first_login=False,
         )
         user.roles.append(role)
@@ -118,14 +121,24 @@ async def _call_tool(token: str, name: str, args: dict | None = None):
     """Call an MCP tool over the real HTTP+auth path (in-process via ASGI).
 
     Enters only `mcp_app.lifespan` so the stateless session manager's task group
-    is initialized without triggering the app's DB-init startup.
+    is initialized without triggering the app's DB-init startup. A ToolError
+    raised by the tool is captured inside the lifespan and re-raised outside, so
+    callers can `pytest.raises(...)` it without the lifespan task group wrapping
+    it in an ExceptionGroup.
     """
+    captured: dict = {}
     async with mcp_app.lifespan(mcp_app):
         transport = StreamableHttpTransport(
             url="http://testserver/mcp/", auth=token, httpx_client_factory=_asgi_client_factory
         )
         async with Client(transport) as client:
-            return await client.call_tool(name, args or {})
+            try:
+                captured["result"] = await client.call_tool(name, args or {})
+            except Exception as exc:  # re-raised below, outside the lifespan task group
+                captured["error"] = exc
+    if "error" in captured:
+        raise captured["error"]
+    return captured["result"]
 
 
 async def _raw_post(headers: dict) -> httpx.Response:
@@ -235,6 +248,19 @@ def test_whoami_returns_identity(mcp_db):
     assert result.data["id"] == uid
     assert result.data["email"] == "dev@test.local"
     assert set(result.data["capabilities"]) == {"project.pulse", "project.board"}
+
+
+def test_inactive_user_rejected_on_jwt_path(mcp_db):
+    """A deactivated user's still-valid JWT is rejected at the tool layer.
+
+    The JWT path resolves the user via load_user_from_claims, which (unlike the
+    REST get_current_user) does not itself check is_active — _caller_session
+    enforces it. Without that gate a deactivated employee would keep MCP access
+    until token expiry.
+    """
+    uid = _seed_user(mcp_db, email="ex@test.local", active=False)
+    with pytest.raises(Exception, match="inactive"):
+        asyncio.run(_call_tool(_token(uid), "whoami"))
 
 
 def test_whoami_closes_db_sessions(mcp_db):

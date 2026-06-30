@@ -22,6 +22,12 @@ services:
         fromDatabase:
           name: productmind-db
           property: connectionString
+      # REQUIRED: JWT signing secret. The app refuses to boot if unset or left at
+      # the legacy default. Generate with:
+      #   python -c "import secrets; print(secrets.token_urlsafe(48))"
+      # Rotating it invalidates all live sessions (forces re-login).
+      - key: SECRET_KEY
+        sync: false # Set manually in Render dashboard
       - key: OPENAI_API_KEY
         sync: false # Set manually in Render dashboard
       - key: OPENAI_MODEL
@@ -41,6 +47,14 @@ services:
         value: Arsenal Ops # From display name
       - key: CORS_ORIGINS
         value: "https://your-app-name.vercel.app,https://your-custom-domain.com"
+      # MCP server OAuth (Claude Desktop / claude.ai connectors). The /mcp endpoint
+      # always accepts the app's Bearer JWT; OAuth is opt-in. Leave OFF until the
+      # MCP redirect URI (<MCP_BASE_URL>/auth/callback) is registered in the Google
+      # OAuth client above. Flip MCP_OAUTH_ENABLED to "1" in the dashboard to enable.
+      - key: MCP_OAUTH_ENABLED
+        value: "0"
+      - key: MCP_BASE_URL
+        sync: false # Set to https://<render-host>/mcp in the dashboard
 
   # PostgreSQL Database
   - type: psql

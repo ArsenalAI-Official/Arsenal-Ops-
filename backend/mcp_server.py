@@ -56,7 +56,13 @@ from routers.auth import (
     load_user_from_claims,
 )
 from routers.developers import get_my_capacity, list_developers
-from routers.projects import get_project, list_projects, require_project_access
+from routers.projects import (
+    ProjectCreate,
+    create_project,
+    get_project,
+    list_projects,
+    require_project_access,
+)
 from routers.pulse import get_pulse_derived
 from routers.workitems import (
     LogHoursRequest,
@@ -91,6 +97,25 @@ _google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
 # http://localhost:8000/mcp locally, or https://<render-host>/mcp in prod.
 _mcp_base_url = os.getenv("MCP_BASE_URL", "http://localhost:8000/mcp")
 
+# Restrict which client redirect URIs Dynamic Client Registration will accept.
+# fastmcp defaults to allowing ANY redirect URI (open DCR) — an attacker could
+# register a client pointing at a URL they control and capture a victim's
+# authorization code. Lock it to loopback (Claude Desktop / mcp-remote use a
+# localhost callback) and Claude's web origins. Patterns support wildcards;
+# override per-env via MCP_ALLOWED_CLIENT_REDIRECT_URIS (comma-separated).
+_default_client_redirect_uris = [
+    "http://localhost:*",
+    "http://127.0.0.1:*",
+    "https://claude.ai/*",
+    "https://claude.com/*",
+]
+_redirects_env = os.getenv("MCP_ALLOWED_CLIENT_REDIRECT_URIS", "").strip()
+_allowed_client_redirect_uris = (
+    [u.strip() for u in _redirects_env.split(",") if u.strip()]
+    if _redirects_env
+    else _default_client_redirect_uris
+)
+
 _auth: AuthProvider
 if _oauth_enabled and _google_client_id and _google_client_secret:
     _google_provider = GoogleProvider(
@@ -99,6 +124,7 @@ if _oauth_enabled and _google_client_id and _google_client_secret:
         base_url=_mcp_base_url,
         required_scopes=["openid", "email", "profile"],
         redirect_path="/auth/callback",
+        allowed_client_redirect_uris=_allowed_client_redirect_uris,
     )
     _auth = MultiAuth(server=_google_provider, verifiers=[_jwt_verifier])
 else:
@@ -134,6 +160,12 @@ def _caller_session() -> Iterator[tuple[Session, User]]:
                 user = load_user_from_claims(db, claims)
             if user is None:
                 raise ToolError("Token is valid but does not map to a known/authorized user")
+            # Enforce is_active here: the JWT path (load_user_from_claims) returns
+            # the user regardless of status, unlike the REST get_current_user check.
+            # Without this a deactivated employee's still-valid 24h token would keep
+            # MCP access. (The OAuth path already returns None for inactive users.)
+            if not user.is_active:
+                raise ToolError("User account is inactive")
             yield db, user
     except HTTPException as exc:
         raise ToolError(f"{exc.status_code}: {exc.detail}") from exc
@@ -485,6 +517,30 @@ def workitem_log_hours(
                 details={"source": "mcp", "hours": hours},
             )
         return result
+
+
+@mcp.tool
+def project_create(
+    name: str,
+    description: str = "",
+    key_prefix: str = "PROJ",
+    category_id: int | None = None,
+) -> dict:
+    """Create a new project. Requires the `project.create` capability (a
+    PM/admin-level grant — not given to the default developer role). The caller
+    is added as the project's creator and the create is recorded in the
+    project's activity feed.
+    """
+    with _caller_session() as (db, user):
+        assert_capability(user, "project.create")
+        payload = ProjectCreate(
+            name=name,
+            description=description,
+            key_prefix=key_prefix,
+            category_id=category_id,
+        )
+        # create_project writes its own project-scoped activity_log entry.
+        return create_project(payload, db=db, current_user=user)
 
 
 # Stateless streamable-HTTP ASGI app, mounted at /mcp by main.py. `path="/"`
