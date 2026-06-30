@@ -1,3 +1,7 @@
+import { QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { AlertTriangle, Clock } from 'lucide-react';
+import { useState, useEffect, lazy, Suspense, type ReactNode } from 'react';
 import {
   BrowserRouter as Router,
   Routes,
@@ -7,15 +11,7 @@ import {
   useLocation,
   useParams,
 } from 'react-router-dom';
-import { useState, useEffect, lazy, Suspense, type ReactNode } from 'react';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { Login } from './components/Login';
-import { PasswordChange } from './components/PasswordChange';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Clock } from 'lucide-react';
-import { queryClient } from '@/lib/queryClient';
 import './App.css';
 
 // Heavy routes are code-split so the initial bundle stays light.
@@ -26,8 +22,12 @@ const ProjectBoard = lazy(() => import('./pages/ProjectBoard'));
 const ProjectDetail = lazy(() => import('./pages/ProjectDetail'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 
-import { hasAnyAdminCapability } from '@/lib/adminCaps';
 import { RouteSpinner } from '@/components/ui/spinner';
+import { hasAnyAdminCapability } from '@/lib/adminCaps';
+import { queryClient } from '@/lib/queryClient';
+import { Login } from './components/Login';
+import { PasswordChange } from './components/PasswordChange';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 /**
  * Route guard for /admin. Renders children only when the user holds at least

@@ -1,13 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { apiFetch, ApiError, permissionAwareError } from '@/lib/api';
-import { toastErrorHandler } from '@/lib/mutationToast';
-import { invalidateProjectScope } from '@/lib/invalidations';
 import type { ConfirmFn } from '@/components/ui/confirm-dialog';
+import { apiFetch, ApiError, permissionAwareError } from '@/lib/api';
+import { invalidateProjectScope } from '@/lib/invalidations';
+import { toastErrorHandler } from '@/lib/mutationToast';
 import type { WorkItem } from '@/types/workItems';
-import type { CreateItemFormValues } from '../modals/CreateItemModal';
 import { applyStatusChange } from '../lib/optimisticStatus';
+import type { CreateItemFormValues } from '../modals/CreateItemModal';
 
 interface UseWorkItemMutationsArgs {
   // The SAME memoized `workItemFilters` reference returned by useBoardData. The
@@ -110,7 +110,28 @@ export function useWorkItemMutations(
   // CreateItemModal (which owns the form state).
   const createItemMutation = useMutation({
     mutationFn: (form: CreateItemFormValues) => {
-      const payload: any = {
+      // Local POST /api/workitems/ body type. The generated `WorkItemCreate`
+      // doesn't fit: it requires `project_id: number` (we pass the route `id`,
+      // a `string | undefined`) and omits `assigned_hours`, which this payload
+      // sets. The two hour fields are set conditionally below, so optional.
+      interface CreateWorkItemPayload {
+        type: string;
+        title: string;
+        description: string;
+        priority: string;
+        story_points: number;
+        assignee_id: number | null;
+        project_id: string | undefined;
+        status: string;
+        tags: string[];
+        epic_id: number | null;
+        parent_id: number | null;
+        due_date: string | null;
+        estimated_hours: number;
+        assigned_hours?: number;
+        remaining_hours?: number;
+      }
+      const payload: CreateWorkItemPayload = {
         type: form.type,
         title: form.title,
         description: form.description,
@@ -141,7 +162,7 @@ export function useWorkItemMutations(
       onCreateSuccess();
       toast.success('Work item created!', { duration: 1000 });
     },
-    onError: (err: any) => {
+    onError: (err) => {
       console.error('Failed to create item:', err);
       toast.error(permissionAwareError(err, 'Failed to create item'));
     },

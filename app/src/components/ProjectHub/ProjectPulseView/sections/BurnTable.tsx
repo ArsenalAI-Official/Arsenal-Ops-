@@ -8,7 +8,7 @@ import { fmt$ } from '../lib/format';
 export const BurnTable: React.FC<{ pulse: PulseData }> = React.memo(({ pulse }) => {
   const { monthsWithCum, forecastEnd } = useMemo(() => computeDerived(pulse), [pulse]);
   const sum = (key: keyof (typeof monthsWithCum)[number]) =>
-    monthsWithCum.reduce((a, b) => a + (Number((b as any)[key]) || 0), 0);
+    monthsWithCum.reduce((a, b) => a + (Number(b[key]) || 0), 0);
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm tabular-nums">

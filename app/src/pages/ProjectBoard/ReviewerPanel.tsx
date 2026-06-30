@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Eye, X, Ban } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import type { WorkItemUpdate } from '@/client';
+import type { CommentThreadDeveloper } from '@/components/CommentThread';
 import { ReviewerView, BlockedQueueView } from '@/components/ProjectHub';
 import { apiFetch } from '@/lib/api';
-import type { CommentThreadDeveloper } from '@/components/CommentThread';
 
 interface WorkItemIn {
   id: string;
@@ -30,8 +31,7 @@ export interface ReviewerPanelProps {
   projectId: string;
   token: string;
   onClose: () => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onTaskUpdate: (itemId: string, updates: any) => void;
+  onTaskUpdate: (itemId: string, updates: WorkItemUpdate) => void;
 }
 
 type QueueTab = 'review' | 'blocked';

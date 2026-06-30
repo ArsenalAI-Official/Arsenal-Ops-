@@ -1,4 +1,3 @@
-import { type Dispatch, type ReactNode, type RefObject, type SetStateAction } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   Plus,
@@ -10,9 +9,10 @@ import {
   Target,
   Repeat2,
 } from 'lucide-react';
+import { type Dispatch, type ReactNode, type RefObject, type SetStateAction } from 'react';
+import type { SprintResponse } from '@/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import type { SprintResponse } from '@/client';
 
 type ViewMode = 'board' | 'list' | 'epic';
 type SelectedSprintId = number | 'all' | 'unassigned';

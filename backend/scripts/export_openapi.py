@@ -17,12 +17,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
 # Ensure `import main` resolves when run from anywhere (e.g. CI, or app/).
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_DIR))
+
+# routers.auth now refuses to import without a real SECRET_KEY (fail-closed
+# against the hardcoded-default JWT-forgery vuln). This export only introspects
+# routes to build the schema — it never serves traffic or signs tokens — so a
+# harmless build-only placeholder is fine here. setdefault preserves any real
+# value the environment already provides.
+os.environ.setdefault("SECRET_KEY", "openapi-export-build-only-not-a-real-secret")
 
 OUTPUT = BACKEND_DIR / "openapi.json"
 

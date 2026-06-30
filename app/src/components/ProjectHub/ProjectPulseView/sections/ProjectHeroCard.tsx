@@ -28,7 +28,7 @@ export const ProjectHeroCard: React.FC<{ pulse: PulseData }> = React.memo(({ pul
   const s = currentIncludedServices(pulse);
   const inclPct = s.totalHours > 0 ? s.usedHours / s.totalHours : 0;
   const lastMonth = monthsWithCum[pulse.lastActualIdx];
-  const monthShort = (pulse.summary.monthLabel || '').split(' ')[0].slice(0, 3);
+  const monthShort = (pulse.summary.monthLabel || '').split(' ')[0]!.slice(0, 3);
 
   return (
     <Card className="p-6">

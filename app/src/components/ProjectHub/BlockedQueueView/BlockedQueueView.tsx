@@ -1,6 +1,6 @@
+import { Ban, ShieldCheck } from 'lucide-react';
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Ban, ShieldCheck } from 'lucide-react';
 import {
   Empty,
   EmptyHeader,
@@ -8,9 +8,9 @@ import {
   EmptyTitle,
   EmptyDescription,
 } from '@/components/ui/empty';
-import type { BlockedQueueViewProps, WorkItem } from './types';
 import { useBlockedActions } from './hooks/useBlockedActions';
 import BlockedItemCard from './sections/BlockedItemCard';
+import type { BlockedQueueViewProps, WorkItem } from './types';
 
 /**
  * Renders a list of tickets the server flagged as `is_blocked=true`

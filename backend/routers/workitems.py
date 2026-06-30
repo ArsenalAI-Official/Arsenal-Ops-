@@ -3366,17 +3366,16 @@ def repair_hours_calculation(
     Requires admin access.
     """
     from models.time_entry import TimeEntry
+    from routers.projects import require_project_admin
 
-    # Check if user is admin. This is a tool-wide maintenance endpoint that
-    # repairs time-entry/hours data, gated on the time-entries admin capability
-    # (system admins hold this via the "*" wildcard grant).
-    if not current_user.has_capability("admin.time_entries"):
-        raise HTTPException(status_code=403, detail="Admin access required")
-
-    # Verify project exists
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    # repair-hours rewrites work_item.logged_hours for THIS project, so it is a
+    # project-scoped *write*: gated on require_project_admin (project admins +
+    # system admins via `admin.projects`/`*`), the same gate used for other
+    # destructive project mutations such as pulse overrides. The read-only
+    # `admin.time_entries` capability that backs the view-only Time Entries tab
+    # must NOT unlock this mutation. Raises 404 (missing project) / 403 (denied)
+    # and returns the project on success.
+    project = require_project_admin(project_id, current_user, db)
 
     # Get all work items
     items = db.query(WorkItem).filter(WorkItem.project_id == project_id).all()

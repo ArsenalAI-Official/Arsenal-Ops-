@@ -1,6 +1,6 @@
-import { type Dispatch, type RefObject, type SetStateAction } from 'react';
 import { X, Search, ListFilter, Check } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { type Dispatch, type RefObject, type SetStateAction } from 'react';
 import type { Project } from '../hooks/useBoardData';
 
 interface TypeConfigEntry {

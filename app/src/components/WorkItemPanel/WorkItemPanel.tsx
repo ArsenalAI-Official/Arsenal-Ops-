@@ -1,24 +1,24 @@
-import { useState, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { ExternalLink, Pencil } from 'lucide-react';
+import { useState, useRef } from 'react';
 import { toast } from 'sonner';
+import type { SprintResponse } from '@/client';
+import type { ProjectDeveloperEntry } from '@/client';
+import CommentThread from '@/components/CommentThread';
 import TicketContributors from '@/components/TicketContributors';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
-import type { WorkItem, ProjectLite } from './types';
-import type { SprintResponse } from '@/client';
-import type { ProjectDeveloperEntry } from '@/client';
 import { AddSubtaskModal } from './AddSubtaskModal';
-import { useWorkItemPanel } from './hooks/useWorkItemPanel';
-import { WorkItemPanelHeader } from './components/WorkItemPanelHeader';
-import { WorkItemFullEditForm } from './components/WorkItemFullEditForm';
 import { WorkItemCompactEditForm } from './components/WorkItemCompactEditForm';
-import { WorkItemViewMode } from './components/WorkItemViewMode';
-import { WorkItemFullHierarchy } from './components/WorkItemFullHierarchy';
 import { WorkItemCompactHierarchy } from './components/WorkItemCompactHierarchy';
-import { hasCompactHierarchy } from './lib/renderContent';
+import { WorkItemFullEditForm } from './components/WorkItemFullEditForm';
+import { WorkItemFullHierarchy } from './components/WorkItemFullHierarchy';
+import { WorkItemPanelHeader } from './components/WorkItemPanelHeader';
 import { WorkItemSprintActions } from './components/WorkItemSprintActions';
-import CommentThread from '@/components/CommentThread';
-import { ExternalLink, Pencil } from 'lucide-react';
+import { WorkItemViewMode } from './components/WorkItemViewMode';
+import { useWorkItemPanel } from './hooks/useWorkItemPanel';
+import { hasCompactHierarchy } from './lib/renderContent';
+import type { WorkItem, ProjectLite } from './types';
 
 // ─── Prop types ──────────────────────────────────────────────────────────────
 

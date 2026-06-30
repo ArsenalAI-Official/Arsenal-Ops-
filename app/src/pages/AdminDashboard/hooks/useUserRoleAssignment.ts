@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { apiFetch } from '@/lib/api';
-import { useAuth } from '@/contexts/AuthContext';
-import { invalidateAdminRoles, invalidateAdminUserRoleImpact } from '@/lib/invalidations';
 import type { RoleResponse, UserListItemResponse } from '@/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { apiFetch } from '@/lib/api';
+import { invalidateAdminRoles, invalidateAdminUserRoleImpact } from '@/lib/invalidations';
 import { useRefreshCapsTwice } from './useRefreshCapsTwice';
 
 /**

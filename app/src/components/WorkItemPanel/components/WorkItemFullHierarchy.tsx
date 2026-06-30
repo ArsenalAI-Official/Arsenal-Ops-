@@ -1,8 +1,8 @@
 import { Plus, Target, ClipboardList, Link2, List } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { WorkItem } from '../types';
 import { STATUS_CONFIG } from '../constants';
 import { avatarColor } from '../lib/renderContent';
+import type { WorkItem } from '../types';
 
 export interface WorkItemFullHierarchyProps {
   item: WorkItem;

@@ -1,14 +1,14 @@
-import { useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
+import { useState } from 'react';
 import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '@/contexts/AuthContext';
 import type { MyTask, PersonalTask } from '../types';
-import { sortPersonalTasks, sortUpcomingTasks, sortCompletedTasks, type MyTaskTab } from './lib';
 import MyTasksHeader from './components/MyTasksHeader';
 import MyTasksTabs from './components/MyTasksTabs';
 import PersonalTasksList from './components/PersonalTasksList';
-import WorkItemRow from './components/WorkItemRow';
 import StatusBar from './components/StatusBar';
+import WorkItemRow from './components/WorkItemRow';
+import { sortPersonalTasks, sortUpcomingTasks, sortCompletedTasks, type MyTaskTab } from './lib';
 
 interface MyTasksBoxProps {
   myTasks: MyTask[];

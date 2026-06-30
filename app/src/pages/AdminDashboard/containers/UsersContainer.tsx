@@ -2,19 +2,19 @@
 // state (useUsersAdmin), the roles list + per-user role assignment (useRolesList
 // + useUserRoleAssignment) for the inline "Edit Roles" modal, and the
 // open-role-dropdown UI state. Renders the Users tab plus its three modals.
-import { useState } from 'react';
 import { Shield, KeyRound } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { Modal } from '@/components/ui/modal';
+import { useState } from 'react';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { Modal } from '@/components/ui/modal';
+import { useAuth } from '@/contexts/AuthContext';
 import { AdminSpinner } from '../components/AdminSpinner';
-import { useUsersAdmin } from '../hooks/useUsersAdmin';
 import { useRolesList } from '../hooks/useRolesList';
 import { useUserRoleAssignment } from '../hooks/useUserRoleAssignment';
+import { useUsersAdmin } from '../hooks/useUsersAdmin';
 import { toPascalCase } from '../lib/capabilityPicker';
-import UsersTab from '../tabs/UsersTab';
-import UserModal from '../modals/UserModal';
 import EditUserModal from '../modals/EditUserModal';
+import UserModal from '../modals/UserModal';
+import UsersTab from '../tabs/UsersTab';
 
 export default function UsersContainer() {
   const { confirm, confirmDialog } = useConfirm();

@@ -1,5 +1,5 @@
-import { ActivityFeed } from '@/components/ProjectHub';
 import type { ActivityResponse } from '@/client';
+import { ActivityFeed } from '@/components/ProjectHub';
 
 interface ActivityTabProps {
   hubLoading: boolean;

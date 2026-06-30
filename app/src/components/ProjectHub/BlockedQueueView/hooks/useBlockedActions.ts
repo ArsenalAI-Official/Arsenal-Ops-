@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { API_BASE_URL } from '@/config/api';
 import type { CommentThreadComment, CommentType } from '@/components/CommentThread';
+import { API_BASE_URL } from '@/config/api';
 import type { WorkItem } from '../types';
 
 /**

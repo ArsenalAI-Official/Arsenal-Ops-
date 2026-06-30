@@ -1,15 +1,14 @@
-import { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { X, Save, RotateCcw, Sparkles, Send, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
+import type { ProjectArchitectureResponse } from '@/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import MermaidRenderer from './MermaidRenderer';
-import { toast } from 'sonner';
-import { useAuth } from '@/contexts/AuthContext';
-import type { ProjectArchitectureResponse } from '@/client';
-
 import { API_BASE_URL } from '@/config/api';
+import { useAuth } from '@/contexts/AuthContext';
+import MermaidRenderer from './MermaidRenderer';
 
 interface ArchitectureEditorProps {
   architecture: ProjectArchitectureResponse;

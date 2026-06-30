@@ -1,5 +1,5 @@
-import ArchitectureEditor from '@/components/ArchitectureEditor';
 import type { ProjectArchitectureResponse } from '@/client';
+import ArchitectureEditor from '@/components/ArchitectureEditor';
 
 export interface ArchitectureEditorWrapperProps {
   architecture: ProjectArchitectureResponse;

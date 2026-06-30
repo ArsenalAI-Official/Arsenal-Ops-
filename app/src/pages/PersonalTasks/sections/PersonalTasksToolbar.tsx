@@ -47,7 +47,7 @@ const PersonalTasksToolbar = ({
           </div>
 
           {/* Filter */}
-          <Select value={filterStatus} onValueChange={(v: any) => setFilterStatus(v)}>
+          <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as FilterStatus)}>
             <SelectTrigger className="w-full md:w-40 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] h-10">
               <Filter className="w-4 h-4 mr-2" />
               <SelectValue />
@@ -60,7 +60,7 @@ const PersonalTasksToolbar = ({
           </Select>
 
           {/* Sort */}
-          <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortBy)}>
             <SelectTrigger className="w-full md:w-40 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] h-10">
               <SelectValue />
             </SelectTrigger>

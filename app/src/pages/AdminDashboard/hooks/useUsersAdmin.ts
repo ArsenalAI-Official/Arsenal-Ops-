@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { apiFetch } from '@/lib/api';
-import type { ConfirmFn } from '@/components/ui/confirm-dialog';
 import type { UserListItemResponse } from '@/client';
+import type { ConfirmFn } from '@/components/ui/confirm-dialog';
+import { apiFetch } from '@/lib/api';
+import { toastErrorHandler } from '@/lib/mutationToast';
 import { ADMIN_REFETCH } from './adminRefetch';
 
 /**
@@ -48,7 +49,7 @@ export function useUsersAdmin(confirm: ConfirmFn) {
       setShowUserModal(false);
       setUserForm({ email: '', name: '', roles: ['developer'] });
     },
-    onError: (err: any) => toast.error(err?.message || 'Failed to create user'),
+    onError: toastErrorHandler('create user'),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       // Developer-role users also surface in the Employees tab — keep both
@@ -72,7 +73,7 @@ export function useUsersAdmin(confirm: ConfirmFn) {
   const deleteUserMutation = useMutation({
     mutationFn: (id: number) => apiFetch<void>(`/api/auth/admin/users/${id}`, { method: 'DELETE' }),
     onSuccess: () => toast.success('User deleted'),
-    onError: (err: any) => toast.error(err?.message || 'Failed to delete user'),
+    onError: toastErrorHandler('delete user'),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       // Deleting a user cascades to their developer record (if any), so refresh
@@ -119,7 +120,7 @@ export function useUsersAdmin(confirm: ConfirmFn) {
       toast.success('User updated');
       setEditingUser(null);
     },
-    onError: (err: any) => toast.error(err?.message || 'Failed to update user'),
+    onError: toastErrorHandler('update user'),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
       // Name/email/github changes flow through to Developer rows too.

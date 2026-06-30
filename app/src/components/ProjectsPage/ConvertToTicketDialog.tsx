@@ -1,6 +1,7 @@
 import { Loader2 } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import type { ProjectDeveloperEntry } from '@/client';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -10,7 +11,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { Project, PersonalTask } from './types';
-import type { ProjectDeveloperEntry } from '@/client';
 
 interface ConvertToTicketDialogProps {
   open: boolean;

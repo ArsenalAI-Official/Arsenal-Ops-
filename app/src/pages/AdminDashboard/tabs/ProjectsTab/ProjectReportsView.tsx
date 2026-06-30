@@ -1,4 +1,6 @@
+import { CalendarRange, Loader2, TableProperties, ChevronDown, ChevronRight } from 'lucide-react';
 import React from 'react';
+import type { ProjectWeeklyReportRow } from '@/client';
 import {
   Empty,
   EmptyHeader,
@@ -6,11 +8,9 @@ import {
   EmptyTitle,
   EmptyDescription,
 } from '@/components/ui/empty';
-import { CalendarRange, Loader2, TableProperties, ChevronDown, ChevronRight } from 'lucide-react';
 import ExpandedProjectRow from './ExpandedProjectRow';
 import { STATUS_ACCENTS } from './types';
 import type { StatusBucket } from './types';
-import type { ProjectWeeklyReportRow } from '@/client';
 
 interface ReportTotals {
   todo_backlog: number;

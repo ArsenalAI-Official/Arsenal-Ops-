@@ -1,13 +1,13 @@
-import { useMemo, type RefObject } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo, type RefObject } from 'react';
 import { toast } from 'sonner';
-import { apiFetch } from '@/lib/api';
-import { useAllDevelopers } from '@/hooks/useAllDevelopers';
-import { toastErrorHandler } from '@/lib/mutationToast';
-import type { WorkItem } from '../types';
-import { applyWorkItemDetail } from '@/types/workItemMappers';
 import type { CommentResponse, DeveloperResponse, WorkItemDetailResponse } from '@/client';
+import { useAllDevelopers } from '@/hooks/useAllDevelopers';
+import { apiFetch } from '@/lib/api';
+import { toastErrorHandler } from '@/lib/mutationToast';
+import { applyWorkItemDetail } from '@/types/workItemMappers';
 import type { AddSubtaskFormValues } from '../AddSubtaskModal';
+import type { WorkItem } from '../types';
 import type { WorkItemPanelProps } from '../WorkItemPanel';
 
 /**

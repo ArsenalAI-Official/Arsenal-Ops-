@@ -1,11 +1,11 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
-import { apiFetch } from '@/lib/api';
+import { useState } from 'react';
+import type { ProjectWeeklyReportRow, ProjectWeeklyTicketsResponse, WeeklyTicket } from '@/client';
 import { TASK_TYPE_CONFIG } from '@/components/ProjectsPage/constants';
+import { apiFetch } from '@/lib/api';
 import { PRIORITY_COLOR, STATUS_ACCENTS, STATUS_BUTTONS } from './types';
 import type { StatusBucket } from './types';
-import type { ProjectWeeklyReportRow, ProjectWeeklyTicketsResponse, WeeklyTicket } from '@/client';
 
 // ─────────────────────────────────────────────────────────────────────────
 // ExpandedProjectRow — sub-component that owns the drill-down for one row.
@@ -131,7 +131,7 @@ const ExpandedProjectRow = ({ project }: ExpandedProjectRowProps) => {
         // without sacrificing the numeric breakdown.
         <ul className="space-y-1.5">
           {tickets.map((t) => {
-            const typeConfig = TASK_TYPE_CONFIG[t.type] || TASK_TYPE_CONFIG.task;
+            const typeConfig = TASK_TYPE_CONFIG[t.type] || TASK_TYPE_CONFIG.task!;
             const TypeIcon = typeConfig.icon;
             const priorityColor =
               PRIORITY_COLOR[t.priority?.toLowerCase?.()] || PRIORITY_COLOR.medium;

@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import TeamCapacityOverview from './TeamCapacityOverview';
-import EmployeeFilterBar from './EmployeeFilterBar';
-import EmployeeCapacityTable from './EmployeeCapacityTable';
-import { WEEKLY_CAPACITY_HRS } from './types';
 import type { EmployeeResponse } from '@/client';
+import EmployeeCapacityTable from './EmployeeCapacityTable';
+import EmployeeFilterBar from './EmployeeFilterBar';
+import TeamCapacityOverview from './TeamCapacityOverview';
+import { WEEKLY_CAPACITY_HRS } from './types';
 import type {
   DeveloperCapacity,
   EmployeeRow,

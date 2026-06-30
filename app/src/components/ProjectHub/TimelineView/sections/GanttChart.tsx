@@ -1,10 +1,10 @@
 import React from 'react';
+import type { SprintResponse } from '@/client';
 import { CardContent } from '@/components/ui/card';
-import { getStatusColor } from '@/lib/workItemConfig';
 import { parseLocalDate } from '@/lib/dateUtils';
+import { getStatusColor } from '@/lib/workItemConfig';
 import { addDays, colDays, fmtShort, LABEL_WIDTH, ROW_HEIGHT } from '../lib/timelineGrid';
 import type { GanttRow, WorkItem, ZoomLevel } from '../types';
-import type { SprintResponse } from '@/client';
 
 interface GanttChartProps {
   rows: GanttRow[];

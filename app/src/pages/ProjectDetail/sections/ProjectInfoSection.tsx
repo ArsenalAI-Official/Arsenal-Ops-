@@ -1,12 +1,12 @@
-import { useState } from 'react';
 import { Github, Info, Pencil, Save, X, Users, Calendar, ExternalLink } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarIcon } from '@/components/ui/calendar';
-import { parseLocalDate } from '@/lib/dateUtils';
+import { useState } from 'react';
 import type { ProjectDetailResponse } from '@/client';
+import { Button } from '@/components/ui/button';
+import { Calendar as CalendarIcon } from '@/components/ui/calendar';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Textarea } from '@/components/ui/textarea';
+import { parseLocalDate } from '@/lib/dateUtils';
 
 interface ProjectInfoSectionProps {
   project: ProjectDetailResponse;

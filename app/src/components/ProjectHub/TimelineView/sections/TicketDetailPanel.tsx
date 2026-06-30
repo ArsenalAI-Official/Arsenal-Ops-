@@ -1,6 +1,6 @@
+import { X } from 'lucide-react';
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
-import { X } from 'lucide-react';
 import { TYPE_CONFIG } from '@/lib/workItemConfig';
 import { getPriorityColor } from '../lib/timelineGrid';
 import type { WorkItem } from '../types';

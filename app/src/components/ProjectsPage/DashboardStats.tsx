@@ -1,6 +1,6 @@
 import { Calendar, AlertCircle, CheckCircle2 } from 'lucide-react';
-import type { MyTask } from './types';
 import MyCapacityCard from './MyCapacityCard';
+import type { MyTask } from './types';
 
 interface DashboardStatsProps {
   userName?: string;

@@ -1,8 +1,8 @@
 // Container for the Dashboard tab: owns the tab's data hook and renders the tab.
-import { AdminTab } from '../types';
-import { useAdminStats } from '../hooks/useAdminStats';
 import { AdminSpinner } from '../components/AdminSpinner';
+import { useAdminStats } from '../hooks/useAdminStats';
 import DashboardTab from '../tabs/DashboardTab';
+import { AdminTab } from '../types';
 
 interface DashboardContainerProps {
   setActiveTab: (tab: AdminTab) => void;

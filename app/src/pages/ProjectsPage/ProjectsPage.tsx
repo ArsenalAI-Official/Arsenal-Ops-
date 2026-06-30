@@ -1,7 +1,5 @@
 import { useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
-import { useAuth } from '@/contexts/AuthContext';
-import { useConfirm } from '@/components/ui/confirm-dialog';
 import {
   AppHeader,
   DashboardStats,
@@ -14,6 +12,8 @@ import {
   EditPersonalTaskDialog,
   CreateProjectDialog,
 } from '@/components/ProjectsPage';
+import { useConfirm } from '@/components/ui/confirm-dialog';
+import { useAuth } from '@/contexts/AuthContext';
 import { useProjectsPageData } from './hooks/useProjectsPageData';
 
 const ProjectsPage = () => {

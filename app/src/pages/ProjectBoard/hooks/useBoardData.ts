@@ -1,10 +1,10 @@
-import { useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api';
-import type { WorkItem } from '@/types/workItems';
-import { slimToWorkItem } from '@/types/workItemMappers';
+import { useCallback, useMemo } from 'react';
 import type { SprintResponse, SlimWorkItem } from '@/client';
 import type { DeveloperResponse, ProjectDeveloperEntry } from '@/client';
+import { apiFetch } from '@/lib/api';
+import { slimToWorkItem } from '@/types/workItemMappers';
+import type { WorkItem } from '@/types/workItems';
 
 export interface Project {
   id: number;

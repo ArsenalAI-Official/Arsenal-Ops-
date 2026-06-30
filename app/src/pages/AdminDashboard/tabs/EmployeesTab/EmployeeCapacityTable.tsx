@@ -1,10 +1,10 @@
-import React from 'react';
 import { Pencil, Trash2, ChevronDown, ChevronUp, ArrowUpDown } from 'lucide-react';
+import React from 'react';
+import type { EmployeeResponse } from '@/client';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription } from '@/components/ui/empty';
 import EmployeeExpandedRow, { type ProjectGroup } from './EmployeeExpandedRow';
 import { projectColor } from './types';
-import type { EmployeeResponse } from '@/client';
 import type { DeveloperCapacity, EmployeeRow, EmployeeSort, EmployeeSortKey } from './types';
 
 interface EmployeeCapacityTableProps {

@@ -54,6 +54,7 @@ from routers.pulse import (
     get_pulse_overrides,
     put_pulse_overrides,
 )
+from tests.conftest import assign_system_role
 
 
 @pytest.fixture
@@ -68,7 +69,15 @@ def db():
 
 @pytest.fixture
 def admin_user(db):
-    """A system-admin user — bypasses per-project membership checks."""
+    """A system-admin user — bypasses per-project membership checks.
+
+    Mirrors a real production admin: the legacy ``role="admin"`` string plus
+    the RBAC ``admin`` Role (granting ``*``) that ``seed_rbac`` backfills at
+    startup. ``is_project_admin`` and ``has_project_access`` both read the RBAC
+    capability set, so without ``assign_system_role`` this user would hold zero
+    effective capabilities and be denied — the original cause of the four
+    quarantined failures on ``main``.
+    """
     u = User(
         id=1,
         email="admin@x.com",
@@ -79,6 +88,7 @@ def admin_user(db):
     )
     db.add(u)
     db.commit()
+    assign_system_role(db, u)
     return u
 
 
@@ -95,6 +105,7 @@ def other_admin(db):
     )
     db.add(u)
     db.commit()
+    assign_system_role(db, u)
     return u
 
 

@@ -1,5 +1,5 @@
-import PMView from '@/components/PMView';
 import type { SprintResponse } from '@/client';
+import PMView from '@/components/PMView';
 
 interface ProjectManagerTabProps {
   hubLoading: boolean;
