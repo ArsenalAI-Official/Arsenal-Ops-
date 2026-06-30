@@ -1763,19 +1763,26 @@ def log_hours(
     # users see a single chronological audit trail in the side panel.
     from models.comment import Comment as _LogComment
 
-    db.add(
-        _LogComment(
-            work_item_id=item_id,
-            author_id=developer.id if developer else None,
-            content=f"Logged {request.hours}h",
-            # Link the auto-comment to its TimeEntry so the dev's edit/
-            # delete actions in the Review-and-Submit modal can keep it
-            # in sync. CASCADE on the FK auto-removes the comment when
-            # the entry is deleted; the edit endpoint mutates `content`
-            # directly. See `routers/developers.py`.
-            time_entry_id=time_entry.id,
-        )
-    )
+    log_comment_kwargs = {
+        "work_item_id": item_id,
+        "author_id": developer.id if developer else None,
+        "content": f"Logged {request.hours}h",
+        # Link the auto-comment to its TimeEntry so the dev's edit/
+        # delete actions in the Review-and-Submit modal can keep it
+        # in sync. CASCADE on the FK auto-removes the comment when
+        # the entry is deleted; the edit endpoint mutates `content`
+        # directly. See `routers/developers.py`.
+        "time_entry_id": time_entry.id,
+    }
+    # When the entry is back-dated via `logged_at` (the modal's "+ Add
+    # entry" affordance), stamp the auto-comment with the same date so
+    # the ticket's comment feed shows the day the hours were logged for,
+    # not the day the row happened to be created. Default path (no
+    # `logged_at`) leaves Comment.created_at = NOW().
+    if resolved_logged_at is not None:
+        log_comment_kwargs["created_at"] = resolved_logged_at
+
+    db.add(_LogComment(**log_comment_kwargs))
 
     # Recompute logged_hours from the live TimeEntry sum instead of `+=`.
     # The naive accumulator drifts whenever ANYTHING else has touched the column

@@ -712,6 +712,16 @@ const AddEntryForm = ({ isoDate, assignableTickets, onAdd, onClose }: AddEntryFo
     }
   };
 
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      void handleSave();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose();
+    }
+  };
+
   if (tickets.length === 0) {
     return (
       <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-md p-3 my-2 flex items-start justify-between gap-3">
@@ -736,6 +746,7 @@ const AddEntryForm = ({ isoDate, assignableTickets, onAdd, onClose }: AddEntryFo
         <select
           value={workItemId}
           onChange={(e) => setWorkItemId(e.target.value === '' ? '' : Number(e.target.value))}
+          onKeyDown={onKeyDown}
           disabled={saving}
           aria-label="Ticket"
           className="flex-1 min-w-[200px] text-xs text-[#d4d4d4] bg-[rgba(0,0,0,0.4)] border border-[rgba(255,255,255,0.1)] rounded px-2 py-1.5 focus:outline-none focus:border-[#E0B954]"
@@ -743,8 +754,8 @@ const AddEntryForm = ({ isoDate, assignableTickets, onAdd, onClose }: AddEntryFo
           <option value="">Pick a ticket…</option>
           {tickets.map((t) => (
             <option key={t.id} value={t.id}>
-              [{t.key}] {t.title}
-              {t.project_name ? ` — ${t.project_name}` : ''}
+              {t.title}
+              {t.project_name ? ` (${t.project_name})` : ''}
             </option>
           ))}
         </select>
@@ -756,6 +767,7 @@ const AddEntryForm = ({ isoDate, assignableTickets, onAdd, onClose }: AddEntryFo
           step="0.25"
           value={hours}
           onChange={(e) => setHours(e.target.value)}
+          onKeyDown={onKeyDown}
           disabled={saving}
           aria-label="Hours"
           className="w-20 text-xs font-mono tabular-nums text-white bg-[rgba(0,0,0,0.4)] border border-[rgba(255,255,255,0.1)] rounded px-2 py-1.5 focus:outline-none focus:border-[#E0B954]"
