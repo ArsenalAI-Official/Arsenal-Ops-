@@ -273,6 +273,7 @@ def convert_to_ticket(
         remaining_hours=request.estimated_hours or task.estimated_hours or 0,
         assignee_id=assignee.id if assignee else None,
         reporter_id=creator_dev.id if creator_dev else None,
+        due_date=task.due_date,
         tags=task.tags or [],
     )
 

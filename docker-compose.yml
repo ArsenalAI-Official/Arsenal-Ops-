@@ -27,6 +27,7 @@ services:
     container_name: arsenal-ops-api
     environment:
       - DATABASE_URL=postgresql://arsenalops:arsenal_ops_secret@postgres:5432/arsenalops
+      - SECRET_KEY=${SECRET_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
