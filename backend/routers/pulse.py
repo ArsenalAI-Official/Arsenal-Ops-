@@ -560,8 +560,8 @@ def _derive_forecast_vs_actuals(project: Project, db: Session) -> dict:
             item_to_epic[row.id] = ep
 
     # Cumulative project totals from work_items themselves.
-    proj_fc: dict[int, int] = dict.fromkeys((e.id for e in epics), 0)
-    proj_act: dict[int, int] = dict.fromkeys((e.id for e in epics), 0)
+    proj_fc: dict[int, float] = dict.fromkeys((e.id for e in epics), 0.0)
+    proj_act: dict[int, float] = dict.fromkeys((e.id for e in epics), 0.0)
     if item_to_epic:
         items = (
             db.query(WorkItem.id, WorkItem.estimated_hours, WorkItem.logged_hours)
@@ -572,8 +572,8 @@ def _derive_forecast_vs_actuals(project: Project, db: Session) -> dict:
             ep_id = item_to_epic.get(it.id)
             if ep_id is None:
                 continue
-            proj_fc[ep_id] = proj_fc.get(ep_id, 0) + int(it.estimated_hours or 0)
-            proj_act[ep_id] = proj_act.get(ep_id, 0) + int(it.logged_hours or 0)
+            proj_fc[ep_id] = proj_fc.get(ep_id, 0) + float(it.estimated_hours or 0)
+            proj_act[ep_id] = proj_act.get(ep_id, 0) + float(it.logged_hours or 0)
 
     # Month-scoped actuals from time_entries. Use exclusive upper bounds
     # (start-of-next-month) instead of 23:59:59 to avoid microsecond slop.
@@ -582,7 +582,7 @@ def _derive_forecast_vs_actuals(project: Project, db: Session) -> dict:
     next_start = _add_month(cur_start)
     last_start = _start_of_month(cur_start - timedelta(days=1))
 
-    def _scoped_hours(start: datetime, end_exclusive: datetime) -> dict[int, int]:
+    def _scoped_hours(start: datetime, end_exclusive: datetime) -> dict[int, float]:
         if not item_to_epic:
             return {}
         rows = (
@@ -596,23 +596,24 @@ def _derive_forecast_vs_actuals(project: Project, db: Session) -> dict:
             .group_by(TimeEntry.work_item_id)
             .all()
         )
-        out: dict[int, int] = {}
+        out: dict[int, float] = {}
         for r in rows:
             ep_id = item_to_epic.get(r.work_item_id)
             if ep_id is None:
                 continue
-            out[ep_id] = out.get(ep_id, 0) + int(r.hours or 0)
+            out[ep_id] = out.get(ep_id, 0) + float(r.hours or 0)
         return out
 
     cur_act = _scoped_hours(cur_start, next_start)
     last_act = _scoped_hours(last_start, cur_start)
 
-    def _row(epic: WorkItem, act: int, fc: int) -> dict:
+    def _row(epic: WorkItem, act: float, fc: float) -> dict:
         return {
             "feature": epic.title or "",
             "employee": epic.assignee.name if epic.assignee else "Unassigned",
-            "fc": int(fc or 0),
-            "act": int(act or 0),
+            # Fractional hours preserved (rounded to 2dp), not truncated to int.
+            "fc": round(fc or 0, 2),
+            "act": round(act or 0, 2),
         }
 
     # For ``current``/``last`` we surface fc = proj_fc (estimates don't

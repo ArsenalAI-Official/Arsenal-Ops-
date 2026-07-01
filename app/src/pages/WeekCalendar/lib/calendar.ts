@@ -17,8 +17,7 @@ export interface GridConfig {
   workEndHour: number;
   /** Pixel height of one hour row. */
   hourPx: number;
-  /** Snap granularity in minutes. Whole-hour (60) for now; sub-hour (15/30) is a
-   *  stacked follow-up (feat/week-calendar-minutes) pending app-wide review. */
+  /** Snap granularity in minutes (15 or 30). */
   stepMinutes: number;
 }
 
@@ -28,7 +27,7 @@ export const DEFAULT_GRID: GridConfig = {
   workStartHour: 7,
   workEndHour: 19,
   hourPx: 52,
-  stepMinutes: 60,
+  stepMinutes: 15,
 };
 
 /** Default number of weekday columns (Mon–Fri); 7 when weekends are shown. */

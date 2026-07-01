@@ -326,8 +326,8 @@ class EmployeeTicketResponse(BaseModel):
     project_name: str
     assigned_to: int | None
     assigned_to_name: str | None
-    estimated_hours: int | None
-    logged_hours: int
+    estimated_hours: float | None
+    logged_hours: float
     created_at: datetime
     updated_at: datetime
 
@@ -771,8 +771,8 @@ class WeeklyTicket(BaseModel):
     type: str
     priority: str
     assignee_name: str | None
-    estimated_hours: int | None
-    logged_hours: int | None
+    estimated_hours: float | None
+    logged_hours: float | None
     completed_at: str | None  # ISO datetime, only set for the `done_this_week` bucket
 
 
@@ -960,7 +960,7 @@ class TimeEntryRow(BaseModel):
     Developer joins so the frontend can render without nested lookups."""
 
     id: int
-    hours: int
+    hours: float
     description: str | None
     logged_at: datetime
 
@@ -986,7 +986,7 @@ class TimeEntriesResponse(BaseModel):
     frontend can warn when its filters return more than the cap."""
 
     rows: list[TimeEntryRow]
-    total_hours: int
+    total_hours: float
     total_rows: int
     truncated: bool
 
@@ -1072,7 +1072,7 @@ def list_time_entries(
     entries = fetched[:TIME_ENTRIES_MAX_ROWS]
 
     rows: list[TimeEntryRow] = []
-    total_hours = 0
+    total_hours = 0.0
     for te in entries:
         wi = te.work_item
         proj = wi.project if wi else None

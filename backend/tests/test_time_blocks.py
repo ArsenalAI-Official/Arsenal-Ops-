@@ -126,17 +126,17 @@ def _at(day_offset_hours: float) -> datetime:
     return base + timedelta(hours=day_offset_hours)
 
 
-def test_create_derives_hours_and_rolls_up(db, seed):
+def test_create_derives_fractional_hours_and_rolls_up(db, seed):
     item = seed["item"]
     block = create_time_block(
-        request=CreateTimeBlockRequest(work_item_id=item.id, start_time=_at(0), end_time=_at(2)),
+        request=CreateTimeBlockRequest(work_item_id=item.id, start_time=_at(0), end_time=_at(2.5)),
         db=db,
         current_user=seed["user"],
     )
-    assert block.hours == 2
+    assert block.hours == 2.5
     db.refresh(item)
-    assert item.logged_hours == 2
-    assert item.remaining_hours == 6  # 8 - 2
+    assert item.logged_hours == 2.5
+    assert item.remaining_hours == 5.5  # 8 - 2.5
 
 
 def test_multiple_equal_blocks_in_quick_succession_all_persist(db, seed):
@@ -144,19 +144,21 @@ def test_multiple_equal_blocks_in_quick_succession_all_persist(db, seed):
     blocked just because they're the same length."""
     item = seed["item"]
     create_time_block(
-        request=CreateTimeBlockRequest(work_item_id=item.id, start_time=_at(0), end_time=_at(1)),
+        request=CreateTimeBlockRequest(work_item_id=item.id, start_time=_at(0), end_time=_at(0.5)),
         db=db,
         current_user=seed["user"],
     )
     create_time_block(
-        request=CreateTimeBlockRequest(work_item_id=item.id, start_time=_at(1), end_time=_at(2)),
+        request=CreateTimeBlockRequest(
+            work_item_id=item.id, start_time=_at(0.5), end_time=_at(1.0)
+        ),
         db=db,
         current_user=seed["user"],
     )
     count = db.query(TimeEntry).filter(TimeEntry.work_item_id == item.id).count()
     assert count == 2
     db.refresh(item)
-    assert item.logged_hours == 2
+    assert item.logged_hours == 1.0
 
 
 def test_create_rejects_non_assignee(db, seed):
@@ -209,13 +211,13 @@ def test_resize_recomputes_hours(db, seed):
     )
     updated = update_time_block(
         entry_id=block.id,
-        request=UpdateTimeBlockRequest(end_time=_at(3)),
+        request=UpdateTimeBlockRequest(end_time=_at(1.75)),
         db=db,
         current_user=seed["user"],
     )
-    assert updated.hours == 3
+    assert updated.hours == 1.75
     db.refresh(item)
-    assert item.logged_hours == 3
+    assert item.logged_hours == 1.75
 
 
 def test_update_rejects_other_users_block(db, seed):
@@ -379,7 +381,7 @@ def test_aware_datetime_is_stored_as_naive_utc(db, seed):
     match the naive DB columns (no offset drift, no aware/naive comparison error)."""
     item = seed["item"]
     aware_start = datetime(2026, 6, 22, 9, 0, 0, tzinfo=UTC)
-    aware_end = datetime(2026, 6, 22, 11, 0, 0, tzinfo=UTC)
+    aware_end = datetime(2026, 6, 22, 11, 30, 0, tzinfo=UTC)
     block = create_time_block(
         request=CreateTimeBlockRequest(
             work_item_id=item.id, start_time=aware_start, end_time=aware_end
@@ -387,12 +389,12 @@ def test_aware_datetime_is_stored_as_naive_utc(db, seed):
         db=db,
         current_user=seed["user"],
     )
-    assert block.hours == 2
+    assert block.hours == 2.5
     entry = db.query(TimeEntry).filter(TimeEntry.id == block.id).first()
     assert entry is not None
     assert entry.start_time.tzinfo is None, "stored start_time must be naive"
     assert entry.start_time == datetime(2026, 6, 22, 9, 0, 0)
-    assert entry.end_time == datetime(2026, 6, 22, 11, 0, 0)
+    assert entry.end_time == datetime(2026, 6, 22, 11, 30, 0)
 
 
 def test_week_window_is_five_days_and_excludes_weekend(db, seed):

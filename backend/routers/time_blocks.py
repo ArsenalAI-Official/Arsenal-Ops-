@@ -59,7 +59,7 @@ class TimeBlockResponse(BaseModel):
     work_item_type: str
     work_item_status: str
     developer_id: int | None = None
-    hours: int
+    hours: float
     description: str | None = None
     start_time: str | None = None
     end_time: str | None = None
@@ -100,10 +100,9 @@ class UpdateTimeBlockRequest(BaseModel):
 MAX_BLOCK_HOURS = 24
 
 
-def _hours_between(start: datetime, end: datetime) -> int:
-    """Block duration in whole hours. Blocks snap to the hour for now; fractional
-    (15/30-min) durations are a stacked follow-up (feat/week-calendar-minutes)."""
-    return round((end - start).total_seconds() / 3600.0)
+def _hours_between(start: datetime, end: datetime) -> float:
+    """Block duration in hours, rounded to 2dp (quarter-hours are exact)."""
+    return round((end - start).total_seconds() / 3600.0, 2)
 
 
 def _naive_utc(dt: datetime) -> datetime:
@@ -149,12 +148,12 @@ def _authorize_block_on_item(item: WorkItem, caller_dev: Developer) -> None:
         )
 
 
-def _validate_interval(start: datetime, end: datetime) -> int:
+def _validate_interval(start: datetime, end: datetime) -> float:
     if end <= start:
         raise HTTPException(status_code=400, detail="end_time must be after start_time")
     hours = _hours_between(start, end)
     if hours <= 0:
-        raise HTTPException(status_code=400, detail="Block must be at least 1 hour")
+        raise HTTPException(status_code=400, detail="Block must be longer than 0 minutes")
     if hours > MAX_BLOCK_HOURS:
         raise HTTPException(
             status_code=400,

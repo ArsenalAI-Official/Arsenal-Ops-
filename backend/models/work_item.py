@@ -5,7 +5,7 @@ import sys
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 sys.path.append("..")
@@ -67,12 +67,14 @@ class WorkItem(Base):
     status: Mapped[str] = mapped_column(String(50), default=WorkItemStatus.TODO.value, index=True)
     priority: Mapped[str] = mapped_column(String(20), default=WorkItemPriority.MEDIUM.value)
 
-    # Estimation
+    # Estimation. Hours are fractional (NUMERIC, asdecimal=False → float in
+    # Python) so they stay correct when summed from fractional TimeEntry rows
+    # logged via the week calendar. logged_hours is the live SUM of TimeEntry.hours.
     story_points: Mapped[int] = mapped_column(default=0, nullable=True)
-    estimated_hours: Mapped[int | None] = mapped_column()
-    remaining_hours: Mapped[int | None] = mapped_column()
-    logged_hours: Mapped[int] = mapped_column(
-        default=0, nullable=True
+    estimated_hours: Mapped[float | None] = mapped_column(Numeric(7, 2, asdecimal=False))
+    remaining_hours: Mapped[float | None] = mapped_column(Numeric(7, 2, asdecimal=False))
+    logged_hours: Mapped[float] = mapped_column(
+        Numeric(7, 2, asdecimal=False), default=0, nullable=True
     )  # Total hours logged by developers
 
     # Assignment - linked to Developer model

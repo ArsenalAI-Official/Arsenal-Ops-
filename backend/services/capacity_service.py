@@ -79,10 +79,10 @@ def _ticket_belongs_this_week(item, week_start: datetime, week_end: datetime) ->
 
 def _ticket_to_dict_for_dev(
     item,
-    counted: int,
+    counted: float,
     basis: str,
-    logged_this_week: int,
-    total_logged: int,
+    logged_this_week: float,
+    total_logged: float,
 ) -> dict:
     estimated = item.estimated_hours or 0
     return {
@@ -114,8 +114,8 @@ def _aggregate_capacity(
     week_start: datetime,
     week_end: datetime,
     week_capacity: int,
-    total_logged_by_item: dict[int, int],
-    this_week_logged_by_item: dict[int, int],
+    total_logged_by_item: dict[int, float],
+    this_week_logged_by_item: dict[int, float],
 ) -> dict:
     """Per-developer bucket/basis aggregation over an already-resolved item set.
 
@@ -128,9 +128,9 @@ def _aggregate_capacity(
       • ``this_week_logged_by_item`` — this-week TimeEntry sum on each item by
         THIS developer.
     """
-    in_progress_hours = 0
-    in_review_hours = 0
-    done_hours = 0
+    in_progress_hours = 0.0
+    in_review_hours = 0.0
+    done_hours = 0.0
     tickets_out: list = []
 
     for item in item_by_id.values():
@@ -261,7 +261,7 @@ def compute_capacity_breakdown(
     # "total_logged" instead of item.logged_hours, which can drift when the work
     # item is edited directly (see workitems update endpoint). Drift here caused
     # capacity to over-count remaining hours by the missing rollup delta.
-    total_logged_by_item: dict[int, int] = {}
+    total_logged_by_item: dict[int, float] = {}
     if item_by_id:
         rows = (
             db.query(
@@ -272,7 +272,7 @@ def compute_capacity_breakdown(
             .group_by(TimeEntry.work_item_id)
             .all()
         )
-        total_logged_by_item = {wid: int(total or 0) for wid, total in rows}
+        total_logged_by_item = {wid: float(total or 0) for wid, total in rows}
 
     # This-week logged hours per work item BY THIS DEVELOPER, batched into one
     # grouped query. Previously this was a per-ticket query issued inside the
@@ -280,7 +280,7 @@ def compute_capacity_breakdown(
     # (O(developers * tickets) round-trips). developer_id is fixed for this
     # call, so grouping by work_item_id alone yields the same per-ticket sum.
     # Missing keys default to 0 to preserve the bucket/basis logic below.
-    this_week_logged_by_item: dict[int, int] = {}
+    this_week_logged_by_item: dict[int, float] = {}
     if item_by_id:
         week_rows = (
             db.query(
@@ -296,7 +296,7 @@ def compute_capacity_breakdown(
             .group_by(TimeEntry.work_item_id)
             .all()
         )
-        this_week_logged_by_item = {wid: int(total or 0) for wid, total in week_rows}
+        this_week_logged_by_item = {wid: float(total or 0) for wid, total in week_rows}
 
     # Logged hours this week by THIS developer per ticket came from the single
     # grouped query above (was an O(tickets) per-item query here). The shared
@@ -410,7 +410,7 @@ def compute_capacity_breakdowns_batch(
         all_item_ids |= set(items_by_dev[dev_id].keys())
 
     # (4) All-time logged hours per item (dev-independent) — one grouped query.
-    total_logged_by_item: dict[int, int] = {}
+    total_logged_by_item: dict[int, float] = {}
     if all_item_ids:
         for wid, total in (
             db.query(
@@ -421,10 +421,10 @@ def compute_capacity_breakdowns_batch(
             .group_by(TimeEntry.work_item_id)
             .all()
         ):
-            total_logged_by_item[wid] = int(total or 0)
+            total_logged_by_item[wid] = float(total or 0)
 
     # (5) This-week logged hours per (dev, item) — one grouped query.
-    week_logged_by_dev_item: dict[tuple, int] = {}
+    week_logged_by_dev_item: dict[tuple, float] = {}
     if all_item_ids:
         for dev_id, wid, total in (
             db.query(
@@ -441,7 +441,7 @@ def compute_capacity_breakdowns_batch(
             .group_by(TimeEntry.developer_id, TimeEntry.work_item_id)
             .all()
         ):
-            week_logged_by_dev_item[(dev_id, wid)] = int(total or 0)
+            week_logged_by_dev_item[(dev_id, wid)] = float(total or 0)
 
     result: dict[int, dict] = {}
     for dev_id in dev_ids:

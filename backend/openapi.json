@@ -1130,7 +1130,7 @@
           "estimated_hours": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -1144,7 +1144,7 @@
           },
           "logged_hours": {
             "title": "Logged Hours",
-            "type": "integer"
+            "type": "number"
           },
           "priority": {
             "title": "Priority",
@@ -1586,7 +1586,7 @@
           },
           "hours": {
             "title": "Hours",
-            "type": "integer"
+            "type": "number"
           }
         },
         "required": [
@@ -1733,7 +1733,7 @@
           "assigned_hours": {
             "default": 0,
             "title": "Assigned Hours",
-            "type": "integer"
+            "type": "number"
           },
           "assignee": {
             "title": "Assignee",
@@ -1791,7 +1791,7 @@
           "estimated_hours": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -1814,7 +1814,7 @@
           "logged_hours": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -1867,7 +1867,7 @@
           "remaining_hours": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -3521,7 +3521,7 @@
           "assigned_hours": {
             "default": 0,
             "title": "Assigned Hours",
-            "type": "integer"
+            "type": "number"
           },
           "assignee": {
             "anyOf": [
@@ -3605,7 +3605,7 @@
           "logged_hours": {
             "default": 0,
             "title": "Logged Hours",
-            "type": "integer"
+            "type": "number"
           },
           "parent_id": {
             "anyOf": [
@@ -3636,7 +3636,7 @@
           "remaining_hours": {
             "default": 0,
             "title": "Remaining Hours",
-            "type": "integer"
+            "type": "number"
           },
           "sprint_id": {
             "anyOf": [
@@ -4076,7 +4076,7 @@
           },
           "hours": {
             "title": "Hours",
-            "type": "integer"
+            "type": "number"
           },
           "id": {
             "title": "Id",
@@ -4138,7 +4138,7 @@
           },
           "total_hours": {
             "title": "Total Hours",
-            "type": "integer"
+            "type": "number"
           },
           "total_rows": {
             "title": "Total Rows",
@@ -4218,7 +4218,7 @@
           },
           "hours": {
             "title": "Hours",
-            "type": "integer"
+            "type": "number"
           },
           "id": {
             "title": "Id",
@@ -4728,7 +4728,7 @@
           "estimated_hours": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -4754,7 +4754,7 @@
           "logged_hours": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -4840,7 +4840,7 @@
           "estimated_hours": {
             "default": 0,
             "title": "Estimated Hours",
-            "type": "integer"
+            "type": "number"
           },
           "parent_id": {
             "anyOf": [
@@ -4865,7 +4865,7 @@
           "remaining_hours": {
             "default": 0,
             "title": "Remaining Hours",
-            "type": "integer"
+            "type": "number"
           },
           "sprint_id": {
             "anyOf": [
@@ -5015,7 +5015,7 @@
           "estimated_hours": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -5057,7 +5057,7 @@
           "logged_hours": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -5088,7 +5088,7 @@
           "remaining_hours": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -5217,7 +5217,7 @@
           "assigned_hours": {
             "default": 0,
             "title": "Assigned Hours",
-            "type": "integer"
+            "type": "number"
           },
           "assignee": {
             "default": "Unassigned",
@@ -5292,7 +5292,7 @@
           "estimated_hours": {
             "default": 0,
             "title": "Estimated Hours",
-            "type": "integer"
+            "type": "number"
           },
           "id": {
             "title": "Id",
@@ -5305,7 +5305,7 @@
           "logged_hours": {
             "default": 0,
             "title": "Logged Hours",
-            "type": "integer"
+            "type": "number"
           },
           "parent_id": {
             "anyOf": [
@@ -5336,7 +5336,7 @@
           "remaining_hours": {
             "default": 0,
             "title": "Remaining Hours",
-            "type": "integer"
+            "type": "number"
           },
           "sprint": {
             "default": "Backlog",
@@ -5432,7 +5432,7 @@
           "assigned_hours": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -5487,7 +5487,7 @@
           "estimated_hours": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -5498,7 +5498,7 @@
           "logged_hours": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -5531,7 +5531,7 @@
           "remaining_hours": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"

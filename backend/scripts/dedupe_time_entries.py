@@ -153,10 +153,12 @@ def dedupe(window_seconds: int, dry_run: bool, work_item_id: int | None) -> dict
                     if wi is None:
                         continue
                     old_logged = wi.logged_hours or 0
-                    wi.logged_hours = int(new_logged)
-                    wi.remaining_hours = max(0, (wi.estimated_hours or 0) - int(new_logged))
+                    # Keep fractional hours intact — int() here would silently
+                    # drop the .25/.5 from calendar time-blocks.
+                    wi.logged_hours = new_logged
+                    wi.remaining_hours = max(0, (wi.estimated_hours or 0) - new_logged)
                     logger.info(
-                        "  %s: logged_hours %d -> %d (remaining now %d)",
+                        "  %s: logged_hours %s -> %s (remaining now %s)",
                         wi.key,
                         old_logged,
                         wi.logged_hours,

@@ -221,9 +221,11 @@ def _seed(db):
                 parent_id=201,
                 epic_id=200,
                 story_points=3,
+                # Fractional on purpose: exercises the int->float hours contract
+                # through the golden harness (see REVIEW_RULES.md rule 6).
                 estimated_hours=8,
-                remaining_hours=4,
-                logged_hours=4,
+                remaining_hours=3.5,
+                logged_hours=4.5,
                 due_date=datetime(2026, 1, 10),
                 created_at=NOW,
                 updated_at=NOW,

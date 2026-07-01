@@ -4,7 +4,7 @@ import sys
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Index, Text
+from sqlalchemy import DateTime, ForeignKey, Index, Numeric, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 sys.path.append("..")
@@ -26,9 +26,13 @@ class TimeEntry(Base):
         ForeignKey("developers.id", ondelete="SET NULL"), index=True
     )
 
-    # Time tracking. Whole-hour blocks for now; fractional (15/30-min) hours are
-    # a stacked follow-up (feat/week-calendar-minutes) pending app-wide review.
-    hours: Mapped[int] = mapped_column()  # Hours logged in this entry
+    # Time tracking. Fractional hours (e.g. 1.5, 0.25) so calendar blocks can be
+    # logged at 15/30-minute granularity. Stored NUMERIC for exact decimal in
+    # Postgres; asdecimal=False so SQLAlchemy hands the app a plain float (avoids
+    # Decimal leaking into hand-built response dicts / json serialization).
+    hours: Mapped[float] = mapped_column(
+        Numeric(6, 2, asdecimal=False)
+    )  # Hours logged in this entry
     description: Mapped[str | None] = mapped_column(Text)  # Optional description of work done
 
     # Positioned calendar block (UTC). When present, this entry is a block on the

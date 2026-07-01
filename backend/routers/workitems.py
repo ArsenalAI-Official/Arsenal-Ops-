@@ -279,8 +279,8 @@ class WorkItemCreate(BaseModel):
     title: str
     description: str = ""
     status: str = "todo"
-    estimated_hours: int = 0
-    remaining_hours: int = 0
+    estimated_hours: float = 0
+    remaining_hours: float = 0
     story_points: int = 0
     priority: str = "medium"
     assignee_id: int | None = None
@@ -298,9 +298,9 @@ class WorkItemUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
     status: str | None = None
-    estimated_hours: int | None = None
-    remaining_hours: int | None = None
-    logged_hours: int | None = None  # Hours logged by developer
+    estimated_hours: float | None = None
+    remaining_hours: float | None = None
+    logged_hours: float | None = None  # Hours logged by developer
     story_points: int | None = None
     priority: str | None = None
     assignee_id: int | None = None
@@ -313,7 +313,7 @@ class WorkItemUpdate(BaseModel):
     start_date: str | None = None  # ISO date string
     due_date: str | None = None  # ISO date string
     # Frontend compatibility - assigned_hours maps to estimated_hours
-    assigned_hours: int | None = None
+    assigned_hours: float | None = None
 
 
 class BatchStatusUpdate(BaseModel):
@@ -357,10 +357,10 @@ class WorkItemListResponse(BaseModel):
     status: str
     priority: str
     story_points: int = 0
-    assigned_hours: int = 0
-    estimated_hours: int = 0
-    remaining_hours: int = 0
-    logged_hours: int = 0
+    assigned_hours: float = 0
+    estimated_hours: float = 0
+    remaining_hours: float = 0
+    logged_hours: float = 0
     assignee: str = "Unassigned"
     assignee_id: int | None = None
     sprint: str = "Backlog"
@@ -511,9 +511,9 @@ class SlimWorkItem(BaseModel):
     epic_key: str | None = None
     story_points: int = 0
     tags: list[str] = []
-    remaining_hours: int = 0
-    assigned_hours: int = 0
-    logged_hours: int = 0
+    remaining_hours: float = 0
+    assigned_hours: float = 0
+    logged_hours: float = 0
     due_date: str | None = None
     completed_at: str | None = None
     # True when the ticket has at least one unresolved blocker comment.
@@ -628,13 +628,13 @@ class MyTaskResponse(BaseModel):
     project_id: int | None = None
     project_name: str = "Unknown"
     due_date: str | None = None
-    estimated_hours: int | None = None
-    logged_hours: int | None = None
-    remaining_hours: int | None = None
+    estimated_hours: float | None = None
+    logged_hours: float | None = None
+    remaining_hours: float | None = None
     is_overdue: bool
     completed_at: str | None = None
     story_points: int = 0
-    assigned_hours: int = 0
+    assigned_hours: float = 0
     assignee: str
     reporter_name: str | None = None
     description: str = ""
@@ -756,10 +756,10 @@ class WorkItemDetailResponse(BaseModel):
     # handler returns them raw (no `or 0` guard), so type them honestly as
     # nullable; the FE mapper coerces to the non-null view-model.
     story_points: int | None = 0
-    logged_hours: int | None = 0
+    logged_hours: float | None = 0
     # No column default — genuinely nullable.
-    estimated_hours: int | None = None
-    remaining_hours: int | None = None
+    estimated_hours: float | None = None
+    remaining_hours: float | None = None
     assignee_id: int | None = None
     reporter_id: int | None = None
     goal_id: int | None = None
@@ -1524,7 +1524,7 @@ def delete_work_item(
 
 
 class LogHoursRequest(BaseModel):
-    hours: int
+    hours: float
     description: str | None = None
     developer_id: int | None = None  # Optional: specify who did the work (defaults to current user)
 
@@ -2877,7 +2877,7 @@ def get_hours_analytics(
 
         # Allocated hours = proportional share of sprint estimated hours overlapping this week
         # This ensures weeks show allocated work even when items have no explicit due_date
-        week_allocated = 0
+        week_allocated = 0.0
         for sprint in sprints:
             if sprint.start_date and sprint.end_date:
                 sprint_start = sprint.start_date

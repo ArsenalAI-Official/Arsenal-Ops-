@@ -16,17 +16,10 @@ const hoursApart = (a: string, b: string) =>
   (new Date(b).getTime() - new Date(a).getTime()) / 3_600_000;
 
 describe('snapHour', () => {
-  it('snaps to the nearest whole hour by default (whole-hour blocks)', () => {
+  it('snaps to the nearest 15-minute increment', () => {
     expect(snapHour(9.1, DEFAULT_GRID)).toBe(9);
-    expect(snapHour(9.6, DEFAULT_GRID)).toBe(10);
-    expect(snapHour(9.4, DEFAULT_GRID)).toBe(9);
-  });
-
-  it('supports a 15-minute step when configured (stacked minutes follow-up)', () => {
-    const cfg = { ...DEFAULT_GRID, stepMinutes: 15 };
-    expect(snapHour(9.1, cfg)).toBe(9);
-    expect(snapHour(9.2, cfg)).toBe(9.25);
-    expect(snapHour(9.13, cfg)).toBe(9.25);
+    expect(snapHour(9.2, DEFAULT_GRID)).toBe(9.25);
+    expect(snapHour(9.13, DEFAULT_GRID)).toBe(9.25);
   });
 
   it('clamps to the full-day grid bounds', () => {
