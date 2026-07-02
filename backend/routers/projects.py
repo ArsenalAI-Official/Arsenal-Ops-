@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import delete, insert, select
 from sqlalchemy.engine import CursorResult
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -700,8 +701,16 @@ def add_favorite(
         )
     ).first()
     if not exists:
-        db.execute(insert(project_favorites).values(user_id=current_user.id, project_id=project_id))
-        db.commit()
+        # SELECT-then-INSERT can race two concurrent stars of the same project;
+        # the composite PK guards integrity, so treat the loser's duplicate-key
+        # as success rather than surfacing a 500.
+        try:
+            db.execute(
+                insert(project_favorites).values(user_id=current_user.id, project_id=project_id)
+            )
+            db.commit()
+        except IntegrityError:
+            db.rollback()
     return {"is_favorite": True}
 
 
@@ -803,7 +812,7 @@ def update_project(
     db.commit()
     db.refresh(project)
 
-    result = format_project(project, db)
+    result = format_project(project, db, _favorite_project_ids(current_user, db))
     print(f"[DEBUG] Response with github_repo_url: {result.get('github_repo_url')}")
     return result
 

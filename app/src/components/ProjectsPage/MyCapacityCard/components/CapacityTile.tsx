@@ -6,7 +6,6 @@ interface CapacityTileProps {
   hasData: boolean;
   statusColor: string;
   used: number;
-  totalLoggedThisWeek: number;
   onClick: () => void;
 }
 

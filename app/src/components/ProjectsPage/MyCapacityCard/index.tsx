@@ -63,7 +63,6 @@ const MyCapacityCard = () => {
         hasData={!!data}
         statusColor={statusColor}
         used={used}
-        totalLoggedThisWeek={totalLoggedThisWeek}
         onClick={() => !isLoading && data && setOpen(true)}
       />
 

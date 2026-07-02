@@ -56,15 +56,20 @@ const WorkItemRow = ({
             <span className="truncate max-w-[180px]">{task.project_name}</span>
           </span>
           <span className="font-mono text-[10.5px] text-[#6f6f6f] flex-shrink-0">{task.key}</span>
-          {isLoudPriority &&
+          {task.priority &&
             (() => {
-              const color = priorityColor(task.priority);
+              // Show every priority; emphasize critical/high with their color +
+              // a flag, mute medium/low to grey so the loud ones still stand out.
+              const color = isLoudPriority ? priorityColor(task.priority) : '#8A8A8A';
+              const bg = isLoudPriority
+                ? `${priorityColor(task.priority)}22`
+                : 'rgba(255,255,255,0.05)';
               return (
                 <span
                   className="inline-flex items-center gap-1 text-[10.5px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0"
-                  style={{ backgroundColor: `${color}22`, color }}
+                  style={{ backgroundColor: bg, color }}
                 >
-                  <Flag className="w-2.5 h-2.5" />
+                  {isLoudPriority && <Flag className="w-2.5 h-2.5" />}
                   {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
                 </span>
               );

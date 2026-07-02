@@ -1,3 +1,4 @@
+import { parseLocalDate } from '@/lib/dateUtils';
 import type { MyTask, PersonalTask } from '../types';
 
 export const priorityColor = (priority: string): string => {
@@ -25,18 +26,24 @@ export const projectDotColor = (projectId: number | null | undefined): string =>
 };
 
 // "Focus" = what needs you first: overdue OR due today, excluding done.
-export const isDueToday = (dueDate: string | null | undefined): boolean => {
-  if (!dueDate) return false;
-  const d = new Date(dueDate);
-  const now = new Date();
+//
+// `today` is passed in (rather than read via `new Date()` here) so these
+// helpers stay pure — callers memoize a single Date per render (react-hooks
+// purity) and the functions become trivially unit-testable. Due dates are
+// parsed with `parseLocalDate`, which pins `YYYY-MM-DD` to LOCAL midnight;
+// using `new Date(dueDate)` here would UTC-parse and mis-bucket "due today"
+// by a day in negative-offset timezones.
+export const isDueToday = (dueDate: string | null | undefined, today: Date): boolean => {
+  const due = parseLocalDate(dueDate);
+  if (!due) return false;
   return (
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate()
+    due.getFullYear() === today.getFullYear() &&
+    due.getMonth() === today.getMonth() &&
+    due.getDate() === today.getDate()
   );
 };
-export const isFocusTask = (task: MyTask): boolean =>
-  task.status !== 'done' && (task.is_overdue || isDueToday(task.due_date));
+export const isFocusTask = (task: MyTask, today: Date): boolean =>
+  task.status !== 'done' && (task.is_overdue || isDueToday(task.due_date, today));
 
 export const sortPersonalTasks = (a: PersonalTask, b: PersonalTask) => {
   if (a.status === 'done' && b.status !== 'done') return 1;

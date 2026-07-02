@@ -114,6 +114,7 @@ const ProjectsBox = ({
         <div className="flex items-center gap-1.5 pb-3 border-b border-[rgba(255,255,255,0.05)]">
           <button
             onClick={() => setFilter('all')}
+            aria-pressed={filter === 'all'}
             className={`text-[11.5px] px-2.5 py-1 rounded-lg border transition-colors ${
               filter === 'all'
                 ? 'font-bold text-white bg-[rgba(255,255,255,0.08)] border-[rgba(255,255,255,0.14)]'
@@ -125,6 +126,8 @@ const ProjectsBox = ({
           <button
             onClick={() => setFilter('fav')}
             title="Favorites"
+            aria-label="Favorites"
+            aria-pressed={filter === 'fav'}
             className={`flex items-center gap-1 text-[11.5px] px-2.5 py-1 rounded-lg border transition-colors ${
               filter === 'fav'
                 ? 'font-bold text-[#E0B954] bg-[rgba(224,185,84,0.12)] border-[rgba(224,185,84,0.35)]'
@@ -144,6 +147,7 @@ const ProjectsBox = ({
               <button
                 className="ml-auto flex items-center gap-1.5 text-[11.5px] px-2.5 py-1 rounded-lg border border-[rgba(255,255,255,0.08)] text-[#a3a3a3] hover:border-[rgba(255,255,255,0.18)] transition-colors"
                 title={`Sort: ${sortLabel}`}
+                aria-label={`Sort: ${sortLabel}`}
               >
                 <ArrowUpDown className="w-3 h-3" />
                 <ChevronDown className="w-3 h-3" />
@@ -161,10 +165,13 @@ const ProjectsBox = ({
                     setSort(o.key);
                     setSortMenuOpen(false);
                   }}
+                  aria-pressed={sort === o.key}
                   className="flex items-center w-full px-2.5 py-1.5 rounded-md text-[12.5px] text-[#e4e4e4] hover:bg-[rgba(255,255,255,0.06)] text-left"
                 >
                   {o.label}
-                  {sort === o.key && <Check className="w-3.5 h-3.5 ml-auto text-[#E0B954]" />}
+                  {sort === o.key && (
+                    <Check className="w-3.5 h-3.5 ml-auto text-[#E0B954]" aria-hidden="true" />
+                  )}
                 </button>
               ))}
             </PopoverContent>

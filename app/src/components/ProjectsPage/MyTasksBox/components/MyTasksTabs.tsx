@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { MyTask, PersonalTask } from '../../types';
 import { isFocusTask, type MyTaskTab } from '../lib';
 
@@ -17,10 +18,11 @@ const TAB_LABELS: Record<MyTaskTab, string> = {
 };
 
 const MyTasksTabs = ({ myTasks, personalTasks, myTaskTab, onTabChange }: MyTasksTabsProps) => {
+  const today = useMemo(() => new Date(), []);
   const countFor = (tab: MyTaskTab): number => {
     switch (tab) {
       case 'focus':
-        return myTasks.filter(isFocusTask).length;
+        return myTasks.filter((t) => isFocusTask(t, today)).length;
       case 'upcoming':
         return myTasks.filter((t) => t.status !== 'done' && !t.is_overdue).length;
       case 'overdue':

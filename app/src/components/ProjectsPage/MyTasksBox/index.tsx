@@ -1,5 +1,5 @@
 import { CheckCircle2 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '@/contexts/AuthContext';
 import type { MyTask, PersonalTask } from '../types';
@@ -72,10 +72,13 @@ const MyTasksBox = ({
     return fields.some((f) => (f ?? '').toLowerCase().includes(normalizedSearch));
   };
 
+  // One Date per render for the Focus predicate — keeps isFocusTask pure
+  // (react-hooks/purity) and consistent across all rows this pass.
+  const today = useMemo(() => new Date(), []);
   const filteredMyTasks = myTasks.filter((t) => {
     const inTab =
       myTaskTab === 'focus'
-        ? isFocusTask(t)
+        ? isFocusTask(t, today)
         : myTaskTab === 'upcoming'
           ? t.status !== 'done' && !t.is_overdue
           : myTaskTab === 'overdue'

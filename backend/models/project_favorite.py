@@ -2,7 +2,13 @@
 
 A user↔project many-to-many so each user's favorites are private. Created by
 ``Base.metadata.create_all`` on startup (no ALTER needed — it's a brand-new
-table). Rows are removed by ON DELETE CASCADE when either side is deleted.
+table).
+
+The FKs declare ON DELETE CASCADE, but note it only fires where the database
+enforces foreign keys: Postgres (prod) does; SQLite (local/dev) does NOT unless
+``PRAGMA foreign_keys=ON`` is set per-connection, which this app does not set.
+So on local SQLite, deleting a user or project can leave orphaned favorite
+rows — harmless (they're filtered by the join on read) but not auto-cleaned.
 """
 
 import sys

@@ -1,5 +1,5 @@
 import { Calendar, AlertCircle, CheckCircle2 } from 'lucide-react';
-import type { ComponentType } from 'react';
+import { useMemo, type ComponentType } from 'react';
 import MyCapacityCard from './MyCapacityCard';
 import type { MyTask } from './types';
 
@@ -48,21 +48,25 @@ const StatCard = ({ icon: Icon, value, label, color, iconBg, loading, onClick }:
 );
 
 const DashboardStats = ({ myTasks, myTasksLoading, onTabChange }: DashboardStatsProps) => {
-  const now = new Date();
-  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfWeek = new Date(todayMidnight);
-  endOfWeek.setDate(todayMidnight.getDate() + (6 - todayMidnight.getDay() + 1));
-
-  const upcoming = myTasks.filter((t) => t.status !== 'done' && !t.is_overdue).length;
-  const overdue = myTasks.filter((t) => t.is_overdue).length;
-
-  const weekStart = new Date(todayMidnight);
-  weekStart.setDate(todayMidnight.getDate() - todayMidnight.getDay());
-  const completedThisWeek = myTasks.filter((t) => {
-    if (t.status !== 'done' || !t.completed_at) return false;
-    const d = new Date(t.completed_at);
-    return d >= weekStart && d < endOfWeek;
-  }).length;
+  // `new Date()` is impure, so the week-bounds math is memoized per myTasks
+  // change (react-hooks/purity) — mirrors ProjectsPage's greeting memo.
+  const { upcoming, overdue, completedThisWeek } = useMemo(() => {
+    const now = new Date();
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfWeek = new Date(todayMidnight);
+    endOfWeek.setDate(todayMidnight.getDate() + (6 - todayMidnight.getDay() + 1));
+    const weekStart = new Date(todayMidnight);
+    weekStart.setDate(todayMidnight.getDate() - todayMidnight.getDay());
+    return {
+      upcoming: myTasks.filter((t) => t.status !== 'done' && !t.is_overdue).length,
+      overdue: myTasks.filter((t) => t.is_overdue).length,
+      completedThisWeek: myTasks.filter((t) => {
+        if (t.status !== 'done' || !t.completed_at) return false;
+        const d = new Date(t.completed_at);
+        return d >= weekStart && d < endOfWeek;
+      }).length,
+    };
+  }, [myTasks]);
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-5">
