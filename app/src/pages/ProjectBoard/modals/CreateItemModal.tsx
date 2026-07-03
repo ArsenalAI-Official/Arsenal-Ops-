@@ -88,6 +88,10 @@ const CreateItemModal = ({
   });
   const [tagInput, setTagInput] = useState('');
   const [showCalendarCreateForm, setShowCalendarCreateForm] = useState(false);
+  // Inline validation for the required Title. The submit button stays enabled
+  // (so a click always gives feedback); an empty-title submit sets this, which
+  // drives the field's red border + aria-invalid + helper text (audit #21).
+  const [titleError, setTitleError] = useState(false);
 
   // Depth-1 cap: an item that already has a parent cannot itself be picked
   // as a parent — that would create a depth-2 chain.
@@ -104,6 +108,7 @@ const CreateItemModal = ({
 
   const handleCreateItem = () => {
     if (!createForm.title.trim()) {
+      setTitleError(true);
       toast.error('Title is required');
       return;
     }
@@ -114,7 +119,7 @@ const CreateItemModal = ({
     <Modal
       open
       onClose={onClose}
-      maxWidthClass="max-w-lg"
+      maxWidthClass="max-w-2xl"
       panelClassName="flex flex-col max-h-[90vh]"
     >
       <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)] flex-shrink-0">
@@ -164,10 +169,19 @@ const CreateItemModal = ({
           <label className="text-xs font-medium text-[#737373] block mb-1.5">Title *</label>
           <Input
             value={createForm.title}
-            onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))}
+            onChange={(e) => {
+              setCreateForm((f) => ({ ...f, title: e.target.value }));
+              if (titleError) setTitleError(false);
+            }}
+            aria-invalid={titleError}
             placeholder="Enter a concise title..."
-            className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10 placeholder:text-[#334155]"
+            className={`bg-[rgba(255,255,255,0.025)] text-[#F4F6FF] rounded-xl h-10 placeholder:text-[#334155] ${
+              titleError
+                ? 'border-[#EF4444] focus-visible:border-[#EF4444]'
+                : 'border-[rgba(255,255,255,0.07)]'
+            }`}
           />
+          {titleError && <p className="text-xs text-[#EF4444] mt-1.5">Title is required</p>}
         </div>
         <div>
           <label className="text-xs font-medium text-[#737373] block mb-1.5">Description</label>
@@ -175,12 +189,16 @@ const CreateItemModal = ({
             value={createForm.description}
             onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
             placeholder="Describe the requirements..."
-            className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl min-h-[100px] placeholder:text-[#334155] resize-none whitespace-pre-wrap"
+            className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl min-h-[80px] placeholder:text-[#334155] resize-none whitespace-pre-wrap"
           />
         </div>
         <div
           className={
-            createForm.type === 'task' ? 'grid grid-cols-2 gap-3' : 'grid grid-cols-3 gap-3'
+            // Points only shows for user_story/bug — so task and epic (which
+            // both hide it) use 2 columns, the rest use 3.
+            createForm.type === 'task' || createForm.type === 'epic'
+              ? 'grid grid-cols-2 gap-3'
+              : 'grid grid-cols-3 gap-3'
           }
         >
           <div>
@@ -196,7 +214,7 @@ const CreateItemModal = ({
               <option value="low">Low</option>
             </select>
           </div>
-          {createForm.type !== 'task' && (
+          {createForm.type !== 'task' && createForm.type !== 'epic' && (
             <div>
               <label className="text-xs font-medium text-[#737373] block mb-1.5">Points</label>
               <Input
@@ -452,9 +470,8 @@ const CreateItemModal = ({
         </Button>
         <Button
           onClick={handleCreateItem}
-          disabled={!createForm.title.trim() || isCreatingItem}
+          disabled={isCreatingItem}
           className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-xl px-6 font-medium shadow-lg shadow-[#E0B954]/20 disabled:opacity-50"
-          title={!createForm.title.trim() ? 'Title is required' : ''}
         >
           {isCreatingItem ? (
             <>
@@ -463,7 +480,8 @@ const CreateItemModal = ({
             </>
           ) : (
             <>
-              <Plus className="w-4 h-4 mr-2" /> Create Item
+              <Plus className="w-4 h-4 mr-2" />{' '}
+              {createForm.type === 'epic' ? 'Create Epic' : 'Create Item'}
             </>
           )}
         </Button>
