@@ -1,4 +1,4 @@
-import { Save } from 'lucide-react';
+import { Check, Save } from 'lucide-react';
 import React, { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { PulseData, PulseMilestone } from '../pulseData';
@@ -181,14 +181,28 @@ const PulseSettingsView: React.FC<PulseSettingsViewProps> = ({
             {updatedBy ? ` by ${updatedBy.name}` : ''} · {formatRelative(updatedAt, now)}
           </p>
         )}
-        <Button
-          onClick={handleSave}
-          disabled={!isDirty || isSaving}
-          className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] text-[#080808] font-semibold disabled:opacity-50 shadow-xl"
-        >
-          <Save className="w-4 h-4 mr-2" />
-          {isSaving ? 'Saving…' : isDirty ? 'Save changes' : 'Saved'}
-        </Button>
+        {/* When there's nothing to save, this is passive status — muted text +
+         *  check, not a button — so it doesn't read as a clickable action
+         *  (audit #16). The actionable gold button only appears while dirty or
+         *  mid-save. */}
+        {isDirty || isSaving ? (
+          <Button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] text-[#080808] font-semibold disabled:opacity-50 shadow-xl"
+          >
+            <Save className="w-4 h-4 mr-2" />
+            {isSaving ? 'Saving…' : 'Save changes'}
+          </Button>
+        ) : (
+          <span
+            role="status"
+            className="inline-flex items-center gap-1.5 text-xs text-[#737373] px-1"
+          >
+            <Check className="w-4 h-4 text-[#40BE86]" />
+            Saved
+          </span>
+        )}
       </div>
     </div>
   );
