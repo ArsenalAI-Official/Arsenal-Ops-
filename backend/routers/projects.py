@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import func, insert, select
 from sqlalchemy.engine import CursorResult
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -570,7 +571,24 @@ def create_project(
     )
 
     db.add(new_project)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # A concurrent create claimed this prefix between the _prefix_in_use
+        # check and this commit (the uq_projects_key_prefix constraint fired).
+        # Keeps the invariant intact and returns a clean 400 / retry instead of
+        # a raw 500 — mirrors the IntegrityError handling in add_favorite.
+        db.rollback()
+        if project.key_prefix and normalize_prefix(project.key_prefix):
+            # Explicit prefix — surface the conflict rather than silently changing it.
+            raise HTTPException(
+                status_code=400,
+                detail=f"Key prefix '{key_prefix}' is already in use by another project",
+            ) from None
+        # Auto-derived — pick a fresh unique prefix and retry the insert once.
+        new_project.key_prefix = _generate_unique_prefix(db, project.name)
+        db.add(new_project)
+        db.commit()
     db.refresh(new_project)
 
     # Add creator as a project member with project admin role
@@ -795,7 +813,17 @@ def update_project(
             project.category_id = update.category_id
 
     project.updated_at = datetime.utcnow()
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # The only uniqueness constraint on projects is key_prefix — a
+        # concurrent write claimed the new prefix between the _prefix_in_use
+        # check and this commit. Return a clean 400 instead of a raw 500.
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="Key prefix is already in use by another project",
+        ) from None
     db.refresh(project)
 
     result = format_project(project, db)

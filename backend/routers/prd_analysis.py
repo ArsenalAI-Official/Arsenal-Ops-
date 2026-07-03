@@ -10,7 +10,7 @@ from datetime import date, datetime
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 sys.path.append("..")
@@ -640,24 +640,22 @@ async def commit_architecture(
 
     # Create work items in database
     created_tickets = []
-    # Get the key prefix from project, or generate from project name
-    key_prefix = getattr(project, "key_prefix", None) or (
-        project.name[:4].upper() if project.name else "PROJ"
-    )
-    # Find max existing number for this prefix across ALL projects
-    existing_keys = db.query(WorkItem.key).filter(WorkItem.key.like(f"{key_prefix}-%")).all()
-    max_number = 0
-    for (k,) in existing_keys:
-        try:
-            num = int(k.split("-")[-1])
-            if num > max_number:
-                max_number = num
-        except (ValueError, IndexError):
-            pass
+    # key_prefix is guaranteed populated + unique per project by create_project
+    # (audit #25), so numbering is naturally scoped to this project. Number via
+    # the shared get_next_item_number under the same pg advisory lock as
+    # create_work_item so concurrent inserts on this prefix can't collide —
+    # rather than re-implementing the MAX-scan without a lock.
+    from routers.workitems import get_next_item_number
 
-    for idx, ticket_data in enumerate(ticket_result.get("tickets", [])):
-        # Get next item number
-        item_number = max_number + idx + 1
+    key_prefix = project.key_prefix or "PROJ"
+
+    for ticket_data in ticket_result.get("tickets", []):
+        # Serialize numbering for this prefix (no-op on SQLite). The xact-scoped
+        # lock is released when this ticket's insert commits below.
+        if db.bind is not None and db.bind.dialect.name == "postgresql":
+            lock_id = abs(hash(key_prefix)) % 2_147_483_647
+            db.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": lock_id})
+        item_number = get_next_item_number(db, key_prefix)
         key = f"{key_prefix}-{item_number}"
 
         # Determine sprint_id

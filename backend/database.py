@@ -368,8 +368,17 @@ def run_migrations():
         #      it stays collision-free within the project).
         #   4. Repairs `status` values clobbered with a non-enum string.
         #   5. Adds a UNIQUE index so the invariant holds going forward.
-        # Guarded on the unique index existing, so it runs exactly once.
+        # Guarded on the unique index existing, so it runs exactly once. The
+        # whole block is a SINGLE transaction (one commit at the end): the
+        # UPDATEs and the CREATE UNIQUE INDEX succeed or roll back together, so
+        # there is never a committed-but-unindexed state that would re-run the
+        # full sweep on every boot. A xact-scoped advisory lock serializes
+        # concurrently-booting Gunicorn workers, and we double-check the index
+        # inside the lock (a peer worker may have just finished).
         try:
+            if conn.dialect.name == "postgresql":
+                # Arbitrary constant namespacing this one migration's lock.
+                conn.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": 840251001})
             idx = conn.execute(
                 text("""
                 SELECT 1 FROM pg_indexes
@@ -434,11 +443,14 @@ def run_migrations():
                         """),
                             {"kp": new_kp, "pid": r.id},
                         )
-                conn.commit()
 
                 conn.execute(
                     text("CREATE UNIQUE INDEX uq_projects_key_prefix ON projects(key_prefix)")
                 )
+                # Single atomic commit for the UPDATEs + the index (and it
+                # releases the advisory lock). If CREATE INDEX had failed, the
+                # except below rolls the UPDATEs back too, so the next boot
+                # retries from clean data instead of looping on committed rows.
                 conn.commit()
                 print(
                     f"[MIGRATION] key_prefix backfill complete "
