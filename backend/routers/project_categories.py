@@ -21,6 +21,7 @@ sys.path.append("..")
 from database import get_db
 from models.project import Project
 from models.project_category import ProjectCategory
+from routers._common import get_or_404
 from routers.auth import require_capability
 
 router = APIRouter(prefix="/api/admin/project-categories", tags=["Project Categories"])
@@ -93,9 +94,7 @@ def update_category(
     db: Session = Depends(get_db),
 ) -> dict:
     """Update a category. Name uniqueness checked against the other rows."""
-    category = db.query(ProjectCategory).filter(ProjectCategory.id == category_id).first()
-    if not category:
-        raise HTTPException(status_code=404, detail="Category not found")
+    category = get_or_404(db, ProjectCategory, category_id, detail="Category not found")
 
     if payload.name is not None:
         new_name = payload.name.strip()
@@ -133,9 +132,7 @@ def delete_category(category_id: int, db: Session = Depends(get_db)) -> None:
     """Delete a category. Projects pointing at it are auto-unassigned via the
     ``ON DELETE SET NULL`` FK constraint — no application-level cleanup needed.
     """
-    category = db.query(ProjectCategory).filter(ProjectCategory.id == category_id).first()
-    if not category:
-        raise HTTPException(status_code=404, detail="Category not found")
+    category = get_or_404(db, ProjectCategory, category_id, detail="Category not found")
     db.delete(category)
     db.commit()
     return None

@@ -18,6 +18,7 @@ from models.project import Project
 from models.sprint import Sprint, SprintStatus
 from models.user import User
 from models.work_item import WorkItem, WorkItemStatus, WorkItemType
+from routers._common import get_or_404
 from routers.auth import get_current_user, require_capability
 from services.activity import log_activity
 from services.email_service import email_service
@@ -825,9 +826,7 @@ def create_work_item(
 ):
     """Create a new work item (requires `project.tracker_write`)."""
     # Get project for key prefix
-    project = db.query(Project).filter(Project.id == item.project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_or_404(db, Project, item.project_id, detail="Project not found")
 
     validate_hierarchy(
         db,
@@ -978,9 +977,7 @@ def update_work_item(
     current_user: User = Depends(require_capability("project.tracker_write")),
 ):
     """Update an existing work item (requires auth)"""
-    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Work item not found")
+    item = get_or_404(db, WorkItem, item_id, detail="Work item not found")
 
     # Track old assignee before update for transfer comment
     old_assignee_id = item.assignee_id
@@ -1482,9 +1479,7 @@ def delete_work_item(
     current_user: User = Depends(require_capability("project.tracker_write")),
 ):
     """Delete a work item (requires `project.tracker_write`)."""
-    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Work item not found")
+    item = get_or_404(db, WorkItem, item_id, detail="Work item not found")
 
     # Stash linkage fields before deletion so we know what to recompute
     epic_id = item.epic_id
@@ -1546,9 +1541,7 @@ def unblock_work_item(
     """
     from models.comment import Comment
 
-    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Work item not found")
+    item = get_or_404(db, WorkItem, item_id, detail="Work item not found")
 
     resolved_count = (
         db.query(Comment)
@@ -1602,9 +1595,7 @@ def log_hours(
     from models.developer import Developer
     from models.time_entry import TimeEntry
 
-    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Work item not found")
+    item = get_or_404(db, WorkItem, item_id, detail="Work item not found")
 
     # Done tickets are frozen — re-open before logging more hours.
     if item.status == WorkItemStatus.DONE.value:
@@ -1644,11 +1635,12 @@ def log_hours(
 
     if request.developer_id:
         # Use explicitly specified developer (e.g., logging hours for someone else)
-        developer = db.query(Developer).filter(Developer.id == request.developer_id).first()
-        if not developer:
-            raise HTTPException(
-                status_code=404, detail=f"Developer with id {request.developer_id} not found"
-            )
+        developer = get_or_404(
+            db,
+            Developer,
+            request.developer_id,
+            detail=f"Developer with id {request.developer_id} not found",
+        )
     elif item.assignee_id:
         # Default: attribute to the TICKET ASSIGNEE (the person assigned to the ticket)
         # This ensures hours are credited to the person doing the work, not the person clicking the button
@@ -1756,9 +1748,7 @@ def get_work_item_time_entries(
     from models.time_entry import TimeEntry
 
     # Verify work item exists
-    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Work item not found")
+    item = get_or_404(db, WorkItem, item_id, detail="Work item not found")
 
     # Get all time entries for this work item
     time_entries = db.query(TimeEntry).filter(TimeEntry.work_item_id == item_id).all()
@@ -1970,9 +1960,7 @@ def create_sprint(
 ):
     """Create a new sprint (requires `project.tracker_write`)."""
     # Verify project exists
-    project = db.query(Project).filter(Project.id == sprint.project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    get_or_404(db, Project, sprint.project_id, detail="Project not found")
 
     new_sprint = Sprint(
         project_id=sprint.project_id,
@@ -2010,9 +1998,7 @@ def get_sprint(
     sprint_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get a specific sprint with its work items (requires auth)"""
-    sprint = db.query(Sprint).filter(Sprint.id == sprint_id).first()
-    if not sprint:
-        raise HTTPException(status_code=404, detail="Sprint not found")
+    sprint = get_or_404(db, Sprint, sprint_id, detail="Sprint not found")
     return sprint
 
 
@@ -2021,9 +2007,7 @@ def activate_sprint(
     sprint_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Activate a sprint (requires auth)"""
-    sprint = db.query(Sprint).filter(Sprint.id == sprint_id).first()
-    if not sprint:
-        raise HTTPException(status_code=404, detail="Sprint not found")
+    sprint = get_or_404(db, Sprint, sprint_id, detail="Sprint not found")
 
     sprint.status = SprintStatus.ACTIVE.value
     sprint.activated_at = datetime.utcnow()
@@ -2037,9 +2021,7 @@ def complete_sprint(
     sprint_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Complete a sprint (requires auth)"""
-    sprint = db.query(Sprint).filter(Sprint.id == sprint_id).first()
-    if not sprint:
-        raise HTTPException(status_code=404, detail="Sprint not found")
+    sprint = get_or_404(db, Sprint, sprint_id, detail="Sprint not found")
 
     sprint.status = SprintStatus.COMPLETED.value
     sprint.completed_at = datetime.utcnow()
@@ -2074,9 +2056,7 @@ async def update_sprint(
     current_user: User = Depends(get_current_user),
 ):
     """Update sprint fields (requires auth)"""
-    sprint = db.query(Sprint).filter(Sprint.id == sprint_id).first()
-    if not sprint:
-        raise HTTPException(status_code=404, detail="Sprint not found")
+    sprint = get_or_404(db, Sprint, sprint_id, detail="Sprint not found")
 
     if data.name is not None:
         sprint.name = data.name
@@ -2100,9 +2080,7 @@ async def delete_sprint(
     sprint_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Delete a sprint; work items are unassigned (sprint_id → NULL) (requires auth)"""
-    sprint = db.query(Sprint).filter(Sprint.id == sprint_id).first()
-    if not sprint:
-        raise HTTPException(status_code=404, detail="Sprint not found")
+    sprint = get_or_404(db, Sprint, sprint_id, detail="Sprint not found")
 
     db.delete(sprint)
     db.commit()
@@ -2121,9 +2099,7 @@ def move_ticket_to_sprint(
     current_user: User = Depends(get_current_user),
 ):
     """Move a ticket to a different sprint or to backlog (requires auth)"""
-    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Work item not found")
+    item = get_or_404(db, WorkItem, item_id, detail="Work item not found")
 
     # Done tickets are frozen — re-open before re-assigning to another sprint.
     if item.status == WorkItemStatus.DONE.value:
@@ -2138,15 +2114,13 @@ def move_ticket_to_sprint(
         item.status = WorkItemStatus.BACKLOG.value
     else:
         # Verify sprint exists and belongs to same project
-        sprint = (
-            db.query(Sprint)
-            .filter(Sprint.id == request.target_sprint_id, Sprint.project_id == item.project_id)
-            .first()
+        get_or_404(
+            db,
+            Sprint,
+            request.target_sprint_id,
+            detail="Sprint not found or doesn't belong to this project",
+            project_id=item.project_id,
         )
-        if not sprint:
-            raise HTTPException(
-                status_code=404, detail="Sprint not found or doesn't belong to this project"
-            )
 
         item.sprint_id = request.target_sprint_id
         # If item was in backlog, move to todo
@@ -2377,9 +2351,7 @@ def get_project_analytics(
 ):
     """Get project analytics for charts and graphs (requires auth)"""
     # Verify project exists
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    get_or_404(db, Project, project_id, detail="Project not found")
 
     # Get all work items for the project. Eager-load assignee so the
     # team-performance loop below (item.assignee.name) doesn't lazy-load a
@@ -2996,9 +2968,7 @@ def get_item_dependencies(
     """Get all dependencies for a work item"""
     from models.task_dependency import TaskDependency
 
-    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Work item not found")
+    get_or_404(db, WorkItem, item_id, detail="Work item not found")
 
     dependencies = (
         db.query(TaskDependency)
@@ -3021,9 +2991,7 @@ def add_item_dependency(
     """Add a dependency to a work item"""
     from models.task_dependency import TaskDependency
 
-    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Work item not found")
+    item = get_or_404(db, WorkItem, item_id, detail="Work item not found")
 
     # Done tickets are frozen — re-open before changing their dependency graph.
     if item.status == WorkItemStatus.DONE.value:
@@ -3032,9 +3000,9 @@ def add_item_dependency(
             detail="This ticket is marked done. Re-open it before adding dependencies.",
         )
 
-    depends_on = db.query(WorkItem).filter(WorkItem.id == dependency.depends_on_id).first()
-    if not depends_on:
-        raise HTTPException(status_code=404, detail="Dependent work item not found")
+    depends_on = get_or_404(
+        db, WorkItem, dependency.depends_on_id, detail="Dependent work item not found"
+    )
 
     # Check for circular dependency
     if item_id == dependency.depends_on_id:
@@ -3086,14 +3054,9 @@ def remove_item_dependency(
     """Remove a dependency from a work item"""
     from models.task_dependency import TaskDependency
 
-    dependency = (
-        db.query(TaskDependency)
-        .filter(TaskDependency.id == dep_id, TaskDependency.work_item_id == item_id)
-        .first()
+    dependency = get_or_404(
+        db, TaskDependency, dep_id, detail="Dependency not found", work_item_id=item_id
     )
-
-    if not dependency:
-        raise HTTPException(status_code=404, detail="Dependency not found")
 
     item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
 
@@ -3137,9 +3100,7 @@ def debug_hours_calculation(
     from models.time_entry import TimeEntry
 
     # Verify project exists
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_or_404(db, Project, project_id, detail="Project not found")
 
     # Get all work items
     items = db.query(WorkItem).filter(WorkItem.project_id == project_id).all()

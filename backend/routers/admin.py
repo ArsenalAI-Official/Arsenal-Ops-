@@ -13,6 +13,7 @@ from database import get_db
 from models.developer import Developer
 from models.project import Project
 from models.work_item import WorkItem
+from routers._common import get_or_404
 from routers.auth import require_capability
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -343,9 +344,7 @@ def get_employee_in_progress_tickets(employee_id: int, db: Session = Depends(get
     from sqlalchemy import case
 
     # Verify employee exists
-    employee = db.query(Developer).filter(Developer.id == employee_id).first()
-    if not employee:
-        raise HTTPException(status_code=404, detail="Employee not found")
+    employee = get_or_404(db, Developer, employee_id, detail="Employee not found")
 
     # Priority order: critical > high > medium > low
     priority_order = case(
@@ -463,9 +462,7 @@ def create_employee(employee: EmployeeCreate, db: Session = Depends(get_db)):
 )
 def update_employee(employee_id: int, update: EmployeeUpdate, db: Session = Depends(get_db)):
     """Update an employee/developer"""
-    employee = db.query(Developer).filter(Developer.id == employee_id).first()
-    if not employee:
-        raise HTTPException(status_code=404, detail="Employee not found")
+    employee = get_or_404(db, Developer, employee_id, detail="Employee not found")
 
     if update.name:
         employee.name = update.name
@@ -521,9 +518,7 @@ def delete_employee(employee_id: int, db: Session = Depends(get_db)):
     """Delete an employee/developer and their user account"""
     from models.user import User
 
-    employee = db.query(Developer).filter(Developer.id == employee_id).first()
-    if not employee:
-        raise HTTPException(status_code=404, detail="Employee not found")
+    employee = get_or_404(db, Developer, employee_id, detail="Employee not found")
 
     # Unassign from work items
     db.query(WorkItem).filter(WorkItem.assignee_id == employee_id).update({"assignee_id": None})
@@ -813,9 +808,7 @@ def project_weekly_tickets(project_id: int, db: Session = Depends(get_db)):
     """
     from services.capacity_service import week_boundaries
 
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    get_or_404(db, Project, project_id, detail="Project not found")
 
     week_start, week_end = week_boundaries()
 
@@ -871,9 +864,7 @@ def update_project_github(
     project_id: int, update: ProjectGitHubUpdate, db: Session = Depends(get_db)
 ):
     """Update project GitHub settings"""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_or_404(db, Project, project_id, detail="Project not found")
 
     if update.github_repo_url is not None:
         project.github_repo_url = update.github_repo_url
@@ -919,16 +910,10 @@ def set_project_category(
     """
     from models.project_category import ProjectCategory
 
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_or_404(db, Project, project_id, detail="Project not found")
 
     if payload.category_id is not None:
-        category = (
-            db.query(ProjectCategory).filter(ProjectCategory.id == payload.category_id).first()
-        )
-        if not category:
-            raise HTTPException(status_code=404, detail="Category not found")
+        get_or_404(db, ProjectCategory, payload.category_id, detail="Category not found")
 
     project.category_id = payload.category_id
     db.commit()

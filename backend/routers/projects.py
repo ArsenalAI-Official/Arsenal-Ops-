@@ -23,6 +23,7 @@ from models.developer import Developer, project_developers
 from models.project import Project
 from models.project_favorite import project_favorites
 from models.user import User
+from routers._common import get_or_404
 from routers.auth import get_current_user, require_capability
 from services.activity import log_activity
 from services.github_service import GitHubService, github_service
@@ -816,9 +817,7 @@ def delete_project(
     capability is held by the `admin` system role (`*`) and any custom role
     that explicitly grants `admin.projects`.
     """
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_or_404(db, Project, project_id, detail="Project not found")
 
     # Delete project (cascade will handle related records)
     db.delete(project)
@@ -838,9 +837,7 @@ def send_github_invitations(
     Uses project-specific GitHub token if configured, otherwise uses global GITHUB_TOKEN.
     (requires auth)
     """
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_or_404(db, Project, project_id, detail="Project not found")
 
     if not project.github_repo_url:
         raise HTTPException(
@@ -906,9 +903,7 @@ def check_github_status(
     project_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Check GitHub integration status for a project (requires auth)"""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_or_404(db, Project, project_id, detail="Project not found")
 
     # Get developers with GitHub usernames
     developers = db.execute(
@@ -948,9 +943,7 @@ def add_developer_to_project(
     """
     require_project_admin(project_id, current_user, db)
 
-    developer = db.query(Developer).filter(Developer.id == assignment.developer_id).first()
-    if not developer:
-        raise HTTPException(status_code=404, detail="Developer not found")
+    developer = get_or_404(db, Developer, assignment.developer_id, detail="Developer not found")
 
     # Check if already assigned
     existing = db.execute(
@@ -1207,9 +1200,7 @@ def update_project_goal(
     """Update a project goal"""
     from models.project_goal import ProjectGoal
 
-    goal = db.query(ProjectGoal).filter(ProjectGoal.id == goal_id).first()
-    if not goal:
-        raise HTTPException(status_code=404, detail="Goal not found")
+    goal = get_or_404(db, ProjectGoal, goal_id, detail="Goal not found")
 
     require_project_access(goal.project_id, current_user, db)
 
@@ -1250,9 +1241,7 @@ def delete_project_goal(
     """Delete a project goal"""
     from models.project_goal import ProjectGoal
 
-    goal = db.query(ProjectGoal).filter(ProjectGoal.id == goal_id).first()
-    if not goal:
-        raise HTTPException(status_code=404, detail="Goal not found")
+    goal = get_or_404(db, ProjectGoal, goal_id, detail="Goal not found")
 
     require_project_access(goal.project_id, current_user, db)
 
@@ -1359,9 +1348,7 @@ def update_project_milestone(
     """Update a project milestone"""
     from models.project_milestone import ProjectMilestone
 
-    milestone = db.query(ProjectMilestone).filter(ProjectMilestone.id == milestone_id).first()
-    if not milestone:
-        raise HTTPException(status_code=404, detail="Milestone not found")
+    milestone = get_or_404(db, ProjectMilestone, milestone_id, detail="Milestone not found")
 
     require_project_access(milestone.project_id, current_user, db)
 
@@ -1380,9 +1367,7 @@ def complete_project_milestone(
     """Mark a milestone as completed"""
     from models.project_milestone import ProjectMilestone
 
-    milestone = db.query(ProjectMilestone).filter(ProjectMilestone.id == milestone_id).first()
-    if not milestone:
-        raise HTTPException(status_code=404, detail="Milestone not found")
+    milestone = get_or_404(db, ProjectMilestone, milestone_id, detail="Milestone not found")
 
     require_project_access(milestone.project_id, current_user, db)
 
@@ -1410,9 +1395,7 @@ def delete_project_milestone(
     """Delete a project milestone"""
     from models.project_milestone import ProjectMilestone
 
-    milestone = db.query(ProjectMilestone).filter(ProjectMilestone.id == milestone_id).first()
-    if not milestone:
-        raise HTTPException(status_code=404, detail="Milestone not found")
+    milestone = get_or_404(db, ProjectMilestone, milestone_id, detail="Milestone not found")
 
     require_project_access(milestone.project_id, current_user, db)
 
@@ -1720,14 +1703,7 @@ def download_project_file(
 
     require_project_access(project_id, current_user, db)
 
-    db_file = (
-        db.query(ProjectFile)
-        .filter(ProjectFile.id == file_id, ProjectFile.project_id == project_id)
-        .first()
-    )
-
-    if not db_file:
-        raise HTTPException(status_code=404, detail="File not found")
+    db_file = get_or_404(db, ProjectFile, file_id, detail="File not found", project_id=project_id)
 
     # Build file path
     upload_dir = "uploads/projects"
@@ -1753,14 +1729,7 @@ def delete_project_file(
     require_project_admin(project_id, current_user, db)
     from models.project_file import ProjectFile
 
-    db_file = (
-        db.query(ProjectFile)
-        .filter(ProjectFile.id == file_id, ProjectFile.project_id == project_id)
-        .first()
-    )
-
-    if not db_file:
-        raise HTTPException(status_code=404, detail="File not found")
+    db_file = get_or_404(db, ProjectFile, file_id, detail="File not found", project_id=project_id)
 
     # Delete physical file
     try:
@@ -1858,14 +1827,7 @@ def delete_project_link(
     require_project_admin(project_id, user, db)
     from models.project_link import ProjectLink
 
-    link = (
-        db.query(ProjectLink)
-        .filter(ProjectLink.id == link_id, ProjectLink.project_id == project_id)
-        .first()
-    )
-
-    if not link:
-        raise HTTPException(status_code=404, detail="Link not found")
+    link = get_or_404(db, ProjectLink, link_id, detail="Link not found", project_id=project_id)
 
     db.delete(link)
     db.commit()

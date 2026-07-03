@@ -21,6 +21,7 @@ from models.sprint import Sprint
 from models.user import User
 from models.work_item import WorkItem, WorkItemType
 from parser import parse as parse_roadmap
+from routers._common import get_or_404
 from routers.auth import require_capability
 from routers.workitems import update_epic_hours
 from services.activity import log_activity
@@ -135,9 +136,7 @@ async def parse_roadmap_file(
     Returns: Summary of epics, tasks, assignees, timeline, conflicts, warnings, and sprints.
     """
     # Verify project exists
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    get_or_404(db, Project, project_id, detail="Project not found")
 
     # Validate sprint_weeks
     if sprint_weeks < 1 or sprint_weeks > 6:
@@ -271,9 +270,7 @@ def commit_roadmap_tickets(
     Handles assignee lookup with fallback to current user.
     """
     # Verify project exists
-    project = db.query(Project).filter(Project.id == request.project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_or_404(db, Project, request.project_id, detail="Project not found")
 
     try:
         # Get current user's developer profile
