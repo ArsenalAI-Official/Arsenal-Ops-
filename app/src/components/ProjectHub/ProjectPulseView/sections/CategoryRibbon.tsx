@@ -1,31 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { PulseData } from '../../pulseData';
-import { CATEGORY_COLORS, fmt$k } from '../lib/format';
-
-const MONTH_ABBR = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
-
-/** Parse a ribbon month label (`"Feb 26"`) to a `year*12 + month` ordinal for
- *  comparison, or null if it doesn't match the `"MMM YY"` shape. */
-const monthOrdinal = (label: string): number | null => {
-  const [mon, yy] = label.split(' ');
-  const mi = mon ? MONTH_ABBR.indexOf(mon) : -1;
-  const year = yy ? Number(yy) : NaN;
-  if (mi < 0 || !Number.isFinite(year)) return null;
-  return (2000 + year) * 12 + mi;
-};
+import { CATEGORY_COLORS, fmt$k, monthOrdinal } from '../lib/format';
 
 /* -------------------------------------------------------------------- */
 /*  CATEGORY RIBBON — used inside SpendingViewCard "timeline" view      */

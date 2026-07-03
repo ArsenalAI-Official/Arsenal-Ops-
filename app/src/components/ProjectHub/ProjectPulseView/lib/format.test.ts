@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fmt$, fmt$k, fmtPct, fmtPulseDate, CATEGORY_COLORS } from './format';
+import { fmt$, fmt$k, fmtPct, fmtPulseDate, monthOrdinal, CATEGORY_COLORS } from './format';
 
 describe('fmt$', () => {
   it('formats with thousands separators and rounds', () => {
@@ -43,6 +43,29 @@ describe('fmtPulseDate', () => {
     expect(fmtPulseDate('')).toBe('');
     expect(fmtPulseDate(null)).toBe('');
     expect(fmtPulseDate(undefined)).toBe('');
+  });
+});
+
+describe('monthOrdinal', () => {
+  it('parses the "MMM YY" fixture label', () => {
+    expect(monthOrdinal('Feb 26')).toBe(2026 * 12 + 1);
+  });
+  it('parses the "Month YYYY" derived label (full month name + 4-digit year)', () => {
+    // Regression: the derive endpoint emits strftime("%B %Y"); the old parser
+    // used indexOf on the full name and a 2000+year offset, so these never
+    // matched the real current date and the TODAY marker snapped to the edge.
+    expect(monthOrdinal('May 2026')).toBe(2026 * 12 + 4);
+    expect(monthOrdinal('June 2026')).toBe(2026 * 12 + 5);
+    expect(monthOrdinal('September 2026')).toBe(2026 * 12 + 8);
+  });
+  it('agrees with a Date-derived ordinal so the marker lines up with today', () => {
+    const d = new Date(2026, 4, 15); // May 2026 — getMonth() is 0-based like MONTH_ABBR
+    expect(monthOrdinal('May 2026')).toBe(d.getFullYear() * 12 + d.getMonth());
+  });
+  it('returns null for unrecognized labels', () => {
+    expect(monthOrdinal('Q1')).toBeNull();
+    expect(monthOrdinal('')).toBeNull();
+    expect(monthOrdinal('Foo 2026')).toBeNull();
   });
 });
 
