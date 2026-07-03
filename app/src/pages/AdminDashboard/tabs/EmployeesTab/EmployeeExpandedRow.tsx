@@ -101,7 +101,10 @@ const EmployeeExpandedRow: React.FC<EmployeeExpandedRowProps> = ({
                         </span>
                         <div className="flex-1 min-w-0">
                           <div className="text-white truncate">{t.title}</div>
-                          <div className="text-[10px] text-[#737373] mt-0.5 flex items-center gap-1.5 flex-wrap">
+                          {/* Fields are self-describing (est/logged/remaining)
+                              and separated by the flex gap — no standalone `·`
+                              spans, which orphan at a flex-wrap line break. */}
+                          <div className="text-[10px] text-[#737373] mt-0.5 flex items-center gap-x-3 gap-y-1 flex-wrap">
                             <span
                               className="px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider"
                               style={{
@@ -113,9 +116,7 @@ const EmployeeExpandedRow: React.FC<EmployeeExpandedRowProps> = ({
                               {t.status.replace('_', ' ')}
                             </span>
                             <span>est {t.estimated_hours}h</span>
-                            <span className="text-[rgba(255,255,255,0.15)]">·</span>
                             <span>logged {t.logged_hours}h</span>
-                            <span className="text-[rgba(255,255,255,0.15)]">·</span>
                             <span>remaining {t.remaining_hours}h</span>
                             {t.counted_basis === 'remaining (transferred)' && (
                               <span className="px-1 py-0.5 rounded bg-[#FBBF24]/15 text-[#FBBF24] text-[9px] font-semibold uppercase tracking-wider">
