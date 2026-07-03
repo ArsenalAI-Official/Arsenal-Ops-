@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import ConvertToTicketDialog from '@/components/ConvertToTicketDialog';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { hasAnyAdminCapability } from '@/lib/adminCaps';
 import { LIST_SORT_PRIORITY_ORDER } from '@/pages/ProjectBoard/lib/listSort';
 import { usePersonalTasksData } from './hooks/usePersonalTasksData';
 import AddTaskDialog from './modals/AddTaskDialog';
-import ConvertToTicketDialog from './modals/ConvertToTicketDialog';
 import EditTaskDialog from './modals/EditTaskDialog';
 import PersonalTasksHeader from './sections/PersonalTasksHeader';
 import PersonalTasksList from './sections/PersonalTasksList';

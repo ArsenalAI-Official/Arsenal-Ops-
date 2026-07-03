@@ -248,7 +248,6 @@ const ProjectsPage = () => {
         projects={projects}
         projectMembers={projectMembers}
         convertProjectId={convertProjectId}
-        setConvertProjectId={setConvertProjectId}
         convertAssigneeId={convertAssigneeId}
         setConvertAssigneeId={setConvertAssigneeId}
         convertEstimatedHours={convertEstimatedHours}
@@ -258,7 +257,7 @@ const ProjectsPage = () => {
           setConvertAssigneeId('');
           setMemberLookupProjectId(projectId || '');
         }}
-        converting={convertingTicket}
+        isConverting={convertingTicket}
         onConvert={convertToTicket}
       />
 
