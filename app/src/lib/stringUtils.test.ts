@@ -1,19 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { toPascalCase, getInitials } from './stringUtils';
+import { formatRoleName, getInitials } from './stringUtils';
 
-describe('toPascalCase', () => {
-  it('converts snake_case to PascalCase', () => {
-    expect(toPascalCase('admin_user')).toBe('AdminUser');
-    expect(toPascalCase('project_members_write')).toBe('ProjectMembersWrite');
+describe('formatRoleName', () => {
+  it('converts snake_case to Title Case with spaces', () => {
+    expect(formatRoleName('project_manager')).toBe('Project Manager');
+    expect(formatRoleName('external_users')).toBe('External Users');
   });
 
-  it('lowercases the tail of each segment', () => {
-    expect(toPascalCase('USER')).toBe('User');
+  it('capitalizes single words', () => {
+    expect(formatRoleName('admin')).toBe('Admin');
+    expect(formatRoleName('developer')).toBe('Developer');
   });
 
-  it('handles single words and empty strings', () => {
-    expect(toPascalCase('admin')).toBe('Admin');
-    expect(toPascalCase('')).toBe('');
+  it('preserves existing casing in the tail (acronyms survive)', () => {
+    expect(formatRoleName('QA')).toBe('QA');
+    expect(formatRoleName('qa_lead')).toBe('Qa Lead');
+  });
+
+  it('handles empty strings', () => {
+    expect(formatRoleName('')).toBe('');
   });
 });
 

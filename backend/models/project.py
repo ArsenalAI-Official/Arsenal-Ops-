@@ -42,9 +42,11 @@ class Project(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(255))
-    key_prefix: Mapped[str] = mapped_column(
-        String(10), default="PROJ", nullable=True
-    )  # Short key for work items (e.g., PROJ-123)
+    # Short key for work items (e.g., ASSE-123). Unique per project so keys are
+    # globally distinct across projects (audit #25). `unique=True` builds the
+    # constraint on fresh DBs (tests/local SQLite); existing Postgres DBs get it
+    # via the backfill migration in database.py, which dedups first.
+    key_prefix: Mapped[str] = mapped_column(String(10), default="PROJ", nullable=True, unique=True)
     description: Mapped[str] = mapped_column(Text)
     vision: Mapped[str | None] = mapped_column(Text)
     target_market: Mapped[str | None] = mapped_column(String(255))

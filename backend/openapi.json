@@ -2612,9 +2612,15 @@
             "title": "Github Repo Urls"
           },
           "key_prefix": {
-            "default": "PROJ",
-            "title": "Key Prefix",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Prefix"
           },
           "name": {
             "title": "Name",
@@ -3087,6 +3093,17 @@
               }
             ],
             "title": "Github Repo Urls"
+          },
+          "key_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Prefix"
           },
           "name": {
             "anyOf": [

@@ -355,6 +355,99 @@ def run_migrations():
         except Exception as e:
             print(f"[MIGRATION ERROR] {e}")
 
+        # Migration: Backfill unique project key_prefixes (audit #25).
+        #
+        # Historically create_project wrote the prefix into the `status` column
+        # and left `key_prefix` at its 'PROJ' default, so every project shared
+        # the PROJ prefix and work-item ids (PROJ-505) weren't unique across
+        # projects. This backfill:
+        #   1. Keeps any existing distinct, non-default prefix.
+        #   2. Derives a unique prefix from the name for every other project.
+        #   3. Re-keys that project's existing work items onto the new prefix
+        #      (PROJ-42 -> ASSE-42; the trailing number was globally unique, so
+        #      it stays collision-free within the project).
+        #   4. Repairs `status` values clobbered with a non-enum string.
+        #   5. Adds a UNIQUE index so the invariant holds going forward.
+        # Guarded on the unique index existing, so it runs exactly once.
+        try:
+            idx = conn.execute(
+                text("""
+                SELECT 1 FROM pg_indexes
+                WHERE tablename = 'projects' AND indexname = 'uq_projects_key_prefix'
+            """)
+            ).fetchone()
+
+            if not idx:
+                from services.project_keys import derive_prefix_base
+
+                print("[MIGRATION] Backfilling unique project key_prefixes...")
+                # Mirrors models.project.ProjectStatus; hardcoded to avoid an
+                # import cycle (models import database.Base).
+                valid_statuses = {
+                    "ideation",
+                    "planning",
+                    "development",
+                    "testing",
+                    "launched",
+                    "archived",
+                }
+                rows = conn.execute(
+                    text("SELECT id, name, key_prefix, status FROM projects ORDER BY id")
+                ).fetchall()
+
+                taken: set[str] = set()
+                keep: dict[int, str] = {}
+                # Pass 1: preserve existing distinct, non-default prefixes.
+                for r in rows:
+                    kp = (r.key_prefix or "").strip().upper()
+                    if kp and kp != "PROJ" and kp not in taken:
+                        keep[r.id] = kp
+                        taken.add(kp)
+                # Pass 2: derive + dedup a prefix for everything else.
+                assign: dict[int, str] = {}
+                for r in rows:
+                    if r.id in keep:
+                        continue
+                    base = derive_prefix_base(r.name)
+                    cand, n = base, 2
+                    while cand in taken:
+                        suffix = str(n)
+                        cand = base[: 10 - len(suffix)] + suffix
+                        n += 1
+                    taken.add(cand)
+                    assign[r.id] = cand
+
+                for r in rows:
+                    new_kp = keep.get(r.id) or assign[r.id]
+                    new_status = r.status if r.status in valid_statuses else "ideation"
+                    conn.execute(
+                        text("UPDATE projects SET key_prefix = :kp, status = :st WHERE id = :id"),
+                        {"kp": new_kp, "st": new_status, "id": r.id},
+                    )
+                    # Only re-key when the prefix actually changed.
+                    if r.id in assign:
+                        conn.execute(
+                            text("""
+                            UPDATE work_items
+                            SET key = :kp || '-' || regexp_replace(key, '^.*-', '')
+                            WHERE project_id = :pid AND key LIKE '%-%'
+                        """),
+                            {"kp": new_kp, "pid": r.id},
+                        )
+                conn.commit()
+
+                conn.execute(
+                    text("CREATE UNIQUE INDEX uq_projects_key_prefix ON projects(key_prefix)")
+                )
+                conn.commit()
+                print(
+                    f"[MIGRATION] key_prefix backfill complete "
+                    f"({len(keep)} kept, {len(assign)} regenerated)."
+                )
+        except Exception as e:
+            print(f"[MIGRATION ERROR] key_prefix backfill: {e}")
+            conn.rollback()
+
         # Migration: Add is_resolved column to comments
         try:
             result = conn.execute(

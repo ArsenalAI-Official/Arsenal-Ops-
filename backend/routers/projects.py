@@ -10,7 +10,7 @@ from typing import cast
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import insert, select
+from sqlalchemy import func, insert, select
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
@@ -23,6 +23,7 @@ from models.project import Project
 from models.user import User
 from routers.auth import get_current_user, require_capability
 from services.github_service import GitHubService, github_service
+from services.project_keys import derive_prefix_base, normalize_prefix
 
 router = APIRouter(prefix="/api/projects", tags=["Projects"])
 
@@ -132,7 +133,12 @@ class DeveloperAssignment(BaseModel):
 class ProjectCreate(BaseModel):
     name: str
     description: str
-    key_prefix: str = "PROJ"
+    # Optional. When omitted/blank the backend derives a unique prefix from the
+    # project name (see `_generate_unique_prefix`). When supplied, it's
+    # normalized and must be unique — a collision 400s rather than being
+    # silently mutated. Persisted to the `key_prefix` column (NOT `status`,
+    # which the old create path incorrectly clobbered — audit #25).
+    key_prefix: str | None = None
     github_repo_url: str | None = None
     github_repo_urls: list[str] | None = None
     developers: list[DeveloperAssignment] | None = []
@@ -145,6 +151,11 @@ class ProjectUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     status: str | None = None
+    # Editable project key prefix. Normalized + uniqueness-checked in the update
+    # handler (a collision 400s). Note: changing the prefix does NOT re-key
+    # existing work items — their stored keys are historical identifiers; only
+    # newly-created items pick up the new prefix.
+    key_prefix: str | None = None
     github_repo_url: str | None = None
     github_repo_urls: list[str] | None = None
     created_at: str | None = None
@@ -411,7 +422,7 @@ def format_projects_batch(projects: list[Project], db: Session) -> list[dict]:
                 "id": project.id,
                 "name": project.name,
                 "description": project.description,
-                "key_prefix": project.status or "PROJ",
+                "key_prefix": project.key_prefix or "PROJ",
                 "status": project.status or "active",
                 "github_repo_url": project.github_repo_url,
                 "github_repo_urls": project.github_repo_urls
@@ -471,6 +482,30 @@ def list_project_categories_lite(
     ]
 
 
+def _prefix_in_use(db: Session, prefix: str, exclude_project_id: int | None = None) -> bool:
+    """True if another project already owns this (case-insensitive) prefix."""
+    q = db.query(Project.id).filter(func.upper(Project.key_prefix) == prefix.upper())
+    if exclude_project_id is not None:
+        q = q.filter(Project.id != exclude_project_id)
+    return db.query(q.exists()).scalar()
+
+
+def _generate_unique_prefix(db: Session, name: str, exclude_project_id: int | None = None) -> str:
+    """Derive a prefix from the name and append a numeric suffix until unique.
+
+    ``"Assembly"`` → ``ASSE``; if taken, ``ASSE2``, ``ASSE3``, … The suffix
+    keeps the whole key within the 10-char column limit.
+    """
+    base = derive_prefix_base(name)
+    candidate = base
+    n = 2
+    while _prefix_in_use(db, candidate, exclude_project_id):
+        suffix = str(n)
+        candidate = base[: 10 - len(suffix)] + suffix
+        n += 1
+    return candidate
+
+
 @router.post("/")
 def create_project(
     project: ProjectCreate,
@@ -510,10 +545,24 @@ def create_project(
                 detail=f"Category {project.category_id} does not exist",
             )
 
+    # Resolve the key prefix. Explicit input is normalized and must be unique;
+    # omitted/blank input auto-derives a unique prefix from the name. Written to
+    # the `key_prefix` column — `status` is left to its model default (the old
+    # code wrote the prefix into `status`, which is what broke #25).
+    if project.key_prefix and normalize_prefix(project.key_prefix):
+        key_prefix = normalize_prefix(project.key_prefix)
+        if _prefix_in_use(db, key_prefix):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Key prefix '{key_prefix}' is already in use by another project",
+            )
+    else:
+        key_prefix = _generate_unique_prefix(db, project.name)
+
     new_project = Project(
         name=project.name,
         description=project.description,
-        status=project.key_prefix.upper().replace(" ", "") if project.key_prefix else "PROJ",
+        key_prefix=key_prefix,
         github_repo_url=github_repo_url,
         github_repo_urls=github_repo_urls,
         github_repo_name=github_repo_name,
@@ -676,6 +725,22 @@ def update_project(
         project.description = update.description
     if update.status is not None:
         project.status = update.status
+
+    # Key prefix — normalize and enforce uniqueness (excluding this project).
+    # Present-but-blank is ignored (can't clear a prefix to empty); a collision
+    # 400s rather than corrupting another project's numbering namespace.
+    if "key_prefix" in update.model_fields_set and update.key_prefix is not None:
+        normalized = normalize_prefix(update.key_prefix)
+        if not normalized:
+            raise HTTPException(
+                status_code=400, detail="Key prefix must contain at least one letter or digit"
+            )
+        if _prefix_in_use(db, normalized, exclude_project_id=project_id):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Key prefix '{normalized}' is already in use by another project",
+            )
+        project.key_prefix = normalized
 
     # Handle github_repo_url update
     if update.github_repo_url is not None:
