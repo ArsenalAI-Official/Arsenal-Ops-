@@ -1669,8 +1669,6 @@ async def upload_project_file(
     require_project_admin(project_id, current_user, db)
     from models.project_file import ProjectFile
 
-    require_project_access(project_id, current_user, db)
-
     # Create uploads directory if it doesn't exist
     upload_dir = "uploads/projects"
     os.makedirs(upload_dir, exist_ok=True)
@@ -1769,8 +1767,6 @@ def delete_project_file(
     require_project_admin(project_id, current_user, db)
     from models.project_file import ProjectFile
 
-    require_project_access(project_id, current_user, db)
-
     db_file = (
         db.query(ProjectFile)
         .filter(ProjectFile.id == file_id, ProjectFile.project_id == project_id)
@@ -1851,8 +1847,6 @@ def create_project_link(
     require_project_admin(project_id, user, db)
     from models.project_link import ProjectLink
 
-    require_project_access(project_id, user, db)
-
     new_link = ProjectLink(project_id=project_id, name=link_data.name, url=link_data.url)
 
     db.add(new_link)
@@ -1877,8 +1871,6 @@ def delete_project_link(
     """Delete a link from a project. Gated like other Overview writes."""
     require_project_admin(project_id, user, db)
     from models.project_link import ProjectLink
-
-    require_project_access(project_id, user, db)
 
     link = (
         db.query(ProjectLink)
