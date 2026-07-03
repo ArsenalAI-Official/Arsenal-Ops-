@@ -92,6 +92,45 @@ export const PRIORITY_STYLE: Record<string, PriorityStyle> = {
   },
 };
 
+/**
+ * `<select>` option lists for the work-item edit / create forms. Centralized
+ * so the Type/Priority/Status dropdowns can't drift across the three forms
+ * (simplify-audit DD-F3 / §1.4). Each entry is `{ value, label }`.
+ *
+ * Type DIVERGES on purpose and keeps two sets:
+ *   - EDIT forms offer `epic` and label story "Story".
+ *   - the CREATE modal omits `epic` (epics are created via a dedicated menu
+ *     item) and labels story "User Story".
+ * Do NOT unify these — the value list and the user-visible label genuinely
+ * differ. Priority and Status are identical everywhere they appear.
+ */
+export const TYPE_OPTIONS_EDIT = [
+  { value: 'user_story', label: 'Story' },
+  { value: 'task', label: 'Task' },
+  { value: 'bug', label: 'Bug' },
+  { value: 'epic', label: 'Epic' },
+] as const;
+
+export const TYPE_OPTIONS_CREATE = [
+  { value: 'user_story', label: 'User Story' },
+  { value: 'task', label: 'Task' },
+  { value: 'bug', label: 'Bug' },
+] as const;
+
+export const PRIORITY_OPTIONS = [
+  { value: 'critical', label: 'Critical' },
+  { value: 'high', label: 'High' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'low', label: 'Low' },
+] as const;
+
+export const STATUS_OPTIONS = [
+  { value: 'todo', label: 'To Do' },
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'in_review', label: 'In Review' },
+  { value: 'done', label: 'Done' },
+] as const;
+
 export type StatusKey = keyof typeof STATUS_CONFIG;
 
 /** Status → display color, falling back to the backlog grey for unknowns. */

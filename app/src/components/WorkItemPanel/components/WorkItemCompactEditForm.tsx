@@ -7,8 +7,10 @@ import { Input } from '@/components/ui/input';
 import { NumberInput } from '@/components/ui/number-input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
+import { PRIORITY_OPTIONS, STATUS_OPTIONS, TYPE_OPTIONS_EDIT } from '@/lib/workItemConfig';
 import { CALENDAR_CLASS_NAMES } from '../constants';
 import type { WorkItem } from '../types';
+import { WorkItemSelectField } from './WorkItemSelectField';
 
 export interface WorkItemCompactEditFormProps {
   item: WorkItem;
@@ -51,34 +53,20 @@ export const WorkItemCompactEditForm = ({
       />
     </div>
     <div className="grid grid-cols-2 gap-3">
-      <div>
-        <label className="text-xs font-medium text-[#737373] block mb-1.5">Type</label>
-        <select
-          value={editForm.type ?? item.type}
-          onChange={(e) => setEditForm({ ...editForm, type: e.target.value as WorkItem['type'] })}
-          className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
-        >
-          <option value="user_story">Story</option>
-          <option value="task">Task</option>
-          <option value="bug">Bug</option>
-          <option value="epic">Epic</option>
-        </select>
-      </div>
-      <div>
-        <label className="text-xs font-medium text-[#737373] block mb-1.5">Priority</label>
-        <select
-          value={editForm.priority ?? item.priority}
-          onChange={(e) =>
-            setEditForm({ ...editForm, priority: e.target.value as WorkItem['priority'] })
-          }
-          className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
-        >
-          <option value="critical">Critical</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </select>
-      </div>
+      <WorkItemSelectField
+        label="Type"
+        value={editForm.type ?? item.type}
+        onChange={(e) => setEditForm({ ...editForm, type: e.target.value as WorkItem['type'] })}
+        options={TYPE_OPTIONS_EDIT}
+      />
+      <WorkItemSelectField
+        label="Priority"
+        value={editForm.priority ?? item.priority}
+        onChange={(e) =>
+          setEditForm({ ...editForm, priority: e.target.value as WorkItem['priority'] })
+        }
+        options={PRIORITY_OPTIONS}
+      />
     </div>
     {/* Hours grid — Allocated Hours is hidden for epics (its value is a
         rollup from child estimates, not directly editable). Grid drops
@@ -108,19 +96,12 @@ export const WorkItemCompactEditForm = ({
         </div>
       )}
     </div>
-    <div>
-      <label className="text-xs font-medium text-[#737373] block mb-1.5">Status</label>
-      <select
-        value={editForm.status ?? item.status}
-        onChange={(e) => setEditForm({ ...editForm, status: e.target.value as WorkItem['status'] })}
-        className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
-      >
-        <option value="todo">To Do</option>
-        <option value="in_progress">In Progress</option>
-        <option value="in_review">In Review</option>
-        <option value="done">Done</option>
-      </select>
-    </div>
+    <WorkItemSelectField
+      label="Status"
+      value={editForm.status ?? item.status}
+      onChange={(e) => setEditForm({ ...editForm, status: e.target.value as WorkItem['status'] })}
+      options={STATUS_OPTIONS}
+    />
     <div>
       <label className="text-xs font-medium text-[#737373] block mb-1.5">Due Date</label>
       <Popover open={showCalendarEditForm} onOpenChange={setShowCalendarEditForm}>
