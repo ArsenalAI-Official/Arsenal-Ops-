@@ -3,15 +3,15 @@ import { ProjectPulseView } from '@/components/ProjectHub';
 import { PulseData } from '@/components/ProjectHub/pulseData';
 
 interface PulseTabProps {
-  hubLoading: boolean;
+  overviewLoading: boolean;
   pulseData: PulseData | null;
   /** Section names the derive endpoint reported as degraded (compute failed,
    *  fallback served). Empty list = fully healthy. */
   degradedSections?: string[];
 }
 
-const PulseTab = ({ hubLoading, pulseData, degradedSections = [] }: PulseTabProps) => {
-  if (hubLoading || !pulseData) {
+const PulseTab = ({ overviewLoading, pulseData, degradedSections = [] }: PulseTabProps) => {
+  if (overviewLoading || !pulseData) {
     return (
       <div className="space-y-4 animate-pulse">
         {[...Array(3)].map((_, i) => (

@@ -18,7 +18,7 @@ import type { ProjectAnalyticsResponse, SprintResponse } from '@/client';
 import { Badge } from '@/components/ui/badge';
 
 interface TrackerTabProps {
-  hubLoading: boolean;
+  analyticsLoading: boolean;
   sprints: SprintResponse[];
   analytics: ProjectAnalyticsResponse | null;
   sprintsExpanded: boolean;
@@ -26,13 +26,13 @@ interface TrackerTabProps {
 }
 
 const TrackerTab = ({
-  hubLoading,
+  analyticsLoading,
   sprints,
   analytics,
   sprintsExpanded,
   setSprintsExpanded,
 }: TrackerTabProps) => {
-  if (hubLoading) {
+  if (analyticsLoading) {
     return (
       <div className="space-y-4 animate-pulse">
         {/* Active Sprints skeleton */}

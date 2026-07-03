@@ -2,12 +2,12 @@ import type { ActivityResponse } from '@/client';
 import { ActivityFeed } from '@/components/ProjectHub';
 
 interface ActivityTabProps {
-  hubLoading: boolean;
+  overviewLoading: boolean;
   activities: ActivityResponse[];
 }
 
-const ActivityTab = ({ hubLoading, activities }: ActivityTabProps) => {
-  if (hubLoading) {
+const ActivityTab = ({ overviewLoading, activities }: ActivityTabProps) => {
+  if (overviewLoading) {
     return (
       <div className="space-y-2 animate-pulse">
         {[...Array(6)].map((_, i) => (

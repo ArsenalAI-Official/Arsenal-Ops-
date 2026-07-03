@@ -272,7 +272,7 @@ const ProjectDetail = () => {
           {activeTab === 'tracker' &&
             (canAccessTab('tracker') ? (
               <TrackerTab
-                hubLoading={analyticsLoading}
+                analyticsLoading={analyticsLoading}
                 sprints={sprints}
                 analytics={analytics}
                 sprintsExpanded={sprintsExpanded}
@@ -286,7 +286,7 @@ const ProjectDetail = () => {
           {activeTab === 'calendar' &&
             (canAccessTab('calendar') ? (
               <TimelineTab
-                hubLoading={hubWorkItemsLoading}
+                hubWorkItemsLoading={hubWorkItemsLoading}
                 hubWorkItems={hubWorkItems}
                 milestones={milestones}
                 goals={goals}
@@ -302,7 +302,7 @@ const ProjectDetail = () => {
           {activeTab === 'pulse' &&
             (canAccessTab('pulse') ? (
               <PulseTab
-                hubLoading={overviewLoading}
+                overviewLoading={overviewLoading}
                 pulseData={mergedPulseData}
                 degradedSections={pulseDegradedSections}
               />
@@ -338,14 +338,18 @@ const ProjectDetail = () => {
           {/* Activity Tab — gated on `project.activity` */}
           {activeTab === 'activity' &&
             (canAccessTab('activity') ? (
-              <ActivityTab hubLoading={overviewLoading} activities={activities} />
+              <ActivityTab overviewLoading={overviewLoading} activities={activities} />
             ) : (
               <div className="text-center py-12 text-[#737373]">This section is restricted.</div>
             ))}
 
           {/* Project Manager Tab — capability-gated; only renders when canAccessTab('project_manager') is true */}
           {activeTab === 'project_manager' && canAccessTab('project_manager') && (
-            <ProjectManagerTab hubLoading={overviewLoading} projectId={id!} sprints={sprints} />
+            <ProjectManagerTab
+              overviewLoading={overviewLoading}
+              projectId={id!}
+              sprints={sprints}
+            />
           )}
         </Suspense>
       </main>

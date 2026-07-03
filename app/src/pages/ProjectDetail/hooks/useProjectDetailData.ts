@@ -71,12 +71,14 @@ export interface UseProjectDetailDataResult {
    *  seeds project/team/links/prd/goals/milestones/activities) is in flight.
    *  Gates the Overview tab and every other tab whose data arrives in the
    *  bundle (Activity, Pulse, Project Manager). Never reflects the lazily
-   *  fetched analytics / work-items queries, so it can't hang on a disabled
-   *  query's `isLoading: true`. */
+   *  fetched analytics / work-items queries — those are disabled off their tab
+   *  and a disabled query reports `isLoading: false` (v5), so gating on them
+   *  would misreport "done". */
   overviewLoading: boolean;
-  /** Tracker-tab analytics readiness — `analyticsQuery.isLoading`. Meaningful
-   *  only while the Tracker tab is active (the query is disabled otherwise, so
-   *  a disabled `isLoading: true` must never be read off-tab). */
+  /** Tracker-tab analytics readiness — `analyticsQuery.isLoading`. Read only by
+   *  the Tracker tab (the only tab where the query is enabled); off-tab the query
+   *  is disabled and reports `isLoading: false` (v5), so it must not gate other
+   *  tabs. */
   analyticsLoading: boolean;
   /** Timeline (calendar) work-items readiness — `hubWorkItemsQuery.isLoading`.
    *  Meaningful only while the Timeline tab is active (disabled otherwise). */

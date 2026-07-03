@@ -4,21 +4,27 @@
 // on — the analytics / work-items queries that feed the Tracker and Timeline
 // tabs. Those fetch lazily, gated on the active tab.
 //
-// Why this matters (plan risk R1): a DISABLED react-query reports
-// `isLoading: true`. If the Overview tab gated on the analytics/work-items
-// loading state, it would hang on a permanent skeleton. So the hook exposes a
-// split loading surface:
+// Why this matters (plan risk R1): the Overview tab must gate only on the
+// /overview bundle, never on the analytics/work-items queries. Those are
+// disabled on the Overview tab, and a disabled TanStack Query v5 query reports
+// `isLoading: false` (isLoading = isPending && isFetching, and a disabled query
+// is not fetching). Gating Overview on such a flag would report a misleading
+// "not loading" and could paint before data exists; each lazy query's flag is
+// only meaningful on the tab where it's enabled. So the hook exposes a split
+// loading surface:
 //   - overviewLoading      → the /overview bundle (Overview + bundled tabs)
 //   - analyticsLoading     → analyticsQuery (Tracker only)
 //   - hubWorkItemsLoading  → hubWorkItemsQuery (Timeline only)
 //
 // Network is intercepted at the wire by MSW (docs/frontend-testing-guide.md).
 // We count requests per endpoint to prove the lazy gating fires the right
-// requests on the right tab and none on the landing.
+// requests on the right tab and none on the landing. The lazy handlers use a
+// small `delay` so the true→false loading transition is deterministically
+// observable (otherwise an instant response can skip the loading render).
 import { createElement, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
-import { http, HttpResponse } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { server } from '@/mocks/node';
 import { API_BASE } from '@/mocks/handlers/constants';
@@ -53,8 +59,9 @@ function installHandlers(): Counts {
         links: [],
       });
     }),
-    http.get(`${API_BASE}/workitems/projects/:id/analytics`, () => {
+    http.get(`${API_BASE}/workitems/projects/:id/analytics`, async () => {
       counts.analytics += 1;
+      await delay(10); // keep the loading state observable for the true→false assertion
       return HttpResponse.json({
         total_items: 0,
         total_story_points: 0,
@@ -64,8 +71,9 @@ function installHandlers(): Counts {
         burndown_data: [],
       });
     }),
-    http.get(`${API_BASE}/workitems/`, () => {
+    http.get(`${API_BASE}/workitems/`, async () => {
       counts.workItems += 1;
+      await delay(10); // keep the loading state observable for the true→false assertion
       return HttpResponse.json([]);
     }),
   );
@@ -115,8 +123,11 @@ describe('useProjectDetailData — lazy tab data', () => {
 
     rerender({ tab: 'tracker' as TabType });
 
-    // The analytics request fires and its loading state resolves with data.
-    await waitFor(() => expect(counts.analytics).toBe(1));
+    // The query enables and starts fetching: analyticsLoading goes true (the
+    // handler delay keeps this observable)...
+    await waitFor(() => expect(result.current.analyticsLoading).toBe(true));
+    expect(counts.analytics).toBe(1);
+    // ...then resolves to false with data.
     await waitFor(() => expect(result.current.analyticsLoading).toBe(false));
     expect(result.current.analytics).not.toBeNull();
     // Tracker reads analytics/sprints, not work items — Timeline is the sole
@@ -135,7 +146,11 @@ describe('useProjectDetailData — lazy tab data', () => {
 
     rerender({ tab: 'calendar' as TabType });
 
-    await waitFor(() => expect(counts.workItems).toBe(1));
+    // hubWorkItemsLoading goes true while the query fetches (handler delay keeps
+    // it observable)...
+    await waitFor(() => expect(result.current.hubWorkItemsLoading).toBe(true));
+    expect(counts.workItems).toBe(1);
+    // ...then resolves to false with data.
     await waitFor(() => expect(result.current.hubWorkItemsLoading).toBe(false));
     expect(result.current.hubWorkItems).toEqual([]);
     // Analytics is Tracker-only — Timeline must not have fetched it.
