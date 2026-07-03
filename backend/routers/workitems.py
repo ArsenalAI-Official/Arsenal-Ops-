@@ -2970,16 +2970,19 @@ def get_hours_analytics(
     # Show weeks in chronological order (earliest first)
     # weekly_hours already built in ascending order, no reverse needed
 
-    # Totals - calculate remaining as estimated - logged if not set (exclude epics to avoid duplication)
+    # Totals (exclude epics to avoid double-counting their rolled-up hours).
+    # Reconciliation rule (audit #13): the three cards must satisfy the identity
+    #   Remaining = Total − Logged
+    # so Total (estimated) and Logged both span ALL non-epic items — including
+    # DONE — and Remaining is their exact difference. This keeps "Total Project
+    # Hours" as the full project plan (it doesn't shrink as work completes) and
+    # lets Remaining go negative when a project is over-logged, surfacing the
+    # over-budget state instead of hiding it behind a per-item max(0, …) floor
+    # or a DONE-item exclusion (both of which previously broke the arithmetic).
     non_epic_items = [item for item in items if item.type != WorkItemType.EPIC.value]
     total_allocated = sum(item.estimated_hours or 0 for item in non_epic_items)
     total_logged = sum(item.logged_hours or 0 for item in non_epic_items)
-    # Calculate remaining properly: estimated - logged for each item
-    total_remaining = sum(
-        max(0, (item.estimated_hours or 0) - (item.logged_hours or 0))
-        for item in non_epic_items
-        if item.status != WorkItemStatus.DONE.value
-    )
+    total_remaining = total_allocated - total_logged
 
     # Add per-ticket time breakdown to each developer
     for dev_data in developer_hours:

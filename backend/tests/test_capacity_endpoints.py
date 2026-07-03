@@ -1272,5 +1272,44 @@ def test_section8_multi_week_with_zero_weeks_in_between(db):
     )
 
 
+def test_pm_hours_reconcile_total_minus_logged(db):
+    """Audit #13: the PM hours cards must satisfy Remaining = Total − Logged.
+
+    DONE items and the per-item max(0, …) floor used to be excluded from
+    Remaining but not from Total/Logged, so the three cards didn't add up
+    (the audit saw 37 / 17 / 18). Total and Logged now span all non-epic
+    items (incl. DONE) and Remaining is their exact difference.
+    """
+    p = make_project(db)
+    dev = make_developer(db, "A", "a@t.com")
+    user_a = make_user(db, "A", "a@t.com")
+    assign_to_project(db, p, dev)
+    # DONE item under-logged (est 10, log 6) + open item (est 27, log 11) → 37 / 17 / 20.
+    make_work_item(db, p.id, dev.id, estimated_hours=10, logged_hours=6, status="done")
+    make_work_item(db, p.id, dev.id, estimated_hours=27, logged_hours=11, status="in_progress")
+
+    pm = call_pm_hours(db, p.id, user_a)
+    assert pm["total_allocated_hours"] == 37
+    assert pm["total_logged_hours"] == 17
+    assert pm["total_remaining_hours"] == 20
+    # The identity holds regardless of item composition.
+    assert pm["total_remaining_hours"] == pm["total_allocated_hours"] - pm["total_logged_hours"]
+
+
+def test_pm_hours_remaining_negative_when_over_logged(db):
+    """Over-logged projects surface as negative Remaining (not clamped to 0),
+    keeping the arithmetic exact (audit #13 decision)."""
+    p = make_project(db)
+    dev = make_developer(db, "B", "b@t.com")
+    user_b = make_user(db, "B", "b@t.com")
+    assign_to_project(db, p, dev)
+    make_work_item(db, p.id, dev.id, estimated_hours=5, logged_hours=12, status="in_progress")
+
+    pm = call_pm_hours(db, p.id, user_b)
+    assert pm["total_allocated_hours"] == 5
+    assert pm["total_logged_hours"] == 12
+    assert pm["total_remaining_hours"] == -7
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])
