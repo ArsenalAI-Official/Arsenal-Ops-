@@ -12,7 +12,6 @@ import type {
   GoalResponse,
   MilestoneResponse,
   ActivityResponse,
-  ProjectAnalyticsResponse,
   ProjectLinkResponse,
   SprintResponse,
   PrdAnalysisResponse,
@@ -57,17 +56,18 @@ export interface HubWorkItem {
   story_points?: number;
 }
 
-// Shape returned by GET /api/projects/{id}/overview — bundles 8 previously
+// Shape returned by GET /api/projects/{id}/overview — bundles 7 previously
 // separate hub queries into one round trip. Individual useQuery hooks are
 // kept as fallback (for cache priming + invalidation routing), but the
 // overview query primes their caches so they short-circuit on first paint.
+// `analytics` is intentionally NOT bundled: it's the heaviest sub-fetch and is
+// loaded lazily by the Tracker tab via the standalone analytics endpoint.
 export interface ProjectOverview {
   project: ProjectDetailResponse;
   sprints: SprintResponse[];
   goals: GoalResponse[];
   milestones: MilestoneResponse[];
   activities: ActivityResponse[];
-  analytics: ProjectAnalyticsResponse;
   prdAnalysis: PrdAnalysisResponse;
   links: ProjectLinkResponse[];
 }

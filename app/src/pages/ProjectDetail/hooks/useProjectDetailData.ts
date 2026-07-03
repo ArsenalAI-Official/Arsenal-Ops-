@@ -25,7 +25,7 @@ import {
   invalidateAdminMembershipImpact,
 } from '@/lib/invalidations';
 import { toastErrorHandler } from '@/lib/mutationToast';
-import type { HubWorkItem, ProjectOverview } from '../types';
+import type { HubWorkItem, ProjectOverview, TabType } from '../types';
 
 /**
  * All data concerns for ProjectDetail — the 11 queries, 9 mutations, their
@@ -67,7 +67,20 @@ export interface UseProjectDetailDataResult {
   prdAnalysis: PrdAnalysisResponse | null;
   links: ProjectLinkResponse[];
   linksLoading: boolean;
-  hubLoading: boolean;
+  /** Overview-bundle readiness — true while the `/overview` request (which
+   *  seeds project/team/links/prd/goals/milestones/activities) is in flight.
+   *  Gates the Overview tab and every other tab whose data arrives in the
+   *  bundle (Activity, Pulse, Project Manager). Never reflects the lazily
+   *  fetched analytics / work-items queries, so it can't hang on a disabled
+   *  query's `isLoading: true`. */
+  overviewLoading: boolean;
+  /** Tracker-tab analytics readiness — `analyticsQuery.isLoading`. Meaningful
+   *  only while the Tracker tab is active (the query is disabled otherwise, so
+   *  a disabled `isLoading: true` must never be read off-tab). */
+  analyticsLoading: boolean;
+  /** Timeline (calendar) work-items readiness — `hubWorkItemsQuery.isLoading`.
+   *  Meaningful only while the Timeline tab is active (disabled otherwise). */
+  hubWorkItemsLoading: boolean;
   handleAddLink: (link: { name: string; url: string }) => void;
   handleDeleteLink: (linkId: number) => void;
   handleTaskUpdate: (itemId: string, updates: WorkItemUpdate) => void;
@@ -89,6 +102,7 @@ export interface UseProjectDetailDataResult {
 
 export const useProjectDetailData = (
   id: string | undefined,
+  activeTab: TabType,
   options?: UseProjectDetailDataOptions,
 ): UseProjectDetailDataResult => {
   const { user, can } = useAuth();
@@ -114,7 +128,6 @@ export const useProjectDetailData = (
     queryClient.setQueryData(['hubData', id, 'goals'], d.goals);
     queryClient.setQueryData(['hubData', id, 'milestones'], d.milestones);
     queryClient.setQueryData(['hubData', id, 'activities'], d.activities);
-    queryClient.setQueryData(['hubData', id, 'analytics'], d.analytics);
     queryClient.setQueryData(['hubData', id, 'prd'], d.prdAnalysis);
     queryClient.setQueryData(['project', id, 'links'], d.links);
   }, [overviewQuery.data, id, queryClient]);
@@ -183,7 +196,11 @@ export const useProjectDetailData = (
         story_points: item.story_points,
       }));
     },
-    enabled: !!id,
+    // Lazy: work items feed only the Timeline (calendar) tab — TrackerTab reads
+    // analytics/sprints, not work items. Fetch only when Timeline is active; a
+    // visited tab stays cached (staleTime) so re-opens are instant. NOT seeded
+    // by the /overview bundle, so this is the sole gate.
+    enabled: !!id && activeTab === 'calendar',
   });
   // Stable empty-array default so TimelineView/CalendarView row memos (which
   // depend on these arrays) don't bust on a fresh [] every render. Identity
@@ -218,7 +235,10 @@ export const useProjectDetailData = (
   const analyticsQuery = useQuery<ProjectAnalyticsResponse>({
     queryKey: ['hubData', id, 'analytics'],
     queryFn: () => apiFetch<ProjectAnalyticsResponse>(`/api/workitems/projects/${id}/analytics`),
-    enabled: !!id && !overviewCovers,
+    // Lazy: analytics charts render only on the Tracker tab, and analytics is
+    // no longer bundled into /overview (it was the heaviest sub-fetch). Fetch
+    // it only when Tracker is active; cached thereafter.
+    enabled: !!id && activeTab === 'tracker',
   });
   const analytics = analyticsQuery.data ?? null;
 
@@ -239,22 +259,29 @@ export const useProjectDetailData = (
   const links = linksQuery.data ?? [];
   const linksLoading = overviewCovers ? overviewQuery.isLoading : linksQuery.isLoading;
 
-  // hubLoading: true until all hub sub-resources are done loading. goals /
-  // milestones / activities / analytics / prd are gated behind the overview.
-  // A disabled query reports `isLoading: false` (v5: isLoading = isPending &&
-  // isFetching), so consulting a gated query's isLoading while the overview
-  // covers it would report a misleading "done"; anchor their contribution on the
-  // overview in that case, and consult the individual queries only on the
-  // overview-failed fallback path where they actually fetch. hubWorkItems is
-  // never seeded by the overview, so it always contributes its own loading state.
-  const seededHubLoading = overviewCovers
+  // Per-tab loading, split so the Overview (default) tab never gates on data it
+  // doesn't render. A DISABLED react-query reports `isLoading: false` (v5:
+  // isLoading = isPending && isFetching, and a disabled query is not fetching).
+  // So a tab must read the loading flag ONLY for a query enabled while that tab
+  // is active — otherwise the flag reads a misleading `false` and the tab could
+  // render before its data exists.
+  //
+  //  - overviewLoading: the /overview bundle (project/team/links/prd + the
+  //    seeded goals/milestones/activities). Anchored on the overview while it
+  //    covers those; falls through to the per-resource queries only on the
+  //    overview-failed fallback path where they actually fetch. Gates Overview,
+  //    Activity, Pulse and Project Manager — all tabs whose data is bundled.
+  //  - analyticsLoading / hubWorkItemsLoading: the lazily-fetched Tracker and
+  //    Timeline queries. Read ONLY by those tabs (the only tabs where the query
+  //    is enabled).
+  const overviewLoading = overviewCovers
     ? overviewQuery.isLoading
     : goalsQuery.isLoading ||
       milestonesQuery.isLoading ||
       activitiesQuery.isLoading ||
-      analyticsQuery.isLoading ||
       prdAnalysisQuery.isLoading;
-  const hubLoading = hubWorkItemsQuery.isLoading || seededHubLoading;
+  const analyticsLoading = analyticsQuery.isLoading;
+  const hubWorkItemsLoading = hubWorkItemsQuery.isLoading;
 
   // ── mutations: links ────────────────────────────────────────────────────
   const addLinkMutation = useMutation({
@@ -537,7 +564,9 @@ export const useProjectDetailData = (
     prdAnalysis,
     links,
     linksLoading,
-    hubLoading,
+    overviewLoading,
+    analyticsLoading,
+    hubWorkItemsLoading,
     handleAddLink,
     handleDeleteLink,
     handleTaskUpdate,

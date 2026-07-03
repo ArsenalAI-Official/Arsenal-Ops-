@@ -12,9 +12,10 @@ import ProjectInfoSection from '../sections/ProjectInfoSection';
 import TeamSection from '../sections/TeamSection';
 
 interface OverviewTabProps {
-  /** While true, the full overview skeleton is shown until ALL hub data
-   *  (analytics, PRD, …) is ready. */
-  hubLoading: boolean;
+  /** While true, the full overview skeleton is shown until the `/overview`
+   *  bundle this tab renders (project / team / links / PRD) is ready. Does NOT
+   *  wait on analytics or work-items, which feed the Tracker/Timeline tabs. */
+  overviewLoading: boolean;
   project: ProjectDetailResponse;
   prdAnalysis: PrdAnalysisResponse | null;
   isCurrentUserAdmin: boolean;
@@ -35,7 +36,7 @@ interface OverviewTabProps {
 }
 
 const OverviewTab = ({
-  hubLoading,
+  overviewLoading,
   project,
   prdAnalysis,
   isCurrentUserAdmin,
@@ -52,8 +53,9 @@ const OverviewTab = ({
   onAddLink,
   onDeleteLink,
 }: OverviewTabProps) => {
-  if (hubLoading) {
-    // Full overview skeleton — shown until ALL data (analytics, PRD) is ready
+  if (overviewLoading) {
+    // Overview skeleton — shown until the /overview bundle (project/team/links/
+    // PRD) is ready. Independent of analytics/work-items (Tracker/Timeline data).
     return (
       <div className="space-y-4 animate-pulse">
         {/* Project Information skeleton */}

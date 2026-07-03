@@ -34,7 +34,7 @@ from routers.projects import (
     get_project_milestones,
     require_project_access,
 )
-from routers.workitems import get_project_analytics, list_project_sprints
+from routers.workitems import list_project_sprints
 
 router = APIRouter(prefix="/api/projects", tags=["Overview"])
 logger = logging.getLogger(__name__)
@@ -105,11 +105,6 @@ def get_project_overview(
             "activities",
             lambda: get_project_activity(project_id, limit=50, db=db, current_user=current_user),
             [],
-        ),
-        "analytics": _safe(
-            "analytics",
-            lambda: get_project_analytics(project_id, db=db, current_user=current_user),
-            {},
         ),
         "prdAnalysis": _safe("prdAnalysis", lambda: _get_prd_analysis(project_id, db), None),
         "links": _safe(
