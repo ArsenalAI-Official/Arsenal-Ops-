@@ -25,7 +25,7 @@ Run:
 
 import os
 import sys
-from datetime import timedelta
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -123,6 +123,16 @@ def assign_to_project(db, project, developer, role="developer"):
 
 
 _wi_counter = {"n": 0}
+
+
+def make_sprint(db, project_id, name="Sprint 1"):
+    from models.sprint import Sprint
+
+    s = Sprint(project_id=project_id, name=name, status="active")
+    db.add(s)
+    db.commit()
+    db.refresh(s)
+    return s
 
 
 def make_work_item(db, project_id, assignee_id, **kwargs):
@@ -1294,6 +1304,60 @@ def test_pm_hours_reconcile_total_minus_logged(db):
     assert pm["total_remaining_hours"] == 20
     # The identity holds regardless of item composition.
     assert pm["total_remaining_hours"] == pm["total_allocated_hours"] - pm["total_logged_hours"]
+
+
+def test_pm_hours_epics_excluded_from_totals(db):
+    """Epics are excluded from all three totals (their hours are a rollup of
+    descendants), so adding one must not move Total/Logged/Remaining (audit #13)."""
+    p = make_project(db)
+    dev = make_developer(db, "E", "e@t.com")
+    user_e = make_user(db, "E", "e@t.com")
+    assign_to_project(db, p, dev)
+    make_work_item(db, p.id, dev.id, estimated_hours=20, logged_hours=8, status="in_progress")
+    before = call_pm_hours(db, p.id, user_e)
+
+    make_work_item(db, p.id, dev.id, type="epic", estimated_hours=999, logged_hours=999)
+    after = call_pm_hours(db, p.id, user_e)
+
+    assert after["total_allocated_hours"] == before["total_allocated_hours"] == 20
+    assert after["total_logged_hours"] == before["total_logged_hours"] == 8
+    assert after["total_remaining_hours"] == before["total_remaining_hours"] == 12
+
+
+def test_pm_hours_sprint_and_dev_rows_use_the_same_identity(db):
+    """Per-sprint and per-developer rows follow the same Remaining = Allocated −
+    Logged identity as the summary card, so no breakdown row contradicts it
+    (audit #13 follow-up)."""
+    p = make_project(db)
+    dev = make_developer(db, "F", "f@t.com")
+    user_f = make_user(db, "F", "f@t.com")
+    assign_to_project(db, p, dev)
+    sprint = make_sprint(db, p.id, "S1")
+    # A DONE under-logged item + an open item, both in the sprint & assigned.
+    wi_done = make_work_item(
+        db, p.id, dev.id, estimated_hours=10, logged_hours=6, status="done", sprint_id=sprint.id
+    )
+    wi_open = make_work_item(
+        db,
+        p.id,
+        dev.id,
+        estimated_hours=27,
+        logged_hours=11,
+        status="in_progress",
+        sprint_id=sprint.id,
+    )
+    add_time_entry(db, wi_done, dev.id, 6, datetime(2026, 1, 5, 12, 0, 0))
+    add_time_entry(db, wi_open, dev.id, 11, datetime(2026, 1, 6, 12, 0, 0))
+
+    pm = call_pm_hours(db, p.id, user_f)
+
+    sprint_row = next(s for s in pm["sprint_hours"] if s["sprint_id"] == sprint.id)
+    assert (
+        sprint_row["remaining_hours"] == sprint_row["allocated_hours"] - sprint_row["logged_hours"]
+    )
+
+    dev_row = next(d for d in pm["developer_hours"] if d["developer_id"] == dev.id)
+    assert dev_row["remaining_hours"] == dev_row["allocated_hours"] - dev_row["logged_hours"]
 
 
 def test_pm_hours_remaining_negative_when_over_logged(db):

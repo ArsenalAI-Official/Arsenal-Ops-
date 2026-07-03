@@ -53,9 +53,15 @@ export default function PMView({ projectId, token, sprints = [] }: PMViewProps) 
     );
   }
 
+  // Clamp at 100: logged can exceed allocated once over-budget is surfaced (the
+  // over-run shows on the negative "Remaining" card), but "Progress" caps at
+  // 100% so the figure doesn't read as >100% done.
   const progressPercentage =
     analytics.total_allocated_hours > 0
-      ? Math.round((analytics.total_logged_hours / analytics.total_allocated_hours) * 100)
+      ? Math.min(
+          100,
+          Math.round((analytics.total_logged_hours / analytics.total_allocated_hours) * 100),
+        )
       : 0;
 
   return (

@@ -54,4 +54,34 @@ describe('CreateItemModal', () => {
     const story = renderPlain(<CreateItemModal {...baseProps()} initialType="user_story" />);
     expect(story.getByText('Points')).toBeTruthy();
   });
+
+  it('[23] epics carry no story points (default 0, not 3) so no phantom hours are seeded', () => {
+    const props = baseProps();
+    const { getByRole, getByPlaceholderText } = renderPlain(
+      <CreateItemModal {...props} initialType="epic" />,
+    );
+    fireEvent.change(getByPlaceholderText('Enter a concise title...'), {
+      target: { value: 'Auth epic' },
+    });
+    fireEvent.click(getByRole('button', { name: /Create Epic/ }));
+
+    expect(props.onSubmit).toHaveBeenCalledTimes(1);
+    expect(props.onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'epic', story_points: 0 }),
+    );
+  });
+
+  it('a valid title submits the form (happy path)', () => {
+    const props = baseProps();
+    const { getByRole, getByPlaceholderText } = renderPlain(<CreateItemModal {...props} />);
+    fireEvent.change(getByPlaceholderText('Enter a concise title...'), {
+      target: { value: 'Build the thing' },
+    });
+    fireEvent.click(getByRole('button', { name: /Create Item/ }));
+
+    expect(props.onSubmit).toHaveBeenCalledTimes(1);
+    expect(props.onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Build the thing' }),
+    );
+  });
 });

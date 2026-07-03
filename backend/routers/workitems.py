@@ -2571,12 +2571,10 @@ def get_hours_analytics(
         ]
         allocated = sum(item.estimated_hours or 0 for item in sprint_items)
         logged = sum(item.logged_hours or 0 for item in sprint_items)
-        # Calculate remaining properly: estimated - logged for incomplete items
-        remaining = sum(
-            max(0, (item.estimated_hours or 0) - (item.logged_hours or 0))
-            for item in sprint_items
-            if item.status != WorkItemStatus.DONE.value
-        )
+        # Same identity as the project summary card (audit #13): Remaining =
+        # Allocated − Logged, spanning all of the sprint's items (incl. DONE) so
+        # this row reconciles with itself and follows the same rule everywhere.
+        remaining = allocated - logged
 
         sprint_hours.append(
             {
@@ -2655,16 +2653,14 @@ def get_hours_analytics(
         ]
         allocated_total = sum(allocated_per_item, 0.0)
 
-        # Remaining = pending work on currently-assigned non-done tickets.
-        # Use per-ticket (estimate - cumulative-logged), so:
-        #   • hours this dev logged on OTHER tickets don't reduce their remaining
-        #   • transferred-away tickets drop off (they're no longer in dev_items)
-        # Matches the sprint-level calculation above.
-        remaining = sum(
-            max(0, (item.estimated_hours or 0) - (item.logged_hours or 0))
-            for item in dev_items
-            if item.status != WorkItemStatus.DONE.value
-        )
+        # Remaining follows the same identity as the summary card and sprint
+        # rows (audit #13): Remaining = Allocated − Logged, using THIS dev's
+        # transfer-aware allocated (others' logged already netted out) and this
+        # dev's own logged hours. So the dev row reconciles with itself under
+        # the one rule; it can go negative when the dev over-logs their plate.
+        # (This is a personal-workload metric — transferred-away tickets drop
+        # off dev_items — so it intentionally doesn't sum to the project total.)
+        remaining = allocated_total - logged
 
         # Hours remaining on in_progress tickets (for capacity calculation at start of week)
         in_progress_remaining = sum(

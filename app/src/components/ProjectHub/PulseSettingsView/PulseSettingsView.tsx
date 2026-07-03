@@ -194,7 +194,9 @@ const PulseSettingsView: React.FC<PulseSettingsViewProps> = ({
             <Save className="w-4 h-4 mr-2" />
             {isSaving ? 'Saving…' : 'Save changes'}
           </Button>
-        ) : (
+        ) : updatedAt ? (
+          // Only claim "Saved" once something has actually been persisted —
+          // a never-saved project shouldn't show a success state.
           <span
             role="status"
             className="inline-flex items-center gap-1.5 text-xs text-[#737373] px-1"
@@ -202,7 +204,7 @@ const PulseSettingsView: React.FC<PulseSettingsViewProps> = ({
             <Check className="w-4 h-4 text-[#40BE86]" />
             Saved
           </span>
-        )}
+        ) : null}
       </div>
     </div>
   );

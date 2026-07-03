@@ -77,7 +77,9 @@ const CreateItemModal = ({
     title: '',
     description: '',
     priority: 'medium',
-    story_points: 3,
+    // Epics carry no story points (the field is hidden for them); default to 0
+    // so a hidden default never seeds phantom points/hours (audit #23).
+    story_points: initialType === 'epic' ? 0 : 3,
     assignee_id: null,
     sprint: 'Backlog',
     epic_id: null,
