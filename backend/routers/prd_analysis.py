@@ -17,7 +17,6 @@ sys.path.append("..")
 from sqlalchemy import func
 
 from database import get_db
-from models.activity_log import ActivityLog
 from models.architecture import Architecture, PRDAnalysis, RoadmapTemplate
 from models.developer import Developer, project_developers
 from models.project import Project
@@ -30,6 +29,7 @@ from routers.projects import (
     ProjectArchitectureResponse,
     require_project_admin,
 )
+from services.activity import log_activity
 from services.architecture_generator import architecture_generator
 from services.prd_processor import prd_processor
 from services.roadmap_generator import build_week_dates, roadmap_generator
@@ -192,15 +192,14 @@ async def _run_prd_analysis_pipeline(
     # Activity tab. Atomic with the PRDAnalysis insert: if the commit fails,
     # neither row persists. Committed BEFORE architecture generation so the
     # log entry survives even if the architecture LLM call errors out.
-    db.add(
-        ActivityLog(
-            project_id=project.id,
-            user_id=current_user.id,
-            action="created",
-            entity_type="prd_analysis",
-            entity_id=prd_analysis.id,
-            title=(f"Analyzed PRD: {filename}" if filename else "Analyzed PRD from pasted text"),
-        )
+    log_activity(
+        db,
+        project_id=project.id,
+        user_id=current_user.id,
+        action="created",
+        entity_type="prd_analysis",
+        entity_id=prd_analysis.id,
+        title=(f"Analyzed PRD: {filename}" if filename else "Analyzed PRD from pasted text"),
     )
     db.commit()
     db.refresh(prd_analysis)

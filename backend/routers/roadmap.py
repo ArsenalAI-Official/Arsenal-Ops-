@@ -15,7 +15,6 @@ sys.path.append("..")
 
 from database import get_db
 from logging_config import setup_logger
-from models.activity_log import ActivityLog
 from models.developer import Developer
 from models.project import Project
 from models.sprint import Sprint
@@ -24,6 +23,7 @@ from models.work_item import WorkItem, WorkItemType
 from parser import parse as parse_roadmap
 from routers.auth import require_capability
 from routers.workitems import update_epic_hours
+from services.activity import log_activity
 from services.roadmap_ai_parser import excel_to_readable_text, get_roadmap_ai_parser
 
 logger = setup_logger("roadmap")
@@ -474,26 +474,25 @@ def commit_roadmap_tickets(
         # the project's Activity tab. We deliberately don't log per-ticket
         # creations from the bulk import (would drown out other activity); the
         # summary line + the structured `details` payload preserve the counts.
-        db.add(
-            ActivityLog(
-                project_id=request.project_id,
-                user_id=current_user.id,
-                action="created",
-                entity_type="roadmap",
-                title=(
-                    f"Imported roadmap: {len(epic_map)} epic"
-                    f"{'s' if len(epic_map) != 1 else ''}, "
-                    f"{created_tasks} task{'s' if created_tasks != 1 else ''}, "
-                    f"{sprints_created} sprint{'s' if sprints_created != 1 else ''}"
-                ),
-                details={
-                    "epics_created": len(epic_map),
-                    "tasks_created": created_tasks,
-                    "sprints_created": sprints_created,
-                    "tasks_assigned_to_sprints": tasks_assigned_to_sprint,
-                    "assignees_not_found": assignee_not_found_count,
-                },
-            )
+        log_activity(
+            db,
+            project_id=request.project_id,
+            user_id=current_user.id,
+            action="created",
+            entity_type="roadmap",
+            title=(
+                f"Imported roadmap: {len(epic_map)} epic"
+                f"{'s' if len(epic_map) != 1 else ''}, "
+                f"{created_tasks} task{'s' if created_tasks != 1 else ''}, "
+                f"{sprints_created} sprint{'s' if sprints_created != 1 else ''}"
+            ),
+            details={
+                "epics_created": len(epic_map),
+                "tasks_created": created_tasks,
+                "sprints_created": sprints_created,
+                "tasks_assigned_to_sprints": tasks_assigned_to_sprint,
+                "assignees_not_found": assignee_not_found_count,
+            },
         )
         db.commit()
 

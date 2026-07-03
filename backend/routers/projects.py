@@ -24,6 +24,7 @@ from models.project import Project
 from models.project_favorite import project_favorites
 from models.user import User
 from routers.auth import get_current_user, require_capability
+from services.activity import log_activity
 from services.github_service import GitHubService, github_service
 
 router = APIRouter(prefix="/api/projects", tags=["Projects"])
@@ -601,25 +602,16 @@ def create_project(
     # `created` / `entity_type` rows in this file (see milestone/goal create
     # endpoints) so the Activity tab renders it consistently. Committed in
     # its own transaction so a logging failure can't roll back the project.
-    try:
-        from models.activity_log import ActivityLog
-
-        db.add(
-            ActivityLog(
-                project_id=new_project.id,
-                user_id=current_user.id,
-                action="created",
-                entity_type="project",
-                entity_id=new_project.id,
-                title=f"Created project: {new_project.name}",
-            )
-        )
-        db.commit()
-    except Exception as e:
-        # Non-fatal: the project itself is already committed above. Log
-        # and keep going so the caller still gets a 200.
-        db.rollback()
-        print(f"[ActivityLog] Failed to log project creation for #{new_project.id}: {e}")
+    log_activity(
+        db,
+        project_id=new_project.id,
+        user_id=current_user.id,
+        action="created",
+        entity_type="project",
+        entity_id=new_project.id,
+        title=f"Created project: {new_project.name}",
+        best_effort=True,
+    )
 
     return format_project(new_project, db)
 
@@ -1179,7 +1171,6 @@ def create_project_goal(
     """Create a new project goal"""
     require_project_access(project_id, current_user, db)
 
-    from models.activity_log import ActivityLog
     from models.project_goal import ProjectGoal
 
     new_goal = ProjectGoal(
@@ -1191,7 +1182,8 @@ def create_project_goal(
     db.add(new_goal)
 
     # Log activity
-    activity = ActivityLog(
+    log_activity(
+        db,
         project_id=project_id,
         user_id=current_user.id,
         action="created",
@@ -1199,7 +1191,6 @@ def create_project_goal(
         entity_id=new_goal.id,
         title=f"Created goal: {goal.title}",
     )
-    db.add(activity)
 
     db.commit()
     db.refresh(new_goal)
@@ -1214,7 +1205,6 @@ def update_project_goal(
     current_user: User = Depends(get_current_user),
 ):
     """Update a project goal"""
-    from models.activity_log import ActivityLog
     from models.project_goal import ProjectGoal
 
     goal = db.query(ProjectGoal).filter(ProjectGoal.id == goal_id).first()
@@ -1239,7 +1229,8 @@ def update_project_goal(
     goal.updated_at = datetime.utcnow()
 
     # Log activity
-    activity = ActivityLog(
+    log_activity(
+        db,
         project_id=goal.project_id,
         user_id=current_user.id,
         action="updated",
@@ -1247,7 +1238,6 @@ def update_project_goal(
         entity_id=goal.id,
         title=f"Updated goal: {goal.title}",
     )
-    db.add(activity)
 
     db.commit()
     return goal.to_dict()
@@ -1258,7 +1248,6 @@ def delete_project_goal(
     goal_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Delete a project goal"""
-    from models.activity_log import ActivityLog
     from models.project_goal import ProjectGoal
 
     goal = db.query(ProjectGoal).filter(ProjectGoal.id == goal_id).first()
@@ -1268,14 +1257,14 @@ def delete_project_goal(
     require_project_access(goal.project_id, current_user, db)
 
     # Log activity before deletion
-    activity = ActivityLog(
+    log_activity(
+        db,
         project_id=goal.project_id,
         user_id=current_user.id,
         action="deleted",
         entity_type="goal",
         title=f"Deleted goal: {goal.title}",
     )
-    db.add(activity)
 
     db.delete(goal)
     db.commit()
@@ -1334,7 +1323,6 @@ def create_project_milestone(
     """Create a new project milestone"""
     require_project_access(project_id, current_user, db)
 
-    from models.activity_log import ActivityLog
     from models.project_milestone import ProjectMilestone
 
     new_milestone = ProjectMilestone(
@@ -1346,7 +1334,8 @@ def create_project_milestone(
     db.add(new_milestone)
 
     # Log activity
-    activity = ActivityLog(
+    log_activity(
+        db,
         project_id=project_id,
         user_id=current_user.id,
         action="created",
@@ -1354,7 +1343,6 @@ def create_project_milestone(
         entity_id=new_milestone.id,
         title=f"Created milestone: {milestone.title}",
     )
-    db.add(activity)
 
     db.commit()
     db.refresh(new_milestone)
@@ -1390,7 +1378,6 @@ def complete_project_milestone(
     milestone_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Mark a milestone as completed"""
-    from models.activity_log import ActivityLog
     from models.project_milestone import ProjectMilestone
 
     milestone = db.query(ProjectMilestone).filter(ProjectMilestone.id == milestone_id).first()
@@ -1402,7 +1389,8 @@ def complete_project_milestone(
     milestone.completed_at = datetime.utcnow()
 
     # Log activity
-    activity = ActivityLog(
+    log_activity(
+        db,
         project_id=milestone.project_id,
         user_id=current_user.id,
         action="completed",
@@ -1410,7 +1398,6 @@ def complete_project_milestone(
         entity_id=milestone.id,
         title=f"Completed milestone: {milestone.title}",
     )
-    db.add(activity)
 
     db.commit()
     return milestone.to_dict()
@@ -1421,7 +1408,6 @@ def delete_project_milestone(
     milestone_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Delete a project milestone"""
-    from models.activity_log import ActivityLog
     from models.project_milestone import ProjectMilestone
 
     milestone = db.query(ProjectMilestone).filter(ProjectMilestone.id == milestone_id).first()
@@ -1431,14 +1417,14 @@ def delete_project_milestone(
     require_project_access(milestone.project_id, current_user, db)
 
     # Log activity before deletion
-    activity = ActivityLog(
+    log_activity(
+        db,
         project_id=milestone.project_id,
         user_id=current_user.id,
         action="deleted",
         entity_type="milestone",
         title=f"Deleted milestone: {milestone.title}",
     )
-    db.add(activity)
 
     db.delete(milestone)
     db.commit()

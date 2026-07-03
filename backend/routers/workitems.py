@@ -19,6 +19,7 @@ from models.sprint import Sprint, SprintStatus
 from models.user import User
 from models.work_item import WorkItem, WorkItemStatus, WorkItemType
 from routers.auth import get_current_user, require_capability
+from services.activity import log_activity
 from services.email_service import email_service
 from services.hierarchy import validate_hierarchy
 from services.llm_agent import llm_agent
@@ -891,9 +892,8 @@ def create_work_item(
         )
 
     # Log activity (now work_item.id is available)
-    from models.activity_log import ActivityLog
-
-    activity = ActivityLog(
+    log_activity(
+        db,
         project_id=item.project_id,
         user_id=current_user.id,
         action="created",
@@ -901,7 +901,6 @@ def create_work_item(
         entity_id=work_item.id,
         title=f"Created {key}: {item.title}",
     )
-    db.add(activity)
     db.commit()
     db.refresh(work_item)
 
@@ -1176,9 +1175,8 @@ def update_work_item(
             db.add(transfer_comment)
 
             # Log activity
-            from models.activity_log import ActivityLog
-
-            activity = ActivityLog(
+            log_activity(
+                db,
                 project_id=item.project_id,
                 user_id=current_user.id,
                 action="reassigned",
@@ -1186,7 +1184,6 @@ def update_work_item(
                 entity_id=item.id,
                 title=f"Reassigned {item.key} from {old_assignee_name} to {new_assignee_name}",
             )
-            db.add(activity)
 
             # Send assignment notification to new assignee if newly assigned
             # (off the request thread). Skip when reassigning to self —
@@ -1211,10 +1208,9 @@ def update_work_item(
 
     # Log activity for status changes
     if "status" in update_data:
-        from models.activity_log import ActivityLog
-
         action = "completed" if update_data["status"] == "done" else "updated"
-        activity = ActivityLog(
+        log_activity(
+            db,
             project_id=item.project_id,
             user_id=current_user.id,
             action=action,
@@ -1222,7 +1218,6 @@ def update_work_item(
             entity_id=item.id,
             title=f"{action.capitalize()} {item.key}: {item.title}",
         )
-        db.add(activity)
 
     # Auto-comment for every status transition — surfaces the move in the
     # ticket's comment feed alongside the existing "Ticket transferred from X
@@ -1497,16 +1492,14 @@ def delete_work_item(
     item_type = item.type
 
     # Log activity before deletion
-    from models.activity_log import ActivityLog
-
-    activity = ActivityLog(
+    log_activity(
+        db,
         project_id=item.project_id,
         user_id=current_user.id,
         action="deleted",
         entity_type="work_item",
         title=f"Deleted {item.key}: {item.title}",
     )
-    db.add(activity)
 
     db.delete(item)
     db.commit()
@@ -1551,7 +1544,6 @@ def unblock_work_item(
     Returns the number of comments resolved — 0 is a legal response when
     the ticket was already unblocked (idempotent).
     """
-    from models.activity_log import ActivityLog
     from models.comment import Comment
 
     item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
@@ -1575,25 +1567,19 @@ def unblock_work_item(
     # Log activity only when we actually resolved something — a no-op
     # unblock (item wasn't blocked) shouldn't litter the feed.
     if resolved_count:
-        try:
-            db.add(
-                ActivityLog(
-                    project_id=item.project_id,
-                    user_id=current_user.id,
-                    action="unblocked",
-                    entity_type="work_item",
-                    entity_id=item.id,
-                    title=(
-                        f"Unblocked {item.key}: resolved {resolved_count} "
-                        f"blocker comment{'s' if resolved_count != 1 else ''}"
-                    ),
-                )
-            )
-            db.commit()
-        except Exception as e:
-            # Non-fatal: the resolve already committed above.
-            db.rollback()
-            print(f"[ActivityLog] Failed to log unblock for #{item_id}: {e}")
+        log_activity(
+            db,
+            project_id=item.project_id,
+            user_id=current_user.id,
+            action="unblocked",
+            entity_type="work_item",
+            entity_id=item.id,
+            title=(
+                f"Unblocked {item.key}: resolved {resolved_count} "
+                f"blocker comment{'s' if resolved_count != 1 else ''}"
+            ),
+            best_effort=True,
+        )
 
     return {"resolved_count": resolved_count}
 
@@ -3033,7 +3019,6 @@ def add_item_dependency(
     current_user: User = Depends(get_current_user),
 ):
     """Add a dependency to a work item"""
-    from models.activity_log import ActivityLog
     from models.task_dependency import TaskDependency
 
     item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
@@ -3076,7 +3061,8 @@ def add_item_dependency(
     db.add(new_dependency)
 
     # Log activity
-    activity = ActivityLog(
+    log_activity(
+        db,
         project_id=item.project_id,
         user_id=current_user.id,
         action="updated",
@@ -3084,7 +3070,6 @@ def add_item_dependency(
         entity_id=item_id,
         title=f"Added dependency: {item.key} depends on {depends_on.key}",
     )
-    db.add(activity)
 
     db.commit()
     db.refresh(new_dependency)
@@ -3099,7 +3084,6 @@ def remove_item_dependency(
     current_user: User = Depends(get_current_user),
 ):
     """Remove a dependency from a work item"""
-    from models.activity_log import ActivityLog
     from models.task_dependency import TaskDependency
 
     dependency = (
@@ -3121,7 +3105,8 @@ def remove_item_dependency(
         )
 
     # Log activity
-    activity = ActivityLog(
+    log_activity(
+        db,
         project_id=item.project_id if item else None,
         user_id=current_user.id,
         action="updated",
@@ -3129,7 +3114,6 @@ def remove_item_dependency(
         entity_id=item_id,
         title=f"Removed dependency from {item.key if item else item_id}",
     )
-    db.add(activity)
 
     db.delete(dependency)
     db.commit()
