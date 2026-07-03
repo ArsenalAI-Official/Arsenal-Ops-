@@ -229,30 +229,12 @@ const TrackerTab = ({
                       }))}
                       cx="50%"
                       cy="50%"
+                      nameKey="name"
                       innerRadius={40}
                       outerRadius={80}
-                      paddingAngle={5}
+                      paddingAngle={2}
                       dataKey="value"
-                      label={({ value, cx, cy, midAngle }) => {
-                        const RADIAN = Math.PI / 180;
-                        const radius = 65;
-                        const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                        const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                        return (
-                          <text
-                            x={x}
-                            y={y}
-                            fill="#ffffff"
-                            fontSize="14"
-                            fontWeight="bold"
-                            textAnchor="middle"
-                            dominantBaseline="central"
-                          >
-                            {value}
-                          </text>
-                        );
-                      }}
-                      labelLine={false}
+                      stroke="none"
                     >
                       {Object.entries(analytics.status_distribution).map(([name], index) => {
                         const statusColors: Record<string, string> = {
@@ -279,6 +261,18 @@ const TrackerTab = ({
                         );
                       })}
                     </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#121212',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: 8,
+                        fontSize: 12,
+                        textTransform: 'capitalize',
+                      }}
+                      itemStyle={{ color: '#a3a3a3' }}
+                      wrapperStyle={{ outline: 'none', zIndex: 50 }}
+                      formatter={(value: number, name: string) => [value, name.replace(/_/g, ' ')]}
+                    />
                     <Legend
                       formatter={(value: string) =>
                         value.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
