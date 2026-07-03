@@ -4,8 +4,6 @@ Authentication Router - Login, logout, password management, Google SSO
 
 import hashlib
 import os
-import secrets
-import string
 import sys
 from datetime import datetime, timedelta
 from threading import Lock
@@ -141,12 +139,6 @@ class GoogleLoginRequest(BaseModel):
     """Request model for Google SSO login"""
 
     token: str  # Google ID token from frontend
-
-
-def generate_temp_password(length=12):
-    """Generate a secure temporary password"""
-    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-    return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
 def verify_password(plain_password, hashed_password):
