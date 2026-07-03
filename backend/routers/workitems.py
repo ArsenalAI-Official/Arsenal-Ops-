@@ -85,6 +85,72 @@ def _creator_dev_id(db: Session, current_user: User) -> int | None:
     return dev.id if dev else None
 
 
+def _serialize_work_item(
+    item,
+    *,
+    assignee_name="Unassigned",
+    sprint_name="Backlog",
+    raw_hours=False,
+    include_estimated_hours=True,
+    include_sprint_id=True,
+    include_dates=True,
+    include_assignee_id=True,
+    include_epic=True,
+) -> dict:
+    """Build the shared work-item response core used by every workitems endpoint.
+
+    Returns a plain ``dict`` that each caller ``.update(...)``s with its own
+    divergent tail (parent_key/epic_key, is_overdue, project_name, etc.). The
+    helper resolves NO relationships and issues NO queries — assignee and sprint
+    NAMES are passed in already-resolved so the N+1 characteristics of each call
+    site are unchanged.
+
+    Flags mirror the exact per-site divergences captured before extraction:
+
+    * ``assignee_name`` / ``sprint_name`` — call site passes the resolved name,
+      defaulting to the "Unassigned" / "Backlog" placeholders.
+    * ``raw_hours`` — ``get_my_tasks`` emits ``estimated_hours``/``remaining_hours``/
+      ``logged_hours`` RAW (no ``or 0``); every other site coerces ``None`` → 0.
+      ``assigned_hours`` is ALWAYS ``estimated_hours or 0`` regardless.
+    * ``include_estimated_hours`` — every site except ``move_ticket_to_sprint``
+      also emits the raw-key ``estimated_hours`` (double-emitted alongside
+      ``assigned_hours``).
+    * ``include_sprint_id`` — ``create_work_item`` omits ``sprint_id``.
+    * ``include_dates`` — emit ``created_at``/``updated_at`` (isoformat-or-None).
+      ``get_my_tasks`` sets this False (it carries neither).
+    * ``include_assignee_id`` / ``include_epic`` — ``get_my_tasks`` alone omits
+      both the ``assignee_id`` and the ``epic`` (``""``) keys.
+    """
+    core = {
+        "id": str(item.id),
+        "key": item.key,
+        "type": item.type,
+        "title": item.title,
+        "description": item.description or "",
+        "status": item.status,
+        "priority": item.priority,
+        "story_points": item.story_points or 0,
+        "assigned_hours": item.estimated_hours or 0,
+        "remaining_hours": item.remaining_hours if raw_hours else (item.remaining_hours or 0),
+        "logged_hours": item.logged_hours if raw_hours else (item.logged_hours or 0),
+        "assignee": assignee_name,
+        "sprint": sprint_name,
+        "tags": item.tags or [],
+    }
+    if include_assignee_id:
+        core["assignee_id"] = item.assignee_id
+    if include_epic:
+        core["epic"] = ""
+    if include_estimated_hours:
+        core["estimated_hours"] = item.estimated_hours if raw_hours else (item.estimated_hours or 0)
+    if include_sprint_id:
+        core["sprint_id"] = item.sprint_id
+    if include_dates:
+        core["created_at"] = item.created_at.isoformat() if item.created_at else None
+        core["updated_at"] = item.updated_at.isoformat() if item.updated_at else None
+    return core
+
+
 def update_epic_hours(epic_id: int, db: Session):
     """
     Roll up estimated_hours, logged_hours, and remaining_hours into the epic
@@ -446,44 +512,27 @@ def list_work_items(
     # Include assignee name in response
     result = []
     for item in items:
-        item_dict = {
-            "id": str(item.id),
-            "key": item.key,
-            "type": item.type,
-            "title": item.title,
-            "description": item.description or "",
-            "status": item.status,
-            "priority": item.priority,
-            "story_points": item.story_points or 0,
-            "assigned_hours": item.estimated_hours or 0,
-            "estimated_hours": item.estimated_hours or 0,
-            "remaining_hours": item.remaining_hours or 0,
-            "logged_hours": item.logged_hours or 0,
-            "assignee": "Unassigned",
-            "assignee_id": item.assignee_id,
-            "sprint": "Backlog",
-            "sprint_id": item.sprint_id,
-            "epic": "",
-            "tags": item.tags or [],
-            "acceptance_criteria": item.acceptance_criteria or [],
-            "parent_id": item.parent_id,
-            "epic_id": item.epic_id,
-            "parent_key": id_to_key.get(item.parent_id) if item.parent_id else None,
-            "epic_key": id_to_key.get(item.epic_id) if item.epic_id else None,
-            "due_date": item.due_date.isoformat() if item.due_date else None,
-            "start_date": item.start_date.isoformat() if item.start_date else None,
-            "created_at": item.created_at.isoformat() if item.created_at else None,
-            "updated_at": item.updated_at.isoformat() if item.updated_at else None,
-        }
+        # Resolve assignee/sprint names at the call site (no new queries — the
+        # relationships are eager-loaded above), then let the shared serializer
+        # build the ~16-field core.
+        assignee_name = item.assignee.name if item.assignee_id and item.assignee else "Unassigned"
+        sprint_name = item.sprint.name if item.sprint_id and item.sprint else "Backlog"
 
-        # Get assignee name
-        if item.assignee_id and item.assignee:
-            item_dict["assignee"] = item.assignee.name
+        item_dict = _serialize_work_item(item, assignee_name=assignee_name, sprint_name=sprint_name)
+        item_dict.update(
+            {
+                "acceptance_criteria": item.acceptance_criteria or [],
+                "parent_id": item.parent_id,
+                "epic_id": item.epic_id,
+                "parent_key": id_to_key.get(item.parent_id) if item.parent_id else None,
+                "epic_key": id_to_key.get(item.epic_id) if item.epic_id else None,
+                "due_date": item.due_date.isoformat() if item.due_date else None,
+                "start_date": item.start_date.isoformat() if item.start_date else None,
+            }
+        )
 
-        # Get sprint name and dates
+        # Use sprint dates if work item doesn't have its own dates
         if item.sprint_id and item.sprint:
-            item_dict["sprint"] = item.sprint.name
-            # Use sprint dates if work item doesn't have its own dates
             if not item_dict["start_date"] and item.sprint.start_date:
                 item_dict["start_date"] = item.sprint.start_date.isoformat()
             if not item_dict["due_date"] and item.sprint.end_date:
@@ -694,41 +743,40 @@ def get_my_tasks(db: Session = Depends(get_db), current_user: User = Depends(get
         # include completed_at from main.
         project = projects_by_id.get(item.project_id)
 
-        result.append(
+        # my-tasks passes hours RAW (no `or 0`), carries no created_at/updated_at,
+        # and puts sprint_id in its tail. Every item here is assigned to the
+        # requesting developer, so the assignee name is always developer.name.
+        item_dict = _serialize_work_item(
+            item,
+            assignee_name=developer.name,
+            sprint_name=item.sprint.name if item.sprint else "Backlog",
+            raw_hours=True,
+            include_sprint_id=False,
+            include_dates=False,
+            include_assignee_id=False,
+            include_epic=False,
+        )
+        item_dict.update(
             {
-                "id": str(item.id),
-                "key": item.key,
-                "title": item.title,
-                "type": item.type,
-                "status": item.status,
-                "priority": item.priority,
                 "project_id": item.project_id,
                 "project_name": project.name if project else "Unknown",
                 "due_date": item.due_date.isoformat() if item.due_date else None,
-                "estimated_hours": item.estimated_hours,
-                "logged_hours": item.logged_hours,
-                "remaining_hours": item.remaining_hours,
                 "is_overdue": bool(
                     item.due_date
                     and item.due_date.date() < datetime.utcnow().date()
                     and item.status != "done"
                 ),
                 "completed_at": item.completed_at.isoformat() if item.completed_at else None,
-                "story_points": item.story_points or 0,
-                "assigned_hours": item.estimated_hours or 0,
-                "assignee": developer.name,
                 "reporter_name": item.reporter.name if item.reporter else None,
-                "description": item.description or "",
-                "tags": item.tags or [],
                 "acceptance_criteria": item.acceptance_criteria or [],
                 "parent_id": item.parent_id,
                 "parent_key": item.parent.key if item.parent else None,
                 "epic_id": item.epic_id,
                 "epic_key": item.epic.key if item.epic else None,
                 "sprint_id": item.sprint_id,
-                "sprint": item.sprint.name if item.sprint else "Backlog",
             }
         )
+        result.append(item_dict)
 
     return result
 
@@ -942,30 +990,16 @@ def create_work_item(
     if work_item.assignee_id and work_item.assignee:
         assignee_name = work_item.assignee.name
 
-    return {
-        "id": str(work_item.id),
-        "key": work_item.key,
-        "type": work_item.type,
-        "title": work_item.title,
-        "description": work_item.description or "",
-        "status": work_item.status,
-        "priority": work_item.priority,
-        "story_points": work_item.story_points or 0,
-        "assigned_hours": work_item.estimated_hours or 0,
-        "estimated_hours": work_item.estimated_hours
-        or 0,  # Also return as estimated_hours for frontend
-        "remaining_hours": work_item.remaining_hours or 0,
-        "logged_hours": work_item.logged_hours or 0,
-        "assignee": assignee_name,
-        "assignee_id": work_item.assignee_id,
-        "sprint": "Backlog",
-        "epic": "",
-        "tags": work_item.tags or [],
-        "start_date": work_item.start_date.isoformat() if work_item.start_date else None,
-        "due_date": work_item.due_date.isoformat() if work_item.due_date else None,
-        "created_at": work_item.created_at.isoformat() if work_item.created_at else None,
-        "updated_at": work_item.updated_at.isoformat() if work_item.updated_at else None,
-    }
+    # create hard-codes the "Backlog" sprint placeholder (never resolves the
+    # sprint name) and omits sprint_id from the payload — pinned as-is.
+    result = _serialize_work_item(work_item, assignee_name=assignee_name, include_sprint_id=False)
+    result.update(
+        {
+            "start_date": work_item.start_date.isoformat() if work_item.start_date else None,
+            "due_date": work_item.due_date.isoformat() if work_item.due_date else None,
+        }
+    )
+    return result
 
 
 @router.put("/{item_id}")
@@ -1347,40 +1381,24 @@ def update_work_item(
     if item.sprint_id and item.sprint:
         sprint_name = item.sprint.name
 
-    return {
-        "id": str(item.id),
-        "key": item.key,
-        "type": item.type,
-        "title": item.title,
-        "description": item.description or "",
-        "status": item.status,
-        "priority": item.priority,
-        "story_points": item.story_points or 0,
-        "assigned_hours": item.estimated_hours or 0,
-        "estimated_hours": item.estimated_hours or 0,
-        "remaining_hours": item.remaining_hours or 0,
-        "logged_hours": item.logged_hours or 0,
-        "assignee": assignee_name,
-        "assignee_id": item.assignee_id,
-        "sprint": sprint_name,
-        "sprint_id": item.sprint_id,
-        "epic": "",
-        "epic_id": item.epic_id,
-        "parent_id": item.parent_id,
-        "tags": item.tags or [],
-        "acceptance_criteria": item.acceptance_criteria or [],
-        "due_date": item.due_date.isoformat() if item.due_date else None,
-        "start_date": item.start_date.isoformat() if item.start_date else None,
-        "is_overdue": bool(
-            item.due_date
-            and item.due_date.date() < datetime.utcnow().date()
-            and item.status != "done"
-        ),
-        "started_at": item.started_at.isoformat() if item.started_at else None,
-        "completed_at": item.completed_at.isoformat() if item.completed_at else None,
-        "created_at": item.created_at.isoformat() if item.created_at else None,
-        "updated_at": item.updated_at.isoformat() if item.updated_at else None,
-    }
+    result = _serialize_work_item(item, assignee_name=assignee_name, sprint_name=sprint_name)
+    result.update(
+        {
+            "epic_id": item.epic_id,
+            "parent_id": item.parent_id,
+            "acceptance_criteria": item.acceptance_criteria or [],
+            "due_date": item.due_date.isoformat() if item.due_date else None,
+            "start_date": item.start_date.isoformat() if item.start_date else None,
+            "is_overdue": bool(
+                item.due_date
+                and item.due_date.date() < datetime.utcnow().date()
+                and item.status != "done"
+            ),
+            "started_at": item.started_at.isoformat() if item.started_at else None,
+            "completed_at": item.completed_at.isoformat() if item.completed_at else None,
+        }
+    )
+    return result
 
 
 @router.put("/batch/status")
@@ -2140,27 +2158,14 @@ def move_ticket_to_sprint(
     if item.assignee_id and item.assignee:
         assignee_name = item.assignee.name
 
-    return {
-        "id": str(item.id),
-        "key": item.key,
-        "type": item.type,
-        "title": item.title,
-        "description": item.description or "",
-        "status": item.status,
-        "priority": item.priority,
-        "story_points": item.story_points or 0,
-        "assigned_hours": item.estimated_hours or 0,
-        "remaining_hours": item.remaining_hours or 0,
-        "logged_hours": item.logged_hours or 0,
-        "assignee": assignee_name,
-        "assignee_id": item.assignee_id,
-        "sprint": sprint_name,
-        "sprint_id": item.sprint_id,
-        "epic": "",
-        "tags": item.tags or [],
-        "created_at": item.created_at.isoformat() if item.created_at else None,
-        "updated_at": item.updated_at.isoformat() if item.updated_at else None,
-    }
+    # move omits the double-emitted estimated_hours key and carries no tail —
+    # the shared core (with sprint_id + dates) is the whole payload.
+    return _serialize_work_item(
+        item,
+        assignee_name=assignee_name,
+        sprint_name=sprint_name,
+        include_estimated_hours=False,
+    )
 
 
 class SprintResponse(BaseModel):
