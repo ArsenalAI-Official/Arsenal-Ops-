@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fmt$, fmt$k, fmtPct, CATEGORY_COLORS } from './format';
+import { fmt$, fmt$k, fmtPct, fmtPulseDate, CATEGORY_COLORS } from './format';
 
 describe('fmt$', () => {
   it('formats with thousands separators and rounds', () => {
@@ -25,6 +25,24 @@ describe('fmtPct', () => {
     expect(fmtPct(0.25)).toBe('25%');
     expect(fmtPct(1)).toBe('100%');
     expect(fmtPct(0.333)).toBe('33%');
+  });
+});
+
+describe('fmtPulseDate', () => {
+  it('formats a full ISO timestamp to "Mon YYYY"', () => {
+    expect(fmtPulseDate('2026-05-20T22:22:18.956437')).toBe('May 2026');
+  });
+  it('formats a bare YYYY-MM-DD to "Mon YYYY"', () => {
+    expect(fmtPulseDate('2026-01-09')).toBe('Jan 2026');
+  });
+  it('passes already-formatted labels through unchanged', () => {
+    expect(fmtPulseDate('Feb 26')).toBe('Feb 26');
+    expect(fmtPulseDate('May 2026')).toBe('May 2026');
+  });
+  it('returns empty string for empty/nullish input', () => {
+    expect(fmtPulseDate('')).toBe('');
+    expect(fmtPulseDate(null)).toBe('');
+    expect(fmtPulseDate(undefined)).toBe('');
   });
 });
 
