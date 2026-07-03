@@ -5,7 +5,7 @@ import type { ConfirmFn } from '@/components/ui/confirm-dialog';
 import { apiFetch, ApiError, permissionAwareError } from '@/lib/api';
 import { invalidateProjectScope } from '@/lib/invalidations';
 import { toastErrorHandler } from '@/lib/mutationToast';
-import { typeUsesPoints } from '@/lib/workItemConfig';
+import { HOURS_PER_POINT, typeUsesPoints } from '@/lib/workItemConfig';
 import type { WorkItem } from '@/types/workItems';
 import { applyStatusChange } from '../lib/optimisticStatus';
 import type { CreateItemFormValues } from '../modals/CreateItemModal';
@@ -155,8 +155,8 @@ export function useWorkItemMutations(
         estimated_hours: form.estimated_hours ? parseInt(form.estimated_hours as string) : 0,
       };
       if (usesPoints) {
-        payload.assigned_hours = form.story_points * 4;
-        payload.remaining_hours = form.story_points * 4;
+        payload.assigned_hours = form.story_points * HOURS_PER_POINT;
+        payload.remaining_hours = form.story_points * HOURS_PER_POINT;
       } else {
         // Task: estimated_hours as entered. Epic: estimated_hours is '' → 0.
         payload.assigned_hours = payload.estimated_hours || 0;

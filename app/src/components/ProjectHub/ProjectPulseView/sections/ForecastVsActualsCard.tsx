@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { PulseData, FeatureForecastRow } from '../../pulseData';
 import { Card } from '../components/Card';
+import { fmtPct } from '../lib/format';
 
 /* -------------------------------------------------------------------- */
 /*  FORECAST VS ACTUALS — Variant E bottom card (1:1 port)              */
@@ -107,7 +108,7 @@ const ForecastVsActualsChart: React.FC<{ rows: FeatureForecastRow[]; width?: num
                 >
                   {over ? '+' : ''}
                   {variance}h · {over ? '+' : ''}
-                  {Math.round(varPct * 100)}%
+                  {fmtPct(varPct)}
                 </text>
               </g>
             </g>

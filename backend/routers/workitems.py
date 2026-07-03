@@ -25,6 +25,10 @@ from services.llm_agent import llm_agent
 
 router = APIRouter(prefix="/api/workitems", tags=["Work Items"])
 
+# Hours seeded per story point in the AI-roadmap seed generator. Mirrors the
+# frontend's HOURS_PER_POINT (app/src/lib/workItemConfig.ts) — keep in step.
+HOURS_PER_POINT = 4
+
 
 # Counter for generating work item keys
 def get_next_item_number(db: Session, key_prefix: str) -> int:
@@ -1918,8 +1922,8 @@ async def generate_work_items(
                 "title": item_data["title"],
                 "description": item_data["description"],
                 "status": "todo",
-                "assigned_hours": item_data["story_points"] * 4,
-                "remaining_hours": item_data["story_points"] * 4,
+                "assigned_hours": item_data["story_points"] * HOURS_PER_POINT,
+                "remaining_hours": item_data["story_points"] * HOURS_PER_POINT,
                 "logged_hours": 0,
                 "story_points": item_data["story_points"],
                 "priority": item_data["priority"],
@@ -2979,31 +2983,6 @@ def get_hours_analytics(
     total_allocated = sum(item.estimated_hours or 0 for item in non_epic_items)
     total_logged = sum(item.logged_hours or 0 for item in non_epic_items)
     total_remaining = total_allocated - total_logged
-
-    # Add per-ticket time breakdown to each developer
-    for dev_data in developer_hours:
-        dev_id = dev_data["developer_id"]
-        # Get all time entries by this developer
-        dev_entries = [te for te in time_entries if te.developer_id == dev_id]
-
-        # Group by work item
-        ticket_breakdown = []
-        for entry in dev_entries:
-            # Find the work item
-            work_item = next((item for item in items if item.id == entry.work_item_id), None)
-            if work_item:
-                ticket_breakdown.append(
-                    {
-                        "item_id": work_item.id,
-                        "item_key": work_item.key,
-                        "title": work_item.title,
-                        "hours_logged": entry.hours,
-                        "logged_at": entry.logged_at.isoformat() if entry.logged_at else None,
-                        "description": entry.description,
-                    }
-                )
-
-        dev_data["ticket_breakdown"] = ticket_breakdown
 
     return {
         "project_name": project.name,

@@ -1,5 +1,6 @@
 import { parseLocalDate } from '@/lib/dateUtils';
 import { getPriorityColor } from '@/lib/workItemConfig';
+import { LIST_SORT_PRIORITY_ORDER } from '@/pages/ProjectBoard/lib/listSort';
 import type { MyTask, PersonalTask } from '../types';
 
 // Delegates to the single source of truth (Style Guide 1a warm severity ramp)
@@ -46,9 +47,8 @@ export const isFocusTask = (task: MyTask, today: Date): boolean =>
 export const sortPersonalTasks = (a: PersonalTask, b: PersonalTask) => {
   if (a.status === 'done' && b.status !== 'done') return 1;
   if (a.status !== 'done' && b.status === 'done') return -1;
-  const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-  const aPriority = priorityOrder[a.priority?.toLowerCase() || 'medium'] ?? 999;
-  const bPriority = priorityOrder[b.priority?.toLowerCase() || 'medium'] ?? 999;
+  const aPriority = LIST_SORT_PRIORITY_ORDER[a.priority?.toLowerCase() || 'medium'] ?? 999;
+  const bPriority = LIST_SORT_PRIORITY_ORDER[b.priority?.toLowerCase() || 'medium'] ?? 999;
   return aPriority - bPriority;
 };
 

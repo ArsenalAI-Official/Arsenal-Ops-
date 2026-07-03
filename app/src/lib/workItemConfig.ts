@@ -119,3 +119,9 @@ export function getPriorityColor(priority: string): string {
 export function typeUsesPoints(type: string): boolean {
   return type === 'user_story' || type === 'bug';
 }
+
+/**
+ * Hours seeded per story point when a point-bearing item is created. The
+ * backend seed/demo generator applies the same factor; keep them in step.
+ */
+export const HOURS_PER_POINT = 4;

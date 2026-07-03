@@ -5,6 +5,235 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { avatarColor } from '@/lib/avatarColor';
 import type { HoursAnalytics } from '../types';
 
+// Weekly capacity denominator for the "This Week" bars (backend mirrors this as
+// capacity_service.week_capacity, but the payload doesn't ship the cap itself).
+const WEEKLY_CAPACITY_HOURS = 40;
+
+type DevHours = HoursAnalytics['developer_hours'][number];
+
+// "This Week" capacity bar: in-progress / in-review / done split against the
+// weekly capacity, plus the per-status legend below it.
+function WeekCapacityBar({ dev }: { dev: DevHours }) {
+  const inProgressH = dev.this_week_in_progress_hours ?? 0;
+  const inReviewH = dev.this_week_in_review_hours ?? 0;
+  const doneH = dev.this_week_done_hours ?? 0;
+  const capUsed = dev.this_week_capacity_used ?? 0;
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-2 w-full max-w-[220px]">
+        <div className="flex-1 h-2 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden flex">
+          {capUsed > 0 && (
+            <>
+              <div
+                className="h-full bg-status-in-progress"
+                style={{
+                  width: `${Math.min(100, (inProgressH / WEEKLY_CAPACITY_HOURS) * 100)}%`,
+                }}
+                title={`${inProgressH}h in-progress`}
+              />
+              <div
+                className="h-full bg-[#A78BFA]"
+                style={{
+                  width: `${Math.min(100, (inReviewH / WEEKLY_CAPACITY_HOURS) * 100)}%`,
+                }}
+                title={`${inReviewH}h in-review`}
+              />
+              <div
+                className="h-full bg-[#34D399]"
+                style={{
+                  width: `${Math.min(100, (doneH / WEEKLY_CAPACITY_HOURS) * 100)}%`,
+                }}
+                title={`${doneH}h done`}
+              />
+            </>
+          )}
+        </div>
+        <span
+          className={`text-xs font-mono tabular-nums whitespace-nowrap ${capUsed > 0 ? 'text-muted-foreground font-semibold' : 'text-[#737373]'}`}
+        >
+          {capUsed}h/{WEEKLY_CAPACITY_HOURS}h
+        </span>
+      </div>
+      <div className="text-[10px] text-[#737373] flex items-center gap-1.5 flex-wrap justify-end">
+        <span className="flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-sm bg-status-in-progress" />
+          {inProgressH}h prog
+        </span>
+        <span className="text-[rgba(255,255,255,0.15)]">·</span>
+        <span className="flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-sm bg-[#A78BFA]" />
+          {inReviewH}h rev
+        </span>
+        <span className="text-[rgba(255,255,255,0.15)]">·</span>
+        <span className="flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-sm bg-[#34D399]" />
+          {doneH}h done
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// Expanded "Logged hours per week" view: a bar per historical week.
+function WeeklyLoggedView({ dev }: { dev: DevHours }) {
+  const history = dev.weekly_logged_history ?? [];
+  if (history.length === 0) {
+    return (
+      <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-4 text-sm text-[#737373] text-center">
+        No logged hours yet on this project.
+      </div>
+    );
+  }
+  const maxHours = Math.max(...history.map((w) => w.hours), 1);
+  return (
+    <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-3">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-xs font-semibold text-white">Logged hours per week</h4>
+        <span className="text-xs font-mono tabular-nums text-muted-foreground">
+          {dev.logged_hours}h total · {history.length} {history.length === 1 ? 'week' : 'weeks'}
+        </span>
+      </div>
+      <ul className="space-y-2">
+        {history.map((w) => {
+          // Backend buckets Sat→Fri; for display we show Mon→Fri
+          // (skip the weekend, same underlying bucket).
+          const satStart = new Date(w.week_start);
+          const monStart = new Date(satStart.getTime() + 2 * 24 * 60 * 60 * 1000);
+          const friEnd = new Date(w.week_end);
+          const pct = Math.round((w.hours / maxHours) * 100);
+          return (
+            <li key={w.week_start} className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[#a3a3a3] font-mono">
+                  {monStart.toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                  {' → '}
+                  {friEnd.toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </span>
+                <span className="text-muted-foreground font-mono tabular-nums">{w.hours}h</span>
+              </div>
+              <div className="h-1.5 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden">
+                <div className="h-full bg-progress rounded-full" style={{ width: `${pct}%` }} />
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+// Expanded "This Week — by status" view: three columns (in-progress / in-review
+// / done) each listing the tickets counted this week. Renders nothing when the
+// developer has no tickets this week.
+function WeekByStatusView({ dev }: { dev: DevHours }) {
+  if (!dev.this_week_tickets || dev.this_week_tickets.length === 0) return null;
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-xs font-medium text-muted-foreground uppercase">
+          This Week — by status
+        </h4>
+        {dev.week_start && dev.week_end && (
+          <span className="text-[10px] text-[#737373] font-mono">
+            {new Date(dev.week_start).toLocaleDateString(undefined, {
+              month: 'short',
+              day: 'numeric',
+            })}
+            {' → '}
+            {new Date(dev.week_end).toLocaleDateString(undefined, {
+              month: 'short',
+              day: 'numeric',
+            })}
+            {' (Sat → Fri, UTC)'}
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {(
+          [
+            {
+              key: 'in_progress',
+              label: 'In progress',
+              color: '#6E62E6',
+              total: dev.this_week_in_progress_hours ?? 0,
+            },
+            {
+              key: 'in_review',
+              label: 'In review',
+              color: '#A78BFA',
+              total: dev.this_week_in_review_hours ?? 0,
+            },
+            {
+              key: 'done',
+              label: 'Done this week',
+              color: '#34D399',
+              total: dev.this_week_done_hours ?? 0,
+            },
+          ] as const
+        ).map((group) => {
+          const groupTickets = (dev.this_week_tickets ?? []).filter((t) => t.status === group.key);
+          return (
+            <div
+              key={group.key}
+              className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-3"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-sm" style={{ background: group.color }} />
+                  <span className="text-xs font-semibold text-white">{group.label}</span>
+                  <span className="text-[10px] text-[#737373]">({groupTickets.length})</span>
+                </div>
+                <span className="text-xs font-mono tabular-nums" style={{ color: group.color }}>
+                  {group.total}h
+                </span>
+              </div>
+              {groupTickets.length === 0 ? (
+                <div className="text-[11px] text-[#737373] py-1">No tickets</div>
+              ) : (
+                <ul className="space-y-1.5">
+                  {groupTickets.map((t) => (
+                    <li key={t.id} className="flex items-start gap-2 text-xs">
+                      <span className="font-mono text-muted-foreground mt-0.5 flex-shrink-0">
+                        {t.key}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-white truncate">{t.title}</div>
+                        <div className="text-[10px] text-[#737373] mt-0.5 flex items-center gap-1.5 flex-wrap">
+                          <span>est {t.estimated_hours}h</span>
+                          <span className="text-[rgba(255,255,255,0.15)]">·</span>
+                          <span>logged {t.logged_hours}h</span>
+                          {t.counted_basis === 'remaining (transferred)' && (
+                            <span className="px-1 py-0.5 rounded bg-[#FBBF24]/15 text-[#FBBF24] text-[9px] font-semibold uppercase tracking-wider">
+                              transferred
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <span
+                        className="font-mono tabular-nums flex-shrink-0"
+                        style={{ color: group.color }}
+                        title={`Counted as ${t.counted_basis}`}
+                      >
+                        +{t.counted_hours}h
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 interface DeveloperHoursTableProps {
   analytics: HoursAnalytics;
 }
@@ -121,66 +350,7 @@ export default function DeveloperHoursTable({ analytics }: DeveloperHoursTablePr
                           </span>
                         </td>
                         <td className="py-3 px-4 text-sm min-w-[260px]">
-                          {(() => {
-                            const inProgressH = dev.this_week_in_progress_hours ?? 0;
-                            const inReviewH = dev.this_week_in_review_hours ?? 0;
-                            const doneH = dev.this_week_done_hours ?? 0;
-                            const capUsed = dev.this_week_capacity_used ?? 0;
-                            return (
-                              <div className="flex flex-col items-end gap-1">
-                                <div className="flex items-center gap-2 w-full max-w-[220px]">
-                                  <div className="flex-1 h-2 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden flex">
-                                    {capUsed > 0 && (
-                                      <>
-                                        <div
-                                          className="h-full bg-status-in-progress"
-                                          style={{
-                                            width: `${Math.min(100, (inProgressH / 40) * 100)}%`,
-                                          }}
-                                          title={`${inProgressH}h in-progress`}
-                                        />
-                                        <div
-                                          className="h-full bg-[#A78BFA]"
-                                          style={{
-                                            width: `${Math.min(100, (inReviewH / 40) * 100)}%`,
-                                          }}
-                                          title={`${inReviewH}h in-review`}
-                                        />
-                                        <div
-                                          className="h-full bg-[#34D399]"
-                                          style={{
-                                            width: `${Math.min(100, (doneH / 40) * 100)}%`,
-                                          }}
-                                          title={`${doneH}h done`}
-                                        />
-                                      </>
-                                    )}
-                                  </div>
-                                  <span
-                                    className={`text-xs font-mono tabular-nums whitespace-nowrap ${capUsed > 0 ? 'text-muted-foreground font-semibold' : 'text-[#737373]'}`}
-                                  >
-                                    {capUsed}h/40h
-                                  </span>
-                                </div>
-                                <div className="text-[10px] text-[#737373] flex items-center gap-1.5 flex-wrap justify-end">
-                                  <span className="flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 rounded-sm bg-status-in-progress" />
-                                    {inProgressH}h prog
-                                  </span>
-                                  <span className="text-[rgba(255,255,255,0.15)]">·</span>
-                                  <span className="flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 rounded-sm bg-[#A78BFA]" />
-                                    {inReviewH}h rev
-                                  </span>
-                                  <span className="text-[rgba(255,255,255,0.15)]">·</span>
-                                  <span className="flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 rounded-sm bg-[#34D399]" />
-                                    {doneH}h done
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })()}
+                          <WeekCapacityBar dev={dev} />
                         </td>
                         <td className="py-3 px-4 text-sm text-right">
                           <span
@@ -233,194 +403,10 @@ export default function DeveloperHoursTable({ analytics }: DeveloperHoursTablePr
                               </div>
 
                               {/* Logged hours per week view */}
-                              {expandedView === 'logged' &&
-                                (() => {
-                                  const history = dev.weekly_logged_history ?? [];
-                                  if (history.length === 0) {
-                                    return (
-                                      <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-4 text-sm text-[#737373] text-center">
-                                        No logged hours yet on this project.
-                                      </div>
-                                    );
-                                  }
-                                  const maxHours = Math.max(...history.map((w) => w.hours), 1);
-                                  return (
-                                    <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-3">
-                                      <div className="flex items-center justify-between mb-3">
-                                        <h4 className="text-xs font-semibold text-white">
-                                          Logged hours per week
-                                        </h4>
-                                        <span className="text-xs font-mono tabular-nums text-muted-foreground">
-                                          {dev.logged_hours}h total · {history.length}{' '}
-                                          {history.length === 1 ? 'week' : 'weeks'}
-                                        </span>
-                                      </div>
-                                      <ul className="space-y-2">
-                                        {history.map((w) => {
-                                          // Backend buckets Sat→Fri; for display we show Mon→Fri
-                                          // (skip the weekend, same underlying bucket).
-                                          const satStart = new Date(w.week_start);
-                                          const monStart = new Date(
-                                            satStart.getTime() + 2 * 24 * 60 * 60 * 1000,
-                                          );
-                                          const friEnd = new Date(w.week_end);
-                                          const pct = Math.round((w.hours / maxHours) * 100);
-                                          return (
-                                            <li key={w.week_start} className="space-y-1">
-                                              <div className="flex items-center justify-between text-xs">
-                                                <span className="text-[#a3a3a3] font-mono">
-                                                  {monStart.toLocaleDateString(undefined, {
-                                                    month: 'short',
-                                                    day: 'numeric',
-                                                  })}
-                                                  {' → '}
-                                                  {friEnd.toLocaleDateString(undefined, {
-                                                    month: 'short',
-                                                    day: 'numeric',
-                                                  })}
-                                                </span>
-                                                <span className="text-muted-foreground font-mono tabular-nums">
-                                                  {w.hours}h
-                                                </span>
-                                              </div>
-                                              <div className="h-1.5 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden">
-                                                <div
-                                                  className="h-full bg-progress rounded-full"
-                                                  style={{ width: `${pct}%` }}
-                                                />
-                                              </div>
-                                            </li>
-                                          );
-                                        })}
-                                      </ul>
-                                    </div>
-                                  );
-                                })()}
+                              {expandedView === 'logged' && <WeeklyLoggedView dev={dev} />}
 
                               {/* This Week — by status breakdown (Sat-Fri) */}
-                              {expandedView === 'capacity' &&
-                                dev.this_week_tickets &&
-                                dev.this_week_tickets.length > 0 && (
-                                  <div>
-                                    <div className="flex items-center justify-between mb-2">
-                                      <h4 className="text-xs font-medium text-muted-foreground uppercase">
-                                        This Week — by status
-                                      </h4>
-                                      {dev.week_start && dev.week_end && (
-                                        <span className="text-[10px] text-[#737373] font-mono">
-                                          {new Date(dev.week_start).toLocaleDateString(undefined, {
-                                            month: 'short',
-                                            day: 'numeric',
-                                          })}
-                                          {' → '}
-                                          {new Date(dev.week_end).toLocaleDateString(undefined, {
-                                            month: 'short',
-                                            day: 'numeric',
-                                          })}
-                                          {' (Sat → Fri, UTC)'}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                      {(
-                                        [
-                                          {
-                                            key: 'in_progress',
-                                            label: 'In progress',
-                                            color: '#6E62E6',
-                                            total: dev.this_week_in_progress_hours ?? 0,
-                                          },
-                                          {
-                                            key: 'in_review',
-                                            label: 'In review',
-                                            color: '#A78BFA',
-                                            total: dev.this_week_in_review_hours ?? 0,
-                                          },
-                                          {
-                                            key: 'done',
-                                            label: 'Done this week',
-                                            color: '#34D399',
-                                            total: dev.this_week_done_hours ?? 0,
-                                          },
-                                        ] as const
-                                      ).map((group) => {
-                                        const groupTickets = (dev.this_week_tickets ?? []).filter(
-                                          (t) => t.status === group.key,
-                                        );
-                                        return (
-                                          <div
-                                            key={group.key}
-                                            className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-3"
-                                          >
-                                            <div className="flex items-center justify-between mb-2">
-                                              <div className="flex items-center gap-2">
-                                                <span
-                                                  className="w-2 h-2 rounded-sm"
-                                                  style={{ background: group.color }}
-                                                />
-                                                <span className="text-xs font-semibold text-white">
-                                                  {group.label}
-                                                </span>
-                                                <span className="text-[10px] text-[#737373]">
-                                                  ({groupTickets.length})
-                                                </span>
-                                              </div>
-                                              <span
-                                                className="text-xs font-mono tabular-nums"
-                                                style={{ color: group.color }}
-                                              >
-                                                {group.total}h
-                                              </span>
-                                            </div>
-                                            {groupTickets.length === 0 ? (
-                                              <div className="text-[11px] text-[#737373] py-1">
-                                                No tickets
-                                              </div>
-                                            ) : (
-                                              <ul className="space-y-1.5">
-                                                {groupTickets.map((t) => (
-                                                  <li
-                                                    key={t.id}
-                                                    className="flex items-start gap-2 text-xs"
-                                                  >
-                                                    <span className="font-mono text-muted-foreground mt-0.5 flex-shrink-0">
-                                                      {t.key}
-                                                    </span>
-                                                    <div className="flex-1 min-w-0">
-                                                      <div className="text-white truncate">
-                                                        {t.title}
-                                                      </div>
-                                                      <div className="text-[10px] text-[#737373] mt-0.5 flex items-center gap-1.5 flex-wrap">
-                                                        <span>est {t.estimated_hours}h</span>
-                                                        <span className="text-[rgba(255,255,255,0.15)]">
-                                                          ·
-                                                        </span>
-                                                        <span>logged {t.logged_hours}h</span>
-                                                        {t.counted_basis ===
-                                                          'remaining (transferred)' && (
-                                                          <span className="px-1 py-0.5 rounded bg-[#FBBF24]/15 text-[#FBBF24] text-[9px] font-semibold uppercase tracking-wider">
-                                                            transferred
-                                                          </span>
-                                                        )}
-                                                      </div>
-                                                    </div>
-                                                    <span
-                                                      className="font-mono tabular-nums flex-shrink-0"
-                                                      style={{ color: group.color }}
-                                                      title={`Counted as ${t.counted_basis}`}
-                                                    >
-                                                      +{t.counted_hours}h
-                                                    </span>
-                                                  </li>
-                                                ))}
-                                              </ul>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
+                              {expandedView === 'capacity' && <WeekByStatusView dev={dev} />}
 
                               <p className="text-xs text-[#737373] italic">
                                 {dev.attribution_note}

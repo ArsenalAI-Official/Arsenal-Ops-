@@ -35,7 +35,6 @@ import json
 import logging
 import re
 import sys
-from calendar import monthrange
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -110,17 +109,6 @@ def _add_month(dt: datetime) -> datetime:
 
 def _start_of_month(dt: datetime) -> datetime:
     return datetime(dt.year, dt.month, 1)
-
-
-def _end_of_month(dt: datetime) -> datetime:
-    """Return the last second of ``dt``'s month.
-
-    Prefer ``< _start_of_month(_add_month(dt))`` at call sites where an
-    exclusive upper bound is cleaner; this helper is kept for places that
-    want a representable "end" datetime.
-    """
-    last_day = monthrange(dt.year, dt.month)[1]
-    return datetime(dt.year, dt.month, last_day, 23, 59, 59)
 
 
 def _enumerate_months(start: datetime, end: datetime) -> list[datetime]:
