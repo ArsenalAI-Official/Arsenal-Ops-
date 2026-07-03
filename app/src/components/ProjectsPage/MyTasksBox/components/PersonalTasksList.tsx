@@ -1,8 +1,8 @@
 import { Plus, X, CheckCircle2, Edit2, Circle, Flag, ArrowRight, Calendar } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { getPriorityColor } from '@/lib/workItemConfig';
 import type { PersonalTask } from '../../types';
 import { parseLocalDate } from '../../utils';
-import { priorityColor } from '../lib';
 
 interface PersonalTasksListProps {
   activePersonalTasks: PersonalTask[];
@@ -45,7 +45,7 @@ const PersonalTasksList = ({
   return (
     <div className="space-y-1.5">
       {visiblePersonalTasks.map((task) => {
-        const color = priorityColor(task.priority);
+        const color = getPriorityColor(task.priority);
         return (
           <div
             key={task.id}

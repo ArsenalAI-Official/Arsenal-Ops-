@@ -1,11 +1,6 @@
 import { parseLocalDate } from '@/lib/dateUtils';
-import { getPriorityColor } from '@/lib/workItemConfig';
 import { LIST_SORT_PRIORITY_ORDER } from '@/pages/ProjectBoard/lib/listSort';
 import type { MyTask, PersonalTask } from '../types';
-
-// Delegates to the single source of truth (Style Guide 1a warm severity ramp)
-// so priority colors never drift from workItemConfig.
-export const priorityColor = (priority: string): string => getPriorityColor(priority);
 
 // Deterministic per-project accent for the small color dot on a task row.
 // Keyed on project_id so the same project always gets the same swatch.

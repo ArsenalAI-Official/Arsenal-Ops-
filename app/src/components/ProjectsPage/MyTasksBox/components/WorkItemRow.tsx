@@ -1,11 +1,12 @@
 import { X, Calendar, Flag } from 'lucide-react';
 import { Calendar as CalendarIcon } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { getPriorityColor } from '@/lib/workItemConfig';
 import { STATUS_COLOR } from '../../constants';
 import StatusDotMenu from '../../StatusDotMenu';
 import type { MyTask } from '../../types';
 import { parseLocalDate } from '../../utils';
-import { priorityColor, projectDotColor } from '../lib';
+import { projectDotColor } from '../lib';
 
 interface WorkItemRowProps {
   task: MyTask;
@@ -60,9 +61,9 @@ const WorkItemRow = ({
             (() => {
               // Show every priority; emphasize critical/high with their color +
               // a flag, mute medium/low to grey so the loud ones still stand out.
-              const color = isLoudPriority ? priorityColor(task.priority) : 'var(--progress)';
+              const color = isLoudPriority ? getPriorityColor(task.priority) : 'var(--progress)';
               const bg = isLoudPriority
-                ? `${priorityColor(task.priority)}22`
+                ? `${getPriorityColor(task.priority)}22`
                 : 'rgba(255,255,255,0.05)';
               return (
                 <span
