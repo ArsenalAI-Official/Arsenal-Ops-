@@ -90,36 +90,32 @@ def _serialize_work_item(
     *,
     assignee_name="Unassigned",
     sprint_name="Backlog",
-    raw_hours=False,
     include_estimated_hours=True,
     include_sprint_id=True,
-    include_dates=True,
-    include_assignee_id=True,
-    include_epic=True,
 ) -> dict:
-    """Build the shared work-item response core used by every workitems endpoint.
+    """Build the shared work-item response core used by list/create/update/move.
 
     Returns a plain ``dict`` that each caller ``.update(...)``s with its own
-    divergent tail (parent_key/epic_key, is_overdue, project_name, etc.). The
-    helper resolves NO relationships and issues NO queries — assignee and sprint
-    NAMES are passed in already-resolved so the N+1 characteristics of each call
-    site are unchanged.
+    divergent tail (parent_key/epic_key, is_overdue, etc.). The helper resolves
+    NO relationships and issues NO queries — assignee and sprint NAMES are passed
+    in already-resolved so the N+1 characteristics of each call site are
+    unchanged.
 
-    Flags mirror the exact per-site divergences captured before extraction:
+    ``get_my_tasks`` does NOT use this helper; its divergent shape (raw hours,
+    no dates/assignee_id/epic, sprint_id in the tail) lives in
+    ``_serialize_my_task``.
+
+    Flags mirror the exact per-site divergences captured for the four callers:
 
     * ``assignee_name`` / ``sprint_name`` — call site passes the resolved name,
       defaulting to the "Unassigned" / "Backlog" placeholders.
-    * ``raw_hours`` — ``get_my_tasks`` emits ``estimated_hours``/``remaining_hours``/
-      ``logged_hours`` RAW (no ``or 0``); every other site coerces ``None`` → 0.
-      ``assigned_hours`` is ALWAYS ``estimated_hours or 0`` regardless.
     * ``include_estimated_hours`` — every site except ``move_ticket_to_sprint``
       also emits the raw-key ``estimated_hours`` (double-emitted alongside
       ``assigned_hours``).
     * ``include_sprint_id`` — ``create_work_item`` omits ``sprint_id``.
-    * ``include_dates`` — emit ``created_at``/``updated_at`` (isoformat-or-None).
-      ``get_my_tasks`` sets this False (it carries neither).
-    * ``include_assignee_id`` / ``include_epic`` — ``get_my_tasks`` alone omits
-      both the ``assignee_id`` and the ``epic`` (``""``) keys.
+
+    Hours are coerced (``None`` → 0). ``created_at``/``updated_at`` are always
+    emitted (isoformat-or-None).
     """
     core = {
         "id": str(item.id),
@@ -131,24 +127,52 @@ def _serialize_work_item(
         "priority": item.priority,
         "story_points": item.story_points or 0,
         "assigned_hours": item.estimated_hours or 0,
-        "remaining_hours": item.remaining_hours if raw_hours else (item.remaining_hours or 0),
-        "logged_hours": item.logged_hours if raw_hours else (item.logged_hours or 0),
+        "remaining_hours": item.remaining_hours or 0,
+        "logged_hours": item.logged_hours or 0,
         "assignee": assignee_name,
         "sprint": sprint_name,
         "tags": item.tags or [],
+        "assignee_id": item.assignee_id,
+        "epic": "",
     }
-    if include_assignee_id:
-        core["assignee_id"] = item.assignee_id
-    if include_epic:
-        core["epic"] = ""
     if include_estimated_hours:
-        core["estimated_hours"] = item.estimated_hours if raw_hours else (item.estimated_hours or 0)
+        core["estimated_hours"] = item.estimated_hours or 0
     if include_sprint_id:
         core["sprint_id"] = item.sprint_id
-    if include_dates:
-        core["created_at"] = item.created_at.isoformat() if item.created_at else None
-        core["updated_at"] = item.updated_at.isoformat() if item.updated_at else None
+    core["created_at"] = item.created_at.isoformat() if item.created_at else None
+    core["updated_at"] = item.updated_at.isoformat() if item.updated_at else None
     return core
+
+
+def _serialize_my_task(item, *, assignee_name, sprint_name="Backlog") -> dict:
+    """Build the ``get_my_tasks`` response core (distinct from the shared builder).
+
+    Differs from ``_serialize_work_item`` in the ways the my-tasks shape needs:
+    hours (``estimated_hours``/``remaining_hours``/``logged_hours``) are emitted
+    RAW (no ``or 0`` coercion; ``assigned_hours`` is still ``estimated_hours or
+    0``); there are no ``created_at``/``updated_at``, no ``assignee_id``, and no
+    ``epic`` keys. The caller ``.update(...)``s the my-tasks tail
+    (project_name/is_overdue/reporter_name/parent_key/epic_key/sprint_id/…).
+
+    Resolves NO relationships and issues NO queries — names are passed in.
+    """
+    return {
+        "id": str(item.id),
+        "key": item.key,
+        "type": item.type,
+        "title": item.title,
+        "description": item.description or "",
+        "status": item.status,
+        "priority": item.priority,
+        "story_points": item.story_points or 0,
+        "assigned_hours": item.estimated_hours or 0,
+        "remaining_hours": item.remaining_hours,
+        "logged_hours": item.logged_hours,
+        "assignee": assignee_name,
+        "sprint": sprint_name,
+        "tags": item.tags or [],
+        "estimated_hours": item.estimated_hours,
+    }
 
 
 def update_epic_hours(epic_id: int, db: Session):
@@ -746,15 +770,10 @@ def get_my_tasks(db: Session = Depends(get_db), current_user: User = Depends(get
         # my-tasks passes hours RAW (no `or 0`), carries no created_at/updated_at,
         # and puts sprint_id in its tail. Every item here is assigned to the
         # requesting developer, so the assignee name is always developer.name.
-        item_dict = _serialize_work_item(
+        item_dict = _serialize_my_task(
             item,
             assignee_name=developer.name,
             sprint_name=item.sprint.name if item.sprint else "Backlog",
-            raw_hours=True,
-            include_sprint_id=False,
-            include_dates=False,
-            include_assignee_id=False,
-            include_epic=False,
         )
         item_dict.update(
             {

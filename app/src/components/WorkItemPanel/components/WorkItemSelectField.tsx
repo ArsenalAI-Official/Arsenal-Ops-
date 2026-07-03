@@ -13,12 +13,9 @@ export interface WorkItemSelectFieldProps {
   defaultValue?: string;
   onChange: ChangeEventHandler<HTMLSelectElement>;
   options: readonly WorkItemSelectOption[];
-  id?: string;
-  /** Overrides the default `<select>` classes (byte-identical default below). */
-  className?: string;
 }
 
-const DEFAULT_SELECT_CLASS =
+const SELECT_CLASS =
   'w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm';
 
 /**
@@ -34,18 +31,13 @@ export const WorkItemSelectField = ({
   defaultValue,
   onChange,
   options,
-  id,
-  className = DEFAULT_SELECT_CLASS,
 }: WorkItemSelectFieldProps) => (
   <div>
-    <label htmlFor={id} className="text-xs font-medium text-[#737373] block mb-1.5">
-      {label}
-    </label>
+    <label className="text-xs font-medium text-[#737373] block mb-1.5">{label}</label>
     <select
-      id={id}
       {...(value !== undefined ? { value } : { defaultValue })}
       onChange={onChange}
-      className={className}
+      className={SELECT_CLASS}
     >
       {options.map((opt) => (
         <option key={opt.value} value={opt.value}>
