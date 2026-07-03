@@ -16,6 +16,7 @@ import {
   type WorkItemType,
 } from '@/lib/hierarchy/validateReparent';
 import { clampNonNegInt, blockNegativeKey } from '@/lib/inputUtils';
+import { typeUsesPoints } from '@/lib/workItemConfig';
 
 export interface CreateItemFormValues {
   type: string;
@@ -77,9 +78,11 @@ const CreateItemModal = ({
     title: '',
     description: '',
     priority: 'medium',
-    // Epics carry no story points (the field is hidden for them); default to 0
-    // so a hidden default never seeds phantom points/hours (audit #23).
-    story_points: initialType === 'epic' ? 0 : 3,
+    // Only point-bearing types (story/bug) default to 3; task and epic hide the
+    // field, so seed 0 — a hidden default must never carry phantom points/hours
+    // (audit #23). Shares typeUsesPoints with the create-payload builder so the
+    // two can't disagree on which types carry points.
+    story_points: typeUsesPoints(initialType ?? 'user_story') ? 3 : 0,
     assignee_id: null,
     sprint: 'Backlog',
     epic_id: null,
@@ -196,11 +199,9 @@ const CreateItemModal = ({
         </div>
         <div
           className={
-            // Points only shows for user_story/bug — so task and epic (which
-            // both hide it) use 2 columns, the rest use 3.
-            createForm.type === 'task' || createForm.type === 'epic'
-              ? 'grid grid-cols-2 gap-3'
-              : 'grid grid-cols-3 gap-3'
+            // Points only shows for point-bearing types (story/bug) — task and
+            // epic hide it and use 2 columns, the rest use 3.
+            typeUsesPoints(createForm.type) ? 'grid grid-cols-3 gap-3' : 'grid grid-cols-2 gap-3'
           }
         >
           <div>
@@ -216,7 +217,7 @@ const CreateItemModal = ({
               <option value="low">Low</option>
             </select>
           </div>
-          {createForm.type !== 'task' && createForm.type !== 'epic' && (
+          {typeUsesPoints(createForm.type) && (
             <div>
               <label className="text-xs font-medium text-[#737373] block mb-1.5">Points</label>
               <Input

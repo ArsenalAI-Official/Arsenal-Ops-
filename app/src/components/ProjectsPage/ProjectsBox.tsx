@@ -1,12 +1,11 @@
 import { Plus, X, Search, FolderKanban, Star, ArrowUpDown, Check, ChevronDown } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '@/contexts/AuthContext';
+import { avatarColor } from '@/lib/avatarColor';
 import type { Project } from './types';
-
-const ACCENT_COLORS = ['#EF6461', '#5896DE', '#9C82E0', '#40BE86', '#E8743C', '#EC4899', '#22D3EE'];
 
 // Real backend project statuses → display label + accent. Falls back to a
 // title-cased label in neutral grey for any status not in the map.
@@ -59,23 +58,30 @@ const ProjectsBox = ({
   const [sort, setSort] = useState<ProjectSort>('recent');
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
 
-  const filteredProjects = projects
-    .filter((p) => {
-      const matchesSearch =
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.description ?? '').toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesFilter = filter === 'fav' ? !!p.is_favorite : true;
-      return matchesSearch && matchesFilter;
-    })
-    .sort((a, b) => {
-      if (sort === 'name') return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
-      if (sort === 'progress')
-        return b.work_item_stats.completion_pct - a.work_item_stats.completion_pct;
-      // recent: newest created_at first (closest proxy to "recent activity")
-      return (b.created_at ?? '').localeCompare(a.created_at ?? '');
-    });
+  // Filter + sort over every project runs on each keystroke and each favorite
+  // toggle; memoize so an unrelated parent re-render doesn't re-sort the list.
+  const filteredProjects = useMemo(
+    () =>
+      projects
+        .filter((p) => {
+          const matchesSearch =
+            p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (p.description ?? '').toLowerCase().includes(searchQuery.toLowerCase());
+          const matchesFilter = filter === 'fav' ? !!p.is_favorite : true;
+          return matchesSearch && matchesFilter;
+        })
+        .sort((a, b) => {
+          if (sort === 'name')
+            return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+          if (sort === 'progress')
+            return b.work_item_stats.completion_pct - a.work_item_stats.completion_pct;
+          // recent: newest created_at first (closest proxy to "recent activity")
+          return (b.created_at ?? '').localeCompare(a.created_at ?? '');
+        }),
+    [projects, searchQuery, filter, sort],
+  );
 
-  const favCount = projects.filter((p) => p.is_favorite).length;
+  const favCount = useMemo(() => projects.filter((p) => p.is_favorite).length, [projects]);
   const sortLabel = SORT_OPTIONS.find((o) => o.key === sort)?.label ?? 'Sort';
 
   return (
@@ -195,8 +201,10 @@ const ProjectsBox = ({
             </p>
           </div>
         ) : (
-          filteredProjects.map((project, idx) => {
-            const accent = ACCENT_COLORS[idx % ACCENT_COLORS.length] ?? '#8A8A8A';
+          filteredProjects.map((project) => {
+            // Seed the accent from the project id so it's stable per project —
+            // a positional index reassigned colors whenever the sort changed.
+            const accent = avatarColor(project.id).fg;
             const meta = statusMeta(project.status);
             const isFav = !!project.is_favorite;
             return (

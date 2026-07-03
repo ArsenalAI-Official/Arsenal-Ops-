@@ -108,3 +108,14 @@ export function getStatusLabel(status: string): string {
 export function getPriorityColor(priority: string): string {
   return PRIORITY_COLOR[priority] ?? PRIORITY_COLOR.low!;
 }
+
+/**
+ * Whether a work-item type carries story points (and seeds hours from them).
+ * Only stories and bugs do — tasks use estimated_hours directly, and epics
+ * derive their hours from descendants server-side. Single source of truth so
+ * the Create modal's default and the create-payload builder can't drift and
+ * reintroduce phantom points/hours (audit #23).
+ */
+export function typeUsesPoints(type: string): boolean {
+  return type === 'user_story' || type === 'bug';
+}

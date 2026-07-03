@@ -694,23 +694,15 @@ def add_favorite(
     rows.
     """
     require_project_access(project_id, current_user, db)
-    exists = db.execute(
-        select(project_favorites.c.project_id).where(
-            project_favorites.c.user_id == current_user.id,
-            project_favorites.c.project_id == project_id,
-        )
-    ).first()
-    if not exists:
-        # SELECT-then-INSERT can race two concurrent stars of the same project;
-        # the composite PK guards integrity, so treat the loser's duplicate-key
-        # as success rather than surfacing a 500.
-        try:
-            db.execute(
-                insert(project_favorites).values(user_id=current_user.id, project_id=project_id)
-            )
-            db.commit()
-        except IntegrityError:
-            db.rollback()
+    # INSERT unconditionally and let the composite PK make a repeat star a no-op.
+    # Catching IntegrityError (rather than a preceding SELECT-then-INSERT) keeps
+    # this one round-trip and still race-safe: a concurrent duplicate just rolls
+    # back and is treated as success rather than a 500.
+    try:
+        db.execute(insert(project_favorites).values(user_id=current_user.id, project_id=project_id))
+        db.commit()
+    except IntegrityError:
+        db.rollback()
     return {"is_favorite": True}
 
 

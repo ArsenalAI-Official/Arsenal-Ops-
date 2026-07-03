@@ -5,6 +5,7 @@ import type { ConfirmFn } from '@/components/ui/confirm-dialog';
 import { apiFetch, ApiError, permissionAwareError } from '@/lib/api';
 import { invalidateProjectScope } from '@/lib/invalidations';
 import { toastErrorHandler } from '@/lib/mutationToast';
+import { typeUsesPoints } from '@/lib/workItemConfig';
 import type { WorkItem } from '@/types/workItems';
 import { applyStatusChange } from '../lib/optimisticStatus';
 import type { CreateItemFormValues } from '../modals/CreateItemModal';
@@ -136,7 +137,8 @@ export function useWorkItemMutations(
       // Points and Est. Hours fields are both hidden for epics because an epic's
       // hours are derived from its descendants server-side, so seeding
       // story_points*4 here produced phantom hours on every epic (audit #23).
-      const usesPoints = form.type === 'user_story' || form.type === 'bug';
+      // Shared predicate so this can't drift from the modal's point-field logic.
+      const usesPoints = typeUsesPoints(form.type);
       const payload: CreateWorkItemPayload = {
         type: form.type,
         title: form.title,

@@ -82,8 +82,12 @@ export default function SprintOverview({
                 const allocatedHours =
                   sprintAnalytics?.allocated_hours ?? sprint.capacity_hours ?? 0;
                 const loggedHours = sprintAnalytics?.logged_hours ?? sprint.velocity ?? 0;
+                // Remaining = Allocated − Logged, unclamped: an over-logged sprint
+                // surfaces as a negative (audit #13). The fallback must NOT floor at
+                // 0, or the same over-budget sprint would read -12h with analytics
+                // and 0h without — two displays of one state.
                 const remainingHours =
-                  sprintAnalytics?.remaining_hours ?? Math.max(0, allocatedHours - loggedHours);
+                  sprintAnalytics?.remaining_hours ?? allocatedHours - loggedHours;
 
                 return (
                   <div
