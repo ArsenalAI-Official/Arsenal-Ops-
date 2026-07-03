@@ -4,7 +4,7 @@ import sys
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload, selectinload
 
@@ -46,8 +46,7 @@ class EmployeeResponse(BaseModel):
     project_count: int
     assigned_items_count: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DashboardStats(BaseModel):
@@ -331,8 +330,7 @@ class EmployeeTicketResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.get(
@@ -572,8 +570,7 @@ class ProjectResponse(BaseModel):
     category_id: int | None = None
     category_name: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.get(
@@ -977,8 +974,7 @@ class TimeEntryRow(BaseModel):
     developer_email: str | None
     avatar_url: str | None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TimeEntriesResponse(BaseModel):
