@@ -758,6 +758,19 @@ def update_project(
                 status_code=400,
                 detail=f"Key prefix '{normalized}' is already in use by another project",
             )
+        if normalized != (project.key_prefix or ""):
+            # Re-key this project's existing work items onto the new prefix so it
+            # keeps a SINGLE key namespace (mirrors the backfill migration). The
+            # trailing number is preserved and the new prefix is guaranteed
+            # unused by any other project (checked above), so the rewritten keys
+            # stay globally unique. Done in Python (not raw SQL) so it works on
+            # both SQLite and Postgres.
+            from models.work_item import WorkItem
+
+            items = db.query(WorkItem).filter(WorkItem.project_id == project_id).all()
+            for item in items:
+                if item.key and "-" in item.key:
+                    item.key = f"{normalized}-{item.key.rsplit('-', 1)[1]}"
         project.key_prefix = normalized
 
     # Handle github_repo_url update

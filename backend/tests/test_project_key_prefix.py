@@ -148,6 +148,31 @@ class TestUpdatePrefix:
         result = update_project(pid, ProjectUpdate(key_prefix="new key"), db=db, current_user=user)
         assert result["key_prefix"] == "NEWKEY"
 
+    def test_update_prefix_rekeys_existing_work_items(self, db):
+        """Changing the prefix rewrites existing work-item keys onto it, so the
+        project keeps a single key namespace (numbers preserved)."""
+        from models.work_item import WorkItem
+
+        user = _user(db, caps=["admin.projects"])
+        created = create_project(
+            ProjectCreate(name="Rekey Me", description="d", key_prefix="OLD"),
+            db=db,
+            current_user=user,
+        )
+        pid = int(created["id"])
+        db.add_all(
+            [
+                WorkItem(project_id=pid, key="OLD-1", type="task", title="a"),
+                WorkItem(project_id=pid, key="OLD-2", type="task", title="b"),
+            ]
+        )
+        db.commit()
+
+        update_project(pid, ProjectUpdate(key_prefix="new"), db=db, current_user=user)
+
+        keys = {wi.key for wi in db.query(WorkItem).filter(WorkItem.project_id == pid).all()}
+        assert keys == {"NEW-1", "NEW-2"}
+
     def test_update_to_taken_prefix_rejected(self, db):
         user = _user(db, caps=["admin.projects"])
         create_project(

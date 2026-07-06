@@ -376,86 +376,94 @@ def run_migrations():
         # concurrently-booting Gunicorn workers, and we double-check the index
         # inside the lock (a peer worker may have just finished).
         try:
+            # This backfill is Postgres-only: it relies on `pg_indexes`,
+            # `regexp_replace`, and advisory locks. Non-Postgres engines (the
+            # SQLite test/local DBs) get the uniqueness invariant directly from
+            # `Project.key_prefix`'s `unique=True` via `create_all`, so there is
+            # nothing to backfill and running the block would just raise
+            # `no such table: pg_indexes` on every boot.
             if conn.dialect.name == "postgresql":
                 # Arbitrary constant namespacing this one migration's lock.
                 conn.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": 840251001})
-            idx = conn.execute(
-                text("""
-                SELECT 1 FROM pg_indexes
-                WHERE tablename = 'projects' AND indexname = 'uq_projects_key_prefix'
-            """)
-            ).fetchone()
+                idx = conn.execute(
+                    text("""
+                    SELECT 1 FROM pg_indexes
+                    WHERE tablename = 'projects' AND indexname = 'uq_projects_key_prefix'
+                """)
+                ).fetchone()
 
-            if not idx:
-                from services.project_keys import derive_prefix_base
+                if not idx:
+                    from services.project_keys import derive_prefix_base
 
-                print("[MIGRATION] Backfilling unique project key_prefixes...")
-                # Mirrors models.project.ProjectStatus; hardcoded to avoid an
-                # import cycle (models import database.Base).
-                valid_statuses = {
-                    "ideation",
-                    "planning",
-                    "development",
-                    "testing",
-                    "launched",
-                    "archived",
-                }
-                rows = conn.execute(
-                    text("SELECT id, name, key_prefix, status FROM projects ORDER BY id")
-                ).fetchall()
+                    print("[MIGRATION] Backfilling unique project key_prefixes...")
+                    # Mirrors models.project.ProjectStatus; hardcoded to avoid an
+                    # import cycle (models import database.Base).
+                    valid_statuses = {
+                        "ideation",
+                        "planning",
+                        "development",
+                        "testing",
+                        "launched",
+                        "archived",
+                    }
+                    rows = conn.execute(
+                        text("SELECT id, name, key_prefix, status FROM projects ORDER BY id")
+                    ).fetchall()
 
-                taken: set[str] = set()
-                keep: dict[int, str] = {}
-                # Pass 1: preserve existing distinct, non-default prefixes.
-                for r in rows:
-                    kp = (r.key_prefix or "").strip().upper()
-                    if kp and kp != "PROJ" and kp not in taken:
-                        keep[r.id] = kp
-                        taken.add(kp)
-                # Pass 2: derive + dedup a prefix for everything else.
-                assign: dict[int, str] = {}
-                for r in rows:
-                    if r.id in keep:
-                        continue
-                    base = derive_prefix_base(r.name)
-                    cand, n = base, 2
-                    while cand in taken:
-                        suffix = str(n)
-                        cand = base[: 10 - len(suffix)] + suffix
-                        n += 1
-                    taken.add(cand)
-                    assign[r.id] = cand
+                    taken: set[str] = set()
+                    keep: dict[int, str] = {}
+                    # Pass 1: preserve existing distinct, non-default prefixes.
+                    for r in rows:
+                        kp = (r.key_prefix or "").strip().upper()
+                        if kp and kp != "PROJ" and kp not in taken:
+                            keep[r.id] = kp
+                            taken.add(kp)
+                    # Pass 2: derive + dedup a prefix for everything else.
+                    assign: dict[int, str] = {}
+                    for r in rows:
+                        if r.id in keep:
+                            continue
+                        base = derive_prefix_base(r.name)
+                        cand, n = base, 2
+                        while cand in taken:
+                            suffix = str(n)
+                            cand = base[: 10 - len(suffix)] + suffix
+                            n += 1
+                        taken.add(cand)
+                        assign[r.id] = cand
 
-                for r in rows:
-                    new_kp = keep.get(r.id) or assign[r.id]
-                    new_status = r.status if r.status in valid_statuses else "ideation"
-                    conn.execute(
-                        text("UPDATE projects SET key_prefix = :kp, status = :st WHERE id = :id"),
-                        {"kp": new_kp, "st": new_status, "id": r.id},
-                    )
-                    # Only re-key when the prefix actually changed.
-                    if r.id in assign:
+                    for r in rows:
+                        new_kp = keep.get(r.id) or assign[r.id]
+                        new_status = r.status if r.status in valid_statuses else "ideation"
                         conn.execute(
-                            text("""
-                            UPDATE work_items
-                            SET key = :kp || '-' || regexp_replace(key, '^.*-', '')
-                            WHERE project_id = :pid AND key LIKE '%-%'
-                        """),
-                            {"kp": new_kp, "pid": r.id},
+                            text(
+                                "UPDATE projects SET key_prefix = :kp, status = :st WHERE id = :id"
+                            ),
+                            {"kp": new_kp, "st": new_status, "id": r.id},
                         )
+                        # Only re-key when the prefix actually changed.
+                        if r.id in assign:
+                            conn.execute(
+                                text("""
+                                UPDATE work_items
+                                SET key = :kp || '-' || regexp_replace(key, '^.*-', '')
+                                WHERE project_id = :pid AND key LIKE '%-%'
+                            """),
+                                {"kp": new_kp, "pid": r.id},
+                            )
 
-                conn.execute(
-                    text("CREATE UNIQUE INDEX uq_projects_key_prefix ON projects(key_prefix)")
-                )
-                # Single atomic commit for the UPDATEs + the index (and it
-                # releases the advisory lock). If CREATE INDEX had failed, the
-                # except below rolls the UPDATEs back too, so the next boot
-                # retries from clean data instead of looping on committed rows.
-                conn.commit()
-                print(
-                    f"[MIGRATION] key_prefix backfill complete "
-                    f"({len(keep)} kept, {len(assign)} regenerated)."
-                )
+                    conn.execute(
+                        text("CREATE UNIQUE INDEX uq_projects_key_prefix ON projects(key_prefix)")
+                    )
+                    # Single atomic commit for the UPDATEs + the index (and it
+                    # releases the advisory lock). If CREATE INDEX had failed, the
+                    # except below rolls the UPDATEs back too, so the next boot
+                    # retries from clean data instead of looping on committed rows.
+                    conn.commit()
+                    print(
+                        f"[MIGRATION] key_prefix backfill complete "
+                        f"({len(keep)} kept, {len(assign)} regenerated)."
+                    )
         except Exception as e:
             print(f"[MIGRATION ERROR] key_prefix backfill: {e}")
             conn.rollback()

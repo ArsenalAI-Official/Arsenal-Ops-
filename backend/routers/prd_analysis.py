@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 sys.path.append("..")
@@ -650,39 +651,52 @@ async def commit_architecture(
     key_prefix = project.key_prefix or "PROJ"
 
     for ticket_data in ticket_result.get("tickets", []):
-        # Serialize numbering for this prefix (no-op on SQLite). The xact-scoped
-        # lock is released when this ticket's insert commits below.
-        if db.bind is not None and db.bind.dialect.name == "postgresql":
-            lock_id = abs(hash(key_prefix)) % 2_147_483_647
-            db.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": lock_id})
-        item_number = get_next_item_number(db, key_prefix)
-        key = f"{key_prefix}-{item_number}"
-
-        # Determine sprint_id
+        # Determine sprint_id (independent of numbering).
         sprint_id = None
         sprint_number = ticket_data.get("sprint_number")
         if sprint_number and sprint_number in sprint_map:
             sprint_id = sprint_map[sprint_number].id
 
-        work_item = WorkItem(
-            project_id=project_id,
-            key=key,
-            type=ticket_data.get("type", "task"),
-            title=ticket_data.get("title", "Generated Task"),
-            description=ticket_data.get("description", ""),
-            status="backlog" if not sprint_id else "todo",
-            estimated_hours=ticket_data.get("estimated_hours", 8),
-            remaining_hours=ticket_data.get("estimated_hours", 8),
-            story_points=ticket_data.get("story_points", 3),
-            priority=ticket_data.get("priority", "medium"),
-            assignee_id=ticket_data.get("assignee_id"),
-            sprint_id=sprint_id,
-            tags=ticket_data.get("tags", []),
-            acceptance_criteria=[],
-        )
-
-        db.add(work_item)
-        db.commit()
+        # Number + insert with a bounded retry. The advisory lock serializes
+        # concurrent inserts on this prefix (no-op on SQLite), and the xact-scoped
+        # lock is released when the insert commits. As a safety net — work_items.key
+        # is UNIQUE — a lost race that slips a duplicate key past the lock is
+        # caught and retried with a freshly-scanned number, rather than 500-ing
+        # and orphaning the tickets already committed earlier in this batch.
+        work_item = None
+        for _attempt in range(5):
+            if db.bind is not None and db.bind.dialect.name == "postgresql":
+                lock_id = abs(hash(key_prefix)) % 2_147_483_647
+                db.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": lock_id})
+            item_number = get_next_item_number(db, key_prefix)
+            candidate = WorkItem(
+                project_id=project_id,
+                key=f"{key_prefix}-{item_number}",
+                type=ticket_data.get("type", "task"),
+                title=ticket_data.get("title", "Generated Task"),
+                description=ticket_data.get("description", ""),
+                status="backlog" if not sprint_id else "todo",
+                estimated_hours=ticket_data.get("estimated_hours", 8),
+                remaining_hours=ticket_data.get("estimated_hours", 8),
+                story_points=ticket_data.get("story_points", 3),
+                priority=ticket_data.get("priority", "medium"),
+                assignee_id=ticket_data.get("assignee_id"),
+                sprint_id=sprint_id,
+                tags=ticket_data.get("tags", []),
+                acceptance_criteria=[],
+            )
+            db.add(candidate)
+            try:
+                db.commit()
+                work_item = candidate
+                break
+            except IntegrityError:
+                db.rollback()
+        if work_item is None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Could not allocate a unique work-item key for prefix '{key_prefix}'",
+            )
         db.refresh(work_item)
 
         # Get assignee name
