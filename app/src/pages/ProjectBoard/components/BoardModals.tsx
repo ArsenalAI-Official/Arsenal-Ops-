@@ -52,6 +52,8 @@ export interface BoardModalsProps {
   parseLocalDate: DrawerProps['parseLocalDate'];
   isSavingEdit: DrawerProps['isSavingEdit'];
   onSaveEdit: DrawerProps['onSaveEdit'];
+  onPatchField: DrawerProps['onPatchField'];
+  onPopOut: DrawerProps['onPopOut'];
   onDeleteItem: DrawerProps['onDeleteItem'];
   onStatusChange: DrawerProps['onStatusChange'];
   onLogHours: DrawerProps['onLogHours'];
@@ -131,6 +133,8 @@ const BoardModals = ({
   parseLocalDate,
   isSavingEdit,
   onSaveEdit,
+  onPatchField,
+  onPopOut,
   onDeleteItem,
   onStatusChange,
   onLogHours,
@@ -193,6 +197,8 @@ const BoardModals = ({
             parseLocalDate={parseLocalDate}
             isSavingEdit={isSavingEdit}
             onSaveEdit={onSaveEdit}
+            onPatchField={onPatchField}
+            onPopOut={onPopOut}
             onDeleteItem={onDeleteItem}
             onStatusChange={onStatusChange}
             onLogHours={onLogHours}

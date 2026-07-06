@@ -25,6 +25,7 @@ import BoardHeader from './components/BoardHeader';
 import BoardModals from './components/BoardModals';
 import BoardSkeleton from './components/BoardSkeleton';
 import BoardToolbar from './components/BoardToolbar';
+import { FloatingTickets, type FloatingEntry } from './components/FloatingTickets';
 import { useBoardData } from './hooks/useBoardData';
 import { useBoardDnd } from './hooks/useBoardDnd';
 import { useBoardFilters } from './hooks/useBoardFilters';
@@ -235,6 +236,9 @@ const ProjectBoard = () => {
     handleMoveToSprint,
     isSavingEdit,
     handleSaveEdit,
+    saveEditMutation,
+    handlePatchField,
+    patchFieldMutation,
     handleDeleteItem,
     logHoursMutation,
     handleLogHours,
@@ -247,6 +251,57 @@ const ProjectBoard = () => {
     onCreateSuccess: () => setShowCreateForm(false),
     confirm,
   });
+
+  // ── Floating ticket windows (pop-out multi-ticket view) ────────────────────
+  // Array order is the z-order: the last entry renders on top. Pop-out detaches
+  // the docked ticket into a movable, non-modal window and frees the dock.
+  const [floatingTickets, setFloatingTickets] = useState<FloatingEntry[]>([]);
+  const popOutTicket = useCallback(
+    (itemId: string) => {
+      setFloatingTickets((prev) => {
+        if (prev.some((f) => f.id === itemId)) {
+          // Already floating — bring it to the front instead of duplicating.
+          return [...prev.filter((f) => f.id !== itemId), ...prev.filter((f) => f.id === itemId)];
+        }
+        const offset = prev.length * 28; // cascade successive windows
+        return [...prev, { id: itemId, x: 160 + offset, y: 96 + offset }];
+      });
+      navigate(`/project/${id}/board`); // close the docked panel
+    },
+    [id, navigate],
+  );
+  const closeFloatingTicket = useCallback(
+    (itemId: string) => setFloatingTickets((prev) => prev.filter((f) => f.id !== itemId)),
+    [],
+  );
+  // Dock back: remove from the floating list and open it in the docked panel.
+  const dockTicket = useCallback(
+    (itemId: string) => {
+      setFloatingTickets((prev) => prev.filter((f) => f.id !== itemId));
+      navigate(`/project/${id}/board/${itemId}`);
+    },
+    [id, navigate],
+  );
+  const focusFloatingTicket = useCallback(
+    (itemId: string) =>
+      setFloatingTickets((prev) => {
+        const idx = prev.findIndex((f) => f.id === itemId);
+        if (idx < 0 || idx === prev.length - 1) return prev;
+        const target = prev[idx]!;
+        return [...prev.slice(0, idx), ...prev.slice(idx + 1), target];
+      }),
+    [],
+  );
+  // Id-scoped edit handlers so each floating window mutates ITS OWN ticket (the
+  // shared handlers close over the docked `selectedItem`).
+  const saveFloatingEdit = useCallback(
+    (itemId: string, edits: Partial<WorkItem>) => saveEditMutation.mutate({ itemId, edits }),
+    [saveEditMutation],
+  );
+  const patchFloatingField = useCallback(
+    (itemId: string, edits: Partial<WorkItem>) => patchFieldMutation.mutate({ itemId, edits }),
+    [patchFieldMutation],
+  );
 
   // Drag-and-drop state + handlers live in useBoardDnd, which owns both the
   // state and the handlers together so handleDrop never reads a stale
@@ -552,6 +607,8 @@ const ProjectBoard = () => {
         selectedItem={selectedItem}
         isSavingEdit={isSavingEdit}
         onSaveEdit={handleSaveEdit}
+        onPatchField={handlePatchField}
+        onPopOut={selectedItem ? () => popOutTicket(selectedItem.id) : undefined}
         onDeleteItem={handleDeleteItem}
         onStatusChange={handleStatusChange}
         onLogHours={handleLogHours}
@@ -601,6 +658,31 @@ const ProjectBoard = () => {
         editingArchitecture={editingArchitecture}
         onSaveArchitecture={handleSaveArchitecture}
         onCloseArchitectureEditor={() => setEditingArchitecture(null)}
+      />
+
+      {/* Floating (popped-out) ticket windows — non-modal, movable, board only. */}
+      <FloatingTickets
+        entries={floatingTickets}
+        workItems={workItems}
+        sprints={sprints}
+        project={project}
+        allDevelopers={allDevelopers}
+        id={id}
+        token={token || ''}
+        navigate={navigate}
+        parseLocalDate={parseLocalDate}
+        isSavingEdit={isSavingEdit}
+        isLoggingHours={logHoursMutation.isPending}
+        onStatusChange={handleStatusChange}
+        onLogHours={handleLogHours}
+        onMoveToSprint={handleMoveToSprint}
+        getNextSprint={getNextSprint}
+        onSaveEditFor={saveFloatingEdit}
+        onPatchFieldFor={patchFloatingField}
+        onDeleteItem={handleDeleteItem}
+        onClose={closeFloatingTicket}
+        onFocus={focusFloatingTicket}
+        onDock={dockTicket}
       />
     </div>
   );

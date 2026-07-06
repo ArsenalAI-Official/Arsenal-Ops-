@@ -18,6 +18,7 @@ export interface ItemDetailDrawerProps {
   parseLocalDate: (s: string | undefined) => Date | undefined;
   isSavingEdit: boolean;
   onSaveEdit: (edits: Partial<WorkItem>) => void;
+  onPatchField: (edits: Partial<WorkItem>) => void;
   onDeleteItem: (itemId: string) => void;
   onStatusChange: (item: WorkItem, newStatus: string) => void;
   onLogHours: (item: WorkItem, hours: number) => void;
@@ -26,6 +27,20 @@ export interface ItemDetailDrawerProps {
   // onSubmitComment kept for backward compat; comments are now handled internally.
   onSubmitComment?: (content: string, type?: 'comment' | 'blocker' | 'business_review') => void;
   getNextSprint: (currentSprintId: number | null) => number | null;
+  // ── Floating-window support (board multi-ticket view) ──────────────────────
+  /** 'docked' (default) or 'floating'. */
+  presentation?: 'docked' | 'floating';
+  /** Floating: stacking order, bring-to-front, initial position. */
+  zIndex?: number;
+  onFocus?: () => void;
+  initialPosition?: { x: number; y: number };
+  /** Docked: shows the header pop-out button. */
+  onPopOut?: () => void;
+  /** Floating: re-docks the window back into the side dock. */
+  onDock?: () => void;
+  /** Overrides the default close behavior (docked navigates to the board;
+   *  floating windows pass a remove-from-list handler). */
+  onClose?: () => void;
 }
 
 const ItemDetailDrawer = ({
@@ -39,12 +54,20 @@ const ItemDetailDrawer = ({
   navigate,
   isSavingEdit,
   onSaveEdit,
+  onPatchField,
   onDeleteItem,
   onStatusChange,
   onLogHours,
   isLoggingHours,
   onMoveToSprint,
   getNextSprint,
+  presentation,
+  zIndex,
+  onFocus,
+  initialPosition,
+  onPopOut,
+  onDock,
+  onClose,
 }: ItemDetailDrawerProps) => {
   const { user } = useAuth();
 
@@ -67,6 +90,7 @@ const ItemDetailDrawer = ({
       currentUserId={currentUserId}
       isSavingEdit={isSavingEdit}
       onSaveEdit={onSaveEdit}
+      onPatchField={onPatchField}
       onStatusChange={onStatusChange}
       onLogHours={onLogHours}
       isLoggingHours={isLoggingHours}
@@ -74,7 +98,13 @@ const ItemDetailDrawer = ({
       onMoveToSprint={onMoveToSprint}
       getNextSprint={getNextSprint}
       navigate={navigate}
-      onClose={() => navigate(`/project/${id}/board`)}
+      onClose={onClose ?? (() => navigate(`/project/${id}/board`))}
+      presentation={presentation}
+      zIndex={zIndex}
+      onFocus={onFocus}
+      initialPosition={initialPosition}
+      onPopOut={onPopOut}
+      onDock={onDock}
     />
   );
 };
