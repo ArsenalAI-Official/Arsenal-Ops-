@@ -14,8 +14,10 @@ import {
   getAllowedTargetTypes,
   fieldSupportsType,
 } from '@/lib/hierarchy/validateReparent';
+import { PRIORITY_OPTIONS, TYPE_OPTIONS_EDIT } from '@/lib/workItemConfig';
 import { CALENDAR_CLASS_NAMES } from '../constants';
 import type { WorkItem } from '../types';
+import { WorkItemSelectField } from './WorkItemSelectField';
 
 export interface WorkItemFullEditFormProps {
   item: WorkItem;
@@ -66,48 +68,34 @@ export const WorkItemFullEditForm = ({
       />
     </div>
     <div className={item.type === 'epic' ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-2 gap-3'}>
-      <div>
-        <label className="text-xs font-medium text-[#737373] block mb-1.5">Type</label>
-        <select
-          defaultValue={item.type}
-          onChange={(e) => {
-            const newType = e.target.value as WorkItem['type'];
-            setEditForm((f) => {
-              const next: Partial<WorkItem> = { ...f, type: newType };
-              if (!fieldSupportsType(newType, 'epic_id')) {
-                next.epic_id = null;
-                next.epic_key = null;
-              }
-              if (!fieldSupportsType(newType, 'parent_id')) {
-                next.parent_id = null;
-                next.parent_key = null;
-              }
-              return next;
-            });
-          }}
-          className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
-        >
-          <option value="user_story">Story</option>
-          <option value="task">Task</option>
-          <option value="bug">Bug</option>
-          <option value="epic">Epic</option>
-        </select>
-      </div>
-      <div>
-        <label className="text-xs font-medium text-[#737373] block mb-1.5">Priority</label>
-        <select
-          defaultValue={item.priority}
-          onChange={(e) =>
-            setEditForm((f) => ({ ...f, priority: e.target.value as WorkItem['priority'] }))
-          }
-          className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
-        >
-          <option value="critical">Critical</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </select>
-      </div>
+      <WorkItemSelectField
+        label="Type"
+        defaultValue={item.type}
+        onChange={(e) => {
+          const newType = e.target.value as WorkItem['type'];
+          setEditForm((f) => {
+            const next: Partial<WorkItem> = { ...f, type: newType };
+            if (!fieldSupportsType(newType, 'epic_id')) {
+              next.epic_id = null;
+              next.epic_key = null;
+            }
+            if (!fieldSupportsType(newType, 'parent_id')) {
+              next.parent_id = null;
+              next.parent_key = null;
+            }
+            return next;
+          });
+        }}
+        options={TYPE_OPTIONS_EDIT}
+      />
+      <WorkItemSelectField
+        label="Priority"
+        defaultValue={item.priority}
+        onChange={(e) =>
+          setEditForm((f) => ({ ...f, priority: e.target.value as WorkItem['priority'] }))
+        }
+        options={PRIORITY_OPTIONS}
+      />
     </div>
     <div className={item.type === 'epic' ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-2 gap-3'}>
       <div>

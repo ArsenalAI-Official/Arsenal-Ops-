@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
 import { WorkItemCombobox } from '@/components/WorkItemCombobox';
+import { WorkItemSelectField } from '@/components/WorkItemPanel/components/WorkItemSelectField';
 import { CALENDAR_CLASS_NAMES } from '@/lib/calendarClassNames';
 import {
   fieldSupportsType,
@@ -16,7 +17,7 @@ import {
   type WorkItemType,
 } from '@/lib/hierarchy/validateReparent';
 import { clampNonNegInt, blockNegativeKey } from '@/lib/inputUtils';
-import { typeUsesPoints } from '@/lib/workItemConfig';
+import { PRIORITY_OPTIONS, TYPE_OPTIONS_CREATE, typeUsesPoints } from '@/lib/workItemConfig';
 
 export interface CreateItemFormValues {
   type: string;
@@ -146,29 +147,23 @@ const CreateItemModal = ({
               mid-flow would surface the wrong fields and break the user's
               intent from the menu they clicked. */}
         {createForm.type !== 'epic' && (
-          <div>
-            <label className="text-xs font-medium text-[#737373] block mb-1.5">Type</label>
-            <select
-              value={createForm.type}
-              onChange={(e) => {
-                const newType = e.target.value as WorkItemType;
-                setCreateForm((f) => ({
-                  ...f,
-                  type: newType,
-                  epic_id: fieldSupportsType(newType, 'epic_id') ? f.epic_id : null,
-                  parent_id: fieldSupportsType(newType, 'parent_id') ? f.parent_id : null,
-                  // Epics aggregate hours from descendants — don't carry over a
-                  // value the user typed for a different type.
-                  estimated_hours: newType === 'epic' ? '' : f.estimated_hours,
-                }));
-              }}
-              className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
-            >
-              <option value="user_story">User Story</option>
-              <option value="task">Task</option>
-              <option value="bug">Bug</option>
-            </select>
-          </div>
+          <WorkItemSelectField
+            label="Type"
+            value={createForm.type}
+            onChange={(e) => {
+              const newType = e.target.value as WorkItemType;
+              setCreateForm((f) => ({
+                ...f,
+                type: newType,
+                epic_id: fieldSupportsType(newType, 'epic_id') ? f.epic_id : null,
+                parent_id: fieldSupportsType(newType, 'parent_id') ? f.parent_id : null,
+                // Epics aggregate hours from descendants — don't carry over a
+                // value the user typed for a different type.
+                estimated_hours: newType === 'epic' ? '' : f.estimated_hours,
+              }));
+            }}
+            options={TYPE_OPTIONS_CREATE}
+          />
         )}
         <div>
           <label className="text-xs font-medium text-[#737373] block mb-1.5">Title *</label>
@@ -204,19 +199,12 @@ const CreateItemModal = ({
             typeUsesPoints(createForm.type) ? 'grid grid-cols-3 gap-3' : 'grid grid-cols-2 gap-3'
           }
         >
-          <div>
-            <label className="text-xs font-medium text-[#737373] block mb-1.5">Priority</label>
-            <select
-              value={createForm.priority}
-              onChange={(e) => setCreateForm((f) => ({ ...f, priority: e.target.value }))}
-              className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
-            >
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-          </div>
+          <WorkItemSelectField
+            label="Priority"
+            value={createForm.priority}
+            onChange={(e) => setCreateForm((f) => ({ ...f, priority: e.target.value }))}
+            options={PRIORITY_OPTIONS}
+          />
           {typeUsesPoints(createForm.type) && (
             <div>
               <label className="text-xs font-medium text-[#737373] block mb-1.5">Points</label>

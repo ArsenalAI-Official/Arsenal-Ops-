@@ -139,28 +139,6 @@ class GitHubService:
             "results": results,
         }
 
-    def get_repo_info(self, repo_name: str) -> dict | None:
-        """Get repository information"""
-        if not self.is_configured():
-            return None
-
-        url = f"{self.api_base}/repos/{repo_name}"
-
-        try:
-            response = httpx.get(url, headers=self.headers, timeout=30)
-            if response.status_code == 200:
-                data = response.json()
-                return {
-                    "name": data.get("name"),
-                    "full_name": data.get("full_name"),
-                    "private": data.get("private"),
-                    "html_url": data.get("html_url"),
-                    "description": data.get("description"),
-                }
-            return None
-        except httpx.RequestError:
-            return None
-
     def validate_repo_access(self, repo_name: str) -> bool:
         """Check if the configured token has admin access to the repo"""
         if not self.is_configured():

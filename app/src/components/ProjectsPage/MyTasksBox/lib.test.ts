@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  priorityColor,
   projectDotColor,
   isDueToday,
   isFocusTask,
@@ -38,16 +37,6 @@ const mt = (p: Partial<MyTask>): MyTask =>
     logged_hours: null,
     ...p,
   }) as MyTask;
-
-describe('priorityColor', () => {
-  it('maps priorities to the Style Guide 1a severity ramp, grey fallback', () => {
-    expect(priorityColor('critical')).toBe('#E5484D');
-    expect(priorityColor('high')).toBe('#EC7A3C');
-    expect(priorityColor('medium')).toBe('#94A3B8');
-    expect(priorityColor('low')).toBe('#64748B');
-    expect(priorityColor('nonsense')).toBe('#64748B');
-  });
-});
 
 describe('isDueToday', () => {
   const today = new Date(2026, 6, 2); // Jul 2, 2026, local midnight

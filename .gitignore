@@ -60,3 +60,6 @@ verification-*.png
 # Playwright generated output
 app/playwright-report/
 app/test-results/
+
+# Simplify-audit reports (analysis artifacts, not source)
+.simplify-audit/

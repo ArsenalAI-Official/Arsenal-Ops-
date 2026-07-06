@@ -4,8 +4,8 @@ import re
 import sys
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, BackgroundTasks, Depends
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session, selectinload
 
 sys.path.append("..")
@@ -14,6 +14,7 @@ from models.comment import Comment
 from models.developer import Developer
 from models.user import User
 from models.work_item import WorkItem
+from routers._common import get_or_404
 from routers.auth import get_current_user
 from services.email_service import email_service
 
@@ -46,8 +47,7 @@ class CommentResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 def extract_mentions(content: str, db: Session) -> list[int]:
@@ -134,9 +134,7 @@ def create_comment(
 ):
     """Create a new comment with @mentions (requires auth)"""
     # Verify work item exists
-    work_item = db.query(WorkItem).filter(WorkItem.id == comment.work_item_id).first()
-    if not work_item:
-        raise HTTPException(status_code=404, detail="Work item not found")
+    work_item = get_or_404(db, WorkItem, comment.work_item_id, detail="Work item not found")
 
     # Get author from current user
     author = db.query(Developer).filter(Developer.email == current_user.email).first()
@@ -202,9 +200,7 @@ def update_comment(
     current_user: User = Depends(get_current_user),
 ):
     """Update a comment (requires auth)"""
-    comment = db.query(Comment).filter(Comment.id == comment_id).first()
-    if not comment:
-        raise HTTPException(status_code=404, detail="Comment not found")
+    comment = get_or_404(db, Comment, comment_id, detail="Comment not found")
 
     comment.content = update.content
     comment.mentions = extract_mentions(update.content, db)
@@ -235,9 +231,7 @@ def delete_comment(
     comment_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Delete a comment (requires auth)"""
-    comment = db.query(Comment).filter(Comment.id == comment_id).first()
-    if not comment:
-        raise HTTPException(status_code=404, detail="Comment not found")
+    comment = get_or_404(db, Comment, comment_id, detail="Comment not found")
 
     db.delete(comment)
     db.commit()
@@ -306,9 +300,7 @@ def toggle_comment_resolved(
     current_user: User = Depends(get_current_user),
 ):
     """Mark a business review comment as resolved or unresolved"""
-    comment = db.query(Comment).filter(Comment.id == comment_id).first()
-    if not comment:
-        raise HTTPException(status_code=404, detail="Comment not found")
+    comment = get_or_404(db, Comment, comment_id, detail="Comment not found")
 
     comment.is_resolved = is_resolved
     db.commit()

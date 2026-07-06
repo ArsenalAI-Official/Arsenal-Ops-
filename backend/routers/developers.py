@@ -6,13 +6,14 @@ import sys
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 sys.path.append("..")
 from database import get_db
 from models.developer import Developer
 from models.user import User
+from routers._common import get_or_404
 from routers.auth import get_current_user
 
 router = APIRouter(prefix="/api/developers", tags=["Developers"])
@@ -40,8 +41,7 @@ class DeveloperResponse(BaseModel):
     avatar_url: str | None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.post("/", response_model=DeveloperResponse)
@@ -115,9 +115,7 @@ def get_developer(
     developer_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get a developer by ID (requires auth)"""
-    developer = db.query(Developer).filter(Developer.id == developer_id).first()
-    if not developer:
-        raise HTTPException(status_code=404, detail="Developer not found")
+    developer = get_or_404(db, Developer, developer_id, detail="Developer not found")
     return developer
 
 
@@ -129,9 +127,7 @@ def update_developer(
     current_user: User = Depends(get_current_user),
 ):
     """Update a developer (requires auth)"""
-    developer = db.query(Developer).filter(Developer.id == developer_id).first()
-    if not developer:
-        raise HTTPException(status_code=404, detail="Developer not found")
+    developer = get_or_404(db, Developer, developer_id, detail="Developer not found")
 
     # Check email uniqueness if updating email
     if update.email and update.email != developer.email:
@@ -158,9 +154,7 @@ def delete_developer(
     developer_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Delete a developer (requires auth)"""
-    developer = db.query(Developer).filter(Developer.id == developer_id).first()
-    if not developer:
-        raise HTTPException(status_code=404, detail="Developer not found")
+    developer = get_or_404(db, Developer, developer_id, detail="Developer not found")
 
     db.delete(developer)
     db.commit()

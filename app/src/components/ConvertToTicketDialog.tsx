@@ -1,3 +1,4 @@
+import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -9,22 +10,23 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { avatarColor } from '@/lib/avatarColor';
-import type { PersonalTask, ProjectSummary, Developer } from '../types';
 
 interface ConvertToTicketDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  convertingTask: PersonalTask | null;
-  projects: ProjectSummary[];
-  projectMembers: Developer[];
+  convertingTask: { title: string; priority?: string | null } | null;
+  projects: { id: number | string; name: string }[];
+  projectMembers: { id: number; name: string }[];
   convertProjectId: string;
   onProjectChange: (projectId: string) => void;
-  convertEstimatedHours: string;
-  setConvertEstimatedHours: (value: string) => void;
   convertAssigneeId: string;
   setConvertAssigneeId: (value: string) => void;
+  convertEstimatedHours: string;
+  setConvertEstimatedHours: (value: string) => void;
   isConverting: boolean;
   onConvert: () => void;
+  /** Sort the project options alphabetically by name. Defaults to true. */
+  sortProjects?: boolean;
 }
 
 const ConvertToTicketDialog = ({
@@ -35,13 +37,18 @@ const ConvertToTicketDialog = ({
   projectMembers,
   convertProjectId,
   onProjectChange,
-  convertEstimatedHours,
-  setConvertEstimatedHours,
   convertAssigneeId,
   setConvertAssigneeId,
+  convertEstimatedHours,
+  setConvertEstimatedHours,
   isConverting,
   onConvert,
+  sortProjects = true,
 }: ConvertToTicketDialogProps) => {
+  const orderedProjects = sortProjects
+    ? [...projects].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+    : projects;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-[#0d0d0d] border-[rgba(255,255,255,0.08)] text-white">
@@ -51,9 +58,12 @@ const ConvertToTicketDialog = ({
         <div className="space-y-4 pt-2">
           {convertingTask && (
             <div className="p-3 bg-[#0A0A14] rounded-lg border border-[rgba(255,255,255,0.05)]">
-              <p className="text-sm text-[#a3a3a3]">
-                <span className="font-semibold text-white">{convertingTask.title}</span>
-              </p>
+              <p className="text-white font-medium text-sm">{convertingTask.title}</p>
+              {convertingTask.priority && (
+                <p className="text-[#737373] text-xs mt-0.5 capitalize">
+                  {convertingTask.priority} priority
+                </p>
+              )}
             </div>
           )}
           <div>
@@ -63,7 +73,7 @@ const ConvertToTicketDialog = ({
                 <SelectValue placeholder="Choose a project..." />
               </SelectTrigger>
               <SelectContent className="bg-[#0d0d0d] border-[rgba(255,255,255,0.08)]">
-                {projects.map((project) => (
+                {orderedProjects.map((project) => (
                   <SelectItem key={project.id} value={project.id.toString()}>
                     {project.name}
                   </SelectItem>
@@ -82,7 +92,7 @@ const ConvertToTicketDialog = ({
           {convertProjectId && (
             <div>
               <label className="text-xs text-[#737373] mb-1 block">
-                Assign To <span className="text-[#555]">(optional)</span>
+                Assign To <span className="text-[#555]">(optional — defaults to you)</span>
               </label>
               <Select value={convertAssigneeId} onValueChange={setConvertAssigneeId}>
                 <SelectTrigger className="bg-[#0A0A14] border-[rgba(255,255,255,0.08)] text-white">
@@ -124,7 +134,7 @@ const ConvertToTicketDialog = ({
             disabled={isConverting || !convertProjectId}
             className="w-full bg-gradient-to-r from-[#E0B954] to-[#C79E3B] text-[#080808] font-semibold hover:opacity-90"
           >
-            {isConverting ? 'Creating...' : 'Create Project Ticket'}
+            {isConverting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create Project Ticket'}
           </Button>
         </div>
       </DialogContent>

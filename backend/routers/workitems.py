@@ -18,7 +18,9 @@ from models.project import Project
 from models.sprint import Sprint, SprintStatus
 from models.user import User
 from models.work_item import WorkItem, WorkItemStatus, WorkItemType
+from routers._common import get_or_404
 from routers.auth import get_current_user, require_capability
+from services.activity import log_activity
 from services.email_service import email_service
 from services.hierarchy import validate_hierarchy
 from services.llm_agent import llm_agent
@@ -81,6 +83,96 @@ def _creator_dev_id(db: Session, current_user: User) -> int | None:
         return None
     dev = db.query(Developer).filter(Developer.email == current_user.email).first()
     return dev.id if dev else None
+
+
+def _serialize_work_item(
+    item,
+    *,
+    assignee_name="Unassigned",
+    sprint_name="Backlog",
+    include_estimated_hours=True,
+    include_sprint_id=True,
+) -> dict:
+    """Build the shared work-item response core used by list/create/update/move.
+
+    Returns a plain ``dict`` that each caller ``.update(...)``s with its own
+    divergent tail (parent_key/epic_key, is_overdue, etc.). The helper resolves
+    NO relationships and issues NO queries — assignee and sprint NAMES are passed
+    in already-resolved so the N+1 characteristics of each call site are
+    unchanged.
+
+    ``get_my_tasks`` does NOT use this helper; its divergent shape (raw hours,
+    no dates/assignee_id/epic, sprint_id in the tail) lives in
+    ``_serialize_my_task``.
+
+    Flags mirror the exact per-site divergences captured for the four callers:
+
+    * ``assignee_name`` / ``sprint_name`` — call site passes the resolved name,
+      defaulting to the "Unassigned" / "Backlog" placeholders.
+    * ``include_estimated_hours`` — every site except ``move_ticket_to_sprint``
+      also emits the raw-key ``estimated_hours`` (double-emitted alongside
+      ``assigned_hours``).
+    * ``include_sprint_id`` — ``create_work_item`` omits ``sprint_id``.
+
+    Hours are coerced (``None`` → 0). ``created_at``/``updated_at`` are always
+    emitted (isoformat-or-None).
+    """
+    core = {
+        "id": str(item.id),
+        "key": item.key,
+        "type": item.type,
+        "title": item.title,
+        "description": item.description or "",
+        "status": item.status,
+        "priority": item.priority,
+        "story_points": item.story_points or 0,
+        "assigned_hours": item.estimated_hours or 0,
+        "remaining_hours": item.remaining_hours or 0,
+        "logged_hours": item.logged_hours or 0,
+        "assignee": assignee_name,
+        "sprint": sprint_name,
+        "tags": item.tags or [],
+        "assignee_id": item.assignee_id,
+        "epic": "",
+    }
+    if include_estimated_hours:
+        core["estimated_hours"] = item.estimated_hours or 0
+    if include_sprint_id:
+        core["sprint_id"] = item.sprint_id
+    core["created_at"] = item.created_at.isoformat() if item.created_at else None
+    core["updated_at"] = item.updated_at.isoformat() if item.updated_at else None
+    return core
+
+
+def _serialize_my_task(item, *, assignee_name, sprint_name="Backlog") -> dict:
+    """Build the ``get_my_tasks`` response core (distinct from the shared builder).
+
+    Differs from ``_serialize_work_item`` in the ways the my-tasks shape needs:
+    hours (``estimated_hours``/``remaining_hours``/``logged_hours``) are emitted
+    RAW (no ``or 0`` coercion; ``assigned_hours`` is still ``estimated_hours or
+    0``); there are no ``created_at``/``updated_at``, no ``assignee_id``, and no
+    ``epic`` keys. The caller ``.update(...)``s the my-tasks tail
+    (project_name/is_overdue/reporter_name/parent_key/epic_key/sprint_id/…).
+
+    Resolves NO relationships and issues NO queries — names are passed in.
+    """
+    return {
+        "id": str(item.id),
+        "key": item.key,
+        "type": item.type,
+        "title": item.title,
+        "description": item.description or "",
+        "status": item.status,
+        "priority": item.priority,
+        "story_points": item.story_points or 0,
+        "assigned_hours": item.estimated_hours or 0,
+        "remaining_hours": item.remaining_hours,
+        "logged_hours": item.logged_hours,
+        "assignee": assignee_name,
+        "sprint": sprint_name,
+        "tags": item.tags or [],
+        "estimated_hours": item.estimated_hours,
+    }
 
 
 def update_epic_hours(epic_id: int, db: Session):
@@ -444,44 +536,27 @@ def list_work_items(
     # Include assignee name in response
     result = []
     for item in items:
-        item_dict = {
-            "id": str(item.id),
-            "key": item.key,
-            "type": item.type,
-            "title": item.title,
-            "description": item.description or "",
-            "status": item.status,
-            "priority": item.priority,
-            "story_points": item.story_points or 0,
-            "assigned_hours": item.estimated_hours or 0,
-            "estimated_hours": item.estimated_hours or 0,
-            "remaining_hours": item.remaining_hours or 0,
-            "logged_hours": item.logged_hours or 0,
-            "assignee": "Unassigned",
-            "assignee_id": item.assignee_id,
-            "sprint": "Backlog",
-            "sprint_id": item.sprint_id,
-            "epic": "",
-            "tags": item.tags or [],
-            "acceptance_criteria": item.acceptance_criteria or [],
-            "parent_id": item.parent_id,
-            "epic_id": item.epic_id,
-            "parent_key": id_to_key.get(item.parent_id) if item.parent_id else None,
-            "epic_key": id_to_key.get(item.epic_id) if item.epic_id else None,
-            "due_date": item.due_date.isoformat() if item.due_date else None,
-            "start_date": item.start_date.isoformat() if item.start_date else None,
-            "created_at": item.created_at.isoformat() if item.created_at else None,
-            "updated_at": item.updated_at.isoformat() if item.updated_at else None,
-        }
+        # Resolve assignee/sprint names at the call site (no new queries — the
+        # relationships are eager-loaded above), then let the shared serializer
+        # build the ~16-field core.
+        assignee_name = item.assignee.name if item.assignee_id and item.assignee else "Unassigned"
+        sprint_name = item.sprint.name if item.sprint_id and item.sprint else "Backlog"
 
-        # Get assignee name
-        if item.assignee_id and item.assignee:
-            item_dict["assignee"] = item.assignee.name
+        item_dict = _serialize_work_item(item, assignee_name=assignee_name, sprint_name=sprint_name)
+        item_dict.update(
+            {
+                "acceptance_criteria": item.acceptance_criteria or [],
+                "parent_id": item.parent_id,
+                "epic_id": item.epic_id,
+                "parent_key": id_to_key.get(item.parent_id) if item.parent_id else None,
+                "epic_key": id_to_key.get(item.epic_id) if item.epic_id else None,
+                "due_date": item.due_date.isoformat() if item.due_date else None,
+                "start_date": item.start_date.isoformat() if item.start_date else None,
+            }
+        )
 
-        # Get sprint name and dates
+        # Use sprint dates if work item doesn't have its own dates
         if item.sprint_id and item.sprint:
-            item_dict["sprint"] = item.sprint.name
-            # Use sprint dates if work item doesn't have its own dates
             if not item_dict["start_date"] and item.sprint.start_date:
                 item_dict["start_date"] = item.sprint.start_date.isoformat()
             if not item_dict["due_date"] and item.sprint.end_date:
@@ -692,41 +767,35 @@ def get_my_tasks(db: Session = Depends(get_db), current_user: User = Depends(get
         # include completed_at from main.
         project = projects_by_id.get(item.project_id)
 
-        result.append(
+        # my-tasks passes hours RAW (no `or 0`), carries no created_at/updated_at,
+        # and puts sprint_id in its tail. Every item here is assigned to the
+        # requesting developer, so the assignee name is always developer.name.
+        item_dict = _serialize_my_task(
+            item,
+            assignee_name=developer.name,
+            sprint_name=item.sprint.name if item.sprint else "Backlog",
+        )
+        item_dict.update(
             {
-                "id": str(item.id),
-                "key": item.key,
-                "title": item.title,
-                "type": item.type,
-                "status": item.status,
-                "priority": item.priority,
                 "project_id": item.project_id,
                 "project_name": project.name if project else "Unknown",
                 "due_date": item.due_date.isoformat() if item.due_date else None,
-                "estimated_hours": item.estimated_hours,
-                "logged_hours": item.logged_hours,
-                "remaining_hours": item.remaining_hours,
                 "is_overdue": bool(
                     item.due_date
                     and item.due_date.date() < datetime.utcnow().date()
                     and item.status != "done"
                 ),
                 "completed_at": item.completed_at.isoformat() if item.completed_at else None,
-                "story_points": item.story_points or 0,
-                "assigned_hours": item.estimated_hours or 0,
-                "assignee": developer.name,
                 "reporter_name": item.reporter.name if item.reporter else None,
-                "description": item.description or "",
-                "tags": item.tags or [],
                 "acceptance_criteria": item.acceptance_criteria or [],
                 "parent_id": item.parent_id,
                 "parent_key": item.parent.key if item.parent else None,
                 "epic_id": item.epic_id,
                 "epic_key": item.epic.key if item.epic else None,
                 "sprint_id": item.sprint_id,
-                "sprint": item.sprint.name if item.sprint else "Backlog",
             }
         )
+        result.append(item_dict)
 
     return result
 
@@ -824,9 +893,7 @@ def create_work_item(
 ):
     """Create a new work item (requires `project.tracker_write`)."""
     # Get project for key prefix
-    project = db.query(Project).filter(Project.id == item.project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_or_404(db, Project, item.project_id, detail="Project not found")
 
     validate_hierarchy(
         db,
@@ -891,9 +958,8 @@ def create_work_item(
         )
 
     # Log activity (now work_item.id is available)
-    from models.activity_log import ActivityLog
-
-    activity = ActivityLog(
+    log_activity(
+        db,
         project_id=item.project_id,
         user_id=current_user.id,
         action="created",
@@ -901,7 +967,6 @@ def create_work_item(
         entity_id=work_item.id,
         title=f"Created {key}: {item.title}",
     )
-    db.add(activity)
     db.commit()
     db.refresh(work_item)
 
@@ -944,30 +1009,16 @@ def create_work_item(
     if work_item.assignee_id and work_item.assignee:
         assignee_name = work_item.assignee.name
 
-    return {
-        "id": str(work_item.id),
-        "key": work_item.key,
-        "type": work_item.type,
-        "title": work_item.title,
-        "description": work_item.description or "",
-        "status": work_item.status,
-        "priority": work_item.priority,
-        "story_points": work_item.story_points or 0,
-        "assigned_hours": work_item.estimated_hours or 0,
-        "estimated_hours": work_item.estimated_hours
-        or 0,  # Also return as estimated_hours for frontend
-        "remaining_hours": work_item.remaining_hours or 0,
-        "logged_hours": work_item.logged_hours or 0,
-        "assignee": assignee_name,
-        "assignee_id": work_item.assignee_id,
-        "sprint": "Backlog",
-        "epic": "",
-        "tags": work_item.tags or [],
-        "start_date": work_item.start_date.isoformat() if work_item.start_date else None,
-        "due_date": work_item.due_date.isoformat() if work_item.due_date else None,
-        "created_at": work_item.created_at.isoformat() if work_item.created_at else None,
-        "updated_at": work_item.updated_at.isoformat() if work_item.updated_at else None,
-    }
+    # create hard-codes the "Backlog" sprint placeholder (never resolves the
+    # sprint name) and omits sprint_id from the payload — pinned as-is.
+    result = _serialize_work_item(work_item, assignee_name=assignee_name, include_sprint_id=False)
+    result.update(
+        {
+            "start_date": work_item.start_date.isoformat() if work_item.start_date else None,
+            "due_date": work_item.due_date.isoformat() if work_item.due_date else None,
+        }
+    )
+    return result
 
 
 @router.put("/{item_id}")
@@ -979,9 +1030,7 @@ def update_work_item(
     current_user: User = Depends(require_capability("project.tracker_write")),
 ):
     """Update an existing work item (requires auth)"""
-    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Work item not found")
+    item = get_or_404(db, WorkItem, item_id, detail="Work item not found")
 
     # Track old assignee before update for transfer comment
     old_assignee_id = item.assignee_id
@@ -1176,9 +1225,8 @@ def update_work_item(
             db.add(transfer_comment)
 
             # Log activity
-            from models.activity_log import ActivityLog
-
-            activity = ActivityLog(
+            log_activity(
+                db,
                 project_id=item.project_id,
                 user_id=current_user.id,
                 action="reassigned",
@@ -1186,7 +1234,6 @@ def update_work_item(
                 entity_id=item.id,
                 title=f"Reassigned {item.key} from {old_assignee_name} to {new_assignee_name}",
             )
-            db.add(activity)
 
             # Send assignment notification to new assignee if newly assigned
             # (off the request thread). Skip when reassigning to self —
@@ -1211,10 +1258,9 @@ def update_work_item(
 
     # Log activity for status changes
     if "status" in update_data:
-        from models.activity_log import ActivityLog
-
         action = "completed" if update_data["status"] == "done" else "updated"
-        activity = ActivityLog(
+        log_activity(
+            db,
             project_id=item.project_id,
             user_id=current_user.id,
             action=action,
@@ -1222,7 +1268,6 @@ def update_work_item(
             entity_id=item.id,
             title=f"{action.capitalize()} {item.key}: {item.title}",
         )
-        db.add(activity)
 
     # Auto-comment for every status transition — surfaces the move in the
     # ticket's comment feed alongside the existing "Ticket transferred from X
@@ -1355,40 +1400,24 @@ def update_work_item(
     if item.sprint_id and item.sprint:
         sprint_name = item.sprint.name
 
-    return {
-        "id": str(item.id),
-        "key": item.key,
-        "type": item.type,
-        "title": item.title,
-        "description": item.description or "",
-        "status": item.status,
-        "priority": item.priority,
-        "story_points": item.story_points or 0,
-        "assigned_hours": item.estimated_hours or 0,
-        "estimated_hours": item.estimated_hours or 0,
-        "remaining_hours": item.remaining_hours or 0,
-        "logged_hours": item.logged_hours or 0,
-        "assignee": assignee_name,
-        "assignee_id": item.assignee_id,
-        "sprint": sprint_name,
-        "sprint_id": item.sprint_id,
-        "epic": "",
-        "epic_id": item.epic_id,
-        "parent_id": item.parent_id,
-        "tags": item.tags or [],
-        "acceptance_criteria": item.acceptance_criteria or [],
-        "due_date": item.due_date.isoformat() if item.due_date else None,
-        "start_date": item.start_date.isoformat() if item.start_date else None,
-        "is_overdue": bool(
-            item.due_date
-            and item.due_date.date() < datetime.utcnow().date()
-            and item.status != "done"
-        ),
-        "started_at": item.started_at.isoformat() if item.started_at else None,
-        "completed_at": item.completed_at.isoformat() if item.completed_at else None,
-        "created_at": item.created_at.isoformat() if item.created_at else None,
-        "updated_at": item.updated_at.isoformat() if item.updated_at else None,
-    }
+    result = _serialize_work_item(item, assignee_name=assignee_name, sprint_name=sprint_name)
+    result.update(
+        {
+            "epic_id": item.epic_id,
+            "parent_id": item.parent_id,
+            "acceptance_criteria": item.acceptance_criteria or [],
+            "due_date": item.due_date.isoformat() if item.due_date else None,
+            "start_date": item.start_date.isoformat() if item.start_date else None,
+            "is_overdue": bool(
+                item.due_date
+                and item.due_date.date() < datetime.utcnow().date()
+                and item.status != "done"
+            ),
+            "started_at": item.started_at.isoformat() if item.started_at else None,
+            "completed_at": item.completed_at.isoformat() if item.completed_at else None,
+        }
+    )
+    return result
 
 
 @router.put("/batch/status")
@@ -1487,9 +1516,7 @@ def delete_work_item(
     current_user: User = Depends(require_capability("project.tracker_write")),
 ):
     """Delete a work item (requires `project.tracker_write`)."""
-    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Work item not found")
+    item = get_or_404(db, WorkItem, item_id, detail="Work item not found")
 
     # Stash linkage fields before deletion so we know what to recompute
     epic_id = item.epic_id
@@ -1497,16 +1524,14 @@ def delete_work_item(
     item_type = item.type
 
     # Log activity before deletion
-    from models.activity_log import ActivityLog
-
-    activity = ActivityLog(
+    log_activity(
+        db,
         project_id=item.project_id,
         user_id=current_user.id,
         action="deleted",
         entity_type="work_item",
         title=f"Deleted {item.key}: {item.title}",
     )
-    db.add(activity)
 
     db.delete(item)
     db.commit()
@@ -1551,12 +1576,9 @@ def unblock_work_item(
     Returns the number of comments resolved — 0 is a legal response when
     the ticket was already unblocked (idempotent).
     """
-    from models.activity_log import ActivityLog
     from models.comment import Comment
 
-    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Work item not found")
+    item = get_or_404(db, WorkItem, item_id, detail="Work item not found")
 
     resolved_count = (
         db.query(Comment)
@@ -1575,25 +1597,19 @@ def unblock_work_item(
     # Log activity only when we actually resolved something — a no-op
     # unblock (item wasn't blocked) shouldn't litter the feed.
     if resolved_count:
-        try:
-            db.add(
-                ActivityLog(
-                    project_id=item.project_id,
-                    user_id=current_user.id,
-                    action="unblocked",
-                    entity_type="work_item",
-                    entity_id=item.id,
-                    title=(
-                        f"Unblocked {item.key}: resolved {resolved_count} "
-                        f"blocker comment{'s' if resolved_count != 1 else ''}"
-                    ),
-                )
-            )
-            db.commit()
-        except Exception as e:
-            # Non-fatal: the resolve already committed above.
-            db.rollback()
-            print(f"[ActivityLog] Failed to log unblock for #{item_id}: {e}")
+        log_activity(
+            db,
+            project_id=item.project_id,
+            user_id=current_user.id,
+            action="unblocked",
+            entity_type="work_item",
+            entity_id=item.id,
+            title=(
+                f"Unblocked {item.key}: resolved {resolved_count} "
+                f"blocker comment{'s' if resolved_count != 1 else ''}"
+            ),
+            best_effort=True,
+        )
 
     return {"resolved_count": resolved_count}
 
@@ -1616,9 +1632,7 @@ def log_hours(
     from models.developer import Developer
     from models.time_entry import TimeEntry
 
-    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Work item not found")
+    item = get_or_404(db, WorkItem, item_id, detail="Work item not found")
 
     # Done tickets are frozen — re-open before logging more hours.
     if item.status == WorkItemStatus.DONE.value:
@@ -1658,11 +1672,12 @@ def log_hours(
 
     if request.developer_id:
         # Use explicitly specified developer (e.g., logging hours for someone else)
-        developer = db.query(Developer).filter(Developer.id == request.developer_id).first()
-        if not developer:
-            raise HTTPException(
-                status_code=404, detail=f"Developer with id {request.developer_id} not found"
-            )
+        developer = get_or_404(
+            db,
+            Developer,
+            request.developer_id,
+            detail=f"Developer with id {request.developer_id} not found",
+        )
     elif item.assignee_id:
         # Default: attribute to the TICKET ASSIGNEE (the person assigned to the ticket)
         # This ensures hours are credited to the person doing the work, not the person clicking the button
@@ -1770,9 +1785,7 @@ def get_work_item_time_entries(
     from models.time_entry import TimeEntry
 
     # Verify work item exists
-    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Work item not found")
+    item = get_or_404(db, WorkItem, item_id, detail="Work item not found")
 
     # Get all time entries for this work item
     time_entries = db.query(TimeEntry).filter(TimeEntry.work_item_id == item_id).all()
@@ -1984,9 +1997,7 @@ def create_sprint(
 ):
     """Create a new sprint (requires `project.tracker_write`)."""
     # Verify project exists
-    project = db.query(Project).filter(Project.id == sprint.project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    get_or_404(db, Project, sprint.project_id, detail="Project not found")
 
     new_sprint = Sprint(
         project_id=sprint.project_id,
@@ -2024,9 +2035,7 @@ def get_sprint(
     sprint_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get a specific sprint with its work items (requires auth)"""
-    sprint = db.query(Sprint).filter(Sprint.id == sprint_id).first()
-    if not sprint:
-        raise HTTPException(status_code=404, detail="Sprint not found")
+    sprint = get_or_404(db, Sprint, sprint_id, detail="Sprint not found")
     return sprint
 
 
@@ -2035,9 +2044,7 @@ def activate_sprint(
     sprint_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Activate a sprint (requires auth)"""
-    sprint = db.query(Sprint).filter(Sprint.id == sprint_id).first()
-    if not sprint:
-        raise HTTPException(status_code=404, detail="Sprint not found")
+    sprint = get_or_404(db, Sprint, sprint_id, detail="Sprint not found")
 
     sprint.status = SprintStatus.ACTIVE.value
     sprint.activated_at = datetime.utcnow()
@@ -2051,9 +2058,7 @@ def complete_sprint(
     sprint_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Complete a sprint (requires auth)"""
-    sprint = db.query(Sprint).filter(Sprint.id == sprint_id).first()
-    if not sprint:
-        raise HTTPException(status_code=404, detail="Sprint not found")
+    sprint = get_or_404(db, Sprint, sprint_id, detail="Sprint not found")
 
     sprint.status = SprintStatus.COMPLETED.value
     sprint.completed_at = datetime.utcnow()
@@ -2088,9 +2093,7 @@ async def update_sprint(
     current_user: User = Depends(get_current_user),
 ):
     """Update sprint fields (requires auth)"""
-    sprint = db.query(Sprint).filter(Sprint.id == sprint_id).first()
-    if not sprint:
-        raise HTTPException(status_code=404, detail="Sprint not found")
+    sprint = get_or_404(db, Sprint, sprint_id, detail="Sprint not found")
 
     if data.name is not None:
         sprint.name = data.name
@@ -2114,9 +2117,7 @@ async def delete_sprint(
     sprint_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Delete a sprint; work items are unassigned (sprint_id → NULL) (requires auth)"""
-    sprint = db.query(Sprint).filter(Sprint.id == sprint_id).first()
-    if not sprint:
-        raise HTTPException(status_code=404, detail="Sprint not found")
+    sprint = get_or_404(db, Sprint, sprint_id, detail="Sprint not found")
 
     db.delete(sprint)
     db.commit()
@@ -2135,9 +2136,7 @@ def move_ticket_to_sprint(
     current_user: User = Depends(get_current_user),
 ):
     """Move a ticket to a different sprint or to backlog (requires auth)"""
-    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Work item not found")
+    item = get_or_404(db, WorkItem, item_id, detail="Work item not found")
 
     # Done tickets are frozen — re-open before re-assigning to another sprint.
     if item.status == WorkItemStatus.DONE.value:
@@ -2152,15 +2151,13 @@ def move_ticket_to_sprint(
         item.status = WorkItemStatus.BACKLOG.value
     else:
         # Verify sprint exists and belongs to same project
-        sprint = (
-            db.query(Sprint)
-            .filter(Sprint.id == request.target_sprint_id, Sprint.project_id == item.project_id)
-            .first()
+        get_or_404(
+            db,
+            Sprint,
+            request.target_sprint_id,
+            detail="Sprint not found or doesn't belong to this project",
+            project_id=item.project_id,
         )
-        if not sprint:
-            raise HTTPException(
-                status_code=404, detail="Sprint not found or doesn't belong to this project"
-            )
 
         item.sprint_id = request.target_sprint_id
         # If item was in backlog, move to todo
@@ -2180,27 +2177,14 @@ def move_ticket_to_sprint(
     if item.assignee_id and item.assignee:
         assignee_name = item.assignee.name
 
-    return {
-        "id": str(item.id),
-        "key": item.key,
-        "type": item.type,
-        "title": item.title,
-        "description": item.description or "",
-        "status": item.status,
-        "priority": item.priority,
-        "story_points": item.story_points or 0,
-        "assigned_hours": item.estimated_hours or 0,
-        "remaining_hours": item.remaining_hours or 0,
-        "logged_hours": item.logged_hours or 0,
-        "assignee": assignee_name,
-        "assignee_id": item.assignee_id,
-        "sprint": sprint_name,
-        "sprint_id": item.sprint_id,
-        "epic": "",
-        "tags": item.tags or [],
-        "created_at": item.created_at.isoformat() if item.created_at else None,
-        "updated_at": item.updated_at.isoformat() if item.updated_at else None,
-    }
+    # move omits the double-emitted estimated_hours key and carries no tail —
+    # the shared core (with sprint_id + dates) is the whole payload.
+    return _serialize_work_item(
+        item,
+        assignee_name=assignee_name,
+        sprint_name=sprint_name,
+        include_estimated_hours=False,
+    )
 
 
 class SprintResponse(BaseModel):
@@ -2391,9 +2375,7 @@ def get_project_analytics(
 ):
     """Get project analytics for charts and graphs (requires auth)"""
     # Verify project exists
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    get_or_404(db, Project, project_id, detail="Project not found")
 
     # Get all work items for the project. Eager-load assignee so the
     # team-performance loop below (item.assignee.name) doesn't lazy-load a
@@ -2578,7 +2560,9 @@ def get_hours_analytics(
         # Same identity as the project summary card (audit #13): Remaining =
         # Allocated − Logged, spanning all of the sprint's items (incl. DONE) so
         # this row reconciles with itself and follows the same rule everywhere.
-        remaining = allocated - logged
+        # Annotated float so the same variable also accepts the transfer-aware
+        # (float) allocated_total computed in the per-developer loop below.
+        remaining: float = allocated - logged
 
         sprint_hours.append(
             {
@@ -3010,9 +2994,7 @@ def get_item_dependencies(
     """Get all dependencies for a work item"""
     from models.task_dependency import TaskDependency
 
-    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Work item not found")
+    get_or_404(db, WorkItem, item_id, detail="Work item not found")
 
     dependencies = (
         db.query(TaskDependency)
@@ -3033,12 +3015,9 @@ def add_item_dependency(
     current_user: User = Depends(get_current_user),
 ):
     """Add a dependency to a work item"""
-    from models.activity_log import ActivityLog
     from models.task_dependency import TaskDependency
 
-    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Work item not found")
+    item = get_or_404(db, WorkItem, item_id, detail="Work item not found")
 
     # Done tickets are frozen — re-open before changing their dependency graph.
     if item.status == WorkItemStatus.DONE.value:
@@ -3047,9 +3026,9 @@ def add_item_dependency(
             detail="This ticket is marked done. Re-open it before adding dependencies.",
         )
 
-    depends_on = db.query(WorkItem).filter(WorkItem.id == dependency.depends_on_id).first()
-    if not depends_on:
-        raise HTTPException(status_code=404, detail="Dependent work item not found")
+    depends_on = get_or_404(
+        db, WorkItem, dependency.depends_on_id, detail="Dependent work item not found"
+    )
 
     # Check for circular dependency
     if item_id == dependency.depends_on_id:
@@ -3076,7 +3055,8 @@ def add_item_dependency(
     db.add(new_dependency)
 
     # Log activity
-    activity = ActivityLog(
+    log_activity(
+        db,
         project_id=item.project_id,
         user_id=current_user.id,
         action="updated",
@@ -3084,7 +3064,6 @@ def add_item_dependency(
         entity_id=item_id,
         title=f"Added dependency: {item.key} depends on {depends_on.key}",
     )
-    db.add(activity)
 
     db.commit()
     db.refresh(new_dependency)
@@ -3099,17 +3078,11 @@ def remove_item_dependency(
     current_user: User = Depends(get_current_user),
 ):
     """Remove a dependency from a work item"""
-    from models.activity_log import ActivityLog
     from models.task_dependency import TaskDependency
 
-    dependency = (
-        db.query(TaskDependency)
-        .filter(TaskDependency.id == dep_id, TaskDependency.work_item_id == item_id)
-        .first()
+    dependency = get_or_404(
+        db, TaskDependency, dep_id, detail="Dependency not found", work_item_id=item_id
     )
-
-    if not dependency:
-        raise HTTPException(status_code=404, detail="Dependency not found")
 
     item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
 
@@ -3121,7 +3094,8 @@ def remove_item_dependency(
         )
 
     # Log activity
-    activity = ActivityLog(
+    log_activity(
+        db,
         project_id=item.project_id if item else None,
         user_id=current_user.id,
         action="updated",
@@ -3129,7 +3103,6 @@ def remove_item_dependency(
         entity_id=item_id,
         title=f"Removed dependency from {item.key if item else item_id}",
     )
-    db.add(activity)
 
     db.delete(dependency)
     db.commit()
@@ -3153,9 +3126,7 @@ def debug_hours_calculation(
     from models.time_entry import TimeEntry
 
     # Verify project exists
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_or_404(db, Project, project_id, detail="Project not found")
 
     # Get all work items
     items = db.query(WorkItem).filter(WorkItem.project_id == project_id).all()
