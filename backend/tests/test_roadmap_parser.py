@@ -73,6 +73,7 @@ from models.user import User
 from models.work_item import WorkItem
 from parser import parse as parse_roadmap
 from routers.roadmap import RoadmapCommitRequest, commit_roadmap_tickets
+from services.roadmap_generator import build_week_dates, roadmap_generator
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Fixtures
@@ -444,9 +445,31 @@ class TestExtraction:
         result = parse_roadmap(path)
         assert result["meta"]["total_tasks"] >= 1
 
+    def test_story_row_type_accepted(self, workbook_factory):
+        """'STORY' is a synonym for 'TASK' — story rows are the leaf-level,
+        assignee-owned work items and must become tickets just like tasks."""
+        rows = _basic_rows()
+        for row in rows[1:]:
+            if row[0] == "TASK":
+                row[0] = "STORY"
+        path = workbook_factory(rows)
+        result = parse_roadmap(path)
+        assert result["meta"]["total_tasks"] == 4
+        # A story ticket carries its assignee and week hours like a task would.
+        login = next(t for t in result["tickets"] if t["name"] == "Login form")
+        assert login["assignee"] == "Alice"
+
+    def test_mixed_task_and_story_rows_accepted(self, workbook_factory):
+        """A sheet mixing TASK and STORY rows counts every one as a ticket."""
+        rows = _basic_rows()
+        rows[3][0] = "STORY"  # Login form → STORY, others stay TASK
+        path = workbook_factory(rows)
+        result = parse_roadmap(path)
+        assert result["meta"]["total_tasks"] == 4
+
     def test_non_task_rows_skipped(self, workbook_factory):
         """Garbage row types (e.g. 'TOTAL', 'NOTES') must be ignored without
-        crashing — only TASK rows become tickets."""
+        crashing — only TASK/STORY rows become tickets."""
         rows = _basic_rows()
         rows.append(["TOTAL", "All hours", None, None, None, None, 68, None, 22, 22, 12, 12])
         rows.append(["NOTES", "Some note", None, None, None, None, None, None])
@@ -1519,3 +1542,100 @@ class TestEndToEnd:
             .one()
         )
         assert log.details["assignees_not_found"] == 1
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Section — Template generation (build_xlsx) row-type handling
+# ═════════════════════════════════════════════════════════════════════════════
+
+
+class TestTemplateRowTypes:
+    """The downloadable template renders leaf rows using each suggestion's
+    ``row_type`` (TASK or STORY), defaulting to TASK, so the generated file can
+    showcase both — and every leaf row must still round-trip back through the
+    parser as a ticket."""
+
+    def _weeks(self):
+        return build_week_dates(dt.date(2026, 1, 5), dt.date(2026, 2, 1))
+
+    def _suggestions(self, week_iso):
+        return {
+            "milestones": [
+                {"name": "Phase 1", "start_week": week_iso[0], "end_week": week_iso[-1]}
+            ],
+            "epics": [
+                {"name": "E1", "milestone": "Phase 1", "description": ""},
+                {"name": "E2", "milestone": "Phase 1", "description": ""},
+            ],
+            "tasks": [
+                {
+                    "name": "A task",
+                    "milestone": "Phase 1",
+                    "epic": "E1",
+                    "priority": "High",
+                    "effort_hrs": 8,
+                    "week_hours": {week_iso[0]: 8.0},
+                    "row_type": "TASK",
+                },
+                {
+                    "name": "A story",
+                    "milestone": "Phase 1",
+                    "epic": "E1",
+                    "priority": "Low",
+                    "effort_hrs": 8,
+                    "week_hours": {week_iso[1]: 8.0},
+                    "row_type": "STORY",
+                },
+                {
+                    "name": "No row_type",
+                    "milestone": "Phase 1",
+                    "epic": "E2",
+                    "priority": "Medium",
+                    "effort_hrs": 8,
+                    "week_hours": {week_iso[2]: 8.0},
+                },
+                {
+                    "name": "Bogus row_type",
+                    "milestone": "Phase 1",
+                    "epic": "E2",
+                    "priority": "Low",
+                    "effort_hrs": 8,
+                    "week_hours": {week_iso[3]: 8.0},
+                    "row_type": "WIDGET",
+                },
+            ],
+        }
+
+    def _render_and_load(self, tmp_path):
+        weeks = self._weeks()
+        week_iso = [w.isoformat() for w in weeks]
+        xlsx = roadmap_generator.build_xlsx(self._suggestions(week_iso), weeks)
+        path = tmp_path / "template.xlsx"
+        path.write_bytes(xlsx)
+        wb = openpyxl.load_workbook(str(path), data_only=True)
+        ws = wb[wb.sheetnames[0]]
+        # name → Type for every leaf row
+        types = {
+            r[1]: str(r[0]).strip().upper()
+            for r in ws.iter_rows(min_row=2, values_only=True)
+            if r[0] and str(r[0]).strip().upper() in ("TASK", "STORY")
+        }
+        return str(path), types
+
+    def test_row_type_is_honored_with_fallbacks(self, tmp_path):
+        _, types = self._render_and_load(tmp_path)
+        assert types["A task"] == "TASK"
+        assert types["A story"] == "STORY"
+        assert types["No row_type"] == "TASK"  # default
+        assert types["Bogus row_type"] == "TASK"  # unrecognized → TASK
+
+    def test_template_has_a_mix_of_task_and_story(self, tmp_path):
+        _, types = self._render_and_load(tmp_path)
+        assert "TASK" in types.values()
+        assert "STORY" in types.values()
+
+    def test_generated_template_round_trips_through_parser(self, tmp_path):
+        path, _ = self._render_and_load(tmp_path)
+        result = parse_roadmap(path)
+        # All four leaf rows (2 TASK + 2 STORY) become tickets.
+        assert result["meta"]["total_tasks"] == 4

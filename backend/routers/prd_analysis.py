@@ -848,8 +848,10 @@ def _empty_starter_suggestions(week_dates: list[date]) -> dict:
     """Pre-filled scaffold for the no-PRD path.
 
     Includes one MILESTONE (parser.py rejects files without any milestone
-    week dates), two EPICs, and two TASKs under each — every column populated
-    so the user can see the expected shape and replace cells as they go.
+    week dates), two EPICs, and two leaf rows under each — every column
+    populated so the user can see the expected shape and replace cells as they
+    go. The leaf rows deliberately mix "TASK" and "STORY" row types (parser.py
+    accepts both as assignable work items) so the template shows both are valid.
 
     All effort/week-hours math clamps to the available week range so the
     file passes parser.py's effort_mismatch check on re-upload regardless
@@ -898,6 +900,7 @@ def _empty_starter_suggestions(week_dates: list[date]) -> dict:
                 "effort_hrs": t1_total,
                 "week_hours": t1_wh,
                 "assignee": "Jane Doe",
+                "row_type": "TASK",
             },
             {
                 "name": "CI/CD pipeline",
@@ -908,6 +911,7 @@ def _empty_starter_suggestions(week_dates: list[date]) -> dict:
                 "effort_hrs": t2_total,
                 "week_hours": t2_wh,
                 "assignee": "John Smith",
+                "row_type": "STORY",
             },
             {
                 "name": "User authentication",
@@ -918,6 +922,7 @@ def _empty_starter_suggestions(week_dates: list[date]) -> dict:
                 "effort_hrs": t3_total,
                 "week_hours": t3_wh,
                 "assignee": "Jane Doe",
+                "row_type": "STORY",
             },
             {
                 "name": "Dashboard UI",
@@ -928,6 +933,7 @@ def _empty_starter_suggestions(week_dates: list[date]) -> dict:
                 "effort_hrs": t4_total,
                 "week_hours": t4_wh,
                 "assignee": "John Smith",
+                "row_type": "TASK",
             },
         ],
     }

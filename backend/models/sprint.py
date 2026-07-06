@@ -54,9 +54,13 @@ class Sprint(Base):
 
     # Relationships
     project: Mapped["Project"] = relationship("Project", back_populates="sprints")
-    work_items: Mapped[list["WorkItem"]] = relationship(
-        "WorkItem", back_populates="sprint", cascade="all, delete-orphan"
-    )
+    # NO delete cascade: deleting a sprint must NOT delete its work items.
+    # They are reassigned to the backlog (sprint_id → NULL) instead — see
+    # ``delete_sprint`` in routers/workitems.py and the DB-level
+    # ``ondelete="SET NULL"`` on WorkItem.sprint_id. The previous
+    # ``cascade="all, delete-orphan"`` silently deleted every ticket in the
+    # sprint, contradicting the UI ("tickets will be moved to the backlog").
+    work_items: Mapped[list["WorkItem"]] = relationship("WorkItem", back_populates="sprint")
 
     # Indexes for common queries
     __table_args__ = (

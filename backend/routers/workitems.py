@@ -1972,6 +1972,44 @@ async def generate_work_items(
 
 
 # Sprint endpoints
+
+
+def _fmt_sprint_date(value: datetime | None) -> str | None:
+    """Render a sprint date as YYYY-MM-DD for activity titles/details."""
+    return value.date().isoformat() if value else None
+
+
+def _log_sprint_activity(
+    db: Session,
+    *,
+    project_id: int,
+    user_id: int | None,
+    sprint_id: int | None,
+    action: str,
+    title: str,
+    details: dict | None = None,
+) -> None:
+    """Append a sprint entry to the project's activity feed.
+
+    Surfaces explicit sprint operations (create / update / complete / delete)
+    in the Activity tab. The caller owns the commit — this only stages the row
+    so it lands in the same transaction as the operation it describes.
+    """
+    from models.activity_log import ActivityLog
+
+    db.add(
+        ActivityLog(
+            project_id=project_id,
+            user_id=user_id,
+            action=action,
+            entity_type="sprint",
+            entity_id=sprint_id,
+            title=title,
+            details=details or {},
+        )
+    )
+
+
 @router.post("/sprints")
 def create_sprint(
     sprint: SprintCreate,
@@ -1996,6 +2034,20 @@ def create_sprint(
     db.add(new_sprint)
     db.commit()
     db.refresh(new_sprint)
+
+    _log_sprint_activity(
+        db,
+        project_id=new_sprint.project_id,
+        user_id=current_user.id,
+        sprint_id=new_sprint.id,
+        action="created",
+        title=f"Created sprint: {new_sprint.name}",
+        details={
+            "start_date": _fmt_sprint_date(new_sprint.start_date),
+            "end_date": _fmt_sprint_date(new_sprint.end_date),
+        },
+    )
+    db.commit()
     return new_sprint
 
 
@@ -2063,6 +2115,16 @@ def complete_sprint(
     )
 
     sprint.velocity = completed_points
+
+    _log_sprint_activity(
+        db,
+        project_id=sprint.project_id,
+        user_id=current_user.id,
+        sprint_id=sprint.id,
+        action="completed",
+        title=f"Completed sprint: {sprint.name}",
+        details={"velocity": completed_points},
+    )
     db.commit()
     db.refresh(sprint)
     return sprint
@@ -2088,6 +2150,12 @@ async def update_sprint(
     if not sprint:
         raise HTTPException(status_code=404, detail="Sprint not found")
 
+    # Snapshot the fields we surface in the activity feed (name + dates) before
+    # mutating, so we can log old → new.
+    old_name = sprint.name
+    old_start = sprint.start_date
+    old_end = sprint.end_date
+
     if data.name is not None:
         sprint.name = data.name
     if data.goal is not None:
@@ -2100,6 +2168,43 @@ async def update_sprint(
         sprint.capacity_hours = data.capacity_hours
 
     sprint.updated_at = datetime.utcnow()
+
+    # Log name / date changes to the activity feed (goal + capacity edits are
+    # intentionally not surfaced — they're low-signal for the timeline).
+    changes: dict[str, dict[str, str | None]] = {}
+    summary_parts: list[str] = []
+    if sprint.name != old_name:
+        changes["name"] = {"old": old_name, "new": sprint.name}
+        summary_parts.append(f'name "{old_name}" → "{sprint.name}"')
+    if sprint.start_date != old_start:
+        changes["start_date"] = {
+            "old": _fmt_sprint_date(old_start),
+            "new": _fmt_sprint_date(sprint.start_date),
+        }
+        summary_parts.append(
+            f"start {_fmt_sprint_date(old_start) or '—'} → "
+            f"{_fmt_sprint_date(sprint.start_date) or '—'}"
+        )
+    if sprint.end_date != old_end:
+        changes["end_date"] = {
+            "old": _fmt_sprint_date(old_end),
+            "new": _fmt_sprint_date(sprint.end_date),
+        }
+        summary_parts.append(
+            f"end {_fmt_sprint_date(old_end) or '—'} → {_fmt_sprint_date(sprint.end_date) or '—'}"
+        )
+
+    if changes:
+        _log_sprint_activity(
+            db,
+            project_id=sprint.project_id,
+            user_id=current_user.id,
+            sprint_id=sprint.id,
+            action="updated",
+            title=f"Updated sprint: {'; '.join(summary_parts)}",
+            details=changes,
+        )
+
     db.commit()
     db.refresh(sprint)
     return sprint
@@ -2109,14 +2214,36 @@ async def update_sprint(
 async def delete_sprint(
     sprint_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
-    """Delete a sprint; work items are unassigned (sprint_id → NULL) (requires auth)"""
+    """Delete a sprint; its work items are moved to the backlog (sprint_id →
+    NULL), NOT deleted (requires auth)."""
     sprint = db.query(Sprint).filter(Sprint.id == sprint_id).first()
     if not sprint:
         raise HTTPException(status_code=404, detail="Sprint not found")
 
+    # Explicitly reassign this sprint's work items to the backlog before
+    # deleting the sprint. This is the source of truth for "move to backlog"
+    # behaviour and does not rely on DB-level ON DELETE SET NULL (not enforced
+    # by SQLite) or ORM cascade defaults.
+    moved = (
+        db.query(WorkItem)
+        .filter(WorkItem.sprint_id == sprint_id)
+        .update({WorkItem.sprint_id: None}, synchronize_session=False)
+    )
+
+    # Log before deleting, while the sprint's name/project are still available.
+    _log_sprint_activity(
+        db,
+        project_id=sprint.project_id,
+        user_id=current_user.id,
+        sprint_id=sprint_id,
+        action="deleted",
+        title=f"Deleted sprint: {sprint.name}",
+        details={"items_moved_to_backlog": moved},
+    )
+
     db.delete(sprint)
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "items_moved_to_backlog": moved}
 
 
 class MoveTicketRequest(BaseModel):

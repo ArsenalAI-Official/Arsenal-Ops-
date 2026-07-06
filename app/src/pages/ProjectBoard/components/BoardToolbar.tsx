@@ -5,7 +5,6 @@ import {
   Search,
   Layers,
   BarChart3,
-  Clock,
   Target,
   Repeat2,
 } from 'lucide-react';
@@ -29,7 +28,6 @@ export interface BoardToolbarProps {
   itemCount: number;
   totalPoints: number;
   completedCount: number;
-  remainingHours: number;
   // ── Sprint selector ─────────────────────────────────────────────────────────
   sprints: SprintResponse[];
   selectedSprintId: SelectedSprintId;
@@ -66,7 +64,6 @@ const BoardToolbar = ({
   itemCount,
   totalPoints,
   completedCount,
-  remainingHours,
   sprints,
   selectedSprintId,
   setSelectedSprintId,
@@ -94,7 +91,6 @@ const BoardToolbar = ({
           { label: 'Items', value: itemCount, icon: Layers },
           { label: 'Points', value: totalPoints, icon: BarChart3 },
           { label: 'Done', value: completedCount, icon: CheckCircle2 },
-          { label: 'Hours Left', value: `${remainingHours}h`, icon: Clock },
         ].map((s) => (
           <div key={s.label} className="flex items-center gap-2 text-xs">
             <s.icon className="w-3.5 h-3.5 text-[#737373]" />

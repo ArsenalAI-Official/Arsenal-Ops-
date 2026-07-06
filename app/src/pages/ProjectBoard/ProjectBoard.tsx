@@ -393,9 +393,6 @@ const ProjectBoard = () => {
   // Stats
   const totalPoints = workItems.reduce((sum, i) => sum + i.story_points, 0);
   const completedCount = workItems.filter((i) => i.status === 'done').length;
-  const remainingHours = workItems
-    .filter((i) => i.status !== 'done')
-    .reduce((sum, i) => sum + i.remaining_hours, 0);
 
   return (
     <div className="min-h-screen bg-[#080808] text-[#F4F6FF] flex flex-col">
@@ -420,7 +417,6 @@ const ProjectBoard = () => {
           itemCount={workItems.length}
           totalPoints={totalPoints}
           completedCount={completedCount}
-          remainingHours={remainingHours}
           sprints={sprints}
           selectedSprintId={selectedSprintId}
           setSelectedSprintId={setSelectedSprintId}

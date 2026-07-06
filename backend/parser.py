@@ -29,6 +29,11 @@ logger = setup_logger("parser")
 # ── Constants ─────────────────────────────────────────────────────────────────
 HOURS_PER_WEEK = 40  # threshold for "fully booked"
 
+# Row `Type` values that represent an individually-assignable work item and are
+# turned into tickets. Both "TASK" and "STORY" are accepted since roadmaps use
+# the terms interchangeably for the leaf-level, assignee-owned row.
+TASK_ROW_TYPES = {"TASK", "STORY"}
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -415,7 +420,7 @@ def parse(filepath: str, sprint_weeks: int = 2) -> dict:
             epics[row[col_mapping["name"]]] = row[col_mapping["milestone"]]
             continue
 
-        if row_type != "TASK":
+        if row_type not in TASK_ROW_TYPES:
             continue  # skip header row, totals row, blank rows
 
         # ── Extract left-column fields ────────────────────────────────────────
