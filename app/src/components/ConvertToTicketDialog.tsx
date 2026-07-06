@@ -46,9 +46,7 @@ const ConvertToTicketDialog = ({
   sortProjects = true,
 }: ConvertToTicketDialogProps) => {
   const orderedProjects = sortProjects
-    ? [...projects].sort((a, b) =>
-        a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
-      )
+    ? [...projects].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
     : projects;
 
   return (

@@ -2560,7 +2560,9 @@ def get_hours_analytics(
         # Same identity as the project summary card (audit #13): Remaining =
         # Allocated − Logged, spanning all of the sprint's items (incl. DONE) so
         # this row reconciles with itself and follows the same rule everywhere.
-        remaining = allocated - logged
+        # Annotated float so the same variable also accepts the transfer-aware
+        # (float) allocated_total computed in the per-developer loop below.
+        remaining: float = allocated - logged
 
         sprint_hours.append(
             {
