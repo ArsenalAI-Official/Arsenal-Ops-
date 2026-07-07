@@ -1,15 +1,21 @@
 /**
- * Admin queries refetch on mount only when the cached data is *stale* (older
- * than the global 30s staleTime). `refetchOnMount: true` — not `'always'` —
- * means a quick out-and-back, or a tab switch within 30s, reads straight from
- * cache with no spinner and no network round-trip; only aged data refetches,
- * in the background while the cached value stays on screen. Mutations still
- * invalidate explicitly, so this isn't relying on TTL alone to stay correct.
+ * Admin queries inherit the global query defaults configured in
+ * `src/lib/queryClient.ts` (staleTime 30s, `refetchOnMount: false`,
+ * `refetchOnWindowFocus: true`). Concretely: switching between admin tabs while
+ * the cached data is still fresh (<30s) reads straight from cache with no
+ * spinner and no network round-trip; a teammate's write made in another session
+ * that this client never invalidated surfaces on the next window-focus refetch;
+ * and this client's own mutations invalidate the relevant admin keys explicitly,
+ * so correctness never relies on TTL alone.
  *
- * Note (intentional behavior change from the original `'always'`): a write made
- * in *another* session that this client never saw invalidated has up to a ~30s
- * (`staleTime`) visibility lag on a direct tab switch. The global
- * `refetchOnWindowFocus: true` covers the common tab-away-and-back case, so the
- * window is narrow and acceptable for an admin snapshot view.
+ * This used to be `{ refetchOnMount: true }`, which forced every admin tab
+ * switch to refetch even for <30s-fresh data. That override is gone — the empty
+ * object keeps the `...ADMIN_REFETCH` spread sites as a stable seam (so future
+ * per-query tuning is a one-file change) while contributing no options today.
+ *
+ * Accepted trade-off: a cross-session write this client never saw has up to a
+ * ~30s (`staleTime`) visibility lag on a direct tab switch — identical to every
+ * other view in the app, and covered in the common case by the window-focus
+ * refetch.
  */
-export const ADMIN_REFETCH = { refetchOnMount: true } as const;
+export const ADMIN_REFETCH = {} as const;

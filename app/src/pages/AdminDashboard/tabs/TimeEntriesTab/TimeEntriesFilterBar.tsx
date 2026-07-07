@@ -65,6 +65,7 @@ const TimeEntriesFilterBar: React.FC<TimeEntriesFilterBarProps> = ({
             Project
           </label>
           <select
+            aria-label="Filter by project"
             value={filters.projectId ?? ''}
             onChange={(e) =>
               setFilters((f) => ({
@@ -88,6 +89,7 @@ const TimeEntriesFilterBar: React.FC<TimeEntriesFilterBarProps> = ({
             Employee
           </label>
           <select
+            aria-label="Filter by employee"
             value={filters.developerId ?? ''}
             onChange={(e) =>
               setFilters((f) => ({
