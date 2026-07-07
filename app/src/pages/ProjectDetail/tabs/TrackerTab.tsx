@@ -14,6 +14,7 @@ import {
 import type { ProjectAnalyticsResponse, SprintResponse } from '@/client';
 import { StatusDonut } from '@/components/charts/StatusDonut';
 import { Badge } from '@/components/ui/badge';
+import { Empty, EmptyDescription } from '@/components/ui/empty';
 
 interface TrackerTabProps {
   hubLoading: boolean;
@@ -279,9 +280,9 @@ const TrackerTab = ({
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="flex items-center justify-center h-[300px] text-[#737373]">
-                    <p>No Sprints Created for the project</p>
-                  </div>
+                  <Empty className="min-h-[180px]">
+                    <EmptyDescription>No sprints created for this project yet.</EmptyDescription>
+                  </Empty>
                 )}
               </div>
               <div className="bg-[rgba(255,255,255,0.025)] rounded-xl p-4">

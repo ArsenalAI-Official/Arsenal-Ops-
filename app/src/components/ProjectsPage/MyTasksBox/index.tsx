@@ -139,11 +139,11 @@ const MyTasksBox = ({
             onNavigateToPersonalTasks={onNavigateToPersonalTasks}
           />
         ) : myTasksLoading ? (
-          <div className="flex items-center justify-center py-10">
+          <div className="flex h-full min-h-[240px] items-center justify-center py-10">
             <Spinner size="sm" tone="gold" />
           </div>
         ) : filteredMyTasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 text-center">
+          <div className="flex h-full min-h-[240px] flex-col items-center justify-center py-10 text-center">
             <CheckCircle2 className="w-8 h-8 text-muted-foreground/50 mb-2" />
             <p className="text-sm text-[#737373]">
               {myTaskTab === 'completed'

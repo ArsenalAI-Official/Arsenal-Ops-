@@ -29,7 +29,7 @@ const PersonalTasksList = ({
 }: PersonalTasksListProps) => {
   if (activePersonalTasks.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-10 text-center">
+      <div className="flex h-full min-h-[240px] flex-col items-center justify-center py-10 text-center">
         <CheckCircle2 className="w-8 h-8 text-muted-foreground/50 mb-2" />
         <p className="text-sm text-[#737373]">No personal tasks yet</p>
         <button

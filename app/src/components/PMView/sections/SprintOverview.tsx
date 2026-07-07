@@ -2,6 +2,7 @@ import { BarChart3, ChevronUp, ChevronDown } from 'lucide-react';
 import type { SprintResponse } from '@/client';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty, EmptyDescription } from '@/components/ui/empty';
 import type { HoursAnalytics } from '../types';
 
 interface SprintOverviewProps {
@@ -48,9 +49,11 @@ export default function SprintOverview({
       </CardHeader>
       <CardContent>
         {sprints.length === 0 ? (
-          <div className="text-center py-8 text-[#737373]">
-            <p>No sprints created yet. Create a sprint to start tracking progress and hours.</p>
-          </div>
+          <Empty className="min-h-[160px]">
+            <EmptyDescription>
+              No sprints created yet. Create a sprint to start tracking progress and hours.
+            </EmptyDescription>
+          </Empty>
         ) : (
           <div className="space-y-5">
             {(progressExpanded ? sprints : sprints.filter((s) => s.status === 'active')).map(
