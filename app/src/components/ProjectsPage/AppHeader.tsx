@@ -23,8 +23,7 @@ const AppHeader = ({ user, onAdminClick, onLogout }: AppHeaderProps) => {
           width={1043}
           height={198}
           loading="eager"
-          // @ts-expect-error — fetchpriority is a valid HTML attr that React 18 lower-cases
-          fetchpriority="high"
+          fetchPriority="high"
           decoding="async"
         />
         <div className="flex items-center gap-3">
