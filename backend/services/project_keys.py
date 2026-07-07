@@ -14,12 +14,29 @@ where a ``Session`` is available.
 """
 
 import re
+import zlib
 
 # key_prefix column is VARCHAR(10); keep derived bases short enough to leave
 # room for a numeric dedup suffix.
 MAX_PREFIX_LEN = 10
 DEFAULT_BASE_LEN = 4
 FALLBACK_PREFIX = "PROJ"
+
+# Postgres `pg_advisory_xact_lock(bigint)` fits comfortably; we keep the id in
+# the signed int4 range so it's identical to the historical modulus.
+_ADVISORY_LOCK_MODULUS = 2_147_483_647
+
+
+def key_prefix_lock_id(key_prefix: str) -> int:
+    """Stable Postgres advisory-lock id for a work-item ``key_prefix``.
+
+    Uses ``zlib.crc32`` — deterministic across processes — rather than the
+    builtin ``hash()``, which is per-process randomized (``PYTHONHASHSEED``) and
+    so produces a DIFFERENT lock id per Gunicorn worker for the same prefix,
+    silently defeating the cross-worker serialization the advisory lock is meant
+    to provide. Callers pass the result to ``pg_advisory_xact_lock``.
+    """
+    return zlib.crc32((key_prefix or "").encode()) % _ADVISORY_LOCK_MODULUS
 
 
 def normalize_prefix(raw: str | None, max_len: int = MAX_PREFIX_LEN) -> str:

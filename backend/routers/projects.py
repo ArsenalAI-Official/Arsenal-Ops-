@@ -550,8 +550,9 @@ def create_project(
     # omitted/blank input auto-derives a unique prefix from the name. Written to
     # the `key_prefix` column — `status` is left to its model default (the old
     # code wrote the prefix into `status`, which is what broke #25).
-    if project.key_prefix and normalize_prefix(project.key_prefix):
-        key_prefix = normalize_prefix(project.key_prefix)
+    explicit_prefix = normalize_prefix(project.key_prefix) if project.key_prefix else ""
+    if explicit_prefix:
+        key_prefix = explicit_prefix
         if _prefix_in_use(db, key_prefix):
             raise HTTPException(
                 status_code=400,
@@ -579,7 +580,7 @@ def create_project(
         # Keeps the invariant intact and returns a clean 400 / retry instead of
         # a raw 500 — mirrors the IntegrityError handling in add_favorite.
         db.rollback()
-        if project.key_prefix and normalize_prefix(project.key_prefix):
+        if explicit_prefix:
             # Explicit prefix — surface the conflict rather than silently changing it.
             raise HTTPException(
                 status_code=400,
@@ -588,7 +589,16 @@ def create_project(
         # Auto-derived — pick a fresh unique prefix and retry the insert once.
         new_project.key_prefix = _generate_unique_prefix(db, project.name)
         db.add(new_project)
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            # A second concurrent create grabbed the freshly-derived prefix too.
+            # Return a clean, retryable 409 instead of an uncaught 500.
+            db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Could not allocate a unique key prefix; please retry.",
+            ) from None
     db.refresh(new_project)
 
     # Add creator as a project member with project admin role

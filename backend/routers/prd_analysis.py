@@ -33,6 +33,7 @@ from routers.projects import (
 )
 from services.architecture_generator import architecture_generator
 from services.prd_processor import prd_processor
+from services.project_keys import key_prefix_lock_id
 from services.roadmap_generator import build_week_dates, roadmap_generator
 
 router = APIRouter(prefix="/api/prd", tags=["PRD Analysis"])
@@ -666,7 +667,7 @@ async def commit_architecture(
         work_item = None
         for _attempt in range(5):
             if db.bind is not None and db.bind.dialect.name == "postgresql":
-                lock_id = abs(hash(key_prefix)) % 2_147_483_647
+                lock_id = key_prefix_lock_id(key_prefix)
                 db.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": lock_id})
             item_number = get_next_item_number(db, key_prefix)
             candidate = WorkItem(
