@@ -1,8 +1,5 @@
 import { TrendingUp, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
 import {
-  PieChart,
-  Pie,
-  Cell,
   BarChart,
   Bar,
   XAxis,
@@ -15,6 +12,7 @@ import {
   Line,
 } from 'recharts';
 import type { ProjectAnalyticsResponse, SprintResponse } from '@/client';
+import { StatusDonut } from '@/components/charts/StatusDonut';
 import { Badge } from '@/components/ui/badge';
 
 interface TrackerTabProps {
@@ -220,68 +218,34 @@ const TrackerTab = ({
             <div className="space-y-4">
               <div className="bg-[rgba(255,255,255,0.025)] rounded-xl p-4">
                 <h4 className="text-sm font-medium text-[#a3a3a3] mb-4">Status Distribution</h4>
-                <ResponsiveContainer width="100%" height={200}>
-                  <PieChart>
-                    <Pie
-                      data={Object.entries(analytics.status_distribution).map(([name, value]) => ({
+                <StatusDonut
+                  data={Object.entries(analytics.status_distribution).map(
+                    ([name, value], index) => {
+                      const statusColors: Record<string, string> = {
+                        backlog: '#64748B',
+                        todo: '#3B82F6',
+                        in_progress: '#6E62E6',
+                        in_review: '#D06BB0',
+                        done: '#40BE86',
+                        blocked: '#E5484D',
+                      };
+                      const fallback = [
+                        '#64748B',
+                        '#3B82F6',
+                        '#6E62E6',
+                        '#D06BB0',
+                        '#40BE86',
+                        '#E5484D',
+                      ];
+                      return {
                         name,
+                        label: name.replace(/_/g, ' '),
                         value,
-                      }))}
-                      cx="50%"
-                      cy="50%"
-                      nameKey="name"
-                      innerRadius={40}
-                      outerRadius={80}
-                      paddingAngle={2}
-                      dataKey="value"
-                      stroke="none"
-                    >
-                      {Object.entries(analytics.status_distribution).map(([name], index) => {
-                        const statusColors: Record<string, string> = {
-                          backlog: '#64748B',
-                          todo: '#3B82F6',
-                          in_progress: '#6E62E6',
-                          in_review: '#D06BB0',
-                          done: '#40BE86',
-                          blocked: '#E5484D',
-                        };
-                        const fallback = [
-                          '#64748B',
-                          '#3B82F6',
-                          '#6E62E6',
-                          '#D06BB0',
-                          '#40BE86',
-                          '#E5484D',
-                        ];
-                        return (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={statusColors[name] ?? fallback[index % fallback.length]}
-                          />
-                        );
-                      })}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#121212',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        borderRadius: 8,
-                        fontSize: 12,
-                        textTransform: 'capitalize',
-                      }}
-                      itemStyle={{ color: '#a3a3a3' }}
-                      wrapperStyle={{ outline: 'none', zIndex: 50 }}
-                      formatter={(value: number, name: string) => [value, name.replace(/_/g, ' ')]}
-                    />
-                    <Legend
-                      formatter={(value: string) =>
-                        value.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
-                      }
-                      wrapperStyle={{ paddingTop: '12px' }}
-                      iconType="circle"
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+                        color: statusColors[name] ?? fallback[index % fallback.length] ?? '#64748B',
+                      };
+                    },
+                  )}
+                />
               </div>
               <div className="bg-[rgba(255,255,255,0.025)] rounded-xl p-4">
                 <h4 className="text-sm font-medium text-[#a3a3a3] mb-4">

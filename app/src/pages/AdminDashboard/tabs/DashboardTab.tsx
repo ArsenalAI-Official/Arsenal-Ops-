@@ -1,17 +1,8 @@
 import { Users, FolderKanban, Ticket, Calendar, ChevronRight } from 'lucide-react';
 import type { ElementType } from 'react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-  PieChart,
-  Pie,
-} from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import type { DashboardStats } from '@/client';
+import { StatusDonut } from '@/components/charts/StatusDonut';
 import { Empty, EmptyDescription } from '@/components/ui/empty';
 
 type AdminTab = 'dashboard' | 'employees' | 'projects' | 'users' | 'roles';
@@ -150,64 +141,7 @@ const DashboardTab = ({ stats, setActiveTab }: DashboardTabProps) => {
               <EmptyDescription>No ticket data yet.</EmptyDescription>
             </Empty>
           ) : (
-            <div className="flex items-center gap-5">
-              <div className="relative flex-shrink-0" style={{ width: 180, height: 180 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={statusData}
-                      dataKey="value"
-                      nameKey="label"
-                      innerRadius={55}
-                      outerRadius={80}
-                      paddingAngle={2}
-                      stroke="none"
-                    >
-                      {statusData.map((d) => (
-                        <Cell key={d.name} fill={d.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#121212',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        borderRadius: 8,
-                        fontSize: 12,
-                        textTransform: 'capitalize',
-                      }}
-                      itemStyle={{ color: '#a3a3a3' }}
-                      wrapperStyle={{ outline: 'none', zIndex: 50 }}
-                      formatter={(value: number, name: string) => [
-                        `${value} (${Math.round((value / stats.total_tickets) * 100)}%)`,
-                        name,
-                      ]}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <div className="text-2xl font-bold text-white tabular-nums">
-                    {stats.total_tickets}
-                  </div>
-                  <div className="text-[10px] text-[#737373] uppercase tracking-wider">Total</div>
-                </div>
-              </div>
-              <ul className="flex-1 space-y-1.5 min-w-0">
-                {statusData.map((d) => {
-                  const pct = Math.round((d.value / stats.total_tickets) * 100);
-                  return (
-                    <li key={d.name} className="flex items-center gap-2 text-xs">
-                      <span
-                        className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
-                        style={{ backgroundColor: d.color }}
-                      />
-                      <span className="text-[#a3a3a3] capitalize truncate">{d.label}</span>
-                      <span className="ml-auto text-[#737373] tabular-nums">{d.value}</span>
-                      <span className="text-[#525252] tabular-nums w-9 text-right">{pct}%</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
+            <StatusDonut data={statusData} total={stats.total_tickets} />
           )}
         </div>
 
