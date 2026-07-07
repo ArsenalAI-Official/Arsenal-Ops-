@@ -41,6 +41,10 @@ export const ProjectHeroCard: React.FC<{ pulse: PulseData }> = React.memo(({ pul
   // "(Apr, MTD)" label, the $ figure, and the tracked-% bar all refer to one
   // month. Empty (no actuals yet) → drop the parenthetical rather than show a
   // bare comma.
+  // Label the tile by the actual month it summarizes (the latest month with
+  // actuals) rather than asserting "Current month" — with lagging data the
+  // latest-actuals month can trail the calendar month, and claiming "Current"
+  // then reads as wrong. In production the two coincide.
   const monthShort = lastMonth?.m?.split(' ')[0] ?? '';
   const trackedPct = Math.min(100, Math.max(0, pulse.currentMonthTrackedPct));
 
@@ -112,7 +116,7 @@ export const ProjectHeroCard: React.FC<{ pulse: PulseData }> = React.memo(({ pul
         {/* Right: 3 stat tiles */}
         <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Stat
-            label={monthShort ? `Current month (${monthShort}, MTD)` : 'Current month'}
+            label={monthShort ? `${monthShort} · month-to-date` : 'Current month'}
             value={fmt$(lastMonth?.total || 0)}
             tone="amber"
           >
