@@ -71,7 +71,7 @@ const workItems: WorkItemListResponse[] = [];
  *  reads the seeded project from the store so the bundled `project` matches the
  *  standalone GET /projects/:id handler. */
 function overviewFor(project: ProjectDetailResponse): ProjectOverview {
-  return { project, sprints, goals, milestones, activities, analytics, prdAnalysis, links };
+  return { project, sprints, goals, milestones, activities, prdAnalysis, links };
 }
 
 /**
@@ -164,29 +164,31 @@ describe('ProjectDetail smoke', () => {
 
   it('shows the skeleton loading state while the project query is in flight', async () => {
     installProjectDetailHandlers(seededProject());
-    // Hold BOTH the project fetch and the overview open so isLoading stays true
-    // (a resolved overview would prime ['project', id] and flip the query to
-    // success before we can observe the skeleton).
-    let releaseProject: (() => void) | undefined;
+    // First-paint isLoading is anchored on the /overview bundle (it seeds the
+    // ['project', id] cache), so hold the overview open to keep the skeleton up.
+    // The standalone GET /projects/:id is disabled while the overview covers it,
+    // so gating there wouldn't hold the spinner — the overview is the control point.
+    let releaseOverview: ((project: ProjectDetailResponse) => void) | undefined;
+    const project = seededProject();
     server.use(
-      http.get(`${API_BASE}/projects/:id`, async () => {
-        await new Promise<void>((resolve) => {
-          releaseProject = resolve;
-        });
-        return HttpResponse.json(seededProject());
-      }),
-      http.get(`${API_BASE}/projects/:id/overview`, () => new Promise(() => {})),
+      http.get(
+        `${API_BASE}/projects/:id/overview`,
+        () =>
+          new Promise((resolve) => {
+            releaseOverview = (p) => resolve(HttpResponse.json(overviewFor(p)));
+          }),
+      ),
     );
 
     renderProjectDetail();
 
     // The skeleton renders (role="status" loading region), and the header
-    // heading has not appeared yet because the project is still loading.
+    // heading has not appeared yet because the overview is still in flight.
     expect(await screen.findByRole('status', { name: /loading project/i })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Test Project' })).toBeNull();
 
-    // Release the fetch so the test doesn't leak a pending request.
-    releaseProject?.();
+    // Release the overview so it seeds the cache; the heading then appears.
+    releaseOverview?.(project);
     await screen.findByRole('heading', { name: 'Test Project' });
   });
 

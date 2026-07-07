@@ -108,7 +108,6 @@ function installHandlers() {
         goals,
         milestones,
         activities,
-        analytics,
         prdAnalysis,
         links,
       }),
@@ -138,9 +137,11 @@ describe('useProjectDetailData data contract', () => {
   it('transitions loading → success and exposes the seeded project + hub slices', async () => {
     installHandlers();
     const { wrapper } = makeHarness();
-    const { result } = renderHook(() => useProjectDetailData(ID), { wrapper });
+    // Render on the Tracker tab so the lazily-fetched analytics query is enabled
+    // and we can assert it resolves alongside the overview-bundle slices.
+    const { result } = renderHook(() => useProjectDetailData(ID, 'tracker'), { wrapper });
 
-    // Starts loading (project query in flight).
+    // Starts loading (overview query in flight).
     expect(result.current.isLoading).toBe(true);
     expect(result.current.project).toBeNull();
 
@@ -151,26 +152,32 @@ describe('useProjectDetailData data contract', () => {
     expect(result.current.project?.name).toBe('Test Project');
     expect(result.current.accessDenied).toBe(false);
 
-    // Hub slices resolve to the seeded (empty) collections + analytics/prd once
-    // hubLoading clears — assert the CONTRACT shape, not every derived field.
-    await waitFor(() => expect(result.current.hubLoading).toBe(false));
-    expect(result.current.analytics).toEqual(analytics);
+    // Overview-bundle slices resolve to the seeded (empty) collections + prd once
+    // overviewLoading clears — assert the CONTRACT shape, not every derived field.
+    await waitFor(() => expect(result.current.overviewLoading).toBe(false));
     expect(result.current.prdAnalysis).toEqual(prdAnalysis);
     expect(result.current.goals).toEqual(goals);
     expect(result.current.milestones).toEqual(milestones);
     expect(result.current.activities).toEqual(activities);
     expect(result.current.sprints).toEqual(sprints);
     expect(result.current.links).toEqual(links);
-    expect(result.current.hubWorkItems).toEqual(workItems);
     expect(result.current.allDevelopers).toEqual(developers);
+
+    // Analytics is fetched lazily by the Tracker tab (not bundled in /overview);
+    // it resolves once its own loading flag clears.
+    await waitFor(() => expect(result.current.analyticsLoading).toBe(false));
+    expect(result.current.analytics).toEqual(analytics);
   });
 
   it('populates the documented query keys in the shared cache', async () => {
     installHandlers();
     const { queryClient, wrapper } = makeHarness();
-    const { result } = renderHook(() => useProjectDetailData(ID), { wrapper });
+    // Tracker tab enables the lazy analytics query so its cache key lands too;
+    // work items stay calendar-lazy and are asserted separately below.
+    const { result } = renderHook(() => useProjectDetailData(ID, 'tracker'), { wrapper });
 
-    await waitFor(() => expect(result.current.hubLoading).toBe(false));
+    await waitFor(() => expect(result.current.overviewLoading).toBe(false));
+    await waitFor(() => expect(result.current.analyticsLoading).toBe(false));
 
     // The keys ProjectDetail owns per app/CLAUDE.md "Query keys". These are the
     // cross-cutting-invalidation contract other hooks rely on being prefix-
@@ -178,7 +185,6 @@ describe('useProjectDetailData data contract', () => {
     expect(queryClient.getQueryData(['project', ID])).toBeTruthy();
     expect(queryClient.getQueryData(['projectOverview', ID])).toBeTruthy();
     expect(queryClient.getQueryData(['sprints', ID])).toEqual(sprints);
-    expect(queryClient.getQueryData(['workItems', { project_id: ID }])).toEqual(workItems);
     expect(queryClient.getQueryData(['hubData', ID, 'goals'])).toEqual(goals);
     expect(queryClient.getQueryData(['hubData', ID, 'milestones'])).toEqual(milestones);
     expect(queryClient.getQueryData(['hubData', ID, 'activities'])).toEqual(activities);
@@ -186,6 +192,21 @@ describe('useProjectDetailData data contract', () => {
     expect(queryClient.getQueryData(['hubData', ID, 'prd'])).toEqual(prdAnalysis);
     expect(queryClient.getQueryData(['project', ID, 'links'])).toEqual(links);
     expect(queryClient.getQueryData(['developers'])).toEqual(developers);
+
+    // Work items are fetched lazily by the Timeline (calendar) tab only, so on the
+    // Tracker tab their cache key is intentionally still unpopulated.
+    expect(queryClient.getQueryData(['workItems', { project_id: ID }])).toBeUndefined();
+  });
+
+  it('lazily fetches and caches work items only once the Timeline tab is active', async () => {
+    installHandlers();
+    const { queryClient, wrapper } = makeHarness();
+    // The Timeline (calendar) tab is the sole gate for the work-items query.
+    const { result } = renderHook(() => useProjectDetailData(ID, 'calendar'), { wrapper });
+
+    await waitFor(() => expect(result.current.hubWorkItemsLoading).toBe(false));
+    expect(result.current.hubWorkItems).toEqual(workItems);
+    expect(queryClient.getQueryData(['workItems', { project_id: ID }])).toEqual(workItems);
   });
 
   it('sets accessDenied when the project fetch 403s (ApiError instanceof path)', async () => {
@@ -201,7 +222,7 @@ describe('useProjectDetailData data contract', () => {
       ),
     );
     const { wrapper } = makeHarness();
-    const { result } = renderHook(() => useProjectDetailData(ID), { wrapper });
+    const { result } = renderHook(() => useProjectDetailData(ID, 'overview'), { wrapper });
 
     await waitFor(() => expect(result.current.accessDenied).toBe(true));
     expect(result.current.project).toBeNull();
@@ -218,7 +239,7 @@ describe('useProjectDetailData data contract', () => {
       ),
     );
     const { wrapper } = makeHarness();
-    const { result } = renderHook(() => useProjectDetailData(ID), { wrapper });
+    const { result } = renderHook(() => useProjectDetailData(ID, 'overview'), { wrapper });
 
     // A non-403 error resolves loading but does NOT flip accessDenied — the
     // orchestrator's "Project not found" fallback keys off this exact shape.
@@ -230,7 +251,7 @@ describe('useProjectDetailData data contract', () => {
   it('does not fetch (stays loading, project null) when id is undefined', async () => {
     installHandlers();
     const { queryClient, wrapper } = makeHarness();
-    const { result } = renderHook(() => useProjectDetailData(undefined), { wrapper });
+    const { result } = renderHook(() => useProjectDetailData(undefined, 'overview'), { wrapper });
 
     // All queries are `enabled: !!id`, so nothing fires and no cache is written.
     expect(result.current.project).toBeNull();
