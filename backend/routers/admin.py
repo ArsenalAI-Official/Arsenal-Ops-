@@ -8,6 +8,13 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload, selectinload
 
+# NOTE: `cast(TimeEntry.logged_at, Date)` (as sketched in the perf plan) is NOT
+# used here: on SQLite (tests) `CAST(... AS DATE)` is a no-op that returns the
+# full datetime string, which SQLAlchemy's Date result processor then fails to
+# parse ("fromisoformat: argument must be str"). `func.date(...)` truncates to a
+# calendar day portably on both SQLite and Postgres, so we use that and
+# normalize the returned day (str on SQLite, date on Postgres) in Python.
+
 sys.path.append("..")
 from database import get_db
 from models.developer import Developer
@@ -182,7 +189,7 @@ def get_developers_capacity(db: Session = Depends(get_db)):
     second round-trip.
     """
     from collections import defaultdict
-    from datetime import timedelta
+    from datetime import date, datetime, timedelta
 
     from models.project import Project
     from models.time_entry import TimeEntry
@@ -204,60 +211,87 @@ def get_developers_capacity(db: Session = Depends(get_db)):
         .all()
     )
 
-    # Pull every time entry for every developer in a single query — used below
-    # to build a per-dev weekly-logged-hours history across ALL projects, split
-    # by project per week.
-    all_entries = (
-        db.query(TimeEntry)
-        .filter(TimeEntry.developer_id.isnot(None))
-        .filter(TimeEntry.logged_at.isnot(None))
+    # Aggregate every developer's time entries to DAILY granularity in SQL —
+    # one row per (developer, project, calendar-day) instead of one row per
+    # entry. This is bounded by (active days × active projects) rather than
+    # total logged hours, so it no longer grows without ceiling as the
+    # time_entries table accumulates. The Sat→Fri WEEK rollup stays in Python
+    # (below) — that math is not portable across Postgres/SQLite.
+    #
+    # OUTER join to WorkItem to preserve the original behavior: the old code
+    # resolved project via `wi_to_project.get(te.work_item_id)`, which returned
+    # None for a missing/unresolved work item and still counted those hours
+    # under project_id=None ("Unknown"). An inner join would silently drop them.
+    day_rows = (
+        db.query(
+            TimeEntry.developer_id.label("dev_id"),
+            WorkItem.project_id.label("project_id"),
+            func.date(TimeEntry.logged_at).label("day"),
+            func.sum(TimeEntry.hours).label("hours"),
+        )
+        .outerjoin(WorkItem, WorkItem.id == TimeEntry.work_item_id)
+        .filter(TimeEntry.developer_id.isnot(None), TimeEntry.logged_at.isnot(None))
+        .group_by(
+            TimeEntry.developer_id,
+            WorkItem.project_id,
+            func.date(TimeEntry.logged_at),
+        )
         .all()
     )
-    entries_by_dev: dict[int, list[TimeEntry]] = defaultdict(list)
-    for te in all_entries:
-        if te.developer_id is None:
-            continue
-        entries_by_dev[te.developer_id].append(te)
 
-    # Resolve work_item → project_id and project_id → project_name in two cheap lookups.
-    wi_ids = {te.work_item_id for te in all_entries}
-    wi_to_project: dict[int, int | None] = (
-        {
-            row[0]: row[1]
-            for row in db.query(WorkItem.id, WorkItem.project_id)
-            .filter(WorkItem.id.in_(wi_ids))
-            .all()
-        }
-        if wi_ids
-        else {}
-    )
-    project_ids = {pid for pid in wi_to_project.values() if pid is not None}
+    def _to_date(day) -> date | None:
+        """Normalize the grouped `day` value to a date. `func.date(...)` returns
+        a str on SQLite and a date on Postgres; be defensive about datetime too."""
+        if day is None:
+            return None
+        if isinstance(day, str):
+            return date.fromisoformat(day[:10])
+        if isinstance(day, datetime):
+            return day.date()
+        return day  # already a date
+
+    # dev_id → list of (day: date, project_id: int | None, hours) tuples.
+    entries_by_dev: dict[int, list[tuple[date, int | None, float]]] = defaultdict(list)
+    project_id_set: set[int] = set()
+    for row in day_rows:
+        if row.dev_id is None:
+            continue
+        day = _to_date(row.day)
+        if day is None:
+            continue
+        entries_by_dev[row.dev_id].append((day, row.project_id, row.hours or 0))
+        if row.project_id is not None:
+            project_id_set.add(row.project_id)
+
+    # project_id → name, for the per-week per-project split. Built from the
+    # distinct project_ids present in the aggregate (replaces the old
+    # wi_to_project + project_names pair of lookups; the join supplies project_id).
     project_names: dict[int, str] = (
         {
             row[0]: row[1]
-            for row in db.query(Project.id, Project.name).filter(Project.id.in_(project_ids)).all()
+            for row in db.query(Project.id, Project.name)
+            .filter(Project.id.in_(project_id_set))
+            .all()
         }
-        if project_ids
+        if project_id_set
         else {}
     )
 
     def _weekly_history_for(dev_id: int) -> list[dict]:
-        """Bucket this dev's time entries into Sat→Fri UTC weeks across all projects,
-        with a per-project split per week."""
+        """Bucket this dev's daily-aggregated hours into Sat→Fri UTC weeks across
+        all projects, with a per-project split per week."""
         # (week_start, project_id) → hours
         proj_bucket: dict = defaultdict(int)
         week_totals: dict = defaultdict(int)
         weeks: set = set()
-        for te in entries_by_dev.get(dev_id, []):
-            if not te.logged_at:
-                continue
-            days_back = (te.logged_at.weekday() + 2) % 7  # Sat=5 → 0
-            ws = (te.logged_at - timedelta(days=days_back)).replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
-            pid = wi_to_project.get(te.work_item_id)
-            proj_bucket[(ws, pid)] += te.hours or 0
-            week_totals[ws] += te.hours or 0
+        for day, pid, hours in entries_by_dev.get(dev_id, []):
+            days_back = (day.weekday() + 2) % 7  # Sat=5 → 0
+            ws_date = day - timedelta(days=days_back)
+            # week_start is a midnight datetime (not a bare date) so .isoformat()
+            # yields "YYYY-MM-DDT00:00:00" — the exact shape callers/tests expect.
+            ws = datetime(ws_date.year, ws_date.month, ws_date.day)
+            proj_bucket[(ws, pid)] += hours or 0
+            week_totals[ws] += hours or 0
             weeks.add(ws)
 
         out = []

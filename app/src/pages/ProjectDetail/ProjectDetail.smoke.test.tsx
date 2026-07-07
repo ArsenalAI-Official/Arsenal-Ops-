@@ -164,29 +164,33 @@ describe('ProjectDetail smoke', () => {
 
   it('shows the skeleton loading state while the project query is in flight', async () => {
     installProjectDetailHandlers(seededProject());
-    // Hold BOTH the project fetch and the overview open so isLoading stays true
-    // (a resolved overview would prime ['project', id] and flip the query to
-    // success before we can observe the skeleton).
-    let releaseProject: (() => void) | undefined;
+    // The overview round-trip is now the first-paint loader: while it is in
+    // flight `isLoading` stays true and the standalone GET /projects/:id query
+    // is disabled (enabled only on the overview-failed fallback path), so it
+    // never fires here. Hold the overview open to pin the skeleton, then release
+    // it — resolving primes ['project', id] via setQueryData and the header
+    // heading appears. (Pre-refactor this test held the project fetch open; the
+    // fan-out reduction inverted that, so we drive the overview instead.)
+    let releaseOverview: (() => void) | undefined;
     server.use(
-      http.get(`${API_BASE}/projects/:id`, async () => {
+      http.get(`${API_BASE}/projects/:id/overview`, async () => {
         await new Promise<void>((resolve) => {
-          releaseProject = resolve;
+          releaseOverview = resolve;
         });
-        return HttpResponse.json(seededProject());
+        return HttpResponse.json(overviewFor(seededProject()));
       }),
-      http.get(`${API_BASE}/projects/:id/overview`, () => new Promise(() => {})),
     );
 
     renderProjectDetail();
 
     // The skeleton renders (role="status" loading region), and the header
-    // heading has not appeared yet because the project is still loading.
+    // heading has not appeared yet because the overview is still in flight.
     expect(await screen.findByRole('status', { name: /loading project/i })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Test Project' })).toBeNull();
 
-    // Release the fetch so the test doesn't leak a pending request.
-    releaseProject?.();
+    // Release the overview: it seeds ['project', id] and flips isLoading false,
+    // so the header heading renders.
+    releaseOverview?.();
     await screen.findByRole('heading', { name: 'Test Project' });
   });
 
