@@ -42,7 +42,9 @@ class TestOverviewAggregation:
         assert "goals" in data
         assert "milestones" in data
         assert "activities" in data
-        assert "analytics" in data
+        # analytics is intentionally NOT bundled — it's the heaviest sub-fetch and
+        # is loaded lazily by the Tracker tab via the standalone analytics endpoint.
+        assert "analytics" not in data
         assert "prdAnalysis" in data
         assert "links" in data
 
@@ -52,7 +54,6 @@ class TestOverviewAggregation:
         assert isinstance(data["goals"], list)
         assert isinstance(data["milestones"], list)
         assert isinstance(data["activities"], list)
-        assert isinstance(data["analytics"], (dict, type(None)))
         # prdAnalysis can be None or dict
         assert data["links"] is not None or isinstance(data["links"], list)
 
@@ -100,9 +101,8 @@ class TestOverviewAggregation:
         assert data["milestones"] == []
         assert data["activities"] == []
 
-        # analytics and prdAnalysis can be {} or None (per the _safe defaults)
-        if data["analytics"] is not None:
-            assert isinstance(data["analytics"], dict)
+        # analytics is no longer bundled; prdAnalysis can be {} or None (per the _safe default)
+        assert "analytics" not in data
         if data["prdAnalysis"] is not None:
             assert isinstance(data["prdAnalysis"], dict)
 
@@ -249,7 +249,7 @@ class TestOverviewQueryOptimization:
             )
 
             assert response.status_code == 200
-            # The overview bundles 8 different sub-fetches (project, sprints, goals, etc.)
+            # The overview bundles 7 different sub-fetches (project, sprints, goals, etc.)
             # Each sub-fetch can be 1-2 queries. Threshold catches egregious N+1.
             # Typical: ~10-15 queries for a full bundle, plus a small constant for
             # RBAC capability resolution on the authed user (loading roles +
@@ -327,7 +327,7 @@ class TestOverviewErrorResilience:
         # At minimum, project and fallback sections should be present
         assert "project" in data
         assert "sprints" in data  # Should be [] if no sprints
-        assert "analytics" in data  # Should be {} or None
+        assert "prdAnalysis" in data  # Should be {} or None
 
 
 # ============= Integration & Data Consistency Tests =============

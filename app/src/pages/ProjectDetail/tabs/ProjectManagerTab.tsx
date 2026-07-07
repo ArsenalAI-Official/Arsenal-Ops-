@@ -2,13 +2,13 @@ import type { SprintResponse } from '@/client';
 import PMView from '@/components/PMView';
 
 interface ProjectManagerTabProps {
-  hubLoading: boolean;
+  overviewLoading: boolean;
   projectId: string;
   sprints: SprintResponse[];
 }
 
-const ProjectManagerTab = ({ hubLoading, projectId, sprints }: ProjectManagerTabProps) => {
-  if (hubLoading) {
+const ProjectManagerTab = ({ overviewLoading, projectId, sprints }: ProjectManagerTabProps) => {
+  if (overviewLoading) {
     return (
       <div className="space-y-4 animate-pulse">
         {/* PMView (with 4 cards) skeleton */}

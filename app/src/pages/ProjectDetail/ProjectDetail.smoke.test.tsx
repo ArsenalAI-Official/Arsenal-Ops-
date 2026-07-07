@@ -71,7 +71,7 @@ const workItems: WorkItemListResponse[] = [];
  *  reads the seeded project from the store so the bundled `project` matches the
  *  standalone GET /projects/:id handler. */
 function overviewFor(project: ProjectDetailResponse): ProjectOverview {
-  return { project, sprints, goals, milestones, activities, analytics, prdAnalysis, links };
+  return { project, sprints, goals, milestones, activities, prdAnalysis, links };
 }
 
 /**

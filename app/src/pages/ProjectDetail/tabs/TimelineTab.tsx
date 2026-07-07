@@ -21,7 +21,7 @@ interface HubWorkItem {
 }
 
 interface TimelineTabProps {
-  hubLoading: boolean;
+  hubWorkItemsLoading: boolean;
   hubWorkItems: HubWorkItem[];
   milestones: MilestoneResponse[];
   goals: GoalResponse[];
@@ -31,7 +31,7 @@ interface TimelineTabProps {
 }
 
 const TimelineTab = ({
-  hubLoading,
+  hubWorkItemsLoading,
   hubWorkItems,
   milestones,
   goals,
@@ -39,7 +39,7 @@ const TimelineTab = ({
   projectId,
   onTaskUpdate,
 }: TimelineTabProps) => {
-  if (hubLoading) {
+  if (hubWorkItemsLoading) {
     return (
       <div className="space-y-4 animate-pulse">
         {/* Calendar skeleton */}
