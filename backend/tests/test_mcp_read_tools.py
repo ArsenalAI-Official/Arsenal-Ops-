@@ -356,3 +356,150 @@ def test_developer_capacity_requires_admin_cap(world):
     # alice lacks admin.employees → denied.
     with pytest.raises(ToolError):
         call(world["alice"], "developer_capacity", {"developer_id": world["alice_dev"]})
+
+
+# --------------------------------------------------------------------------- #
+# sprints_list / sprint_get / weekly_report  (gap-filling tools)
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture
+def sprint_world(world, mcp_db):
+    """Extend `world` with sprints, a login-titled item, and a this-week time
+    entry — kept in a separate fixture so the exact-count assertions on `world`
+    stay intact.
+    """
+    from datetime import timedelta
+
+    from models.sprint import Sprint, SprintStatus
+    from models.time_entry import TimeEntry
+    from services.capacity_service import week_boundaries
+
+    db = mcp_db()
+    try:
+        ws, _we = week_boundaries()
+        # Active sprint in P1 whose window contains today.
+        s_active = Sprint(
+            project_id=world["p1"],
+            name="P1 Sprint A",
+            goal="ship checkout",
+            status=SprintStatus.ACTIVE.value,
+            start_date=ws - timedelta(days=2),
+            end_date=ws + timedelta(days=10),
+            capacity_hours=40,
+        )
+        # Future planning sprint — must NOT read as active.
+        s_future = Sprint(
+            project_id=world["p1"],
+            name="P1 Sprint B",
+            goal="later",
+            status=SprintStatus.PLANNING.value,
+            start_date=ws + timedelta(days=20),
+            end_date=ws + timedelta(days=34),
+            capacity_hours=40,
+        )
+        db.add_all([s_active, s_future])
+        db.flush()
+
+        # A done, story-pointed, login-titled item in the active sprint (feeds
+        # both sprint progress and the search-by-"login" test).
+        login_item = WorkItem(
+            project_id=world["p1"],
+            key="P1-3",
+            title="Fix login redirect bug",
+            type="bug",
+            status="done",
+            sprint_id=s_active.id,
+            story_points=5,
+            assignee_id=world["alice_dev"],
+        )
+        db.add(login_item)
+        db.flush()
+
+        # Alice logs 6h this week on P1-2 → weekly_report has something to sum.
+        db.add(
+            TimeEntry(
+                work_item_id=world["wi2"],
+                developer_id=world["alice_dev"],
+                hours=6,
+                description="work",
+                logged_at=ws + timedelta(days=1),
+            )
+        )
+        db.commit()
+        return {**world, "sprint_active": s_active.id, "sprint_future": s_future.id,
+                "login_item": login_item.id}
+    finally:
+        db.close()
+
+
+def test_sprints_list_active_across_projects(sprint_world):
+    # No project_id → every accessible project; status="active" uses computed status.
+    active = call(sprint_world["admin"], "sprints_list", {"status": "active"})
+    assert [s["name"] for s in active] == ["P1 Sprint A"]  # future planning sprint excluded
+    s = active[0]
+    assert s["project_id"] == sprint_world["p1"]
+    assert s["project_name"] == "P1"
+    # progress rollup present, and the done story-pointed item counts.
+    assert s["done_count"] == 1
+    assert s["completed_points"] == 5
+    assert {"completion_pct", "total_items", "start_date", "end_date"} <= set(s)
+
+
+def test_sprints_list_scoped_to_access(sprint_world):
+    # alice (P1 only) sees P1 sprints; bob (no projects) sees none.
+    alice = call(sprint_world["alice"], "sprints_list")
+    assert {s["name"] for s in alice} == {"P1 Sprint A", "P1 Sprint B"}
+    assert call(sprint_world["bob"], "sprints_list") == []
+
+
+def test_sprints_list_requires_board_capability(sprint_world):
+    with pytest.raises(ToolError):
+        call(sprint_world["nocaps"], "sprints_list")
+
+
+def test_sprint_get_shape_items_and_access(sprint_world):
+    got = call(sprint_world["alice"], "sprint_get", {"sprint_id": sprint_world["sprint_active"]})
+    assert got["name"] == "P1 Sprint A"
+    assert got["status"] == "active"
+    assert got["goal"] == "ship checkout"
+    assert "P1-3" in {i["key"] for i in got["items"]}
+
+
+def test_sprint_get_no_access_indistinguishable_from_missing(sprint_world):
+    with pytest.raises(ToolError, match="not found"):
+        call(sprint_world["bob"], "sprint_get", {"sprint_id": sprint_world["sprint_active"]})
+    with pytest.raises(ToolError, match="not found"):
+        call(sprint_world["bob"], "sprint_get", {"sprint_id": 999999})
+
+
+def test_workitems_search_query_matches_title(sprint_world):
+    items = call(
+        sprint_world["alice"],
+        "workitems_search",
+        {"project_id": sprint_world["p1"], "query": "login"},
+    )
+    assert {i["key"] for i in items} == {"P1-3"}  # only the login-titled item
+
+
+def test_weekly_report_project_scoped(sprint_world):
+    rep = call(sprint_world["alice"], "weekly_report", {"project_id": sprint_world["p1"]})
+    assert rep["project_id"] == sprint_world["p1"]
+    assert rep["team_total_hours"] == 6
+    assert rep["by_developer"][0]["developer_name"] == "Alice"
+    assert rep["by_developer"][0]["total_hours"] == 6
+
+
+def test_weekly_report_teamwide_requires_admin_cap(sprint_world):
+    # Team-wide (no project_id) needs admin.employees.
+    admin_rep = call(sprint_world["admin"], "weekly_report")
+    assert admin_rep["project_id"] is None
+    assert admin_rep["team_total_hours"] == 6
+    # alice has project.board/pulse but not admin.employees → denied.
+    with pytest.raises(ToolError):
+        call(sprint_world["alice"], "weekly_report")
+
+
+def test_weekly_report_project_scoped_denied_without_access(sprint_world):
+    with pytest.raises(ToolError):
+        call(sprint_world["bob"], "weekly_report", {"project_id": sprint_world["p1"]})

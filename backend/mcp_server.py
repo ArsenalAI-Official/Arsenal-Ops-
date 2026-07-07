@@ -47,6 +47,7 @@ from sqlalchemy.orm import Session
 from database import SessionLocal
 from models.activity_log import ActivityLog
 from models.developer import Developer
+from models.sprint import Sprint
 from models.user import User
 from models.work_item import WorkItem
 from routers.auth import (
@@ -71,11 +72,13 @@ from routers.workitems import (
     WorkItemUpdate,
     create_work_item,
     get_work_item,
+    list_project_sprints,
     list_work_items,
     log_hours,
     update_work_item,
 )
 from services.capacity_service import compute_capacity_breakdown, week_boundaries
+from services.weekly_report_service import weekly_hours_report
 
 # --- Authentication ----------------------------------------------------------
 # Two client families share one /mcp endpoint via MultiAuth:
@@ -248,6 +251,7 @@ def workitems_search(
     item_type: str | None = None,
     sprint_id: int | None = None,
     assignee_id: int | None = None,
+    query: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> list[dict]:
@@ -255,6 +259,10 @@ def workitems_search(
     assignee filters. ``project_id`` is required and access-checked, so results
     are always scoped to a project the caller can see (the REST list endpoint is
     unscoped; this tool deliberately is not).
+
+    ``query`` is a case-insensitive substring match over key / title /
+    description — use it to resolve a vaguely-described ticket ("the login
+    thing") to candidates when the exact title isn't known.
     """
     with _caller_session() as (db, user):
         require_project_access(project_id, user, db)
@@ -266,6 +274,7 @@ def workitems_search(
             type=item_type,
             sprint_id=sprint_id,
             assignee_id=assignee_id,
+            search=query,
             limit=limit,
             offset=offset,
             db=db,
@@ -294,6 +303,84 @@ def workitem_get(item_id: int) -> dict:
         if item is None:
             raise ToolError("Work item not found")
         return get_work_item(item_id, db=db, current_user=user)
+
+
+# --------------------------------------------------------------------------- #
+# Sprints
+# --------------------------------------------------------------------------- #
+
+
+@mcp.tool
+def sprints_list(project_id: int | None = None, status: str | None = None) -> list[dict]:
+    """List sprints with computed status and progress (item counts, story points,
+    completion %). Requires `project.board`.
+
+    - ``project_id`` given: sprints for that one project (access-checked).
+    - ``project_id`` omitted: sprints across every project the caller can see —
+      so "what's the current sprint?" is one call with ``status="active"``.
+
+    ``status`` filters on the *computed* status (planning/active/completed/
+    cancelled), which is derived from the sprint's dates on read — a planning
+    sprint whose window now contains today reads as ``active`` even if the row
+    wasn't explicitly activated.
+    """
+    with _caller_session() as (db, user):
+        assert_capability(user, "project.board")
+        if project_id is not None:
+            require_project_access(project_id, user, db)
+            name_by_id = {project_id: get_project(project_id, db=db, current_user=user)["name"]}
+        else:
+            projects = list_projects(
+                category_id=None, uncategorized=False, db=db, current_user=user
+            )
+            name_by_id = {p["id"]: p["name"] for p in projects}
+
+        out: list[dict] = []
+        for pid, pname in name_by_id.items():
+            for sprint in list_project_sprints(pid, db=db, current_user=user):
+                sprint["project_id"] = pid
+                sprint["project_name"] = pname
+                out.append(sprint)
+        if status:
+            wanted = status.strip().lower()
+            out = [s for s in out if (s.get("status") or "").lower() == wanted]
+        return out
+
+
+@mcp.tool
+def sprint_get(sprint_id: int) -> dict:
+    """Get one sprint's status/progress plus its work items. Requires
+    `project.board` and access to the sprint's project.
+
+    Missing sprint and a sprint in an inaccessible project both return the same
+    "not found" error, so sprint ids can't be enumerated via 403-vs-404.
+    """
+    with _caller_session() as (db, user):
+        assert_capability(user, "project.board")
+        sprint = db.query(Sprint).filter(Sprint.id == sprint_id).first()
+        if sprint is not None:
+            try:
+                require_project_access(sprint.project_id, user, db)
+            except HTTPException:
+                sprint = None  # collapse "no access" into "not found"
+        if sprint is None:
+            raise ToolError("Sprint not found")
+        # Reuse the per-project computed-status + progress serialization, then
+        # pick this sprint out of it.
+        summaries = list_project_sprints(sprint.project_id, db=db, current_user=user)
+        summary = next((s for s in summaries if s["id"] == sprint_id), None)
+        if summary is None:
+            raise ToolError("Sprint not found")
+        summary["project_id"] = sprint.project_id
+        summary["items"] = list_work_items(
+            project_id=sprint.project_id,
+            sprint_id=sprint_id,
+            limit=200,
+            offset=0,
+            db=db,
+            current_user=user,
+        )
+        return summary
 
 
 # --------------------------------------------------------------------------- #
@@ -371,6 +458,28 @@ def developer_capacity(developer_id: int) -> dict:
             "week_end": week_end.isoformat(),
             **breakdown,
         }
+
+
+@mcp.tool
+def weekly_report(project_id: int | None = None) -> dict:
+    """Weekly logged-hours report (Sat->Fri UTC): team total plus per-developer
+    and per-project rollups of hours logged this week.
+
+    - ``project_id`` given: scoped to that project (requires `project.board` +
+      access) — answers "give a weekly report of this project."
+    - ``project_id`` omitted: the whole team across all projects (requires
+      `admin.employees`, mirroring the emailed weekly report).
+
+    Internal employees only; externally-added users are excluded (as in the
+    emailed report).
+    """
+    with _caller_session() as (db, user):
+        if project_id is not None:
+            require_project_access(project_id, user, db)
+            assert_capability(user, "project.board")
+        else:
+            assert_capability(user, "admin.employees")
+        return weekly_hours_report(db, project_id=project_id)
 
 
 # --------------------------------------------------------------------------- #
