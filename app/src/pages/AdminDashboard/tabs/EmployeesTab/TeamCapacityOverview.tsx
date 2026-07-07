@@ -1,4 +1,5 @@
 import { TrendingUp } from 'lucide-react';
+import { CAPACITY_STATUS_COLOR } from './types';
 import type { EmployeeStatusFilter, TeamCapacity } from './types';
 
 interface TeamCapacityOverviewProps {
@@ -48,20 +49,20 @@ const TeamCapacityOverview: React.FC<TeamCapacityOverviewProps> = ({
               {
                 key: 'Available',
                 count: teamCapacity.counts.Available,
-                base: 'rgba(52,211,153',
-                text: '#34D399',
+                base: `rgba(${CAPACITY_STATUS_COLOR.Available.rgb}`,
+                text: CAPACITY_STATUS_COLOR.Available.text,
               },
               {
                 key: 'Moderate',
                 count: teamCapacity.counts.Moderate,
-                base: 'rgba(245,158,11',
-                text: '#F59E0B',
+                base: `rgba(${CAPACITY_STATUS_COLOR.Moderate.rgb}`,
+                text: CAPACITY_STATUS_COLOR.Moderate.text,
               },
               {
                 key: 'Busy',
                 count: teamCapacity.counts.Busy,
-                base: 'rgba(239,68,68',
-                text: '#EF4444',
+                base: `rgba(${CAPACITY_STATUS_COLOR.Busy.rgb}`,
+                text: CAPACITY_STATUS_COLOR.Busy.text,
               },
             ] as const
           ).map((pill) => {
@@ -106,13 +107,15 @@ const TeamCapacityOverview: React.FC<TeamCapacityOverviewProps> = ({
         <div className="rounded-lg p-3 bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)]">
           <div className="text-[10px] uppercase tracking-wider text-[#737373]">Utilization</div>
           <div
-            className={`text-xl font-bold tabular-nums mt-1 ${
-              teamCapacity.utilization >= 90
-                ? 'text-[#EF4444]'
-                : teamCapacity.utilization >= 70
-                  ? 'text-[#F59E0B]'
-                  : 'text-[#34D399]'
-            }`}
+            className="text-xl font-bold tabular-nums mt-1"
+            style={{
+              color:
+                teamCapacity.utilization >= 90
+                  ? CAPACITY_STATUS_COLOR.Busy.text
+                  : teamCapacity.utilization >= 70
+                    ? CAPACITY_STATUS_COLOR.Moderate.text
+                    : CAPACITY_STATUS_COLOR.Available.text,
+            }}
           >
             {teamCapacity.utilization}%
           </div>

@@ -220,32 +220,11 @@ const TrackerTab = ({
               <div className="bg-[rgba(255,255,255,0.025)] rounded-xl p-4">
                 <h4 className="text-sm font-medium text-[#a3a3a3] mb-4">Status Distribution</h4>
                 <StatusDonut
-                  data={Object.entries(analytics.status_distribution).map(
-                    ([name, value], index) => {
-                      const statusColors: Record<string, string> = {
-                        backlog: '#64748B',
-                        todo: '#3B82F6',
-                        in_progress: '#6E62E6',
-                        in_review: '#D06BB0',
-                        done: '#40BE86',
-                        blocked: '#E5484D',
-                      };
-                      const fallback = [
-                        '#64748B',
-                        '#3B82F6',
-                        '#6E62E6',
-                        '#D06BB0',
-                        '#40BE86',
-                        '#E5484D',
-                      ];
-                      return {
-                        name,
-                        label: name.replace(/_/g, ' '),
-                        value,
-                        color: statusColors[name] ?? fallback[index % fallback.length] ?? '#64748B',
-                      };
-                    },
-                  )}
+                  data={Object.entries(analytics.status_distribution).map(([name, value]) => ({
+                    name,
+                    label: name.replace(/_/g, ' '),
+                    value,
+                  }))}
                 />
               </div>
               <div className="bg-[rgba(255,255,255,0.025)] rounded-xl p-4">

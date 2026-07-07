@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { GoalResponse, MilestoneResponse, WorkItemUpdate } from '@/client';
 import { TimelineView, CalendarView } from '@/components/ProjectHub';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 interface HubWorkItem {
   id: string;
@@ -40,7 +41,23 @@ const TimelineTab = ({
   projectId,
   onTaskUpdate,
 }: TimelineTabProps) => {
-  const [view, setView] = useState<'timeline' | 'calendar'>('timeline');
+  // Persist the sub-view in the URL (?view=calendar) so it survives refresh and
+  // is shareable, matching the parent's ?tab= pattern. Default (and absent) is
+  // the Gantt timeline. Building from `prev` preserves the ?tab= param.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view: 'timeline' | 'calendar' =
+    searchParams.get('view') === 'calendar' ? 'calendar' : 'timeline';
+  const setView = (next: 'timeline' | 'calendar') => {
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        if (next === 'calendar') p.set('view', 'calendar');
+        else p.delete('view');
+        return p;
+      },
+      { replace: true },
+    );
+  };
 
   if (hubLoading) {
     return (
@@ -70,32 +87,20 @@ const TimelineTab = ({
 
   return (
     <div className="space-y-4">
-      <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg p-0.5 inline-flex">
-        <button
-          type="button"
-          aria-pressed={view === 'timeline'}
-          onClick={() => setView('timeline')}
-          className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-            view === 'timeline'
-              ? 'bg-[rgba(255,255,255,0.08)] text-white'
-              : 'text-[#737373] hover:text-white'
-          }`}
-        >
-          Timeline
-        </button>
-        <button
-          type="button"
-          aria-pressed={view === 'calendar'}
-          onClick={() => setView('calendar')}
-          className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-            view === 'calendar'
-              ? 'bg-[rgba(255,255,255,0.08)] text-white'
-              : 'text-[#737373] hover:text-white'
-          }`}
-        >
-          Calendar
-        </button>
-      </div>
+      <ToggleGroup
+        type="single"
+        value={view}
+        onValueChange={(v) => {
+          // Radix emits '' when the active item is re-clicked; ignore it so a
+          // view is always selected.
+          if (v) setView(v as 'timeline' | 'calendar');
+        }}
+        variant="outline"
+        size="sm"
+      >
+        <ToggleGroupItem value="timeline">Timeline</ToggleGroupItem>
+        <ToggleGroupItem value="calendar">Calendar</ToggleGroupItem>
+      </ToggleGroup>
       {view === 'timeline' ? (
         <TimelineView
           workItems={hubWorkItems}

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription } from '@/components/ui/empty';
 import { avatarColor } from '@/lib/avatarColor';
 import EmployeeExpandedRow, { type ProjectGroup } from './EmployeeExpandedRow';
-import { projectColor } from './types';
+import { CAPACITY_STATUS_COLOR, projectColor } from './types';
 import type { DeveloperCapacity, EmployeeRow, EmployeeSort, EmployeeSortKey } from './types';
 
 interface EmployeeCapacityTableProps {
@@ -212,13 +212,8 @@ const EmployeeCapacityTable: React.FC<EmployeeCapacityTableProps> = ({
                         </div>
                       </div>
                       <span
-                        className={`text-xs font-medium whitespace-nowrap ${
-                          capacityStatus === 'Available'
-                            ? 'text-[#34D399]'
-                            : capacityStatus === 'Busy'
-                              ? 'text-[#EF4444]'
-                              : 'text-[#F59E0B]'
-                        }`}
+                        className="text-xs font-medium whitespace-nowrap"
+                        style={{ color: CAPACITY_STATUS_COLOR[capacityStatus].text }}
                       >
                         {capacityStatus} · {capacityUsed}h/40h ({capacityPercentage}%)
                       </span>

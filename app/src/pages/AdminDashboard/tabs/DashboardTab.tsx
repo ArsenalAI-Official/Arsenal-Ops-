@@ -13,18 +13,6 @@ interface DashboardTabProps {
 }
 
 const DashboardTab = ({ stats, setActiveTab }: DashboardTabProps) => {
-  const statusColor = (s: string) => {
-    const key = s.toLowerCase();
-    if (key === 'done' || key === 'completed' || key === 'closed') return '#40BE86';
-    if (key === 'in_progress' || key === 'in progress') return '#6E62E6';
-    if (key === 'in_review' || key === 'in review' || key === 'review') return '#D06BB0';
-    if (key === 'blocked') return '#E5484D';
-    if (key === 'cancelled' || key === 'canceled' || key === 'wontfix') return '#525252';
-    if (key === 'backlog') return '#64748B';
-    if (key === 'todo' || key === 'to_do' || key === 'to do') return '#3B82F6';
-    if (key === 'open' || key === 'new') return '#3B82F6';
-    return '#737373';
-  };
   // Style Guide 1a priority ramp (literal hexes: these feed a recharts donut,
   // which can't read CSS vars). Kept in lockstep with PRIORITY_COLOR.
   const priorityColor = (p: string) => {
@@ -41,7 +29,6 @@ const DashboardTab = ({ stats, setActiveTab }: DashboardTabProps) => {
       name,
       label: name.replace(/_/g, ' '),
       value,
-      color: statusColor(name),
     }))
     .sort((a, b) => b.value - a.value);
   const priorityData = Object.entries(stats.tickets_by_priority)
@@ -141,7 +128,7 @@ const DashboardTab = ({ stats, setActiveTab }: DashboardTabProps) => {
               <EmptyDescription>No ticket data yet.</EmptyDescription>
             </Empty>
           ) : (
-            <StatusDonut data={statusData} total={stats.total_tickets} />
+            <StatusDonut data={statusData} />
           )}
         </div>
 

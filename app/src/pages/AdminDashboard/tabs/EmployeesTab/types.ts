@@ -100,9 +100,22 @@ export const PROJECT_COLOR_PALETTE = [
 export const projectColor = (projectId: number) =>
   PROJECT_COLOR_PALETTE[Math.abs(projectId) % PROJECT_COLOR_PALETTE.length];
 
-// Delegates to the single source (Style Guide 1a cool workflow ramp); `blocked`
-// isn't a workflow status in STATUS_CONFIG, so it keeps the danger-red here.
-export const statusBadgeColor = (status: string) =>
-  status === 'blocked' ? '#E5484D' : getStatusColor(status);
+// Delegates to the single source (Style Guide 1a); `getStatusColor` now handles
+// `blocked` → danger-red itself, so this is a straight alias kept for callers
+// that reference the capacity-domain name.
+export const statusBadgeColor = getStatusColor;
 
 export const WEEKLY_CAPACITY_HRS = 40;
+
+// Capacity status → color, shared by the row label, the overview pills, and the
+// utilization tile so the three green/amber/red surfaces can't drift. `text` is
+// the hex for text/fills; `rgb` is the bare channel triple for rgba() opacity
+// backgrounds/borders (e.g. `rgba(${rgb},0.12)`).
+export const CAPACITY_STATUS_COLOR: Record<
+  'Available' | 'Moderate' | 'Busy',
+  { text: string; rgb: string }
+> = {
+  Available: { text: '#34D399', rgb: '52,211,153' },
+  Moderate: { text: '#F59E0B', rgb: '245,158,11' },
+  Busy: { text: '#EF4444', rgb: '239,68,68' },
+};

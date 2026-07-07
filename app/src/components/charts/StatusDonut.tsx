@@ -1,20 +1,24 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 
+import { getStatusColor } from '@/lib/workItemConfig';
+
 export interface StatusDonutDatum {
   /** Stable key for the slice (raw status/priority name). */
   name: string;
   /** Human label shown in the legend + tooltip. */
   label: string;
   value: number;
-  /** Slice color (literal hex — recharts can't read CSS vars). */
-  color: string;
+  /**
+   * Slice color (literal hex — recharts can't read CSS vars). Optional: when
+   * omitted it's resolved from the canonical `getStatusColor(name)` so work-item
+   * status slices stay in lockstep with the board/timeline/calendar palette.
+   */
+  color?: string;
 }
 
 interface StatusDonutProps {
   data: StatusDonutDatum[];
-  /** Center figure; defaults to the sum of `value`s. */
-  total?: number;
-  /** Caption under the center figure. */
+  /** Caption under the center figure (which is always the sum of `value`s). */
   totalLabel?: string;
   /** Donut square size in px. */
   size?: number;
@@ -26,8 +30,8 @@ interface StatusDonutProps {
  * "Tickets by Status" chart so the Project Tracker's "Status Distribution"
  * (audit J2) renders identically instead of a bare bottom-legend donut.
  */
-export function StatusDonut({ data, total, totalLabel = 'Total', size = 180 }: StatusDonutProps) {
-  const sum = total ?? data.reduce((acc, d) => acc + d.value, 0);
+export function StatusDonut({ data, totalLabel = 'Total', size = 180 }: StatusDonutProps) {
+  const sum = data.reduce((acc, d) => acc + d.value, 0);
   return (
     <div className="flex items-center gap-5">
       <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
@@ -43,7 +47,7 @@ export function StatusDonut({ data, total, totalLabel = 'Total', size = 180 }: S
               stroke="none"
             >
               {data.map((d) => (
-                <Cell key={d.name} fill={d.color} />
+                <Cell key={d.name} fill={d.color ?? getStatusColor(d.name)} />
               ))}
             </Pie>
             <Tooltip
@@ -75,7 +79,7 @@ export function StatusDonut({ data, total, totalLabel = 'Total', size = 180 }: S
             <li key={d.name} className="flex items-center gap-2 text-xs">
               <span
                 className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
-                style={{ backgroundColor: d.color }}
+                style={{ backgroundColor: d.color ?? getStatusColor(d.name) }}
               />
               <span className="text-[#a3a3a3] capitalize truncate">{d.label}</span>
               <span className="ml-auto text-[#737373] tabular-nums">{d.value}</span>

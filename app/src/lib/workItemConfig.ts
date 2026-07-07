@@ -133,8 +133,14 @@ export const STATUS_OPTIONS = [
 
 export type StatusKey = keyof typeof STATUS_CONFIG;
 
-/** Status → display color, falling back to the backlog grey for unknowns. */
+/** Status → display color, falling back to the backlog grey for unknowns.
+ *
+ * `blocked` is intentionally NOT in STATUS_CONFIG (it isn't a workflow column,
+ * so it must stay out of the status-transition picker that iterates the config)
+ * but it IS a real ticket status, so it's resolved here to the shared
+ * danger-red — keeping every status surface (donuts, board, capacity) in step. */
 export function getStatusColor(status: string): string {
+  if (status === 'blocked') return '#E5484D';
   return STATUS_CONFIG[status as StatusKey]?.color ?? STATUS_CONFIG.backlog.color;
 }
 
