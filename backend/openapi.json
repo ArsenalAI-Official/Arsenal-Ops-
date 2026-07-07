@@ -4447,6 +4447,30 @@
         "title": "TimeEntryRow",
         "type": "object"
       },
+      "TimesheetBillableRequest": {
+        "description": "Set the billable flag for a (client, day) group.\n\nThe Review & Submit modal exposes one \"Billable\" checkbox per client\nper day; toggling it sends this body. The backend flips `billable`\non every one of the caller's *draft* entries logged on `logged_at`\nwhose project bills to `qb_customer_id`. Synced/submitted entries are\nleft untouched (they're already in QuickBooks).",
+        "properties": {
+          "billable": {
+            "title": "Billable",
+            "type": "boolean"
+          },
+          "logged_at": {
+            "title": "Logged At",
+            "type": "string"
+          },
+          "qb_customer_id": {
+            "title": "Qb Customer Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "qb_customer_id",
+          "logged_at",
+          "billable"
+        ],
+        "title": "TimesheetBillableRequest",
+        "type": "object"
+      },
       "TimesheetClientResponse": {
         "properties": {
           "client_name": {
@@ -6710,7 +6734,7 @@
     },
     "/api/admin/time-entries": {
       "get": {
-        "description": "List time entries for the admin Time Entries tab.\n\nFilters (all optional, combined with AND):\n  - project_id:  restrict to one project (joined via WorkItem.project_id)\n  - developer_id: restrict to one employee\n  - date_from / date_to: inclusive ISO date strings (YYYY-MM-DD). The\n    upper bound is treated as end-of-day, so `date_to=2026-06-08` keeps\n    entries logged at 23:59:59 that day.\n\nReturns at most TIME_ENTRIES_MAX_ROWS rows ordered by logged_at DESC.",
+        "description": "List time entries for the admin Time Entries tab.\n\nFilters (all optional, combined with AND):\n  - project_id:  restrict to one project (joined via WorkItem.project_id)\n  - developer_id: restrict to one employee\n  - client_name: restrict to one QuickBooks client (the customer cached on\n    the Project row), i.e. all projects billing to that client\n  - date_from / date_to: inclusive ISO date strings (YYYY-MM-DD). The\n    upper bound is treated as end-of-day, so `date_to=2026-06-08` keeps\n    entries logged at 23:59:59 that day.\n\nReturns at most TIME_ENTRIES_MAX_ROWS rows ordered by logged_at DESC.",
         "operationId": "list_time_entries_api_admin_time_entries_get",
         "parameters": [
           {
@@ -6743,6 +6767,22 @@
                 }
               ],
               "title": "Developer Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "client_name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Name"
             }
           },
           {
@@ -8593,6 +8633,46 @@
           }
         ],
         "summary": "Get My Timesheet",
+        "tags": [
+          "Developers"
+        ]
+      }
+    },
+    "/api/developers/me/timesheet/billable": {
+      "patch": {
+        "description": "Set the billable flag for one (client, day) group of the caller's\nown time entries \u2014 the Review modal's per-client \"Billable\" checkbox.\n\nOnly DRAFT entries (``submitted_at IS NULL AND workforce_entry_id IS\nNULL``) logged on ``logged_at`` whose project bills to\n``qb_customer_id`` are flipped; submitted/synced entries are already in\nthe QB pipeline and left untouched. Scoped to the current Mon-Fri\nwindow the modal operates on. No work-item rollup needed \u2014 billable\ndoesn't affect ``logged_hours``.",
+        "operationId": "set_my_timesheet_billable_api_developers_me_timesheet_billable_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimesheetBillableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Set My Timesheet Billable",
         "tags": [
           "Developers"
         ]

@@ -2,18 +2,22 @@ import { useQuery } from '@tanstack/react-query';
 import { Clock, RefreshCw } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { TimeEntriesResponse } from '@/client';
-import { formatLocalDate } from '@/components/ProjectsPage/utils';
 import { apiFetch } from '@/lib/api';
 import TimeEntriesFilterBar from './TimeEntriesFilterBar';
 import TimeEntriesSummary from './TimeEntriesSummary';
 import TimeEntriesTable from './TimeEntriesTable';
-import { resolveDateRange } from './types';
-import type { BreakdownRow, EmployeeDayRow, EmployeeOption, FiltersState, ProjectOption } from './types';
+import { aggregateEntries, resolveDateRange } from './types';
+import type { EmployeeOption, FiltersState, ProjectOption, ViewMode } from './types';
+import ViewModeToggle from './ViewModeToggle';
 import type { WorkforceStatus } from '../../types';
 
 /**
- * Admin Time Entries tab — one row per (employee, day) showing total hours,
- * expandable to the per-project/client split that makes up that total.
+ * Admin Time Entries tab — a CEO-facing breakdown of every logged hour.
+ *
+ * A view switcher groups hours by Employee (default), Client, or Project. Each
+ * view shows ranked totals with a share-of-total bar, expandable to a
+ * context-aware secondary breakdown (employee→projects, client→projects,
+ * project→employees).
  *
  * Three filters compose with AND:
  *   - Date range (preset chips: Today / This week / This month / Last week / Last month / Custom)
@@ -26,19 +30,24 @@ import type { WorkforceStatus } from '../../types';
 interface TimeEntriesTabProps {
   projects: ProjectOption[];
   employees: EmployeeOption[];
+  /** Distinct QuickBooks client names, pre-sorted, for the Client filter. */
+  clients: string[];
 }
 
-const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ projects, employees }) => {
+const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ projects, employees, clients }) => {
+  const [viewMode, setViewModeState] = useState<ViewMode>('employee');
   const [filters, setFilters] = useState<FiltersState>({
     projectId: null,
     developerId: null,
+    clientName: null,
     preset: 'this_week',
     customFrom: '',
     customTo: '',
   });
 
-  // Which (employee, day) rows are expanded to show their breakdown. Rows
-  // start collapsed; cleared on reset so stale keys can't linger.
+  // Which group rows are expanded to show their breakdown. Rows start collapsed;
+  // cleared on reset AND on view change (keys differ per view, so stale keys
+  // from another view would silently mis-expand).
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const toggleRow = (key: string) => {
     setExpandedRows((prev) => {
@@ -47,6 +56,10 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ projects, employees }) 
       else next.add(key);
       return next;
     });
+  };
+  const setViewMode = (mode: ViewMode) => {
+    setViewModeState(mode);
+    setExpandedRows(new Set());
   };
 
   // Sorted project + employee lists (alphabetical, locale-aware). Recomputed
@@ -81,14 +94,23 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ projects, employees }) 
     const params = new URLSearchParams();
     if (filters.projectId != null) params.set('project_id', String(filters.projectId));
     if (filters.developerId != null) params.set('developer_id', String(filters.developerId));
+    if (filters.clientName != null) params.set('client_name', filters.clientName);
     if (from) params.set('date_from', from);
     if (to) params.set('date_to', to);
     const s = params.toString();
     return s ? `?${s}` : '';
-  }, [filters.projectId, filters.developerId, from, to]);
+  }, [filters.projectId, filters.developerId, filters.clientName, from, to]);
 
   const entriesQuery = useQuery<TimeEntriesResponse>({
-    queryKey: ['admin', 'time-entries', filters.projectId, filters.developerId, from, to],
+    queryKey: [
+      'admin',
+      'time-entries',
+      filters.projectId,
+      filters.developerId,
+      filters.clientName,
+      from,
+      to,
+    ],
     queryFn: () => apiFetch<TimeEntriesResponse>(`/api/admin/time-entries${queryString}`),
     // Match the cadence other admin tabs use: refetch on focus but no
     // aggressive polling — time entries don't change often enough to warrant it.
@@ -126,83 +148,22 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ projects, employees }) 
   }, [workforce]);
 
   // Stabilize the empty-default reference — `?? []` produces a fresh array
-  // every render, which would re-trigger the aggregation memo below.
+  // every render, which would re-trigger the aggregation memos below.
   const rows = useMemo(() => entriesQuery.data?.rows ?? [], [entriesQuery.data?.rows]);
-  const totalHours = entriesQuery.data?.total_hours ?? 0;
   // Pre-aggregation raw row count from the server (used for the truncation notice).
   const totalRawRows = entriesQuery.data?.total_rows ?? 0;
   const truncated = entriesQuery.data?.truncated ?? false;
 
-  // Aggregate into one row per (employee, local-day) carrying the day's total
-  // hours, plus a `breakdown` collapsed by project (with its billing client)
-  // that sums back to that total. Rows sort newest-day-first, then employee.
-  const employeeDayRows = useMemo<EmployeeDayRow[]>(() => {
-    const dayEmp = new Map<string, EmployeeDayRow>();
-    // Global index of breakdown rows keyed by `${dayEmpKey}|${projPart}` so a
-    // project's lines fold together within each employee-day.
-    const breakdownByKey = new Map<string, BreakdownRow>();
-
-    for (const row of rows) {
-      const d = new Date(row.logged_at);
-      if (Number.isNaN(d.getTime())) continue;
-      const dayKey = formatLocalDate(d);
-      const empPart =
-        row.developer_id != null ? `e${row.developer_id}` : `n${row.developer_name ?? ''}`;
-      const deKey = `${dayKey}|${empPart}`;
-
-      let de = dayEmp.get(deKey);
-      if (!de) {
-        de = {
-          key: deKey,
-          dayKey,
-          logged_at: row.logged_at,
-          developer_name: row.developer_name,
-          hours: 0,
-          breakdown: [],
-        };
-        dayEmp.set(deKey, de);
-      }
-      de.hours += row.hours || 0;
-      // Keep the latest raw timestamp so the date cell reflects the most
-      // recent action in the bucket (cosmetic near a day boundary).
-      if (new Date(row.logged_at).getTime() > new Date(de.logged_at).getTime()) {
-        de.logged_at = row.logged_at;
-      }
-
-      const projPart = row.project_id != null ? `p${row.project_id}` : `n${row.project_name ?? ''}`;
-      const brKey = `${deKey}|${projPart}`;
-      let br = breakdownByKey.get(brKey);
-      if (!br) {
-        br = {
-          key: brKey,
-          project_name: row.project_name,
-          client_name: row.client_name,
-          hours: 0,
-        };
-        breakdownByKey.set(brKey, br);
-        de.breakdown.push(br);
-      }
-      br.hours += row.hours || 0;
-    }
-
-    const out = [...dayEmp.values()];
-    for (const de of out) {
-      de.breakdown.sort((a, b) => b.hours - a.hours);
-    }
-    return out.sort((a, b) => {
-      // dayKey is YYYY-MM-DD, so lexicographic comparison is correct.
-      if (a.dayKey !== b.dayKey) return a.dayKey < b.dayKey ? 1 : -1;
-      const ea = (a.developer_name ?? '').toLowerCase();
-      const eb = (b.developer_name ?? '').toLowerCase();
-      return ea < eb ? -1 : ea > eb ? 1 : 0;
-    });
-  }, [rows]);
+  // Grouped rows for the active view. Recomputed when the rows or the chosen
+  // grouping change.
+  const { groups } = useMemo(() => aggregateEntries(rows, viewMode), [rows, viewMode]);
 
   // Reset button activates when any non-default field is set. Keep this in
   // lockstep with `resetFilters` below.
   const hasAnyFilter =
     filters.projectId != null ||
     filters.developerId != null ||
+    filters.clientName != null ||
     filters.preset !== 'this_week' ||
     filters.customFrom !== '' ||
     filters.customTo !== '';
@@ -211,6 +172,7 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ projects, employees }) 
     setFilters({
       projectId: null,
       developerId: null,
+      clientName: null,
       preset: 'this_week',
       customFrom: '',
       customTo: '',
@@ -228,7 +190,7 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ projects, employees }) 
             Time Entries
           </h2>
           <p className="text-xs text-[#737373] mt-1">
-            Audit every hour logged across projects. Filter by project, employee, or date range.
+            Where every logged hour went — grouped by employee, client, or project.
           </p>
         </div>
         {lastSyncLabel && (
@@ -242,28 +204,31 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ projects, employees }) 
         )}
       </div>
 
+      <TimeEntriesSummary totalRawRows={totalRawRows} truncated={truncated} from={from} to={to} />
+
       <TimeEntriesFilterBar
         filters={filters}
         setFilters={setFilters}
         sortedProjects={sortedProjects}
         sortedEmployees={sortedEmployees}
+        clients={clients}
         hasAnyFilter={hasAnyFilter}
         onReset={resetFilters}
       />
 
-      <TimeEntriesSummary
-        totalHours={totalHours}
-        entriesCount={employeeDayRows.length}
-        totalRawRows={totalRawRows}
-        truncated={truncated}
-        from={from}
-        to={to}
-      />
+      {/* View switcher: group hours by employee (default), client, or project. */}
+      <div className="flex items-center justify-between gap-4">
+        <ViewModeToggle value={viewMode} onChange={setViewMode} />
+        <span className="text-xs text-[#737373]">
+          {groups.length} {groups.length === 1 ? 'row' : 'rows'}
+        </span>
+      </div>
 
       <TimeEntriesTable
         isLoading={entriesQuery.isLoading}
         isError={entriesQuery.isError}
-        rows={employeeDayRows}
+        viewMode={viewMode}
+        rows={groups}
         expandedRows={expandedRows}
         onToggleRow={toggleRow}
       />

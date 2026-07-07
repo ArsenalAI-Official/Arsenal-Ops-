@@ -2541,6 +2541,32 @@ export type TimeEntryRow = {
 };
 
 /**
+ * TimesheetBillableRequest
+ *
+ * Set the billable flag for a (client, day) group.
+ *
+ * The Review & Submit modal exposes one "Billable" checkbox per client
+ * per day; toggling it sends this body. The backend flips `billable`
+ * on every one of the caller's *draft* entries logged on `logged_at`
+ * whose project bills to `qb_customer_id`. Synced/submitted entries are
+ * left untouched (they're already in QuickBooks).
+ */
+export type TimesheetBillableRequest = {
+  /**
+   * Billable
+   */
+  billable: boolean;
+  /**
+   * Logged At
+   */
+  logged_at: string;
+  /**
+   * Qb Customer Id
+   */
+  qb_customer_id: string;
+};
+
+/**
  * TimesheetClientResponse
  */
 export type TimesheetClientResponse = {
@@ -3830,6 +3856,10 @@ export type ListTimeEntriesApiAdminTimeEntriesGetData = {
      */
     developer_id?: number | null;
     /**
+     * Client Name
+     */
+    client_name?: string | null;
+    /**
      * Date From
      */
     date_from?: string | null;
@@ -4922,6 +4952,33 @@ export type GetMyTimesheetApiDevelopersMeTimesheetGetResponses = {
 
 export type GetMyTimesheetApiDevelopersMeTimesheetGetResponse =
   GetMyTimesheetApiDevelopersMeTimesheetGetResponses[keyof GetMyTimesheetApiDevelopersMeTimesheetGetResponses];
+
+export type SetMyTimesheetBillableApiDevelopersMeTimesheetBillablePatchData = {
+  body: TimesheetBillableRequest;
+  path?: never;
+  query?: never;
+  url: '/api/developers/me/timesheet/billable';
+};
+
+export type SetMyTimesheetBillableApiDevelopersMeTimesheetBillablePatchErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type SetMyTimesheetBillableApiDevelopersMeTimesheetBillablePatchError =
+  SetMyTimesheetBillableApiDevelopersMeTimesheetBillablePatchErrors[keyof SetMyTimesheetBillableApiDevelopersMeTimesheetBillablePatchErrors];
+
+export type SetMyTimesheetBillableApiDevelopersMeTimesheetBillablePatchResponses = {
+  /**
+   * Successful Response
+   */
+  204: void;
+};
+
+export type SetMyTimesheetBillableApiDevelopersMeTimesheetBillablePatchResponse =
+  SetMyTimesheetBillableApiDevelopersMeTimesheetBillablePatchResponses[keyof SetMyTimesheetBillableApiDevelopersMeTimesheetBillablePatchResponses];
 
 export type DeleteMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdDeleteData = {
   body?: never;

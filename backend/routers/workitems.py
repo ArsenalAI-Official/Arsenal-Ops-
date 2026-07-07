@@ -1746,7 +1746,7 @@ def log_hours(
     # Create time entry. When `logged_at` was passed in the request, use
     # the resolved (validated) value so the entry lands on the chosen
     # day; otherwise the column default (`datetime.utcnow`) applies.
-    te_kwargs = {
+    te_kwargs: dict[str, Any] = {
         "work_item_id": item_id,
         "developer_id": developer.id if developer else item.assignee_id,
         "hours": request.hours,
@@ -1763,7 +1763,7 @@ def log_hours(
     # users see a single chronological audit trail in the side panel.
     from models.comment import Comment as _LogComment
 
-    log_comment_kwargs = {
+    log_comment_kwargs: dict[str, Any] = {
         "work_item_id": item_id,
         "author_id": developer.id if developer else None,
         "content": f"Logged {request.hours}h",

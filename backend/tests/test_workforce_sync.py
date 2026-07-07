@@ -43,6 +43,15 @@ def setup_db():
     Base.metadata.drop_all(bind=engine)
 
 
+@pytest.fixture(autouse=True)
+def _stub_qb_classes(monkeypatch):
+    """`run_workforce_sync` calls `fetch_qb_classes` before pushing; these tests
+    don't exercise QB "class" mapping, so stub it to an empty map. Without this
+    the sync path reaches the real QB client and fails trying to decrypt the
+    placeholder token ciphertexts these fixtures use."""
+    monkeypatch.setattr("services.workforce_sync.fetch_qb_classes", lambda db, integration: {})
+
+
 @pytest.fixture
 def db():
     s = TestSession()
@@ -193,6 +202,8 @@ def qb_doubles(monkeypatch):
         hours,
         txn_date,
         description=None,
+        billable=False,
+        class_id=None,
     ):
         state["post_calls"].append(
             {
@@ -202,6 +213,8 @@ def qb_doubles(monkeypatch):
                 "hours": hours,
                 "txn_date": txn_date,
                 "description": description,
+                "billable": billable,
+                "class_id": class_id,
             }
         )
         # If a list of outcomes was queued, pop the next one. Otherwise

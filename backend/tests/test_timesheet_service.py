@@ -200,6 +200,8 @@ def qb_doubles(monkeypatch):
         hours,
         txn_date,
         description=None,
+        billable=False,
+        class_id=None,
     ):
         state["post_calls"].append(
             {
@@ -209,6 +211,8 @@ def qb_doubles(monkeypatch):
                 "hours": hours,
                 "txn_date": txn_date,
                 "description": description,
+                "billable": billable,
+                "class_id": class_id,
             }
         )
         if state["post_outcomes"] is not None:
@@ -221,6 +225,9 @@ def qb_doubles(monkeypatch):
     monkeypatch.setattr("services.timesheet_service.fetch_qb_employees", fake_fetch)
     monkeypatch.setattr("services.timesheet_service.resolve_service_item", fake_resolve)
     monkeypatch.setattr("services.timesheet_service.post_time_activity", fake_post)
+    # No QB "class" mapping in these tests — stub it so the submit path never
+    # reaches the real QB client (which would need a decryptable token).
+    monkeypatch.setattr("services.timesheet_service.fetch_qb_classes", lambda db, integration: {})
     return state
 
 
@@ -732,7 +739,7 @@ def test_admin_force_sync_stamps_submitted_at_on_unsubmitted_entries(db, monkeyp
 
     # Mock the QB calls at the workforce_sync import site (mirrors
     # test_workforce_sync.py's pattern).
-    state = {
+    state: dict[str, Any] = {
         "employees": {"alice@arsenal.test": "EMP-1"},
         "service_item": {"id": "QB-ITEM-7", "name": "Hours"},
         "post_calls": [],
@@ -751,6 +758,7 @@ def test_admin_force_sync_stamps_submitted_at_on_unsubmitted_entries(db, monkeyp
     monkeypatch.setattr("services.workforce_sync.fetch_qb_employees", fake_fetch)
     monkeypatch.setattr("services.workforce_sync.resolve_service_item", fake_resolve)
     monkeypatch.setattr("services.workforce_sync.post_time_activity", fake_post)
+    monkeypatch.setattr("services.workforce_sync.fetch_qb_classes", lambda db, integration: {})
     monkeypatch.setattr("services.workforce_sync.refresh_clients_quietly", lambda db, integ: None)
 
     _make_integration(db)
@@ -778,7 +786,7 @@ def test_admin_force_sync_preserves_existing_submitted_at(db, monkeypatch):
     """Admin force-sync must not overwrite a dev's earlier submitted_at."""
     from services.workforce_sync import run_workforce_sync
 
-    state = {
+    state: dict[str, Any] = {
         "employees": {"alice@arsenal.test": "EMP-1"},
         "service_item": {"id": "QB-ITEM-7", "name": "Hours"},
         "post_calls": [],
@@ -797,6 +805,7 @@ def test_admin_force_sync_preserves_existing_submitted_at(db, monkeypatch):
     monkeypatch.setattr("services.workforce_sync.fetch_qb_employees", fake_fetch)
     monkeypatch.setattr("services.workforce_sync.resolve_service_item", fake_resolve)
     monkeypatch.setattr("services.workforce_sync.post_time_activity", fake_post)
+    monkeypatch.setattr("services.workforce_sync.fetch_qb_classes", lambda db, integration: {})
     monkeypatch.setattr("services.workforce_sync.refresh_clients_quietly", lambda db, integ: None)
 
     _make_integration(db)

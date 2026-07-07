@@ -686,92 +686,92 @@ const DayBlock = ({
                 ),
               ];
               return (
-              <div key={client.qb_customer_id} className="space-y-2">
-                {/* Client (level 1) — collapsible. The row shows the client +
+                <div key={client.qb_customer_id} className="space-y-2">
+                  {/* Client (level 1) — collapsible. The row shows the client +
                     its hours; clicking the name toggles the ticket list. The
                     billable checkbox and hours stay visible while collapsed. */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => toggleClient(client.qb_customer_id)}
-                    aria-expanded={isOpen}
-                    className="flex items-center gap-2 min-w-0 text-left text-white hover:text-[#E0B954] transition-colors"
-                  >
-                    {isOpen ? (
-                      <ChevronDown className="w-3.5 h-3.5 shrink-0 text-[#737373]" />
-                    ) : (
-                      <ChevronRight className="w-3.5 h-3.5 shrink-0 text-[#737373]" />
-                    )}
-                    <span
-                      className="w-2.5 h-2.5 rounded-sm shrink-0"
-                      style={{ backgroundColor: clientColor(client.qb_customer_id) }}
-                    />
-                    <span className="text-sm font-semibold">{client.client_name}</span>
-                    <span className="text-[10px] text-[#737373] font-normal">
-                      (Client in QuickBooks)
-                    </span>
-                  </button>
-                  {/* Class = project category. */}
-                  {clientClasses.length > 0 && (
-                    <span
-                      className="text-[10px] text-[#a3a3a3] bg-[rgba(255,255,255,0.05)] rounded px-1.5 py-0.5"
-                      title="Class (project category)"
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => toggleClient(client.qb_customer_id)}
+                      aria-expanded={isOpen}
+                      className="flex items-center gap-2 min-w-0 text-left text-white hover:text-[#E0B954] transition-colors"
                     >
-                      Class: {clientClasses.join(', ')}
-                    </span>
-                  )}
-                  {/* Per-(client, day) billable toggle. */}
-                  <label
-                    htmlFor={billableId}
-                    className={`inline-flex items-center gap-1.5 text-[11px] ${
-                      allLocked
-                        ? 'text-[#737373] cursor-not-allowed'
-                        : 'text-[#a3a3a3] cursor-pointer hover:text-white'
-                    }`}
-                    title={
-                      allLocked
-                        ? 'These hours are already submitted/synced to QuickBooks — billable is locked.'
-                        : 'Bill this client for this day’s hours. Sent to QuickBooks as the entry’s billable status on submit.'
-                    }
-                  >
-                    <input
-                      id={billableId}
-                      type="checkbox"
-                      checked={allBillable}
-                      disabled={allLocked}
-                      onChange={(e) =>
-                        void onSetClientBillable(client.qb_customer_id, day.iso, e.target.checked)
+                      {isOpen ? (
+                        <ChevronDown className="w-3.5 h-3.5 shrink-0 text-[#737373]" />
+                      ) : (
+                        <ChevronRight className="w-3.5 h-3.5 shrink-0 text-[#737373]" />
+                      )}
+                      <span
+                        className="w-2.5 h-2.5 rounded-sm shrink-0"
+                        style={{ backgroundColor: clientColor(client.qb_customer_id) }}
+                      />
+                      <span className="text-sm font-semibold">{client.client_name}</span>
+                      <span className="text-[10px] text-[#737373] font-normal">
+                        (Client in QuickBooks)
+                      </span>
+                    </button>
+                    {/* Class = project category. */}
+                    {clientClasses.length > 0 && (
+                      <span
+                        className="text-[10px] text-[#a3a3a3] bg-[rgba(255,255,255,0.05)] rounded px-1.5 py-0.5"
+                        title="Class (project category)"
+                      >
+                        Class: {clientClasses.join(', ')}
+                      </span>
+                    )}
+                    {/* Per-(client, day) billable toggle. */}
+                    <label
+                      htmlFor={billableId}
+                      className={`inline-flex items-center gap-1.5 text-[11px] ${
+                        allLocked
+                          ? 'text-[#737373] cursor-not-allowed'
+                          : 'text-[#a3a3a3] cursor-pointer hover:text-white'
+                      }`}
+                      title={
+                        allLocked
+                          ? 'These hours are already submitted/synced to QuickBooks — billable is locked.'
+                          : 'Bill this client for this day’s hours. Sent to QuickBooks as the entry’s billable status on submit.'
                       }
-                      className="accent-[#E0B954] w-3.5 h-3.5 disabled:opacity-50"
-                    />
-                    Billable
-                  </label>
-                  <span className="ml-auto text-sm font-mono font-semibold tabular-nums text-[#E0B954]">
-                    {client.subtotal_hours}h
-                  </span>
-                </div>
-                {/* Project (level 2) — revealed when the client is expanded.
+                    >
+                      <input
+                        id={billableId}
+                        type="checkbox"
+                        checked={allBillable}
+                        disabled={allLocked}
+                        onChange={(e) =>
+                          void onSetClientBillable(client.qb_customer_id, day.iso, e.target.checked)
+                        }
+                        className="accent-[#E0B954] w-3.5 h-3.5 disabled:opacity-50"
+                      />
+                      Billable
+                    </label>
+                    <span className="ml-auto text-sm font-mono font-semibold tabular-nums text-[#E0B954]">
+                      {client.subtotal_hours}h
+                    </span>
+                  </div>
+                  {/* Project (level 2) — revealed when the client is expanded.
                     Left border acts as a visual guide line so the eye follows
                     the client → project → entry hierarchy. */}
-                {isOpen && (
-                  <div className="pl-4 border-l border-[rgba(255,255,255,0.08)] ml-1 space-y-2">
-                    {client.projects.map((project) => {
-                      const subtotal = project.entries.reduce((s, e) => s + (e.hours || 0), 0);
-                      return (
-                        <ProjectBlock
-                          key={project.project_id}
-                          name={project.project_name}
-                          subtotal={subtotal}
-                          entries={project.entries}
-                          failedById={failedById}
-                          onEdit={onEdit}
-                          onDelete={onDelete}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                  {isOpen && (
+                    <div className="pl-4 border-l border-[rgba(255,255,255,0.08)] ml-1 space-y-2">
+                      {client.projects.map((project) => {
+                        const subtotal = project.entries.reduce((s, e) => s + (e.hours || 0), 0);
+                        return (
+                          <ProjectBlock
+                            key={project.project_id}
+                            name={project.project_name}
+                            subtotal={subtotal}
+                            entries={project.entries}
+                            failedById={failedById}
+                            onEdit={onEdit}
+                            onDelete={onDelete}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>

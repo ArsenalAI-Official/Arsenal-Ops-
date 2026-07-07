@@ -1,7 +1,8 @@
-// Domain types + pure date helpers for the Time Entries tab.
+// Domain types + pure date/aggregation helpers for the Time Entries tab.
 // Co-located so the orchestrator, filter bar, summary, and table all share one
-// definition (CONVENTIONS rule 6). The helpers are pure (date in → string out)
+// definition (CONVENTIONS rule 6). The helpers are pure (data in → data out)
 // and called from `useMemo` bodies in the orchestrator.
+import type { TimeEntryRow } from '@/client';
 import { parseLocalDate, formatLocalDate } from '@/components/ProjectsPage/utils';
 
 export interface ProjectOption {
@@ -15,33 +16,182 @@ export interface EmployeeOption {
   email: string;
 }
 
+// ── View modes ───────────────────────────────────────────────────────────────
+// The tab can group hours by any of three dimensions. Employee is the default.
+export type ViewMode = 'employee' | 'client' | 'project';
+
+export const VIEW_MODES: { id: ViewMode; label: string }[] = [
+  { id: 'employee', label: 'By Employee' },
+  { id: 'client', label: 'By Client' },
+  { id: 'project', label: 'By Project' },
+];
+
 /**
- * One line in an employee-day's expandable breakdown: how many hours that
- * employee put on a given project (and which client it bills to) that day.
- * Raw entries are collapsed by project within the (employee, day) bucket.
+ * Column headers per view. `primary` is the grouped dimension (the row label
+ * beside the date). `childPrimary`/`childSecondary` are the columns a row
+ * expands into:
+ *   Employee → split by project (+ its client)
+ *   Client   → split by employee
+ *   Project  → split by employee
  */
-export interface BreakdownRow {
-  /** Stable React key — `${dayKey}|emp|proj`. */
+export const VIEW_LABELS: Record<
+  ViewMode,
+  { primary: string; childPrimary: string; childSecondary: string | null }
+> = {
+  employee: { primary: 'Employee', childPrimary: 'Project', childSecondary: 'Client' },
+  client: { primary: 'Client', childPrimary: 'Employee', childSecondary: null },
+  project: { primary: 'Project', childPrimary: 'Employee', childSecondary: null },
+};
+
+/** Fallback labels for rows whose dimension value is missing. */
+const MISSING = {
+  employee: 'Deleted employee',
+  client: 'No client',
+  project: 'No project',
+} as const;
+
+/**
+ * One line in a row's expandable breakdown (the child dimension) for that day:
+ * e.g. under an employee-day, one project (with its client) they logged to.
+ */
+export interface GroupChildRow {
   key: string;
-  project_name: string | null;
-  client_name: string | null;
+  label: string;
+  /** Secondary context, e.g. the client a project bills to (employee view only). */
+  sublabel: string | null;
   hours: number;
 }
 
 /**
- * A top-level table row: total hours one employee logged on one local day.
- * Click to expand `breakdown` — the per-project/client split that sums to
- * `hours`.
+ * A top-level table row: total hours one employee / client / project logged on
+ * one local day. Expand `children` for the per-dimension split that sums back
+ * to `hours`.
  */
-export interface EmployeeDayRow {
-  /** Stable React key + expand-state key — `${dayKey}|emp`. */
+export interface GroupRow {
   key: string;
-  /** Local-time YYYY-MM-DD; drives the descending sort. */
+  /** Local-time YYYY-MM-DD; drives the Date column and the descending sort. */
   dayKey: string;
+  /** Latest raw timestamp in the bucket (kept for reference/tiebreak). */
   logged_at: string;
-  developer_name: string | null;
+  label: string;
+  sublabel: string | null;
   hours: number;
-  breakdown: BreakdownRow[];
+  children: GroupChildRow[];
+}
+
+interface Dim {
+  id: string;
+  label: string;
+  sub: string | null;
+}
+
+function projectDim(r: TimeEntryRow, withClient: boolean): Dim {
+  return {
+    id: r.project_id != null ? `p${r.project_id}` : `pn:${r.project_name ?? ''}`,
+    label: r.project_name ?? MISSING.project,
+    sub: withClient ? (r.client_name ?? null) : null,
+  };
+}
+
+function employeeDim(r: TimeEntryRow): Dim {
+  return {
+    id: r.developer_id != null ? `e${r.developer_id}` : `en:${r.developer_name ?? ''}`,
+    label: r.developer_name ?? MISSING.employee,
+    sub: null,
+  };
+}
+
+function clientDim(r: TimeEntryRow): Dim {
+  return {
+    id: r.client_name ? `c:${r.client_name}` : 'c:none',
+    label: r.client_name ?? MISSING.client,
+    sub: null,
+  };
+}
+
+function primaryDim(view: ViewMode, r: TimeEntryRow): Dim {
+  if (view === 'employee') return employeeDim(r);
+  if (view === 'client') return clientDim(r);
+  return projectDim(r, true); // project view shows its client as sublabel
+}
+
+function childDim(view: ViewMode, r: TimeEntryRow): Dim {
+  if (view === 'employee') return projectDim(r, true); // employee → project (+ client)
+  return employeeDim(r); // client/project → employees
+}
+
+/**
+ * Fold raw time-entry rows into one row per (local day, dimension) for the
+ * given view, each carrying a per-child breakdown. Pure: called from a
+ * `useMemo` in the orchestrator. Rows sort newest-day-first then hours-desc;
+ * children sort hours-desc.
+ */
+export function aggregateEntries(
+  rows: TimeEntryRow[],
+  view: ViewMode,
+): { groups: GroupRow[]; totalHours: number } {
+  interface Acc extends GroupRow {
+    _children: Map<string, GroupChildRow>;
+  }
+  const groups = new Map<string, Acc>();
+  let totalHours = 0;
+
+  for (const r of rows) {
+    const hrs = r.hours || 0;
+    const d = new Date(r.logged_at);
+    if (Number.isNaN(d.getTime())) continue; // skip unparseable timestamps
+    totalHours += hrs;
+
+    const dayKey = formatLocalDate(d);
+    const p = primaryDim(view, r);
+    const gKey = `${dayKey}|${p.id}`;
+
+    let g = groups.get(gKey);
+    if (!g) {
+      g = {
+        key: gKey,
+        dayKey,
+        logged_at: r.logged_at,
+        label: p.label,
+        sublabel: p.sub,
+        hours: 0,
+        children: [],
+        _children: new Map(),
+      };
+      groups.set(gKey, g);
+    }
+    g.hours += hrs;
+    // Keep the latest raw timestamp in the bucket (cosmetic near a day boundary).
+    if (d.getTime() > new Date(g.logged_at).getTime()) g.logged_at = r.logged_at;
+
+    const c = childDim(view, r);
+    let child = g._children.get(c.id);
+    if (!child) {
+      child = { key: `${gKey}>${c.id}`, label: c.label, sublabel: c.sub, hours: 0 };
+      g._children.set(c.id, child);
+    }
+    child.hours += hrs;
+  }
+
+  const out: GroupRow[] = [];
+  for (const g of groups.values()) {
+    const children = [...g._children.values()].sort((a, b) => b.hours - a.hours);
+    out.push({
+      key: g.key,
+      dayKey: g.dayKey,
+      logged_at: g.logged_at,
+      label: g.label,
+      sublabel: g.sublabel,
+      hours: g.hours,
+      children,
+    });
+  }
+  out.sort((a, b) => {
+    // dayKey is YYYY-MM-DD, so lexicographic comparison orders dates correctly.
+    if (a.dayKey !== b.dayKey) return a.dayKey < b.dayKey ? 1 : -1;
+    return b.hours - a.hours || a.label.localeCompare(b.label);
+  });
+  return { groups: out, totalHours };
 }
 
 export type DatePreset =
@@ -55,6 +205,8 @@ export type DatePreset =
 export interface FiltersState {
   projectId: number | null;
   developerId: number | null;
+  /** QuickBooks client name (null = all clients). */
+  clientName: string | null;
   preset: DatePreset;
   // Only consulted when preset === 'custom'.
   customFrom: string;
@@ -138,21 +290,6 @@ export function resolveDateRange(
     return { from: formatLocalDate(from), to: formatLocalDate(to) };
   }
   return { from: null, to: null };
-}
-
-/**
- * Format an ISO timestamp as "Jun 8, 2026" for table display — date only,
- * no time component. Falls back to the raw string on parse error so an
- * upstream data issue doesn't render as "Invalid Date".
- */
-export function formatLoggedAt(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
 }
 
 /**

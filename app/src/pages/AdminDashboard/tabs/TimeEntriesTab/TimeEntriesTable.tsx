@@ -1,28 +1,39 @@
-import { Clock, ChevronRight, ChevronDown } from 'lucide-react';
+import { Clock, ChevronRight, ChevronDown, FolderKanban, Users } from 'lucide-react';
 import { Fragment } from 'react';
 import EntryRow from './EntryRow';
-import { formatLoggedAt } from './types';
-import type { EmployeeDayRow } from './types';
+import { VIEW_LABELS, formatRangeDate } from './types';
+import type { GroupRow, ViewMode } from './types';
 
 interface TimeEntriesTableProps {
   isLoading: boolean;
   isError: boolean;
-  /** One row per (employee, day). */
-  rows: EmployeeDayRow[];
-  /** Keys of the (employee, day) rows currently expanded. */
+  viewMode: ViewMode;
+  /** One row per (day, employee|client|project). */
+  rows: GroupRow[];
+  /** Keys of the rows currently expanded. */
   expandedRows: Set<string>;
   onToggleRow: (key: string) => void;
 }
 
-/** Date · Employee · Hours table. Each row expands to the per-project/client
- *  breakdown that sums to that day's hours for that employee. */
+/**
+ * Date · {dimension} · Hours table for the active view. Each row expands to the
+ * per-dimension split for that day (employee→projects+client, client→employees,
+ * project→employees — see VIEW_LABELS).
+ */
 const TimeEntriesTable: React.FC<TimeEntriesTableProps> = ({
   isLoading,
   isError,
+  viewMode,
   rows,
   expandedRows,
   onToggleRow,
 }) => {
+  const labels = VIEW_LABELS[viewMode];
+  const hasSecondary = labels.childSecondary != null;
+  // The breakdown dimension is projects in the employee view, employees otherwise.
+  const childIcon = viewMode === 'employee' ? FolderKanban : Users;
+  const childNoun = labels.childPrimary.toLowerCase();
+
   return (
     <div className="rounded-2xl border border-[rgba(255,255,255,0.07)] bg-[rgba(255,255,255,0.02)] overflow-hidden">
       {isLoading ? (
@@ -43,7 +54,7 @@ const TimeEntriesTable: React.FC<TimeEntriesTableProps> = ({
               <tr className="text-left text-[11px] uppercase tracking-wider text-[#737373]">
                 <th className="px-4 py-2.5 font-medium w-8" aria-label="Expand" />
                 <th className="px-4 py-2.5 font-medium">Date</th>
-                <th className="px-4 py-2.5 font-medium">Employee</th>
+                <th className="px-4 py-2.5 font-medium">{labels.primary}</th>
                 <th className="px-4 py-2.5 font-medium text-right">Hours</th>
               </tr>
             </thead>
@@ -58,9 +69,7 @@ const TimeEntriesTable: React.FC<TimeEntriesTableProps> = ({
                       role="button"
                       tabIndex={0}
                       aria-expanded={isExpanded}
-                      aria-label={`${isExpanded ? 'Collapse' : 'Expand'} breakdown for ${
-                        row.developer_name ?? 'employee'
-                      } on ${formatLoggedAt(row.logged_at)}`}
+                      aria-label={`${isExpanded ? 'Collapse' : 'Expand'} breakdown for ${row.label} on ${formatRangeDate(row.dayKey)}`}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
@@ -76,32 +85,56 @@ const TimeEntriesTable: React.FC<TimeEntriesTableProps> = ({
                         )}
                       </td>
                       <td className="px-4 py-3 text-[#a3a3a3] whitespace-nowrap">
-                        {formatLoggedAt(row.logged_at)}
+                        {formatRangeDate(row.dayKey)}
                       </td>
-                      <td className="px-4 py-3 text-white">
-                        {row.developer_name ?? <span className="text-[#737373] italic">deleted</span>}
+                      <td className="px-4 py-3">
+                        <div className="text-white font-medium">{row.label}</div>
+                        {row.sublabel && (
+                          <div className="text-[11px] text-[#737373]">{row.sublabel}</div>
+                        )}
                       </td>
-                      <td className="px-4 py-3 text-right font-semibold text-white">{row.hours}h</td>
+                      <td className="px-4 py-3 text-right font-semibold text-white tabular-nums whitespace-nowrap">
+                        {row.hours}h
+                      </td>
                     </tr>
                     {isExpanded && (
-                      <tr className="bg-[rgba(255,255,255,0.015)]">
-                        <td colSpan={4} className="px-4 pb-3 pl-12">
-                          {/* Per-project/client split that sums to the row's hours. */}
-                          <div className="rounded-lg border border-[rgba(255,255,255,0.06)] overflow-hidden">
-                            <table className="w-full text-xs">
-                              <thead className="bg-[rgba(255,255,255,0.02)]">
-                                <tr className="text-left text-[10px] uppercase tracking-wider text-[#737373]">
-                                  <th className="px-3 py-1.5 font-medium">Project</th>
-                                  <th className="px-3 py-1.5 font-medium">Client</th>
-                                  <th className="px-3 py-1.5 font-medium text-right">Hours</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-[rgba(255,255,255,0.04)]">
-                                {row.breakdown.map((b) => (
-                                  <EntryRow key={b.key} row={b} />
-                                ))}
-                              </tbody>
-                            </table>
+                      <tr className="bg-[rgba(224,185,84,0.02)]">
+                        <td
+                          colSpan={4}
+                          className="px-4 pb-4 pt-1"
+                          aria-label={`${row.label} breakdown`}
+                        >
+                          <div className="ml-8 rounded-xl border border-[rgba(255,255,255,0.07)] bg-[#0c0c0c] overflow-hidden shadow-lg shadow-black/20">
+                            {/* Sub-panel header */}
+                            <div className="flex items-center justify-between px-3 py-2.5 border-b border-[rgba(255,255,255,0.05)]">
+                              <span className="text-xs uppercase tracking-wider text-[#8a8a8a] font-semibold">
+                                By {childNoun}
+                              </span>
+                              <span className="text-xs text-[#525252]">
+                                {row.children.length} {childNoun}
+                                {row.children.length === 1 ? '' : 's'}
+                              </span>
+                            </div>
+                            {/* Breakdown rows */}
+                            <div className="divide-y divide-[rgba(255,255,255,0.04)]">
+                              {row.children.map((c) => (
+                                <EntryRow
+                                  key={c.key}
+                                  row={c}
+                                  icon={childIcon}
+                                  showSecondary={hasSecondary}
+                                />
+                              ))}
+                            </div>
+                            {/* Total footer — confirms the split sums to the row's hours */}
+                            <div className="flex items-center justify-between px-3 py-2.5 border-t border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)]">
+                              <span className="text-xs uppercase tracking-wider text-[#8a8a8a] font-semibold">
+                                Total
+                              </span>
+                              <span className="text-sm font-bold text-white tabular-nums">
+                                {row.hours}h
+                              </span>
+                            </div>
                           </div>
                         </td>
                       </tr>

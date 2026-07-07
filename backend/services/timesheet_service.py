@@ -485,9 +485,7 @@ def _submit_inside_lock(
         project = entry.work_item.project if entry.work_item else None
         customer_qb_id = project.workforce_client_id if project else None
         category = project.category if project else None
-        class_id = (
-            class_map.get((category.name or "").lower().strip()) if category else None
-        )
+        class_id = class_map.get((category.name or "").lower().strip()) if category else None
         if not customer_qb_id:
             # Project was unlinked between the eligibility query and
             # the POST. Surface it per-row so the dev knows that

@@ -1014,6 +1014,7 @@ TIME_ENTRIES_MAX_ROWS = 2000
 def list_time_entries(
     project_id: int | None = None,
     developer_id: int | None = None,
+    client_name: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
     db: Session = Depends(get_db),
@@ -1023,6 +1024,8 @@ def list_time_entries(
     Filters (all optional, combined with AND):
       - project_id:  restrict to one project (joined via WorkItem.project_id)
       - developer_id: restrict to one employee
+      - client_name: restrict to one QuickBooks client (the customer cached on
+        the Project row), i.e. all projects billing to that client
       - date_from / date_to: inclusive ISO date strings (YYYY-MM-DD). The
         upper bound is treated as end-of-day, so `date_to=2026-06-08` keeps
         entries logged at 23:59:59 that day.
@@ -1060,12 +1063,19 @@ def list_time_entries(
     if developer_id is not None:
         query = query.filter(TimeEntry.developer_id == developer_id)
 
-    if project_id is not None:
-        # Join WorkItem so we can filter by its project_id without
-        # round-tripping through the in-memory join load.
-        query = query.join(WorkItem, TimeEntry.work_item_id == WorkItem.id).filter(
-            WorkItem.project_id == project_id
-        )
+    if project_id is not None or client_name:
+        # Join WorkItem once (a second .join(WorkItem) would raise) so we can
+        # filter by the item's project without round-tripping through the
+        # in-memory join load.
+        query = query.join(WorkItem, TimeEntry.work_item_id == WorkItem.id)
+        if project_id is not None:
+            query = query.filter(WorkItem.project_id == project_id)
+        if client_name:
+            # client is the QuickBooks customer cached on the Project row;
+            # filtering by it spans every project billing to that client.
+            query = query.join(Project, WorkItem.project_id == Project.id).filter(
+                Project.workforce_client_name == client_name
+            )
 
     if df is not None:
         query = query.filter(TimeEntry.logged_at >= datetime.combine(df, time.min))

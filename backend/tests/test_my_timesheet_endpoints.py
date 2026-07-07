@@ -197,6 +197,7 @@ def qb_doubles(monkeypatch):
     monkeypatch.setattr("services.timesheet_service.fetch_qb_employees", fake_fetch)
     monkeypatch.setattr("services.timesheet_service.resolve_service_item", fake_resolve)
     monkeypatch.setattr("services.timesheet_service.post_time_activity", fake_post)
+    monkeypatch.setattr("services.timesheet_service.fetch_qb_classes", lambda db, integration: {})
     return state
 
 
