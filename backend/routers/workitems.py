@@ -22,6 +22,7 @@ from routers.auth import get_current_user, require_capability
 from services.email_service import email_service
 from services.hierarchy import validate_hierarchy
 from services.llm_agent import llm_agent
+from services.project_keys import key_prefix_lock_id
 
 router = APIRouter(prefix="/api/workitems", tags=["Work Items"])
 
@@ -838,10 +839,13 @@ def create_work_item(
 
     # Acquire a PostgreSQL transaction-level advisory lock scoped to this key_prefix.
     # This serializes concurrent inserts for the same prefix across all Gunicorn workers,
-    # making key collisions impossible without any retry logic. No-op on SQLite (local
-    # dev), which is single-writer anyway so there's nothing to serialize.
+    # making key collisions impossible without any retry logic. The lock id comes from
+    # key_prefix_lock_id (a stable crc32) — NOT the builtin hash(), which is per-process
+    # randomized and would hand each worker a different id, breaking serialization.
+    # No-op on SQLite (local dev), which is single-writer anyway so there's nothing to
+    # serialize.
     if db.bind is not None and db.bind.dialect.name == "postgresql":
-        lock_id = abs(hash(key_prefix)) % 2_147_483_647
+        lock_id = key_prefix_lock_id(key_prefix)
         db.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": lock_id})
 
     # Now we're the only transaction touching this prefix — get next number safely
