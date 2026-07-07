@@ -197,6 +197,12 @@ def test_create_happy_path_and_audit(world, mcp_db):
     assert any(r.action == "created" for r in rows)
 
 
+def test_create_returns_work_item_link(world):
+    """Created work items come back with a clickable deep link to the ticket."""
+    res = call(world["alice"], "workitem_create", {"project_id": world["p1"], "title": "Linked"})
+    assert res["url"].endswith(f"/project/{world['p1']}/board/{res['id']}")
+
+
 def test_create_denied_without_capability(world):
     with pytest.raises(ToolError):  # carol has project access but no tracker_write
         call(world["carol"], "workitem_create", {"project_id": world["p1"], "title": "Nope"})

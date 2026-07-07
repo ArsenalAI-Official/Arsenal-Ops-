@@ -219,6 +219,19 @@ def _clamp_page(limit: int, offset: int, *, max_limit: int = 200) -> tuple[int, 
     return max(1, min(limit, max_limit)), max(0, offset)
 
 
+def _work_item_url(project_id, item_id) -> str:
+    """Deep link to a work item in the app UI, so an agent can hand the user a
+    clickable link to the ticket it just created/updated. Mirrors the URL
+    email_service builds (``/project/{id}/board/{item_id}``) so notifications
+    and MCP responses point to the same place. Reads FRONTEND_URL per call (as
+    email_service does) so the link is correct per environment."""
+    # `or` (not getenv's default arg) so a present-but-EMPTY FRONTEND_URL — as in
+    # local dev — still yields an absolute link instead of a bare "/project/..."
+    # relative path the agent can't hand off.
+    base = (os.getenv("FRONTEND_URL") or "https://arsenal-ops.vercel.app").rstrip("/")
+    return f"{base}/project/{project_id}/board/{item_id}"
+
+
 @mcp.tool
 def projects_list(limit: int = 50, offset: int = 0, category_id: int | None = None) -> list[dict]:
     """List projects the caller can access (admins see all; others see only the
@@ -302,7 +315,9 @@ def workitem_get(item_id: int) -> dict:
                 item = None  # collapse "no access" into "not found"
         if item is None:
             raise ToolError("Work item not found")
-        return get_work_item(item_id, db=db, current_user=user)
+        result = get_work_item(item_id, db=db, current_user=user)
+        result["url"] = _work_item_url(item.project_id, result["id"])
+        return result
 
 
 # --------------------------------------------------------------------------- #
@@ -565,7 +580,10 @@ def workitem_create(
             estimated_hours=estimated_hours,
         )
         # create_work_item writes its own "created" activity_log row.
-        return create_work_item(item, BackgroundTasks(), db=db, current_user=user)
+        result = create_work_item(item, BackgroundTasks(), db=db, current_user=user)
+        # Hand back a clickable link to the new ticket so the agent can surface it.
+        result["url"] = _work_item_url(project_id, result["id"])
+        return result
 
 
 @mcp.tool
@@ -634,6 +652,7 @@ def workitem_update(
                 title=f"Updated {key} via MCP",
                 details={"source": "mcp", "fields": sorted(provided)},
             )
+        result["url"] = _work_item_url(project_id, result["id"])
         return result
 
 
