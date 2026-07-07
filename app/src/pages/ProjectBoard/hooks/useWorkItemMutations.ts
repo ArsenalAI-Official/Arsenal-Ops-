@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { ConfirmFn } from '@/components/ui/confirm-dialog';
 import { apiFetch, ApiError, permissionAwareError } from '@/lib/api';
-import { invalidateProjectScope } from '@/lib/invalidations';
 import { toastErrorHandler } from '@/lib/mutationToast';
 import type { WorkItem } from '@/types/workItems';
 import { applyStatusChange } from '../lib/optimisticStatus';
@@ -189,7 +188,9 @@ export function useWorkItemMutations(
     },
     onSettled: () => {
       invalidateWorkItems();
-      invalidateProjectScope(queryClient, id);
+      // A sprint move affects the project's sprints, not goals/milestones/prd/
+      // links — invalidate just the sprints query, not the whole project scope.
+      queryClient.invalidateQueries({ queryKey: ['sprints', id] });
     },
   });
 
