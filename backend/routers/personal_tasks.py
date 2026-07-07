@@ -19,6 +19,7 @@ from models.user import User
 from models.work_item import WorkItem, WorkItemStatus
 from routers.auth import get_current_user, require_capability
 from routers.workitems import get_next_item_number
+from services.project_keys import key_prefix_lock_id
 
 router = APIRouter(prefix="/api/personal-tasks", tags=["Personal Tasks"])
 
@@ -251,7 +252,7 @@ def convert_to_ticket(
     if db.bind is not None and db.bind.dialect.name == "postgresql":
         from sqlalchemy import text
 
-        lock_id = abs(hash(key_prefix)) % 2_147_483_647
+        lock_id = key_prefix_lock_id(key_prefix)
         db.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": lock_id})
 
     next_number = get_next_item_number(db, key_prefix)

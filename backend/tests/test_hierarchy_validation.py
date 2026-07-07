@@ -84,6 +84,7 @@ def seed(db):
             name="Alpha",
             description="",
             status="active",
+            key_prefix="A",
             github_repo_urls=[],
             created_at=datetime(2026, 1, 1),
         )
@@ -94,6 +95,7 @@ def seed(db):
             name="Beta",
             description="",
             status="active",
+            key_prefix="B",
             github_repo_urls=[],
             created_at=datetime(2026, 1, 1),
         )
