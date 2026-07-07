@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { GoalResponse, MilestoneResponse, WorkItemUpdate } from '@/client';
 import { TimelineView, CalendarView } from '@/components/ProjectHub';
 
@@ -39,6 +40,8 @@ const TimelineTab = ({
   projectId,
   onTaskUpdate,
 }: TimelineTabProps) => {
+  const [view, setView] = useState<'timeline' | 'calendar'>('timeline');
+
   if (hubLoading) {
     return (
       <div className="space-y-4 animate-pulse">
@@ -67,15 +70,44 @@ const TimelineTab = ({
 
   return (
     <div className="space-y-4">
-      <TimelineView
-        workItems={hubWorkItems}
-        milestones={milestones}
-        goals={goals}
-        projectStartDate={projectStartDate}
-        projectId={projectId}
-        onTaskUpdate={onTaskUpdate}
-      />
-      <CalendarView workItems={hubWorkItems} milestones={milestones} goals={goals} />
+      <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg p-0.5 inline-flex">
+        <button
+          type="button"
+          aria-pressed={view === 'timeline'}
+          onClick={() => setView('timeline')}
+          className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+            view === 'timeline'
+              ? 'bg-[rgba(255,255,255,0.08)] text-white'
+              : 'text-[#737373] hover:text-white'
+          }`}
+        >
+          Timeline
+        </button>
+        <button
+          type="button"
+          aria-pressed={view === 'calendar'}
+          onClick={() => setView('calendar')}
+          className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+            view === 'calendar'
+              ? 'bg-[rgba(255,255,255,0.08)] text-white'
+              : 'text-[#737373] hover:text-white'
+          }`}
+        >
+          Calendar
+        </button>
+      </div>
+      {view === 'timeline' ? (
+        <TimelineView
+          workItems={hubWorkItems}
+          milestones={milestones}
+          goals={goals}
+          projectStartDate={projectStartDate}
+          projectId={projectId}
+          onTaskUpdate={onTaskUpdate}
+        />
+      ) : (
+        <CalendarView workItems={hubWorkItems} milestones={milestones} goals={goals} />
+      )}
     </div>
   );
 };
