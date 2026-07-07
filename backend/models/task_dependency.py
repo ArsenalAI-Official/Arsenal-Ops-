@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 from sqlalchemy import DateTime, ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from time_utils import utcnow
+
 sys.path.append("..")
 from database import Base
 
@@ -26,7 +28,7 @@ class TaskDependency(Base):
     )
     dependency_type: Mapped[str] = mapped_column(String(20), default="blocks")  # blocks, blocked_by
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     # Relationships
     work_item: Mapped["WorkItem"] = relationship(

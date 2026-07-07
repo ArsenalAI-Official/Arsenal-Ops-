@@ -16,6 +16,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from time_utils import utcnow
+
 sys.path.append("..")
 from database import Base
 
@@ -59,9 +61,9 @@ class Architecture(Base):
     selected_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
     )
 
     # Relationships
@@ -114,7 +116,7 @@ class PRDAnalysis(Base):
     timeline: Mapped[Any | None] = mapped_column(JSON)  # List of phase objects
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=True)
 
     # Relationships
     project: Mapped["Project"] = relationship("Project", back_populates="prd_analyses")
@@ -161,9 +163,9 @@ class RoadmapTemplate(Base):
     # renderer in services/roadmap_generator.py expects.
     suggestions: Mapped[dict[str, Any]] = mapped_column(JSON)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
     )
 
     project: Mapped["Project"] = relationship("Project", back_populates="roadmap_template")
