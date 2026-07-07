@@ -214,10 +214,10 @@ const EmployeeCapacityTable: React.FC<EmployeeCapacityTableProps> = ({
                       <span
                         className={`text-xs font-medium whitespace-nowrap ${
                           capacityStatus === 'Available'
-                            ? 'text-brand'
+                            ? 'text-[#34D399]'
                             : capacityStatus === 'Busy'
-                              ? 'text-[#F59E0B]'
-                              : 'text-[#a3a3a3]'
+                              ? 'text-[#EF4444]'
+                              : 'text-[#F59E0B]'
                         }`}
                       >
                         {capacityStatus} · {capacityUsed}h/40h ({capacityPercentage}%)

@@ -48,8 +48,8 @@ const TeamCapacityOverview: React.FC<TeamCapacityOverviewProps> = ({
               {
                 key: 'Available',
                 count: teamCapacity.counts.Available,
-                base: 'rgba(224,185,84',
-                text: 'var(--brand)',
+                base: 'rgba(52,211,153',
+                text: '#34D399',
               },
               {
                 key: 'Moderate',
