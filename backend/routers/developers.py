@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from time_utils import utcnow
@@ -42,8 +42,7 @@ class DeveloperResponse(BaseModel):
     avatar_url: str | None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.post("/", response_model=DeveloperResponse)

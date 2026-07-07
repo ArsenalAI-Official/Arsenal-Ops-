@@ -79,3 +79,15 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = ["hypothesis", "hypothesis.*"]
 ignore_missing_imports = true
+
+# ── pytest ──────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+# Treat warnings as loud but not fatal (default). The one filter below silences
+# a single third-party, test-only deprecation we can't act on from our code:
+# FastAPI's TestClient re-exports Starlette's, and Starlette warns that pairing
+# its TestClient with `httpx` is deprecated in favour of a future `httpx2`.
+# That's Starlette-internal — nothing in this codebase controls it — so we
+# ignore just that one message rather than suppressing deprecations broadly.
+filterwarnings = [
+    "ignore:Using .httpx. with .starlette.testclient. is deprecated",
+]
