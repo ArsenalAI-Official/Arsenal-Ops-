@@ -7,8 +7,10 @@ import { Input } from '@/components/ui/input';
 import { NumberInput } from '@/components/ui/number-input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
+import { PRIORITY_OPTIONS, STATUS_OPTIONS, TYPE_OPTIONS_EDIT } from '@/lib/workItemConfig';
 import { CALENDAR_CLASS_NAMES } from '../constants';
 import type { WorkItem } from '../types';
+import { WorkItemSelectField } from './WorkItemSelectField';
 
 // Shared field styling, matched to WorkItemFullEditForm + the two-pane redesign.
 const LABEL = 'mb-1.5 block text-xs font-medium text-[#8A8A8A]';

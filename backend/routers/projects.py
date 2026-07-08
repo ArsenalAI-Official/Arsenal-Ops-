@@ -10,8 +10,9 @@ from typing import cast
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import insert, select
+from sqlalchemy import delete, insert, select
 from sqlalchemy.engine import CursorResult
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -20,8 +21,11 @@ from database import get_db
 from models.architecture import Architecture
 from models.developer import Developer, project_developers
 from models.project import Project
+from models.project_favorite import project_favorites
 from models.user import User
+from routers._common import get_or_404
 from routers.auth import get_current_user, require_capability
+from services.activity import log_activity
 from services.github_service import GitHubService, github_service
 
 router = APIRouter(prefix="/api/projects", tags=["Projects"])
@@ -276,6 +280,7 @@ class ProjectDetailResponse(BaseModel):
     selected_architecture: ProjectArchitectureResponse | None = None
     category_id: int | None = None
     category_name: str | None = None
+    is_favorite: bool = False
 
 
 def _empty_stats() -> dict:
@@ -385,13 +390,22 @@ def _architectures_by_project(project_ids: list[int], db: Session) -> dict:
     return by_project
 
 
-def format_projects_batch(projects: list[Project], db: Session) -> list[dict]:
+def format_projects_batch(
+    projects: list[Project],
+    db: Session,
+    favorite_project_ids: set[int] | None = None,
+) -> list[dict]:
     """Serialize a list of projects using batched DB lookups.
 
     Total query count: 3 (stats, developers, architectures) regardless of how
     many projects are passed in. Output is identical to calling
     ``format_project`` on each project individually.
+
+    ``favorite_project_ids`` is the set of project ids the requesting user has
+    starred; pass it so each row carries the correct ``is_favorite``. When
+    ``None`` (callers that don't surface favorites), every row is ``False``.
     """
+    favorite_project_ids = favorite_project_ids or set()
     project_ids = [p.id for p in projects]
     stats_by_id = get_work_item_stats_batch(project_ids, db)
     devs_by_id = _developers_by_project(project_ids, db)
@@ -430,6 +444,7 @@ def format_projects_batch(projects: list[Project], db: Session) -> list[dict]:
                 # is already in memory and adds no extra query.
                 "category_id": project.category_id,
                 "category_name": project.category.name if project.category else None,
+                "is_favorite": project.id in favorite_project_ids,
                 # NOTE: the full `architectures` list is intentionally NOT
                 # serialized here — no client reads project.architectures (the
                 # AI planning modal loads variants from /api/prd/analyze-*, a
@@ -441,9 +456,19 @@ def format_projects_batch(projects: list[Project], db: Session) -> list[dict]:
     return out
 
 
-def format_project(project: Project, db: Session) -> dict:
+def format_project(
+    project: Project, db: Session, favorite_project_ids: set[int] | None = None
+) -> dict:
     """Single-project wrapper around ``format_projects_batch`` for backward compat."""
-    return format_projects_batch([project], db)[0]
+    return format_projects_batch([project], db, favorite_project_ids)[0]
+
+
+def _favorite_project_ids(user: User, db: Session) -> set[int]:
+    """Set of project ids the given user has starred."""
+    rows = db.execute(
+        select(project_favorites.c.project_id).where(project_favorites.c.user_id == user.id)
+    ).all()
+    return {row[0] for row in rows}
 
 
 @router.get("/categories")
@@ -578,25 +603,16 @@ def create_project(
     # `created` / `entity_type` rows in this file (see milestone/goal create
     # endpoints) so the Activity tab renders it consistently. Committed in
     # its own transaction so a logging failure can't roll back the project.
-    try:
-        from models.activity_log import ActivityLog
-
-        db.add(
-            ActivityLog(
-                project_id=new_project.id,
-                user_id=current_user.id,
-                action="created",
-                entity_type="project",
-                entity_id=new_project.id,
-                title=f"Created project: {new_project.name}",
-            )
-        )
-        db.commit()
-    except Exception as e:
-        # Non-fatal: the project itself is already committed above. Log
-        # and keep going so the caller still gets a 200.
-        db.rollback()
-        print(f"[ActivityLog] Failed to log project creation for #{new_project.id}: {e}")
+    log_activity(
+        db,
+        project_id=new_project.id,
+        user_id=current_user.id,
+        action="created",
+        entity_type="project",
+        entity_id=new_project.id,
+        title=f"Created project: {new_project.name}",
+        best_effort=True,
+    )
 
     return format_project(new_project, db)
 
@@ -640,7 +656,7 @@ def list_projects(
         query = query.filter(Project.category_id == category_id)
 
     projects = query.all()
-    return format_projects_batch(projects, db)
+    return format_projects_batch(projects, db, _favorite_project_ids(current_user, db))
 
 
 @router.get("/{project_id}", responses={200: {"model": ProjectDetailResponse}})
@@ -649,7 +665,55 @@ def get_project(
 ):
     """Get a project with work item stats (requires access)"""
     project = require_project_access(project_id, current_user, db)
-    return format_project(project, db)
+    return format_project(project, db, _favorite_project_ids(current_user, db))
+
+
+class FavoriteResponse(BaseModel):
+    """Result of toggling a project favorite for the current user."""
+
+    is_favorite: bool
+
+
+@router.post("/{project_id}/favorite", responses={200: {"model": FavoriteResponse}})
+def add_favorite(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Star a project for the current user (idempotent).
+
+    Requires the same access as viewing the project — you can't favorite what
+    you can't see. Favorites are per-user, so this only touches the caller's
+    rows.
+    """
+    require_project_access(project_id, current_user, db)
+    # INSERT unconditionally and let the composite PK make a repeat star a no-op.
+    # Catching IntegrityError (rather than a preceding SELECT-then-INSERT) keeps
+    # this one round-trip and still race-safe: a concurrent duplicate just rolls
+    # back and is treated as success rather than a 500.
+    try:
+        db.execute(insert(project_favorites).values(user_id=current_user.id, project_id=project_id))
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+    return {"is_favorite": True}
+
+
+@router.delete("/{project_id}/favorite", responses={200: {"model": FavoriteResponse}})
+def remove_favorite(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Unstar a project for the current user (idempotent)."""
+    db.execute(
+        delete(project_favorites).where(
+            project_favorites.c.user_id == current_user.id,
+            project_favorites.c.project_id == project_id,
+        )
+    )
+    db.commit()
+    return {"is_favorite": False}
 
 
 @router.put("/{project_id}")
@@ -733,7 +797,7 @@ def update_project(
     db.commit()
     db.refresh(project)
 
-    result = format_project(project, db)
+    result = format_project(project, db, _favorite_project_ids(current_user, db))
     print(f"[DEBUG] Response with github_repo_url: {result.get('github_repo_url')}")
     return result
 
@@ -753,9 +817,7 @@ def delete_project(
     capability is held by the `admin` system role (`*`) and any custom role
     that explicitly grants `admin.projects`.
     """
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_or_404(db, Project, project_id, detail="Project not found")
 
     # Delete project (cascade will handle related records)
     db.delete(project)
@@ -775,9 +837,7 @@ def send_github_invitations(
     Uses project-specific GitHub token if configured, otherwise uses global GITHUB_TOKEN.
     (requires auth)
     """
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_or_404(db, Project, project_id, detail="Project not found")
 
     if not project.github_repo_url:
         raise HTTPException(
@@ -843,9 +903,7 @@ def check_github_status(
     project_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Check GitHub integration status for a project (requires auth)"""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_or_404(db, Project, project_id, detail="Project not found")
 
     # Get developers with GitHub usernames
     developers = db.execute(
@@ -885,9 +943,7 @@ def add_developer_to_project(
     """
     require_project_admin(project_id, current_user, db)
 
-    developer = db.query(Developer).filter(Developer.id == assignment.developer_id).first()
-    if not developer:
-        raise HTTPException(status_code=404, detail="Developer not found")
+    developer = get_or_404(db, Developer, assignment.developer_id, detail="Developer not found")
 
     # Check if already assigned
     existing = db.execute(
@@ -1108,7 +1164,6 @@ def create_project_goal(
     """Create a new project goal"""
     require_project_access(project_id, current_user, db)
 
-    from models.activity_log import ActivityLog
     from models.project_goal import ProjectGoal
 
     new_goal = ProjectGoal(
@@ -1120,7 +1175,8 @@ def create_project_goal(
     db.add(new_goal)
 
     # Log activity
-    activity = ActivityLog(
+    log_activity(
+        db,
         project_id=project_id,
         user_id=current_user.id,
         action="created",
@@ -1128,7 +1184,6 @@ def create_project_goal(
         entity_id=new_goal.id,
         title=f"Created goal: {goal.title}",
     )
-    db.add(activity)
 
     db.commit()
     db.refresh(new_goal)
@@ -1143,12 +1198,9 @@ def update_project_goal(
     current_user: User = Depends(get_current_user),
 ):
     """Update a project goal"""
-    from models.activity_log import ActivityLog
     from models.project_goal import ProjectGoal
 
-    goal = db.query(ProjectGoal).filter(ProjectGoal.id == goal_id).first()
-    if not goal:
-        raise HTTPException(status_code=404, detail="Goal not found")
+    goal = get_or_404(db, ProjectGoal, goal_id, detail="Goal not found")
 
     require_project_access(goal.project_id, current_user, db)
 
@@ -1168,7 +1220,8 @@ def update_project_goal(
     goal.updated_at = datetime.utcnow()
 
     # Log activity
-    activity = ActivityLog(
+    log_activity(
+        db,
         project_id=goal.project_id,
         user_id=current_user.id,
         action="updated",
@@ -1176,7 +1229,6 @@ def update_project_goal(
         entity_id=goal.id,
         title=f"Updated goal: {goal.title}",
     )
-    db.add(activity)
 
     db.commit()
     return goal.to_dict()
@@ -1187,24 +1239,21 @@ def delete_project_goal(
     goal_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Delete a project goal"""
-    from models.activity_log import ActivityLog
     from models.project_goal import ProjectGoal
 
-    goal = db.query(ProjectGoal).filter(ProjectGoal.id == goal_id).first()
-    if not goal:
-        raise HTTPException(status_code=404, detail="Goal not found")
+    goal = get_or_404(db, ProjectGoal, goal_id, detail="Goal not found")
 
     require_project_access(goal.project_id, current_user, db)
 
     # Log activity before deletion
-    activity = ActivityLog(
+    log_activity(
+        db,
         project_id=goal.project_id,
         user_id=current_user.id,
         action="deleted",
         entity_type="goal",
         title=f"Deleted goal: {goal.title}",
     )
-    db.add(activity)
 
     db.delete(goal)
     db.commit()
@@ -1263,7 +1312,6 @@ def create_project_milestone(
     """Create a new project milestone"""
     require_project_access(project_id, current_user, db)
 
-    from models.activity_log import ActivityLog
     from models.project_milestone import ProjectMilestone
 
     new_milestone = ProjectMilestone(
@@ -1275,7 +1323,8 @@ def create_project_milestone(
     db.add(new_milestone)
 
     # Log activity
-    activity = ActivityLog(
+    log_activity(
+        db,
         project_id=project_id,
         user_id=current_user.id,
         action="created",
@@ -1283,7 +1332,6 @@ def create_project_milestone(
         entity_id=new_milestone.id,
         title=f"Created milestone: {milestone.title}",
     )
-    db.add(activity)
 
     db.commit()
     db.refresh(new_milestone)
@@ -1300,9 +1348,7 @@ def update_project_milestone(
     """Update a project milestone"""
     from models.project_milestone import ProjectMilestone
 
-    milestone = db.query(ProjectMilestone).filter(ProjectMilestone.id == milestone_id).first()
-    if not milestone:
-        raise HTTPException(status_code=404, detail="Milestone not found")
+    milestone = get_or_404(db, ProjectMilestone, milestone_id, detail="Milestone not found")
 
     require_project_access(milestone.project_id, current_user, db)
 
@@ -1319,19 +1365,17 @@ def complete_project_milestone(
     milestone_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Mark a milestone as completed"""
-    from models.activity_log import ActivityLog
     from models.project_milestone import ProjectMilestone
 
-    milestone = db.query(ProjectMilestone).filter(ProjectMilestone.id == milestone_id).first()
-    if not milestone:
-        raise HTTPException(status_code=404, detail="Milestone not found")
+    milestone = get_or_404(db, ProjectMilestone, milestone_id, detail="Milestone not found")
 
     require_project_access(milestone.project_id, current_user, db)
 
     milestone.completed_at = datetime.utcnow()
 
     # Log activity
-    activity = ActivityLog(
+    log_activity(
+        db,
         project_id=milestone.project_id,
         user_id=current_user.id,
         action="completed",
@@ -1339,7 +1383,6 @@ def complete_project_milestone(
         entity_id=milestone.id,
         title=f"Completed milestone: {milestone.title}",
     )
-    db.add(activity)
 
     db.commit()
     return milestone.to_dict()
@@ -1350,24 +1393,21 @@ def delete_project_milestone(
     milestone_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Delete a project milestone"""
-    from models.activity_log import ActivityLog
     from models.project_milestone import ProjectMilestone
 
-    milestone = db.query(ProjectMilestone).filter(ProjectMilestone.id == milestone_id).first()
-    if not milestone:
-        raise HTTPException(status_code=404, detail="Milestone not found")
+    milestone = get_or_404(db, ProjectMilestone, milestone_id, detail="Milestone not found")
 
     require_project_access(milestone.project_id, current_user, db)
 
     # Log activity before deletion
-    activity = ActivityLog(
+    log_activity(
+        db,
         project_id=milestone.project_id,
         user_id=current_user.id,
         action="deleted",
         entity_type="milestone",
         title=f"Deleted milestone: {milestone.title}",
     )
-    db.add(activity)
 
     db.delete(milestone)
     db.commit()
@@ -1420,55 +1460,6 @@ def get_project_activity(
 
 
 # --- Workload ---
-
-
-def get_working_days_in_range(start_date: datetime, end_date: datetime) -> int:
-    """Calculate number of working days (Mon-Fri) between two dates"""
-    from datetime import timedelta
-
-    if not start_date or not end_date:
-        return 0
-
-    # Ensure start <= end
-    if start_date > end_date:
-        start_date, end_date = end_date, start_date
-
-    working_days = 0
-    current = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-    end = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
-
-    while current <= end:
-        # weekday(): Monday=0, Sunday=6
-        if current.weekday() < 5:  # Mon-Fri
-            working_days += 1
-        current += timedelta(days=1)
-
-    return working_days
-
-
-def calculate_hours_excluding_weekends(
-    total_hours: int, start_date: datetime, end_date: datetime
-) -> int:
-    """Calculate hours proportionally excluding weekend days"""
-    if not start_date or not end_date or total_hours <= 0:
-        return 0
-
-    # Total days in range
-    total_days = (end_date - start_date).days + 1
-    if total_days <= 0:
-        return total_hours
-
-    # Working days in range
-    working_days = get_working_days_in_range(start_date, end_date)
-
-    # If no working days (task spans only weekend), return 0
-    if working_days == 0:
-        return 0
-
-    # Proportional hours: (working_days / total_days) * total_hours
-    # But simpler: assume hours are evenly distributed across working days only
-    hours_per_day = total_hours / total_days
-    return int(hours_per_day * working_days)
 
 
 @router.get("/{project_id}/workload")
@@ -1647,8 +1638,6 @@ async def upload_project_file(
     require_project_admin(project_id, current_user, db)
     from models.project_file import ProjectFile
 
-    require_project_access(project_id, current_user, db)
-
     # Create uploads directory if it doesn't exist
     upload_dir = "uploads/projects"
     os.makedirs(upload_dir, exist_ok=True)
@@ -1714,14 +1703,7 @@ def download_project_file(
 
     require_project_access(project_id, current_user, db)
 
-    db_file = (
-        db.query(ProjectFile)
-        .filter(ProjectFile.id == file_id, ProjectFile.project_id == project_id)
-        .first()
-    )
-
-    if not db_file:
-        raise HTTPException(status_code=404, detail="File not found")
+    db_file = get_or_404(db, ProjectFile, file_id, detail="File not found", project_id=project_id)
 
     # Build file path
     upload_dir = "uploads/projects"
@@ -1747,16 +1729,7 @@ def delete_project_file(
     require_project_admin(project_id, current_user, db)
     from models.project_file import ProjectFile
 
-    require_project_access(project_id, current_user, db)
-
-    db_file = (
-        db.query(ProjectFile)
-        .filter(ProjectFile.id == file_id, ProjectFile.project_id == project_id)
-        .first()
-    )
-
-    if not db_file:
-        raise HTTPException(status_code=404, detail="File not found")
+    db_file = get_or_404(db, ProjectFile, file_id, detail="File not found", project_id=project_id)
 
     # Delete physical file
     try:
@@ -1829,8 +1802,6 @@ def create_project_link(
     require_project_admin(project_id, user, db)
     from models.project_link import ProjectLink
 
-    require_project_access(project_id, user, db)
-
     new_link = ProjectLink(project_id=project_id, name=link_data.name, url=link_data.url)
 
     db.add(new_link)
@@ -1856,16 +1827,7 @@ def delete_project_link(
     require_project_admin(project_id, user, db)
     from models.project_link import ProjectLink
 
-    require_project_access(project_id, user, db)
-
-    link = (
-        db.query(ProjectLink)
-        .filter(ProjectLink.id == link_id, ProjectLink.project_id == project_id)
-        .first()
-    )
-
-    if not link:
-        raise HTTPException(status_code=404, detail="Link not found")
+    link = get_or_404(db, ProjectLink, link_id, detail="Link not found", project_id=project_id)
 
     db.delete(link)
     db.commit()

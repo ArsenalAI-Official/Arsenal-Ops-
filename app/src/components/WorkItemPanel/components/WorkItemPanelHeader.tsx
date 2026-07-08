@@ -77,7 +77,7 @@ export const WorkItemPanelHeader = ({
           <typeConfig.icon className="w-4 h-4" />
           {typeConfig.label}
         </div>
-        <span className="text-sm font-mono text-[#E0B954]">{item.key}</span>
+        <span className="text-sm font-mono text-muted-foreground">{item.key}</span>
         {/* Blocked chip — sits next to the key so it's the first thing
             readers see when opening a blocked ticket. Derived from the
             server-computed `is_blocked` field. */}

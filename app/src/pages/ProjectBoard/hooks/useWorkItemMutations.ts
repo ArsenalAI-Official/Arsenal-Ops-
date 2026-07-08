@@ -6,6 +6,7 @@ import { apiFetch, ApiError, permissionAwareError } from '@/lib/api';
 import { invalidateProjectScope } from '@/lib/invalidations';
 import { WORK_ITEM_PATCH_FIELD_KEY } from '@/lib/mutationKeys';
 import { toastErrorHandler } from '@/lib/mutationToast';
+import { HOURS_PER_POINT, typeUsesPoints } from '@/lib/workItemConfig';
 import type { WorkItem } from '@/types/workItems';
 import { applyStatusChange } from '../lib/optimisticStatus';
 import type { CreateItemFormValues } from '../modals/CreateItemModal';
@@ -132,12 +133,19 @@ export function useWorkItemMutations(
         assigned_hours?: number;
         remaining_hours?: number;
       }
+      // Only stories and bugs carry story points (and seed hours from them).
+      // Tasks use their estimated_hours directly; epics carry neither — the
+      // Points and Est. Hours fields are both hidden for epics because an epic's
+      // hours are derived from its descendants server-side, so seeding
+      // story_points*4 here produced phantom hours on every epic (audit #23).
+      // Shared predicate so this can't drift from the modal's point-field logic.
+      const usesPoints = typeUsesPoints(form.type);
       const payload: CreateWorkItemPayload = {
         type: form.type,
         title: form.title,
         description: form.description,
         priority: form.priority,
-        story_points: form.type !== 'task' ? form.story_points : 0,
+        story_points: usesPoints ? form.story_points : 0,
         assignee_id: form.assignee_id,
         project_id: id,
         status: 'todo',
@@ -147,10 +155,11 @@ export function useWorkItemMutations(
         due_date: form.due_date || null,
         estimated_hours: form.estimated_hours ? parseInt(form.estimated_hours as string) : 0,
       };
-      if (form.type !== 'task') {
-        payload.assigned_hours = form.story_points * 4;
-        payload.remaining_hours = form.story_points * 4;
+      if (usesPoints) {
+        payload.assigned_hours = form.story_points * HOURS_PER_POINT;
+        payload.remaining_hours = form.story_points * HOURS_PER_POINT;
       } else {
+        // Task: estimated_hours as entered. Epic: estimated_hours is '' → 0.
         payload.assigned_hours = payload.estimated_hours || 0;
         payload.remaining_hours = payload.estimated_hours || 0;
       }

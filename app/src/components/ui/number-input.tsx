@@ -50,8 +50,8 @@ const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
     const chevron = cn(
       'flex-shrink-0 flex items-center justify-center px-2 h-full',
       'text-[#3a3a3a] transition-colors duration-100',
-      'hover:text-[#8A8A8A] active:text-[#E0B954]',
-      'focus-visible:outline-none focus-visible:text-[#8A8A8A]',
+      'hover:text-progress active:text-white',
+      'focus-visible:outline-none focus-visible:text-progress',
       'disabled:opacity-25 disabled:cursor-not-allowed',
     );
 

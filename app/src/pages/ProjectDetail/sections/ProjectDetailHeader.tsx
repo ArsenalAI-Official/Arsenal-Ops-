@@ -26,7 +26,7 @@ const ProjectDetailHeader = ({
   navigate,
 }: ProjectDetailHeaderProps) => {
   return (
-    <header className="border-b border-[rgba(224,185,84,0.15)] bg-[#080808]/95 backdrop-blur-xl sticky top-0 z-40 shadow-[0_1px_0_0_rgba(224,185,84,0.08)]">
+    <header className="border-b border-[rgba(255,255,255,0.08)] bg-[#080808]/95 backdrop-blur-xl sticky top-0 z-40 shadow-[0_1px_0_0_rgba(255,255,255,0.04)]">
       <div className="px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -75,7 +75,7 @@ const ProjectDetailHeader = ({
               onClick={() => onTabChange(tab.id)}
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
                 activeTab === tab.id
-                  ? 'text-white border-[#E0B954] drop-shadow-[0_0_8px_rgba(224,185,84,0.6)]'
+                  ? 'text-white border-brand drop-shadow-[0_0_8px_rgba(224,185,84,0.6)]'
                   : 'text-[#737373] border-transparent hover:text-[#a3a3a3] hover:border-[rgba(255,255,255,0.08)]'
               }`}
             >

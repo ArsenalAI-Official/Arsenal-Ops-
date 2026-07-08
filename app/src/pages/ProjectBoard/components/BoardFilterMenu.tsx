@@ -1,6 +1,7 @@
 import { X, Search, ListFilter, Check } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { type Dispatch, type RefObject, type SetStateAction } from 'react';
+import { avatarColor } from '@/lib/avatarColor';
 import type { Project } from '../hooks/useBoardData';
 
 interface TypeConfigEntry {
@@ -81,14 +82,14 @@ const BoardFilterMenu = ({
           onClick={() => setShowFilterMenu(!showFilterMenu)}
           className={`flex items-center gap-1.5 px-2.5 h-8 text-xs border rounded-lg font-medium transition-colors ${
             showFilterMenu || hasActiveFilters
-              ? 'border-[#E0B954]/50 text-[#E0B954] bg-[#E0B954]/5'
+              ? 'border-brand/50 text-brand bg-brand/5'
               : 'border-[rgba(255,255,255,0.1)] text-[#737373] bg-transparent hover:border-[rgba(255,255,255,0.2)] hover:text-white'
           }`}
         >
           <ListFilter className="w-3.5 h-3.5" />
           Filter
           {hasActiveFilters && (
-            <span className="ml-0.5 min-w-[18px] h-[18px] px-1 rounded text-[10px] font-bold bg-[#E0B954] text-[#080808] flex items-center justify-center">
+            <span className="ml-0.5 min-w-[18px] h-[18px] px-1 rounded text-[10px] font-bold bg-brand text-[#080808] flex items-center justify-center">
               {activeFilterCount}
             </span>
           )}
@@ -120,7 +121,7 @@ const BoardFilterMenu = ({
                       className="w-full flex items-center gap-2.5 px-1.5 py-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.04)] transition-colors"
                     >
                       <div
-                        className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-[#E0B954] border-[#E0B954]' : 'border-[rgba(255,255,255,0.2)]'}`}
+                        className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-brand border-brand' : 'border-[rgba(255,255,255,0.2)]'}`}
                       >
                         {checked && <Check className="w-2.5 h-2.5 text-[#080808]" />}
                       </div>
@@ -150,7 +151,7 @@ const BoardFilterMenu = ({
                       className="w-full flex items-center gap-2.5 px-1.5 py-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.04)] transition-colors"
                     >
                       <div
-                        className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-[#E0B954] border-[#E0B954]' : 'border-[rgba(255,255,255,0.2)]'}`}
+                        className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-brand border-brand' : 'border-[rgba(255,255,255,0.2)]'}`}
                       >
                         {checked && <Check className="w-2.5 h-2.5 text-[#080808]" />}
                       </div>
@@ -178,7 +179,7 @@ const BoardFilterMenu = ({
                         placeholder="Search..."
                         value={assigneeSearchFilter}
                         onChange={(e) => setAssigneeSearchFilter(e.target.value)}
-                        className="w-full pl-7 pr-2.5 py-1.5 text-xs bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)] text-[#F4F6FF] rounded-lg focus:border-[#E0B954]/50 placeholder:text-[#555]"
+                        className="w-full pl-7 pr-2.5 py-1.5 text-xs bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)] text-[#F4F6FF] rounded-lg focus:border-brand/50 placeholder:text-[#555]"
                       />
                     </div>
                     <div className="space-y-0.5 max-h-48 overflow-y-auto">
@@ -192,7 +193,7 @@ const BoardFilterMenu = ({
                               className="w-full flex items-center gap-2.5 px-1.5 py-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.04)] transition-colors"
                             >
                               <div
-                                className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-[#E0B954] border-[#E0B954]' : 'border-[rgba(255,255,255,0.2)]'}`}
+                                className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-brand border-brand' : 'border-[rgba(255,255,255,0.2)]'}`}
                               >
                                 {checked && <Check className="w-2.5 h-2.5 text-[#080808]" />}
                               </div>
@@ -209,6 +210,7 @@ const BoardFilterMenu = ({
                         )
                         .map((dev) => {
                           const checked = filterAssignees.includes(String(dev.id));
+                          const c = avatarColor(dev.id);
                           return (
                             <button
                               key={dev.id}
@@ -216,11 +218,18 @@ const BoardFilterMenu = ({
                               className="w-full flex items-center gap-2.5 px-1.5 py-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.04)] transition-colors"
                             >
                               <div
-                                className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-[#E0B954] border-[#E0B954]' : 'border-[rgba(255,255,255,0.2)]'}`}
+                                className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-brand border-brand' : 'border-[rgba(255,255,255,0.2)]'}`}
                               >
                                 {checked && <Check className="w-2.5 h-2.5 text-[#080808]" />}
                               </div>
-                              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0">
+                              <div
+                                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0"
+                                style={{
+                                  backgroundColor: c.bg,
+                                  color: c.fg,
+                                  border: `1px solid ${c.ring}`,
+                                }}
+                              >
                                 {dev.name.charAt(0).toUpperCase()}
                               </div>
                               <span className="text-xs text-[#d4d4d4] truncate">{dev.name}</span>
@@ -250,7 +259,7 @@ const BoardFilterMenu = ({
                             className="w-full flex items-center gap-2.5 px-1.5 py-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.04)] transition-colors"
                           >
                             <div
-                              className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-[#E0B954] border-[#E0B954]' : 'border-[rgba(255,255,255,0.2)]'}`}
+                              className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-brand border-brand' : 'border-[rgba(255,255,255,0.2)]'}`}
                             >
                               {checked && <Check className="w-2.5 h-2.5 text-[#080808]" />}
                             </div>

@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { Modal } from '@/components/ui/modal';
 import { useAuth } from '@/contexts/AuthContext';
+import { avatarColor } from '@/lib/avatarColor';
 import { AdminSpinner } from '../components/AdminSpinner';
 import { useRolesList } from '../hooks/useRolesList';
 import { useUserRoleAssignment } from '../hooks/useUserRoleAssignment';
@@ -76,6 +77,7 @@ export default function UsersContainer() {
               .map((r) => r.trim())
               .filter(Boolean),
           );
+          const c = avatarColor(targetUser.id);
           return (
             <Modal
               open
@@ -90,14 +92,17 @@ export default function UsersContainer() {
                 // the counter right-aligns next to the Modal's close button.
                 <div className="flex flex-1 items-center justify-between gap-3 min-w-0">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E0B954]/15 to-[#B8872A]/10 border border-[#E0B954]/20 flex items-center justify-center shrink-0">
-                      <Shield className="w-5 h-5 text-[#E0B954]" />
+                    <div className="w-10 h-10 rounded-xl bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center shrink-0">
+                      <Shield className="w-5 h-5 text-muted-foreground" />
                     </div>
                     <div className="min-w-0">
                       <h2 className="text-lg font-bold text-white leading-tight">Edit Roles</h2>
                       <div className="flex items-center gap-1.5 mt-1">
-                        <div className="w-4 h-4 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center shrink-0">
-                          <span className="text-[8px] font-semibold text-white">
+                        <div
+                          className="w-4 h-4 rounded-full flex items-center justify-center shrink-0"
+                          style={{ backgroundColor: c.bg, border: `1px solid ${c.ring}` }}
+                        >
+                          <span className="text-[8px] font-semibold" style={{ color: c.fg }}>
                             {targetUser.name.charAt(0).toUpperCase()}
                           </span>
                         </div>
@@ -109,14 +114,14 @@ export default function UsersContainer() {
                     <span
                       className="text-[10px] tabular-nums px-2 py-1 rounded-md border font-medium shrink-0"
                       style={{
-                        color: userRoleNames.size > 0 ? '#E0B954' : '#737373',
+                        color: userRoleNames.size > 0 ? 'var(--text-mid)' : '#737373',
                         backgroundColor:
                           userRoleNames.size > 0
-                            ? 'rgba(224,185,84,0.1)'
+                            ? 'rgba(255,255,255,0.06)'
                             : 'rgba(255,255,255,0.04)',
                         borderColor:
                           userRoleNames.size > 0
-                            ? 'rgba(224,185,84,0.25)'
+                            ? 'rgba(255,255,255,0.12)'
                             : 'rgba(255,255,255,0.06)',
                       }}
                       title={`${userRoleNames.size} of ${roles.length} roles assigned`}
@@ -144,7 +149,7 @@ export default function UsersContainer() {
                         key={role.id}
                         className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors border ${
                           isChecked
-                            ? 'bg-[rgba(224,185,84,0.06)] border-[rgba(224,185,84,0.2)] hover:bg-[rgba(224,185,84,0.09)]'
+                            ? 'bg-[rgba(255,255,255,0.06)] border-[rgba(255,255,255,0.12)] hover:bg-[rgba(255,255,255,0.09)]'
                             : 'bg-transparent border-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.025)] hover:border-[rgba(255,255,255,0.08)]'
                         }`}
                       >
@@ -164,7 +169,7 @@ export default function UsersContainer() {
                             <span
                               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors ${
                                 isChecked
-                                  ? 'bg-[#E0B954]/20 text-[#E0B954]'
+                                  ? 'bg-[rgba(255,255,255,0.06)] text-muted-foreground'
                                   : 'bg-[rgba(255,255,255,0.04)] text-[#a3a3a3]'
                               }`}
                             >

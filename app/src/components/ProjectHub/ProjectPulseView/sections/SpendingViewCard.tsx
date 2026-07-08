@@ -35,7 +35,7 @@ export const SpendingViewCard: React.FC<{ pulse: PulseData }> = ({ pulse }) => {
               className={
                 'px-3 py-1.5 text-xs rounded-md transition-colors ' +
                 (view === t.id
-                  ? 'bg-[#E0B954]/15 text-[#E0B954] font-semibold'
+                  ? 'bg-[#E0B954]/15 text-brand font-semibold'
                   : 'text-[#a3a3a3] hover:text-white')
               }
             >

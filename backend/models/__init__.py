@@ -11,6 +11,7 @@ from models.persona import Persona
 from models.personal_task import PersonalTask
 from models.project import Project
 from models.project_category import ProjectCategory
+from models.project_favorite import project_favorites
 from models.project_file import ProjectFile
 from models.project_goal import ProjectGoal
 from models.project_link import ProjectLink
@@ -57,5 +58,6 @@ __all__ = [
     "WorkItemStatus",
     "WorkItemType",
     "project_developers",
+    "project_favorites",
     "user_roles",
 ]

@@ -689,6 +689,18 @@ export type EmployeeUpdate = {
 };
 
 /**
+ * FavoriteResponse
+ *
+ * Result of toggling a project favorite for the current user.
+ */
+export type FavoriteResponse = {
+  /**
+   * Is Favorite
+   */
+  is_favorite: boolean;
+};
+
+/**
  * GenerateRoadmapTemplateRequest
  */
 export type GenerateRoadmapTemplateRequest = {
@@ -1524,6 +1536,10 @@ export type ProjectDetailResponse = {
    * Id
    */
   id: number;
+  /**
+   * Is Favorite
+   */
+  is_favorite?: boolean;
   /**
    * Key Prefix
    */
@@ -5543,6 +5559,70 @@ export type RemoveAdminFromDeveloperApiProjectsProjectIdDevelopersDeveloperIdMem
    */
   200: unknown;
 };
+
+export type RemoveFavoriteApiProjectsProjectIdFavoriteDeleteData = {
+  body?: never;
+  path: {
+    /**
+     * Project Id
+     */
+    project_id: number;
+  };
+  query?: never;
+  url: '/api/projects/{project_id}/favorite';
+};
+
+export type RemoveFavoriteApiProjectsProjectIdFavoriteDeleteErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type RemoveFavoriteApiProjectsProjectIdFavoriteDeleteError =
+  RemoveFavoriteApiProjectsProjectIdFavoriteDeleteErrors[keyof RemoveFavoriteApiProjectsProjectIdFavoriteDeleteErrors];
+
+export type RemoveFavoriteApiProjectsProjectIdFavoriteDeleteResponses = {
+  /**
+   * Successful Response
+   */
+  200: FavoriteResponse;
+};
+
+export type RemoveFavoriteApiProjectsProjectIdFavoriteDeleteResponse =
+  RemoveFavoriteApiProjectsProjectIdFavoriteDeleteResponses[keyof RemoveFavoriteApiProjectsProjectIdFavoriteDeleteResponses];
+
+export type AddFavoriteApiProjectsProjectIdFavoritePostData = {
+  body?: never;
+  path: {
+    /**
+     * Project Id
+     */
+    project_id: number;
+  };
+  query?: never;
+  url: '/api/projects/{project_id}/favorite';
+};
+
+export type AddFavoriteApiProjectsProjectIdFavoritePostErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type AddFavoriteApiProjectsProjectIdFavoritePostError =
+  AddFavoriteApiProjectsProjectIdFavoritePostErrors[keyof AddFavoriteApiProjectsProjectIdFavoritePostErrors];
+
+export type AddFavoriteApiProjectsProjectIdFavoritePostResponses = {
+  /**
+   * Successful Response
+   */
+  200: FavoriteResponse;
+};
+
+export type AddFavoriteApiProjectsProjectIdFavoritePostResponse =
+  AddFavoriteApiProjectsProjectIdFavoritePostResponses[keyof AddFavoriteApiProjectsProjectIdFavoritePostResponses];
 
 export type GetProjectFilesApiProjectsProjectIdFilesGetData = {
   body?: never;

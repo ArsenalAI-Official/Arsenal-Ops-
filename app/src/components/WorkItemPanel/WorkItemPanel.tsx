@@ -301,7 +301,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
   // blocker / business-review chips.
   const commentsNode = (
     <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
-      <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">
+      <div className="text-xs text-progress mb-3 font-semibold uppercase tracking-wider">
         Activity &amp; Comments
       </div>
       <CommentThread

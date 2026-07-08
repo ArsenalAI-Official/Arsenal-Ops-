@@ -14,8 +14,10 @@ import {
   getAllowedTargetTypes,
   fieldSupportsType,
 } from '@/lib/hierarchy/validateReparent';
+import { PRIORITY_OPTIONS, TYPE_OPTIONS_EDIT } from '@/lib/workItemConfig';
 import { CALENDAR_CLASS_NAMES } from '../constants';
 import type { WorkItem } from '../types';
+import { WorkItemSelectField } from './WorkItemSelectField';
 
 // Shared field styling, aligned to the two-pane redesign's tokens (rounded-lg,
 // h-9, the rail's border/bg). Single-sourced so the fields can't drift.

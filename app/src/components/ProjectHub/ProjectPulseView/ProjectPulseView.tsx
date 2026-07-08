@@ -1,5 +1,6 @@
 import React from 'react';
 import { PulseData } from '../pulseData';
+import { fmtPulseDate } from './lib/format';
 import { ForecastVsActualsCard } from './sections/ForecastVsActualsCard';
 import { ProjectHeroCard } from './sections/ProjectHeroCard';
 import { SpendingViewCard } from './sections/SpendingViewCard';
@@ -24,8 +25,8 @@ const ProjectPulseView: React.FC<{ pulse: PulseData }> = React.memo(({ pulse }) 
           </div>
           <h2 className="text-xl font-semibold text-white mt-1">Monthly Burn · Dev + GTM</h2>
           <p className="text-sm text-[#737373] mt-0.5">
-            {pulse.project.contractStart} → {pulse.project.contractEnd} · Read-only · Synced from
-            time tracking & billing
+            {fmtPulseDate(pulse.project.contractStart)} → {fmtPulseDate(pulse.project.contractEnd)}{' '}
+            · Read-only · Synced from time tracking & billing
           </p>
         </div>
         <div className="text-xs text-[#737373]">

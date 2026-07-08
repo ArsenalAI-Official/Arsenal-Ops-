@@ -113,7 +113,7 @@ function renderCommentContent(
       return (
         <span
           key={`m-${idx++}`}
-          className="bg-[rgba(224,185,84,0.2)] text-[#E0B954] px-1.5 py-0.5 rounded-md font-medium"
+          className="bg-[rgba(91,155,230,0.2)] text-info px-1.5 py-0.5 rounded-md font-medium"
         >
           @{devMap.get(parseInt(mm[1]!))}
         </span>
@@ -128,7 +128,7 @@ function renderCommentContent(
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-[#E0B954] hover:text-[#C79E3B] underline hover:no-underline transition-colors break-all"
+          className="text-info hover:text-info/80 underline hover:no-underline transition-colors break-all"
         >
           {url}
         </a>
@@ -236,9 +236,9 @@ const CommentThread: React.FC<CommentThreadProps> = ({
                   key={dev.id}
                   type="button"
                   onClick={() => insertMention(dev)}
-                  className="w-full px-3 py-2 text-left text-sm text-[#f5f5f5] hover:bg-[rgba(224,185,84,0.1)] flex items-center gap-2"
+                  className="w-full px-3 py-2 text-left text-sm text-[#f5f5f5] hover:bg-[rgba(255,255,255,0.12)] flex items-center gap-2"
                 >
-                  <div className="w-6 h-6 rounded-full bg-[rgba(224,185,84,0.2)] flex items-center justify-center text-xs text-[#E0B954]">
+                  <div className="w-6 h-6 rounded-full bg-[rgba(255,255,255,0.08)] flex items-center justify-center text-xs text-muted-foreground">
                     {dev.name.charAt(0).toUpperCase()}
                   </div>
                   <span>{dev.name}</span>
@@ -255,7 +255,7 @@ const CommentThread: React.FC<CommentThreadProps> = ({
                 size="sm"
                 onClick={() => handleSubmit('comment')}
                 disabled={submitDisabled}
-                className="bg-[rgba(224,185,84,0.1)] border border-[rgba(224,185,84,0.3)] text-[#E0B954] hover:bg-[rgba(224,185,84,0.2)] rounded-lg text-xs h-8"
+                className="bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.12)] text-muted-foreground hover:bg-[rgba(255,255,255,0.1)] rounded-lg text-xs h-8"
               >
                 <MessageSquare className="w-3 h-3 mr-1" /> Comment
               </Button>
@@ -281,7 +281,7 @@ const CommentThread: React.FC<CommentThreadProps> = ({
               size="sm"
               onClick={() => handleSubmit('comment')}
               disabled={submitDisabled}
-              className="bg-[rgba(224,185,84,0.1)] border border-[rgba(224,185,84,0.3)] text-[#E0B954] hover:bg-[rgba(224,185,84,0.2)] rounded-lg text-xs h-8"
+              className="bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.12)] text-muted-foreground hover:bg-[rgba(255,255,255,0.1)] rounded-lg text-xs h-8"
             >
               <Send className="w-3 h-3 mr-1" /> Post comment
             </Button>
@@ -330,7 +330,7 @@ const CommentThread: React.FC<CommentThreadProps> = ({
                         ? 'bg-[rgba(239,68,68,0.2)] text-[#EF4444]'
                         : isBusinessReview
                           ? 'bg-[rgba(167,139,250,0.2)] text-[#A78BFA]'
-                          : 'bg-[rgba(224,185,84,0.2)] text-[#E0B954]'
+                          : 'bg-[rgba(255,255,255,0.08)] text-muted-foreground'
                     }`}
                   >
                     {comment.author_name?.charAt?.(0)?.toUpperCase() || '?'}

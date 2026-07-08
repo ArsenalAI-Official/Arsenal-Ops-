@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { Textarea } from '@/components/ui/textarea';
+import { avatarColor } from '@/lib/avatarColor';
 
 interface NewDeveloperForm {
   developer_id: string;
@@ -58,8 +59,8 @@ const TeamSection = ({
       <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl p-5 mb-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#E0B954]/10 flex items-center justify-center">
-              <Users className="w-5 h-5 text-[#E0B954]" />
+            <div className="w-10 h-10 rounded-xl bg-[rgba(255,255,255,0.06)] flex items-center justify-center">
+              <Users className="w-5 h-5 text-muted-foreground" />
             </div>
             <div>
               <h3 className="font-semibold text-white">Project Team</h3>
@@ -90,7 +91,7 @@ const TeamSection = ({
               <Button
                 onClick={() => setShowAddDeveloper(true)}
                 variant="ghost"
-                className="text-[#E0B954] mt-2"
+                className="text-muted-foreground mt-2"
               >
                 Add your first developer
               </Button>
@@ -98,76 +99,84 @@ const TeamSection = ({
           </div>
         ) : (
           <div className="space-y-3">
-            {developers.map((dev) => (
-              <div
-                key={dev.id}
-                className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 flex items-start justify-between"
-              >
-                <div className="flex-1 flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center text-white font-semibold">
-                    {dev.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-white">{dev.name}</h3>
-                      {dev.is_admin && (
-                        <Badge className="bg-blue-500/20 text-blue-400 border-0">Admin</Badge>
-                      )}
-                    </div>
-                    <p className="text-sm text-[#737373]">{dev.email}</p>
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <Badge className="bg-[#E0B954]/20 text-[#E0B954] border-0">{dev.role}</Badge>
-                      {dev.github_username && (
-                        <Badge
-                          variant="outline"
-                          className="text-[#737373] border-[rgba(255,255,255,0.08)]"
-                        >
-                          <Github className="w-3 h-3 mr-1" />
-                          {dev.github_username}
-                        </Badge>
-                      )}
-                    </div>
-                    {dev.responsibilities && (
-                      <p className="text-sm text-[#a3a3a3] mt-1.5">{dev.responsibilities}</p>
-                    )}
-                  </div>
-                </div>
-                {isCurrentUserAdmin ? (
-                  <div className="flex items-center gap-2">
-                    {dev.is_admin ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onDemoteFromAdmin(dev.id)}
-                        className="text-yellow-400 hover:text-yellow-300 hover:bg-yellow-400/10"
-                        title="Demote from admin"
-                      >
-                        <Crown className="w-4 h-4" />
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onPromoteToAdmin(dev.id)}
-                        className="text-gray-500 hover:text-gray-400 hover:bg-gray-500/10"
-                        title="Promote to admin"
-                      >
-                        <Crown className="w-4 h-4" />
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onRemoveDeveloper(dev.id)}
-                      className="text-red-400 hover:text-red-300 hover:bg-red-400/10"
-                      title="Remove developer"
+            {developers.map((dev) => {
+              const c = avatarColor(dev.id);
+              return (
+                <div
+                  key={dev.id}
+                  className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4 flex items-start justify-between"
+                >
+                  <div className="flex-1 flex items-start gap-4">
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center font-semibold"
+                      style={{ backgroundColor: c.bg, color: c.fg, border: `1px solid ${c.ring}` }}
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                      {dev.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-white">{dev.name}</h3>
+                        {dev.is_admin && (
+                          <Badge className="bg-blue-500/20 text-blue-400 border-0">Admin</Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-[#737373]">{dev.email}</p>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <Badge className="bg-[rgba(255,255,255,0.08)] text-muted-foreground border-0">
+                          {dev.role}
+                        </Badge>
+                        {dev.github_username && (
+                          <Badge
+                            variant="outline"
+                            className="text-[#737373] border-[rgba(255,255,255,0.08)]"
+                          >
+                            <Github className="w-3 h-3 mr-1" />
+                            {dev.github_username}
+                          </Badge>
+                        )}
+                      </div>
+                      {dev.responsibilities && (
+                        <p className="text-sm text-[#a3a3a3] mt-1.5">{dev.responsibilities}</p>
+                      )}
+                    </div>
                   </div>
-                ) : null}
-              </div>
-            ))}
+                  {isCurrentUserAdmin ? (
+                    <div className="flex items-center gap-2">
+                      {dev.is_admin ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onDemoteFromAdmin(dev.id)}
+                          className="text-yellow-400 hover:text-yellow-300 hover:bg-yellow-400/10"
+                          title="Demote from admin"
+                        >
+                          <Crown className="w-4 h-4" />
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onPromoteToAdmin(dev.id)}
+                          className="text-gray-500 hover:text-gray-400 hover:bg-gray-500/10"
+                          title="Promote to admin"
+                        >
+                          <Crown className="w-4 h-4" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onRemoveDeveloper(dev.id)}
+                        className="text-red-400 hover:text-red-300 hover:bg-red-400/10"
+                        title="Remove developer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

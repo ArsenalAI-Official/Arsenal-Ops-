@@ -22,6 +22,7 @@ import {
   EmptyDescription,
 } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
+import { avatarColor } from '@/lib/avatarColor';
 import { formatTimeAgo } from '@/lib/relativeTime';
 import { getInitials } from '@/lib/stringUtils';
 
@@ -39,7 +40,7 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities }) => {
   const getActionIcon = (action: string) => {
     switch (action) {
       case 'created':
-        return <GitBranch className="w-4 h-4 text-[#E0B954]" />;
+        return <GitBranch className="w-4 h-4 text-muted-foreground" />;
       case 'updated':
         return <Edit className="w-4 h-4 text-[#F59E0B]" />;
       case 'completed':
@@ -49,7 +50,7 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities }) => {
       case 'commented':
         return <MessageSquare className="w-4 h-4 text-[#60A5FA]" />;
       case 'logged_hours':
-        return <Clock className="w-4 h-4 text-[#C79E3B]" />;
+        return <Clock className="w-4 h-4 text-muted-foreground" />;
       case 'assigned':
         return <User className="w-4 h-4 text-[#06B6D4]" />;
       default:
@@ -62,9 +63,9 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities }) => {
       case 'work_item':
         return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
       case 'sprint':
-        return 'bg-[#E0B954]/15 text-[#E0B954] border-[#E0B954]/30';
+        return 'bg-muted-foreground/15 text-muted-foreground border-muted-foreground/30';
       case 'goal':
-        return 'bg-[#E0B954]/15 text-[#E0B954] border-[#E0B954]/30';
+        return 'bg-muted-foreground/15 text-muted-foreground border-muted-foreground/30';
       case 'milestone':
         return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
       case 'project':
@@ -107,7 +108,7 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities }) => {
                 setSearchQuery(e.target.value);
                 setVisibleCount(PAGE_SIZE);
               }}
-              className="pl-8 h-8 text-xs bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-lg focus:border-[#E0B954]/50"
+              className="pl-8 h-8 text-xs bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-lg focus:border-[rgba(255,255,255,0.12)]"
             />
           </div>
         </div>
@@ -136,16 +137,27 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities }) => {
               {displayedActivities.map((activity) => (
                 <div key={activity.id} className="relative flex items-start gap-4 pl-10">
                   <div className="absolute left-3 w-4 h-4 rounded-full bg-[#0d0d0d] border-2 border-[rgba(255,255,255,0.08)] flex items-center justify-center">
-                    <div className="w-2 h-2 rounded-full bg-[#E0B954]" />
+                    <div className="w-2 h-2 rounded-full bg-progress" />
                   </div>
                   <div className="flex-1 p-3 bg-[#0A0A14] rounded-lg border border-[rgba(255,255,255,0.05)]">
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <Avatar className="w-6 h-6 bg-[#E0B954]">
-                          <AvatarFallback className="bg-[#E0B954] text-white text-xs">
-                            {getInitials(activity.user_name)}
-                          </AvatarFallback>
-                        </Avatar>
+                        {(() => {
+                          const c = avatarColor(activity.user_name);
+                          return (
+                            <Avatar
+                              className="w-6 h-6"
+                              style={{ backgroundColor: c.bg, border: `1px solid ${c.ring}` }}
+                            >
+                              <AvatarFallback
+                                className="text-xs"
+                                style={{ backgroundColor: c.bg, color: c.fg }}
+                              >
+                                {getInitials(activity.user_name)}
+                              </AvatarFallback>
+                            </Avatar>
+                          );
+                        })()}
                         <span className="text-white font-medium text-sm">{activity.user_name}</span>
                         {getActionIcon(activity.action)}
                       </div>
@@ -189,7 +201,7 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities }) => {
               {hasMore && (
                 <button
                   onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-                  className="text-xs text-[#E0B954] hover:text-[#F3D57E] px-3 py-1.5 rounded-lg bg-[#E0B954]/10 hover:bg-[#E0B954]/15 transition-colors font-medium"
+                  className="text-xs text-muted-foreground hover:text-white px-3 py-1.5 rounded-lg bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.08)] transition-colors font-medium"
                 >
                   View more (+{Math.min(PAGE_SIZE, filtered.length - visibleCount)})
                 </button>

@@ -11,7 +11,7 @@ const RoadmapSummaryPanel = ({ roadmapSummary, roadmapParsedData }: RoadmapSumma
   return (
     <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] rounded-xl p-5">
       <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-        <Target className="w-4 h-4 text-[#E0B954]" />
+        <Target className="w-4 h-4 text-muted-foreground" />
         Roadmap Summary
       </h3>
 
@@ -21,9 +21,9 @@ const RoadmapSummaryPanel = ({ roadmapSummary, roadmapParsedData }: RoadmapSumma
           <p className="text-xs text-[#737373] mb-1">Epics</p>
           <p className="text-lg font-bold text-[#66b8ff]">{roadmapSummary.total_epics}</p>
         </div>
-        <div className="bg-[rgba(224,185,84,0.1)] rounded-lg p-3">
+        <div className="bg-[rgba(166,162,156,0.1)] rounded-lg p-3">
           <p className="text-xs text-[#737373] mb-1">Tasks</p>
-          <p className="text-lg font-bold text-[#E0B954]">{roadmapSummary.total_tasks}</p>
+          <p className="text-lg font-bold text-muted-foreground">{roadmapSummary.total_tasks}</p>
         </div>
         <div className="bg-[rgba(16,185,129,0.1)] rounded-lg p-3">
           <p className="text-xs text-[#737373] mb-1">Team Size</p>
@@ -66,7 +66,7 @@ const RoadmapSummaryPanel = ({ roadmapSummary, roadmapParsedData }: RoadmapSumma
                 className="flex items-center justify-between gap-3 text-xs bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] rounded-lg px-3 py-2"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <span className="font-semibold text-[#E0B954] tabular-nums shrink-0">
+                  <span className="font-semibold text-muted-foreground tabular-nums shrink-0">
                     Sprint {sprint.number}
                   </span>
                   <span className="text-[#a3a3a3] truncate">

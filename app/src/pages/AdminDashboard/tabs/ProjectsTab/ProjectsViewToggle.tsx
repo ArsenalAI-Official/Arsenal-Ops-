@@ -25,7 +25,7 @@ const ProjectsViewToggle: React.FC<ProjectsViewToggleProps> = ({ view, onViewCha
             onClick={() => onViewChange(opt.id)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
               active
-                ? 'bg-[#E0B954]/20 text-[#E0B954] border border-[#E0B954]/40'
+                ? 'bg-[rgba(255,255,255,0.08)] text-white border border-[rgba(255,255,255,0.15)]'
                 : 'bg-[rgba(255,255,255,0.03)] text-[#a3a3a3] border border-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.06)]'
             }`}
           >

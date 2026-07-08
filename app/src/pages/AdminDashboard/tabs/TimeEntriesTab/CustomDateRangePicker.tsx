@@ -43,7 +43,7 @@ const CustomDateRangePicker: React.FC<{
           <PopoverContent
             side="bottom"
             align="start"
-            className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(224,185,84,0.2)]"
+            className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(255,255,255,0.12)]"
           >
             <CalendarIcon
               mode="single"
@@ -88,7 +88,7 @@ const CustomDateRangePicker: React.FC<{
           <PopoverContent
             side="bottom"
             align="start"
-            className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(224,185,84,0.2)]"
+            className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(255,255,255,0.12)]"
           >
             <CalendarIcon
               mode="single"

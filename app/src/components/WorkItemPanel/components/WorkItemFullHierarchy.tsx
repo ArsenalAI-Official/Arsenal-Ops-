@@ -1,7 +1,7 @@
 import { Plus, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { avatarColor } from '@/lib/avatarColor';
 import { STATUS_CONFIG } from '../constants';
-import { avatarColor } from '../lib/renderContent';
 import type { WorkItem } from '../types';
 
 export interface WorkItemFullHierarchyProps {

@@ -13,7 +13,6 @@ export interface HoursAnalytics {
   total_remaining_hours: number;
   sprint_hours: SprintHours[];
   developer_hours: DeveloperHours[];
-  weekly_hours: WeeklyHours[];
 }
 
 export interface SprintHours {
@@ -96,13 +95,4 @@ export interface DeveloperHours {
   this_week_capacity_used?: number;
   this_week_remaining_capacity?: number;
   this_week_tickets?: CapacityTicket[];
-}
-
-export interface WeeklyHours {
-  week: string;
-  week_end: string;
-  week_label: string;
-  allocated_hours: number;
-  logged_hours: number;
-  items_completed: number;
 }

@@ -74,7 +74,7 @@ const BoardHeader = ({
             variant="ghost"
             size="sm"
             onClick={onToggleReviewer}
-            className={`text-[#737373] hover:text-white hover:bg-[rgba(244,246,255,0.05)] rounded-lg gap-2 h-9 px-3 ${effectiveShowReviewer ? 'bg-[rgba(224,185,84,0.1)] text-[#E0B954]' : ''}`}
+            className={`text-[#737373] hover:text-white hover:bg-[rgba(244,246,255,0.05)] rounded-lg gap-2 h-9 px-3 ${effectiveShowReviewer ? 'bg-[rgba(224,185,84,0.1)] text-brand' : ''}`}
             title="Review Mode"
           >
             <Eye className="w-3.5 h-3.5" />

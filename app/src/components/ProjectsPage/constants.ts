@@ -19,7 +19,7 @@ export const STATUS_COLOR: Record<string, string> = {
   in_progress: STATUS_CONFIG.in_progress.color,
   in_review: STATUS_CONFIG.in_review.color,
   done: STATUS_CONFIG.done.color,
-  blocked: '#EF4444',
+  blocked: '#E5484D',
   backlog: STATUS_CONFIG.backlog.color,
 };
 

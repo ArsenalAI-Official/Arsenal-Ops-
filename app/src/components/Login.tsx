@@ -182,9 +182,9 @@ export function Login() {
             </button>
           )}
 
-          <div className="mt-6 p-4 bg-[rgba(224,185,84,0.1)] border border-[rgba(224,185,84,0.2)] rounded-lg">
+          <div className="mt-6 p-4 bg-[rgba(91,155,230,0.1)] border border-[rgba(91,155,230,0.2)] rounded-lg">
             <div className="flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-[#E0B954] mt-0.5" />
+              <AlertCircle className="w-4 h-4 text-info mt-0.5" />
               <p className="text-xs text-[#a3a3a3]">
                 Sign in with your Google account to access Arsenal Ops. New accounts will be
                 automatically created on first login.

@@ -1215,6 +1215,20 @@
         "title": "EmployeeUpdate",
         "type": "object"
       },
+      "FavoriteResponse": {
+        "description": "Result of toggling a project favorite for the current user.",
+        "properties": {
+          "is_favorite": {
+            "title": "Is Favorite",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_favorite"
+        ],
+        "title": "FavoriteResponse",
+        "type": "object"
+      },
       "GenerateRoadmapTemplateRequest": {
         "properties": {
           "end_date": {
@@ -2718,6 +2732,11 @@
           "id": {
             "title": "Id",
             "type": "integer"
+          },
+          "is_favorite": {
+            "default": false,
+            "title": "Is Favorite",
+            "type": "boolean"
           },
           "key_prefix": {
             "title": "Key Prefix",
@@ -9672,6 +9691,100 @@
           }
         ],
         "summary": "Remove Admin From Developer",
+        "tags": [
+          "Projects"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/favorite": {
+      "delete": {
+        "description": "Unstar a project for the current user (idempotent).",
+        "operationId": "remove_favorite_api_projects__project_id__favorite_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FavoriteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Remove Favorite",
+        "tags": [
+          "Projects"
+        ]
+      },
+      "post": {
+        "description": "Star a project for the current user (idempotent).\n\nRequires the same access as viewing the project \u2014 you can't favorite what\nyou can't see. Favorites are per-user, so this only touches the caller's\nrows.",
+        "operationId": "add_favorite_api_projects__project_id__favorite_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FavoriteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Add Favorite",
         "tags": [
           "Projects"
         ]

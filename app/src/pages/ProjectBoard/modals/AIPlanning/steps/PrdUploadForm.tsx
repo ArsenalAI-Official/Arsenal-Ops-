@@ -39,8 +39,8 @@ const PrdUploadForm = ({
         onClick={() => fileInputRef.current?.click()}
         className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
           prdFile
-            ? 'border-[#E0B954] bg-[#E0B954]/5'
-            : 'border-[rgba(255,255,255,0.08)] hover:border-[#E0B954]/50 hover:bg-[rgba(255,255,255,0.02)]'
+            ? 'border-brand bg-brand/5'
+            : 'border-[rgba(255,255,255,0.08)] hover:border-brand/50 hover:bg-[rgba(255,255,255,0.02)]'
         }`}
       >
         <input
@@ -52,8 +52,8 @@ const PrdUploadForm = ({
         />
         {prdFile ? (
           <div className="flex items-center justify-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-[#E0B954]/20 flex items-center justify-center">
-              <FileText className="w-6 h-6 text-[#E0B954]" />
+            <div className="w-12 h-12 rounded-xl bg-brand/20 flex items-center justify-center">
+              <FileText className="w-6 h-6 text-brand" />
             </div>
             <div className="text-left">
               <p className="text-white font-medium">{prdFile.name}</p>

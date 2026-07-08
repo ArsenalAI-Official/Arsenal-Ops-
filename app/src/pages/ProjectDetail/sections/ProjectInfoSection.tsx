@@ -79,7 +79,7 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
               <Button
                 size="sm"
                 onClick={handleSaveEdit}
-                className="bg-[#E0B954] hover:bg-[#C79E3B] text-white"
+                className="bg-brand hover:bg-[#C79E3B] text-white"
               >
                 <Save className="w-4 h-4 mr-2" />
                 Save
@@ -164,7 +164,7 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
                         caption: 'flex justify-between items-center px-0 pb-4 relative h-7 mb-2',
                         caption_label: 'text-sm font-medium text-white',
                         nav: 'space-x-1 flex items-center',
-                        nav_button: 'text-white hover:bg-[rgba(224,185,84,0.1)] rounded p-1',
+                        nav_button: 'text-white hover:bg-[rgba(255,255,255,0.12)] rounded p-1',
                         nav_button_previous: 'absolute left-0',
                         nav_button_next: 'absolute right-0',
                         table: 'w-full border-collapse space-y-1',
@@ -172,9 +172,9 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
                         head_cell: 'w-8 h-8 rounded text-[#737373] font-normal text-sm',
                         row: 'flex gap-1 mb-1',
                         cell: 'relative p-0 text-center text-sm focus-within:relative focus-within:z-20',
-                        day: 'p-0 h-8 w-8 rounded bg-transparent text-white text-sm cursor-pointer hover:bg-[rgba(224,185,84,0.1)]',
-                        day_selected: 'bg-[#E0B954] text-[#0d0d0d] font-medium hover:bg-[#E0B954]',
-                        day_today: 'bg-[rgba(224,185,84,0.2)] text-[#E0B954]',
+                        day: 'p-0 h-8 w-8 rounded bg-transparent text-white text-sm cursor-pointer hover:bg-[rgba(255,255,255,0.12)]',
+                        day_selected: 'bg-brand text-[#0d0d0d] font-medium hover:bg-brand',
+                        day_today: 'bg-[rgba(255,255,255,0.12)] text-muted-foreground',
                         day_outside: 'text-[#555]',
                         day_disabled: 'text-[#333] cursor-not-allowed',
                       }}
@@ -224,7 +224,7 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
                         caption: 'flex justify-between items-center px-0 pb-4 relative h-7 mb-2',
                         caption_label: 'text-sm font-medium text-white',
                         nav: 'space-x-1 flex items-center',
-                        nav_button: 'text-white hover:bg-[rgba(224,185,84,0.1)] rounded p-1',
+                        nav_button: 'text-white hover:bg-[rgba(255,255,255,0.12)] rounded p-1',
                         nav_button_previous: 'absolute left-0',
                         nav_button_next: 'absolute right-0',
                         table: 'w-full border-collapse space-y-1',
@@ -232,9 +232,9 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
                         head_cell: 'w-8 h-8 rounded text-[#737373] font-normal text-sm',
                         row: 'flex gap-1 mb-1',
                         cell: 'relative p-0 text-center text-sm focus-within:relative focus-within:z-20',
-                        day: 'p-0 h-8 w-8 rounded bg-transparent text-white text-sm cursor-pointer hover:bg-[rgba(224,185,84,0.1)]',
-                        day_selected: 'bg-[#E0B954] text-[#0d0d0d] font-medium hover:bg-[#E0B954]',
-                        day_today: 'bg-[rgba(224,185,84,0.2)] text-[#E0B954]',
+                        day: 'p-0 h-8 w-8 rounded bg-transparent text-white text-sm cursor-pointer hover:bg-[rgba(255,255,255,0.12)]',
+                        day_selected: 'bg-brand text-[#0d0d0d] font-medium hover:bg-brand',
+                        day_today: 'bg-[rgba(255,255,255,0.12)] text-muted-foreground',
                         day_outside: 'text-[#555]',
                         day_disabled: 'text-[#333] cursor-not-allowed',
                       }}
@@ -261,7 +261,7 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
                   href={project.github_repo_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm text-[#E0B954] hover:underline"
+                  className="flex items-center gap-2 text-sm text-info hover:underline"
                 >
                   <Github className="w-4 h-4" />
                   {project.github_repo_url}
@@ -293,8 +293,8 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
       <div className="grid grid-cols-4 gap-3">
         <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-[#E0B954]/10 flex items-center justify-center">
-              <Users className="w-5 h-5 text-[#E0B954]" />
+            <div className="w-10 h-10 rounded-lg bg-[rgba(255,255,255,0.06)] flex items-center justify-center">
+              <Users className="w-5 h-5 text-muted-foreground" />
             </div>
             <div>
               <p className="text-2xl font-bold text-white">{project.developers?.length ?? 0}</p>
@@ -304,8 +304,8 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
         </div>
         <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-[#E0B954]/10 flex items-center justify-center">
-              <Github className="w-5 h-5 text-[#E0B954]" />
+            <div className="w-10 h-10 rounded-lg bg-[rgba(255,255,255,0.06)] flex items-center justify-center">
+              <Github className="w-5 h-5 text-muted-foreground" />
             </div>
             <div>
               <p className="text-2xl font-bold text-white">

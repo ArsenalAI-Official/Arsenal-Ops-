@@ -69,8 +69,8 @@ const CreateProjectDialog = ({
     <Modal open={open} onClose={onClose} maxWidthClass="max-w-lg" panelClassName="shadow-black/50">
       <div className="flex items-center justify-between p-6 border-b border-[rgba(255,255,255,0.05)]">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center">
-            <FolderKanban className="w-5 h-5 text-white" />
+          <div className="w-10 h-10 rounded-xl bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.12)] flex items-center justify-center">
+            <FolderKanban className="w-5 h-5 text-muted-foreground" />
           </div>
           <div>
             <h2 className="text-lg font-bold text-white">New Project</h2>
@@ -92,7 +92,7 @@ const CreateProjectDialog = ({
             placeholder="e.g. Mobile App Redesign"
             value={form.name}
             onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-            className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-11 focus:border-[#E0B954]/50 placeholder:text-[#334155]"
+            className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-11 focus:border-[rgba(255,255,255,0.12)] placeholder:text-[#334155]"
           />
         </div>
         <div>
@@ -101,7 +101,7 @@ const CreateProjectDialog = ({
             placeholder="Brief description of the project goals..."
             value={form.description}
             onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-            className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl min-h-[80px] focus:border-[#E0B954]/50 placeholder:text-[#334155] resize-none"
+            className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl min-h-[80px] focus:border-[rgba(255,255,255,0.12)] placeholder:text-[#334155] resize-none"
           />
         </div>
 
@@ -116,7 +116,7 @@ const CreateProjectDialog = ({
             placeholder="https://github.com/owner/repo"
             value={form.github_repo_url}
             onChange={(e) => setForm((prev) => ({ ...prev, github_repo_url: e.target.value }))}
-            className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-11 focus:border-[#E0B954]/50 placeholder:text-[#334155]"
+            className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-11 focus:border-[rgba(255,255,255,0.12)] placeholder:text-[#334155]"
           />
           <p className="text-xs text-[#737373] mt-1.5">
             Enter the GitHub repo URL to automatically send invitations to assigned developers
@@ -137,7 +137,7 @@ const CreateProjectDialog = ({
               }))
             }
           >
-            <SelectTrigger className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-11 focus:border-[#E0B954]/50">
+            <SelectTrigger className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-11 focus:border-[rgba(255,255,255,0.12)]">
               <div className="flex items-center gap-2">
                 <Tag className="w-4 h-4 text-[#737373]" />
                 <SelectValue placeholder="Uncategorized" />
@@ -146,7 +146,7 @@ const CreateProjectDialog = ({
             <SelectContent className="bg-[#1a1d29] border-[rgba(255,255,255,0.07)]">
               <SelectItem
                 value={UNCATEGORIZED_OPTION}
-                className="text-[#F4F6FF] focus:bg-[rgba(224,185,84,0.2)] focus:text-[#F4F6FF]"
+                className="text-[#F4F6FF] focus:bg-[rgba(255,255,255,0.08)] focus:text-[#F4F6FF]"
               >
                 Uncategorized
               </SelectItem>
@@ -154,7 +154,7 @@ const CreateProjectDialog = ({
                 <SelectItem
                   key={cat.id}
                   value={String(cat.id)}
-                  className="text-[#F4F6FF] focus:bg-[rgba(224,185,84,0.2)] focus:text-[#F4F6FF]"
+                  className="text-[#F4F6FF] focus:bg-[rgba(255,255,255,0.08)] focus:text-[#F4F6FF]"
                 >
                   {cat.name}
                 </SelectItem>
@@ -168,7 +168,7 @@ const CreateProjectDialog = ({
 
           <div className="space-y-3">
             <Select value={selectedDeveloperId} onValueChange={setSelectedDeveloperId}>
-              <SelectTrigger className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-11 focus:border-[#E0B954]/50">
+              <SelectTrigger className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-11 focus:border-[rgba(255,255,255,0.12)]">
                 <SelectValue placeholder="Select a developer" />
               </SelectTrigger>
               <SelectContent className="bg-[#1a1d29] border-[rgba(255,255,255,0.07)]">
@@ -178,16 +178,14 @@ const CreateProjectDialog = ({
                     <SelectItem
                       key={dev.id}
                       value={String(dev.id)}
-                      className="text-[#F4F6FF] focus:bg-[rgba(224,185,84,0.2)] focus:text-[#F4F6FF]"
+                      className="text-[#F4F6FF] focus:bg-[rgba(255,255,255,0.08)] focus:text-[#F4F6FF]"
                     >
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4 text-[#737373]" />
                         <span>{dev.name}</span>
                         <span className="text-[#737373] text-xs">({dev.email})</span>
                         {dev.github_username && (
-                          <span className="text-[#E0B954] text-xs ml-1">
-                            @{dev.github_username}
-                          </span>
+                          <span className="text-info text-xs ml-1">@{dev.github_username}</span>
                         )}
                       </div>
                     </SelectItem>
@@ -204,14 +202,14 @@ const CreateProjectDialog = ({
               placeholder="Role (e.g. Frontend Developer, Tech Lead)"
               value={newRole}
               onChange={(e) => setNewRole(e.target.value)}
-              className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-11 focus:border-[#E0B954]/50 placeholder:text-[#334155]"
+              className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-11 focus:border-[rgba(255,255,255,0.12)] placeholder:text-[#334155]"
             />
 
             <Textarea
               placeholder="What will they be working on in this project?"
               value={newResponsibilities}
               onChange={(e) => setNewResponsibilities(e.target.value)}
-              className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl min-h-[60px] focus:border-[#E0B954]/50 placeholder:text-[#334155] resize-none"
+              className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl min-h-[60px] focus:border-[rgba(255,255,255,0.12)] placeholder:text-[#334155] resize-none"
             />
 
             <Button
@@ -237,14 +235,14 @@ const CreateProjectDialog = ({
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#E0B954]/20 to-[#B8872A]/10 flex items-center justify-center">
-                          <User className="w-4 h-4 text-[#E0B954]" />
+                        <div className="w-8 h-8 rounded-lg bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.12)] flex items-center justify-center">
+                          <User className="w-4 h-4 text-muted-foreground" />
                         </div>
                         <div>
                           <p className="text-sm font-medium text-[#F4F6FF]">
                             {developerInfo?.name}
                           </p>
-                          <p className="text-xs text-[#E0B954]">{dev.role}</p>
+                          <p className="text-xs text-muted-foreground">{dev.role}</p>
                         </div>
                       </div>
                       <button

@@ -151,6 +151,34 @@ export const useProjectsList = (confirm: ConfirmFn) => {
   };
   const isCreating = createProjectMutation.isPending;
 
+  // Star / unstar a project for the current user. Optimistic: flip
+  // `is_favorite` in the ['projects'] cache immediately, roll back on error,
+  // and reconcile on settle. `next` is the desired state so the caller (a row
+  // star button) stays a pure toggle.
+  const favoriteMutation = useMutation({
+    mutationFn: ({ projectId, next }: { projectId: number; next: boolean }) =>
+      apiFetch<{ is_favorite: boolean }>(`/api/projects/${projectId}/favorite`, {
+        method: next ? 'POST' : 'DELETE',
+      }),
+    onMutate: async ({ projectId, next }) => {
+      await queryClient.cancelQueries({ queryKey: ['projects'] });
+      const snapshot = queryClient.getQueryData<Project[]>(['projects']);
+      queryClient.setQueryData<Project[]>(['projects'], (old) =>
+        (old ?? []).map((p) => (p.id === projectId ? { ...p, is_favorite: next } : p)),
+      );
+      return { snapshot };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.snapshot) queryClient.setQueryData(['projects'], ctx.snapshot);
+      toast.error('Failed to update favorite');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    },
+  });
+  const toggleFavorite = (projectId: number, next: boolean) =>
+    favoriteMutation.mutate({ projectId, next });
+
   const handleDeleteProject = async (e: React.MouseEvent, projectId: number) => {
     e.stopPropagation();
     if (
@@ -188,5 +216,6 @@ export const useProjectsList = (confirm: ConfirmFn) => {
     handleCreateProject,
     isCreating,
     handleDeleteProject,
+    toggleFavorite,
   };
 };

@@ -35,8 +35,8 @@ const RoadmapUploadForm = ({
               background: `linear-gradient(to right, #E0B954 0%, #E0B954 ${(sprintWeeks / 6) * 100}%, rgba(255,255,255,0.1) ${(sprintWeeks / 6) * 100}%, rgba(255,255,255,0.1) 100%)`,
             }}
           />
-          <div className="w-16 h-10 bg-[rgba(224,185,84,0.15)] border border-[#E0B954]/30 rounded-lg flex items-center justify-center">
-            <span className="text-sm font-semibold text-[#E0B954]">{sprintWeeks} weeks</span>
+          <div className="w-16 h-10 bg-[rgba(224,185,84,0.15)] border border-brand/30 rounded-lg flex items-center justify-center">
+            <span className="text-sm font-semibold text-brand">{sprintWeeks} weeks</span>
           </div>
         </div>
         <p className="text-xs text-[#737373] mt-2">
@@ -64,14 +64,14 @@ const RoadmapUploadForm = ({
           }}
           className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
             roadmapFile
-              ? 'border-[#E0B954] bg-[#E0B954]/5'
-              : 'border-[rgba(255,255,255,0.08)] hover:border-[#E0B954]/50 hover:bg-[rgba(255,255,255,0.02)]'
+              ? 'border-brand bg-brand/5'
+              : 'border-[rgba(255,255,255,0.08)] hover:border-brand/50 hover:bg-[rgba(255,255,255,0.02)]'
           }`}
         >
           {roadmapFile ? (
             <div className="flex items-center justify-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-[#E0B954]/20 flex items-center justify-center">
-                <FileText className="w-6 h-6 text-[#E0B954]" />
+              <div className="w-12 h-12 rounded-xl bg-brand/20 flex items-center justify-center">
+                <FileText className="w-6 h-6 text-brand" />
               </div>
               <div className="text-left">
                 <p className="text-white font-medium">{roadmapFile.name}</p>
@@ -97,7 +97,7 @@ const RoadmapUploadForm = ({
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-3 bg-[rgba(224,185,84,0.05)] border border-[rgba(224,185,84,0.2)] rounded-xl p-4">
+      <div className="flex items-center justify-between gap-3 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.12)] rounded-xl p-4">
         <div>
           <p className="text-sm font-medium text-white">Don't have a roadmap file?</p>
           <p className="text-xs text-[#a3a3a3] mt-0.5">

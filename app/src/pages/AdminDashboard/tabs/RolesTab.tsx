@@ -60,7 +60,7 @@ const RolesTab = ({
               <tr key={role.id} className="hover:bg-[rgba(255,255,255,0.02)]">
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs bg-[#E0B954]/20 text-[#E0B954] font-medium">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs bg-[rgba(255,255,255,0.06)] text-muted-foreground font-medium">
                       <KeyRound className="w-3 h-3" />
                       {toPascalCase(role.name)}
                     </span>

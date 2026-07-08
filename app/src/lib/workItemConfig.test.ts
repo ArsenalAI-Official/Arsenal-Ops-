@@ -9,8 +9,10 @@ import {
 
 describe('getStatusColor', () => {
   it('returns the canonical color for known statuses', () => {
-    expect(getStatusColor('done')).toBe('#34D399');
-    expect(getStatusColor('in_progress')).toBe('#E0B954');
+    expect(getStatusColor('done')).toBe('#40BE86');
+    expect(getStatusColor('in_progress')).toBe('#6E62E6');
+    expect(getStatusColor('todo')).toBe('#3B82F6');
+    expect(getStatusColor('in_review')).toBe('#D06BB0');
   });
 
   it('falls back to the backlog color for unknown statuses', () => {
@@ -30,8 +32,8 @@ describe('getStatusLabel', () => {
 
 describe('getPriorityColor', () => {
   it('returns the canonical color for known priorities', () => {
-    expect(getPriorityColor('critical')).toBe('#EF4444');
-    expect(getPriorityColor('high')).toBe('#F97316');
+    expect(getPriorityColor('critical')).toBe('#E5484D');
+    expect(getPriorityColor('high')).toBe('#EC7A3C');
   });
 
   it('falls back to the low/grey color for unknown priorities', () => {

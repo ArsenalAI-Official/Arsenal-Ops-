@@ -9,13 +9,13 @@ interface DoneStepProps {
 const DoneStep = ({ createdTicketCount, onClose }: DoneStepProps) => {
   return (
     <div className="flex flex-col items-center justify-center py-16">
-      <div className="w-20 h-20 rounded-full bg-[#E0B954]/20 flex items-center justify-center mb-6">
-        <CheckCircle2 className="w-10 h-10 text-[#E0B954]" />
+      <div className="w-20 h-20 rounded-full bg-status-done/20 flex items-center justify-center mb-6">
+        <CheckCircle2 className="w-10 h-10 text-status-done" />
       </div>
       <h3 className="text-2xl font-bold text-white mb-2">All Done!</h3>
       <p className="text-[#a3a3a3] mb-6">
-        <span className="text-2xl font-bold text-[#E0B954]">{createdTicketCount}</span> tickets
-        created successfully
+        <span className="text-2xl font-bold text-muted-foreground">{createdTicketCount}</span>{' '}
+        tickets created successfully
       </p>
       <Button
         onClick={onClose}

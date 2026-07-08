@@ -14,6 +14,7 @@ import type { UserListItemResponse } from '@/client';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
+import { avatarColor } from '@/lib/avatarColor';
 import { toPascalCase } from '@/lib/stringUtils';
 
 type UsersSortKey = 'created' | 'name' | 'status' | 'last_login';
@@ -141,7 +142,7 @@ const UsersTab = ({
             placeholder="Search name or email…"
             value={usersSearch}
             onChange={(e) => setUsersSearch(e.target.value)}
-            className="pl-8 w-56 bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-9 text-sm focus:border-[#E0B954]/50"
+            className="pl-8 w-56 bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-9 text-sm focus:border-brand/50"
           />
         </div>
         <select
@@ -228,114 +229,126 @@ const UsersTab = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-[rgba(255,255,255,0.03)]">
-            {visibleUsers.map((user) => (
-              <tr key={user.id} className="hover:bg-[rgba(255,255,255,0.02)]">
-                <td className="py-3 px-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center text-white text-sm font-medium">
-                      {user.name.charAt(0).toUpperCase()}
+            {visibleUsers.map((user) => {
+              const c = avatarColor(user.id);
+              return (
+                <tr key={user.id} className="hover:bg-[rgba(255,255,255,0.02)]">
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium"
+                        style={{
+                          backgroundColor: c.bg,
+                          color: c.fg,
+                          border: `1px solid ${c.ring}`,
+                        }}
+                      >
+                        {user.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="text-sm text-white">{user.name}</div>
+                        <div className="text-xs text-[#737373]">{user.email}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-sm text-white">{user.name}</div>
-                      <div className="text-xs text-[#737373]">{user.email}</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="py-3 px-4">
-                  <div className="flex flex-wrap gap-1 mb-2 items-center">
-                    {user.role
-                      .split(',')
-                      .slice(0, 2)
-                      .map((r, i) => {
-                        const role = r.trim();
-                        return (
-                          <span
-                            key={i}
-                            className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${
-                              role === 'admin'
-                                ? 'bg-[#E0B954]/20 text-[#E0B954]'
-                                : 'bg-[#E0B954]/20 text-[#E0B954]'
-                            }`}
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="flex flex-wrap gap-1 mb-2 items-center">
+                      {user.role
+                        .split(',')
+                        .slice(0, 2)
+                        .map((r, i) => {
+                          const role = r.trim();
+                          return (
+                            <span
+                              key={i}
+                              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                                role === 'admin'
+                                  ? 'bg-[rgba(255,255,255,0.06)] text-muted-foreground'
+                                  : 'bg-[rgba(255,255,255,0.06)] text-muted-foreground'
+                              }`}
+                            >
+                              {role === 'admin' && <Shield className="w-3 h-3" />}
+                              {role === 'project_manager' && <UserCog className="w-3 h-3" />}
+                              {toPascalCase(role)}
+                            </span>
+                          );
+                        })}
+                      {user.role.split(',').length > 2 &&
+                        (canWriteRoles ? (
+                          <button
+                            onClick={() => onEditUserRoles(user.id)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs bg-[rgba(255,255,255,0.06)] text-muted-foreground hover:bg-[rgba(255,255,255,0.1)] transition cursor-pointer"
                           >
-                            {role === 'admin' && <Shield className="w-3 h-3" />}
-                            {role === 'project_manager' && <UserCog className="w-3 h-3" />}
-                            {toPascalCase(role)}
+                            +{user.role.split(',').length - 2}
+                          </button>
+                        ) : (
+                          // Read-only chip — no click target, no editor open.
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs bg-[rgba(255,255,255,0.06)] text-muted-foreground">
+                            +{user.role.split(',').length - 2}
                           </span>
-                        );
-                      })}
-                    {user.role.split(',').length > 2 &&
-                      (canWriteRoles ? (
-                        <button
-                          onClick={() => onEditUserRoles(user.id)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs bg-[#E0B954]/20 text-[#E0B954] hover:bg-[#E0B954]/30 transition cursor-pointer"
-                        >
-                          +{user.role.split(',').length - 2}
-                        </button>
-                      ) : (
-                        // Read-only chip — no click target, no editor open.
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs bg-[#E0B954]/20 text-[#E0B954]">
-                          +{user.role.split(',').length - 2}
-                        </span>
-                      ))}
-                  </div>
-                  {canWriteRoles && (
-                    <button
-                      onClick={() => onEditUserRoles(user.id)}
-                      className="text-xs px-2 py-1 rounded bg-[rgba(224,185,84,0.1)] text-[#E0B954] hover:bg-[rgba(224,185,84,0.2)] transition"
-                    >
-                      Edit Roles
-                    </button>
-                  )}
-                </td>
-                <td className="py-3 px-4">
-                  {user.is_active ? (
-                    <span className="inline-flex items-center gap-1 text-xs text-[#E0B954]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#E0B954]" />
-                      Active
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-xs text-[#737373]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#737373]" />
-                      Inactive
-                    </span>
-                  )}
-                  {user.is_first_login && (
-                    <span className="ml-2 text-[10px] text-[#F59E0B]">(First Login)</span>
-                  )}
-                </td>
-                <td className="py-3 px-4 text-sm text-[#737373]">
-                  {user.last_login_at ? new Date(user.last_login_at).toLocaleDateString() : 'Never'}
-                </td>
-                <td className="py-3 px-4">
-                  <div className="flex justify-end gap-2">
-                    {/* Buttons stay visible so the action column has consistent
+                        ))}
+                    </div>
+                    {canWriteRoles && (
+                      <button
+                        onClick={() => onEditUserRoles(user.id)}
+                        className="text-xs px-2 py-1 rounded bg-[rgba(255,255,255,0.06)] text-muted-foreground hover:bg-[rgba(255,255,255,0.1)] transition"
+                      >
+                        Edit Roles
+                      </button>
+                    )}
+                  </td>
+                  <td className="py-3 px-4">
+                    {user.is_active ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-status-done">
+                        <span className="w-1.5 h-1.5 rounded-full bg-status-done" />
+                        Active
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs text-[#737373]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#737373]" />
+                        Inactive
+                      </span>
+                    )}
+                    {user.is_first_login && (
+                      <span className="ml-2 text-[10px] text-[#F59E0B]">(First Login)</span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-sm text-[#737373]">
+                    {user.last_login_at
+                      ? new Date(user.last_login_at).toLocaleDateString()
+                      : 'Never'}
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="flex justify-end gap-2">
+                      {/* Buttons stay visible so the action column has consistent
                         width across rows. `disabled` gates the click + greys
                         out the icon; tooltip explains why. The mutating
                         endpoint is independently gated on the backend. */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onEditUser(user)}
-                      disabled={!canWriteUsers}
-                      className="text-[#737373] hover:text-white h-8 w-8 p-0 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-[#737373]"
-                      title={canWriteUsers ? 'Edit user profile' : 'Requires user-write access'}
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onDeleteUser(user)}
-                      disabled={!canWriteUsers}
-                      className="text-red-400 hover:text-red-300 h-8 w-8 p-0 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-red-400"
-                      title={canWriteUsers ? 'Delete user' : 'Requires user-write access'}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onEditUser(user)}
+                        disabled={!canWriteUsers}
+                        className="text-[#737373] hover:text-white h-8 w-8 p-0 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-[#737373]"
+                        title={canWriteUsers ? 'Edit user profile' : 'Requires user-write access'}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onDeleteUser(user)}
+                        disabled={!canWriteUsers}
+                        className="text-red-400 hover:text-red-300 h-8 w-8 p-0 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-red-400"
+                        title={canWriteUsers ? 'Delete user' : 'Requires user-write access'}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {users.length === 0 && (

@@ -28,7 +28,7 @@ const ProjectManagerTab = ({ hubLoading, projectId, sprints }: ProjectManagerTab
           </div>
         </div>
         {/* Sprint Progress skeleton */}
-        <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(224,185,84,0.12)] rounded-2xl p-5">
+        <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.12)] rounded-2xl p-5">
           <div className="flex items-center gap-3 mb-5">
             <div className="w-10 h-10 rounded-xl bg-[rgba(255,255,255,0.06)]" />
             <div className="space-y-1.5">

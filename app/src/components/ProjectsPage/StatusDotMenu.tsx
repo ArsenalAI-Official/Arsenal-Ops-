@@ -92,7 +92,7 @@ const StatusDotMenu = ({ status, onChange }: StatusDotMenuProps) => {
                 style={{ backgroundColor: optionColor }}
               />
               <span className="flex-1">{option.label}</span>
-              {isCurrent && <Check className="w-3.5 h-3.5 text-[#E0B954] flex-shrink-0" />}
+              {isCurrent && <Check className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />}
             </button>
           );
         })}

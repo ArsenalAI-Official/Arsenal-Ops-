@@ -31,6 +31,7 @@
       "https://github.com/org/alpha"
     ],
     "id": 1,
+    "is_favorite": false,
     "key_prefix": "active",
     "name": "Alpha",
     "selected_architecture": null,
@@ -58,6 +59,7 @@
     "github_repo_url": null,
     "github_repo_urls": [],
     "id": 2,
+    "is_favorite": false,
     "key_prefix": "planning",
     "name": "Beta",
     "selected_architecture": null,

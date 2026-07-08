@@ -46,8 +46,8 @@ const LinksSection = ({
     <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl p-5 mb-4 mt-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#E0B954]/10 flex items-center justify-center">
-            <Link2 className="w-5 h-5 text-[#E0B954]" />
+          <div className="w-10 h-10 rounded-xl bg-[rgba(255,255,255,0.06)] flex items-center justify-center">
+            <Link2 className="w-5 h-5 text-muted-foreground" />
           </div>
           <div>
             <h3 className="font-semibold text-white">Resources</h3>
@@ -59,7 +59,7 @@ const LinksSection = ({
             variant="ghost"
             size="sm"
             onClick={() => setShowAddLink(!showAddLink)}
-            className="text-[#E0B954] hover:bg-[#E0B954]/10"
+            className="text-muted-foreground hover:bg-[rgba(255,255,255,0.06)]"
           >
             <Plus className="w-4 h-4 mr-2" />
             Add Link
@@ -73,7 +73,7 @@ const LinksSection = ({
       {showAddLink && isCurrentUserAdmin && (
         <div
           ref={addLinkFormRef}
-          className="bg-[rgba(255,255,255,0.01)] border border-[rgba(224,185,84,0.2)] rounded-xl p-4 mb-4"
+          className="bg-[rgba(255,255,255,0.01)] border border-[rgba(255,255,255,0.12)] rounded-xl p-4 mb-4"
         >
           <div className="space-y-3">
             <div>
@@ -110,7 +110,7 @@ const LinksSection = ({
                 size="sm"
                 onClick={handleAddLink}
                 disabled={!newLink.name || !newLink.url}
-                className="bg-[#E0B954] hover:bg-[#C79E3B] text-white rounded-xl disabled:opacity-50"
+                className="bg-brand hover:bg-[#C79E3B] text-white rounded-xl disabled:opacity-50"
               >
                 Add Link
               </Button>
@@ -139,8 +139,8 @@ const LinksSection = ({
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 flex-1 min-w-0"
               >
-                <ExternalLink className="w-4 h-4 text-[#E0B954] flex-shrink-0" />
-                <span className="text-sm text-[#E0B954] hover:underline truncate">{link.name}</span>
+                <ExternalLink className="w-4 h-4 text-info flex-shrink-0" />
+                <span className="text-sm text-info hover:underline truncate">{link.name}</span>
               </a>
               {isCurrentUserAdmin && (
                 <Button

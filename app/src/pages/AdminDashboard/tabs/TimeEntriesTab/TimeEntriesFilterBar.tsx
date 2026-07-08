@@ -38,7 +38,7 @@ const TimeEntriesFilterBar: React.FC<TimeEntriesFilterBarProps> = ({
                 onClick={() => setFilters((f) => ({ ...f, preset: p.id as DatePreset }))}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   active
-                    ? 'bg-[#E0B954] text-black'
+                    ? 'bg-[rgba(255,255,255,0.12)] text-white'
                     : 'bg-[rgba(255,255,255,0.04)] text-[#a3a3a3] hover:bg-[rgba(255,255,255,0.08)] hover:text-white'
                 }`}
               >

@@ -232,7 +232,7 @@ const CategoryManagerModal = ({
                               size="sm"
                               onClick={cancelEdit}
                               disabled={isMutating}
-                              className="bg-transparent border-[rgba(255,255,255,0.08)] text-white hover:bg-[#E0B954] hover:border-[#E0B954] hover:text-black"
+                              className="bg-transparent border-[rgba(255,255,255,0.08)] text-white hover:bg-[rgba(255,255,255,0.12)] hover:border-[rgba(255,255,255,0.2)] hover:text-white"
                             >
                               <X className="w-3.5 h-3.5 mr-1" />
                               Cancel
@@ -323,7 +323,7 @@ const CategoryManagerModal = ({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-transparent border-[rgba(255,255,255,0.08)] text-white hover:bg-[#E0B954] hover:border-[#E0B954] hover:text-black">
+            <AlertDialogCancel className="bg-transparent border-[rgba(255,255,255,0.08)] text-white hover:bg-[rgba(255,255,255,0.12)] hover:border-[rgba(255,255,255,0.2)] hover:text-white">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction

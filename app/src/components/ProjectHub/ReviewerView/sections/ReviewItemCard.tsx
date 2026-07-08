@@ -54,13 +54,15 @@ const ReviewItemCard: React.FC<ReviewItemCardProps> = ({
   formatDate,
 }) => {
   return (
-    <div className="rounded-2xl border border-[rgba(255,255,255,0.07)] bg-[rgba(255,255,255,0.02)] hover:border-[rgba(224,185,84,0.25)] transition-colors p-4 space-y-3">
+    <div className="rounded-2xl border border-[rgba(255,255,255,0.07)] bg-[rgba(255,255,255,0.02)] hover:border-[rgba(255,255,255,0.12)] transition-colors p-4 space-y-3">
       {/* Title row — ticket key + priority chip + title, plus right-aligned
           primary actions. */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-xs font-mono font-semibold text-[#E0B954]">{item.key}</span>
+            <span className="text-xs font-mono font-semibold text-muted-foreground">
+              {item.key}
+            </span>
             <Badge
               variant="outline"
               className="text-[10px] uppercase tracking-wider px-1.5 py-0 h-5"
@@ -180,7 +182,7 @@ const ReviewItemCard: React.FC<ReviewItemCardProps> = ({
       {/* Comments — shared CommentThread (variant 'simple': single Send, no
           blocker/business-review chips since the item is already in review). */}
       <div className="pt-2.5 border-t border-[rgba(255,255,255,0.05)]">
-        <div className="flex items-center gap-2 mb-2.5 text-xs font-semibold uppercase tracking-wider text-[#8A8A8A]">
+        <div className="flex items-center gap-2 mb-2.5 text-xs font-semibold uppercase tracking-wider text-progress">
           <MessageSquare className="w-3.5 h-3.5" />
           Comments
           <span className="text-[#525252] normal-case tracking-normal font-normal">

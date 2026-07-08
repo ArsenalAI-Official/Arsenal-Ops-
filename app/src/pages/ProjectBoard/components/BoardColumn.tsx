@@ -46,7 +46,7 @@ const BoardColumn = ({
     <div
       className={`flex-1 min-w-[280px] max-w-[360px] flex flex-col rounded-2xl border transition-all duration-200 ${
         isDropTarget
-          ? 'border-[#E0B954]/40 bg-[#E0B954]/5 shadow-lg shadow-[#E0B954]/10'
+          ? 'border-brand/40 bg-brand/5 shadow-lg shadow-brand/10'
           : 'border-[rgba(255,255,255,0.05)] bg-[rgba(255,255,255,0.02)]'
       }`}
       onDragOver={(e) => onDragOver(e, status)}

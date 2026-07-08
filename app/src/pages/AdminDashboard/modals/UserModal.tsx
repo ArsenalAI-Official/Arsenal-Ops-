@@ -105,7 +105,7 @@ const UserModal: React.FC<UserModalProps> = ({
                     type="checkbox"
                     checked={userForm.roles.includes(role.name)}
                     onChange={() => handleRoleToggle(role.name)}
-                    className="w-4 h-4 rounded border-[rgba(244,246,255,0.2)] bg-[rgba(255,255,255,0.025)] text-[#E0B954] focus:ring-[#E0B954]"
+                    className="w-4 h-4 rounded border-[rgba(244,246,255,0.2)] bg-[rgba(255,255,255,0.025)] text-brand focus:ring-brand"
                   />
                   <span className="text-sm text-[#f5f5f5]">{formatRoleName(role.name)}</span>
                   {role.description && (

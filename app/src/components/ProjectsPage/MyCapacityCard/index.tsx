@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { apiFetch, ApiError } from '@/lib/api';
+import { getPriorityColor, getStatusColor } from '@/lib/workItemConfig';
 import CapacityModal from './components/CapacityModal';
 import CapacityTile from './components/CapacityTile';
 import type { MyCapacityResponse, ProjectGroup } from './types';
@@ -30,8 +31,15 @@ const MyCapacityCard = () => {
   const remaining = data?.this_week_remaining_capacity ?? WEEKLY_CAPACITY;
   const status: 'Available' | 'Moderate' | 'Busy' =
     remaining >= 10 ? 'Available' : remaining > 0 ? 'Moderate' : 'Busy';
+  // Style Guide 1a: over-capacity = critical (red), near-full = high (orange).
+  // Healthy stays positive — status "done" green rather than a muted low — so a
+  // comfortable week reads as good, not disabled.
   const statusColor =
-    status === 'Available' ? '#34D399' : status === 'Moderate' ? '#F59E0B' : '#EF4444';
+    status === 'Busy'
+      ? getPriorityColor('critical')
+      : status === 'Moderate'
+        ? getPriorityColor('high')
+        : getStatusColor('done');
 
   // Total hours I actually logged this week across every project.
   const totalLoggedThisWeek = (data?.tickets ?? []).reduce(
@@ -63,7 +71,6 @@ const MyCapacityCard = () => {
         hasData={!!data}
         statusColor={statusColor}
         used={used}
-        totalLoggedThisWeek={totalLoggedThisWeek}
         onClick={() => !isLoading && data && setOpen(true)}
       />
 

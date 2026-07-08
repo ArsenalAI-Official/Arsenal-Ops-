@@ -70,7 +70,7 @@ export const BurnTable: React.FC<{ pulse: PulseData }> = React.memo(({ pulse }) 
               </tr>
             );
           })}
-          <tr className="bg-[rgba(224,185,84,0.05)] border-t border-[#E0B954]/20">
+          <tr className="bg-[rgba(255,255,255,0.04)] border-t border-[rgba(255,255,255,0.12)]">
             <td className="py-3 px-5 text-sm font-semibold text-white">Total</td>
             <td className="text-right px-3 font-mono text-[#a3a3a3]">{sum('devFC')}</td>
             <td className="text-right px-3 font-mono text-[#a3a3a3]">

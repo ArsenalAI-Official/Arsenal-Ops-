@@ -15,6 +15,7 @@ from models.personal_task import PersonalTask
 from models.project import Project
 from models.user import User
 from models.work_item import WorkItem, WorkItemStatus
+from routers._common import get_or_404
 from routers.auth import get_current_user, require_capability
 from routers.workitems import get_next_item_number
 
@@ -124,14 +125,7 @@ def get_personal_task(
     task_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Get a specific personal task"""
-    task = (
-        db.query(PersonalTask)
-        .filter(PersonalTask.id == task_id, PersonalTask.user_id == current_user.id)
-        .first()
-    )
-
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+    task = get_or_404(db, PersonalTask, task_id, detail="Task not found", user_id=current_user.id)
 
     return task.to_dict()
 
@@ -144,14 +138,7 @@ def update_personal_task(
     current_user: User = Depends(get_current_user),
 ):
     """Update a personal task"""
-    task = (
-        db.query(PersonalTask)
-        .filter(PersonalTask.id == task_id, PersonalTask.user_id == current_user.id)
-        .first()
-    )
-
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+    task = get_or_404(db, PersonalTask, task_id, detail="Task not found", user_id=current_user.id)
 
     if task.is_converted:
         raise HTTPException(status_code=400, detail="Cannot update a converted task")
@@ -183,14 +170,7 @@ def delete_personal_task(
     task_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """Delete a personal task"""
-    task = (
-        db.query(PersonalTask)
-        .filter(PersonalTask.id == task_id, PersonalTask.user_id == current_user.id)
-        .first()
-    )
-
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+    task = get_or_404(db, PersonalTask, task_id, detail="Task not found", user_id=current_user.id)
 
     db.delete(task)
     db.commit()
@@ -210,22 +190,13 @@ def convert_to_ticket(
     from services.email_service import email_service
 
     # Get the personal task
-    task = (
-        db.query(PersonalTask)
-        .filter(PersonalTask.id == task_id, PersonalTask.user_id == current_user.id)
-        .first()
-    )
-
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+    task = get_or_404(db, PersonalTask, task_id, detail="Task not found", user_id=current_user.id)
 
     if task.is_converted:
         raise HTTPException(status_code=400, detail="Task already converted")
 
     # Verify project exists
-    project = db.query(Project).filter(Project.id == request.project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_or_404(db, Project, request.project_id, detail="Project not found")
 
     # Resolve the current user's developer row once. Used as:
     #   - `reporter_id` on the work item → drives the "Created By" field

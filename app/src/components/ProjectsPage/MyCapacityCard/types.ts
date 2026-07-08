@@ -1,3 +1,5 @@
+import { getStatusColor } from '@/lib/workItemConfig';
+
 export interface CapacityTicket {
   id: number;
   key: string;
@@ -37,7 +39,7 @@ export interface ProjectGroup {
 export const WEEKLY_CAPACITY = 40;
 
 const PROJECT_COLOR_PALETTE = [
-  '#E0B954',
+  '#8A8A8A',
   '#A78BFA',
   '#34D399',
   '#60A5FA',
@@ -52,10 +54,7 @@ const PROJECT_COLOR_PALETTE = [
 export const projectColor = (projectId: number) =>
   PROJECT_COLOR_PALETTE[Math.abs(projectId) % PROJECT_COLOR_PALETTE.length];
 
-export const statusBadgeColor = (status: string) => {
-  if (status === 'in_progress') return '#E0B954';
-  if (status === 'in_review') return '#A78BFA';
-  if (status === 'done') return '#34D399';
-  if (status === 'blocked') return '#EF4444';
-  return '#737373';
-};
+// Delegates to the single source (Style Guide 1a cool workflow ramp); `blocked`
+// isn't a workflow status in STATUS_CONFIG, so it keeps the danger-red here.
+export const statusBadgeColor = (status: string) =>
+  status === 'blocked' ? '#E5484D' : getStatusColor(status);

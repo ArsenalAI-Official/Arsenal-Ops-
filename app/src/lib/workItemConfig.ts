@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export const TYPE_CONFIG = {
-  user_story: { icon: BookOpen, color: '#E0B954', label: 'Story', bg: 'rgba(224,185,84,0.15)' },
+  user_story: { icon: BookOpen, color: '#A6A29C', label: 'Story', bg: 'rgba(166,162,156,0.15)' },
   task: { icon: ClipboardList, color: '#F59E0B', label: 'Task', bg: 'rgba(245,158,11,0.15)' },
   bug: { icon: Bug, color: '#EF4444', label: 'Bug', bg: 'rgba(239,68,68,0.15)' },
   epic: { icon: Target, color: '#A78BFA', label: 'Epic', bg: 'rgba(167,139,250,0.15)' },
@@ -24,29 +24,33 @@ export const TYPE_CONFIG = {
 } as const;
 
 // 4-status workflow (backlog is a sprint-placement state, not a workflow status).
+// Colors follow Style Guide 1a — a cool workflow ramp; gold is brand-only, so
+// in_progress is purple, not gold. Mirrors --status-* in src/index.css.
 export const STATUS_CONFIG = {
-  todo: { label: 'To Do', color: '#60A5FA', icon: Plus, gradient: 'from-[#60A5FA]/10' },
+  todo: { label: 'To Do', color: '#3B82F6', icon: Plus, gradient: 'from-[#3B82F6]/10' },
   in_progress: {
     label: 'In Progress',
-    color: '#E0B954',
+    color: '#6E62E6',
     icon: Clock,
-    gradient: 'from-[#E0B954]/10',
+    gradient: 'from-[#6E62E6]/10',
   },
   in_review: {
     label: 'In Review',
-    color: '#A78BFA',
+    color: '#D06BB0',
     icon: AlertCircle,
-    gradient: 'from-[#A78BFA]/10',
+    gradient: 'from-[#D06BB0]/10',
   },
-  done: { label: 'Done', color: '#34D399', icon: CheckCircle2, gradient: 'from-[#34D399]/10' },
-  backlog: { label: 'Backlog', color: '#555555', icon: Inbox, gradient: 'from-[#555555]/10' },
+  done: { label: 'Done', color: '#40BE86', icon: CheckCircle2, gradient: 'from-[#40BE86]/10' },
+  backlog: { label: 'Backlog', color: '#64748B', icon: Inbox, gradient: 'from-[#64748B]/10' },
 } as const;
 
+// Warm severity ramp (Style Guide 1a). Low/medium stay muted grey so only
+// high/critical draw the eye; critical shares the danger-red with Blocked.
 export const PRIORITY_COLOR: Record<string, string> = {
-  critical: '#EF4444',
-  high: '#F97316',
-  medium: '#F59E0B',
-  low: '#737373',
+  critical: '#E5484D',
+  high: '#EC7A3C',
+  medium: '#94A3B8',
+  low: '#64748B',
 };
 
 /**
@@ -63,35 +67,80 @@ export interface PriorityStyle {
 
 export const PRIORITY_STYLE: Record<string, PriorityStyle> = {
   critical: {
-    border: 'border-[#EF4444]/60',
-    text: 'text-[#EF4444]',
-    bg: 'bg-[#EF4444]/10',
-    hex: '#EF4444',
+    border: 'border-[#E5484D]/60',
+    text: 'text-[#E5484D]',
+    bg: 'bg-[#E5484D]/10',
+    hex: '#E5484D',
   },
   high: {
-    border: 'border-[#F97316]/60',
-    text: 'text-[#F97316]',
-    bg: 'bg-[#F97316]/10',
-    hex: '#F97316',
+    border: 'border-[#EC7A3C]/60',
+    text: 'text-[#EC7A3C]',
+    bg: 'bg-[#EC7A3C]/10',
+    hex: '#EC7A3C',
   },
   medium: {
-    border: 'border-[#F59E0B]/50',
-    text: 'text-[#F59E0B]',
-    bg: 'bg-[#F59E0B]/10',
-    hex: '#F59E0B',
+    border: 'border-[#94A3B8]/50',
+    text: 'text-[#94A3B8]',
+    bg: 'bg-[#94A3B8]/10',
+    hex: '#94A3B8',
   },
   low: {
-    border: 'border-[#737373]/50',
-    text: 'text-[#737373]',
-    bg: 'bg-[#737373]/10',
-    hex: '#737373',
+    border: 'border-[#64748B]/50',
+    text: 'text-[#64748B]',
+    bg: 'bg-[#64748B]/10',
+    hex: '#64748B',
   },
 };
 
+/**
+ * `<select>` option lists for the work-item edit / create forms. Centralized
+ * so the Type/Priority/Status dropdowns can't drift across the three forms
+ * (simplify-audit DD-F3 / §1.4). Each entry is `{ value, label }`.
+ *
+ * Type DIVERGES on purpose and keeps two sets:
+ *   - EDIT forms offer `epic` and label story "Story".
+ *   - the CREATE modal omits `epic` (epics are created via a dedicated menu
+ *     item) and labels story "User Story".
+ * Do NOT unify these — the value list and the user-visible label genuinely
+ * differ. Priority and Status are identical everywhere they appear.
+ */
+export const TYPE_OPTIONS_EDIT = [
+  { value: 'user_story', label: 'Story' },
+  { value: 'task', label: 'Task' },
+  { value: 'bug', label: 'Bug' },
+  { value: 'epic', label: 'Epic' },
+] as const;
+
+export const TYPE_OPTIONS_CREATE = [
+  { value: 'user_story', label: 'User Story' },
+  { value: 'task', label: 'Task' },
+  { value: 'bug', label: 'Bug' },
+] as const;
+
+export const PRIORITY_OPTIONS = [
+  { value: 'critical', label: 'Critical' },
+  { value: 'high', label: 'High' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'low', label: 'Low' },
+] as const;
+
+export const STATUS_OPTIONS = [
+  { value: 'todo', label: 'To Do' },
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'in_review', label: 'In Review' },
+  { value: 'done', label: 'Done' },
+] as const;
+
 export type StatusKey = keyof typeof STATUS_CONFIG;
 
-/** Status → display color, falling back to the backlog grey for unknowns. */
+/** Status → display color, falling back to the backlog grey for unknowns.
+ *
+ * `blocked` is intentionally NOT in STATUS_CONFIG (it isn't a workflow column,
+ * so it must stay out of the status-transition picker that iterates the config)
+ * but it IS a real ticket status, so it's resolved here to the shared
+ * danger-red — keeping every status surface (donuts, board, capacity) in step. */
 export function getStatusColor(status: string): string {
+  if (status === 'blocked') return '#E5484D';
   return STATUS_CONFIG[status as StatusKey]?.color ?? STATUS_CONFIG.backlog.color;
 }
 
@@ -104,3 +153,20 @@ export function getStatusLabel(status: string): string {
 export function getPriorityColor(priority: string): string {
   return PRIORITY_COLOR[priority] ?? PRIORITY_COLOR.low!;
 }
+
+/**
+ * Whether a work-item type carries story points (and seeds hours from them).
+ * Only stories and bugs do — tasks use estimated_hours directly, and epics
+ * derive their hours from descendants server-side. Single source of truth so
+ * the Create modal's default and the create-payload builder can't drift and
+ * reintroduce phantom points/hours (audit #23).
+ */
+export function typeUsesPoints(type: string): boolean {
+  return type === 'user_story' || type === 'bug';
+}
+
+/**
+ * Hours seeded per story point when a point-bearing item is created. The
+ * backend seed/demo generator applies the same factor; keep them in step.
+ */
+export const HOURS_PER_POINT = 4;

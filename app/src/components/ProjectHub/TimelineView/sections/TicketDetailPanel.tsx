@@ -33,7 +33,7 @@ const TicketDetailPanel: React.FC<TicketDetailPanelProps> = ({ selectedItem, onC
                 </div>
               );
             })()}
-            <span className="text-xs font-mono text-[#E0B954]">{selectedItem.key}</span>
+            <span className="text-xs font-mono text-muted-foreground">{selectedItem.key}</span>
           </div>
           <button
             onClick={onClose}

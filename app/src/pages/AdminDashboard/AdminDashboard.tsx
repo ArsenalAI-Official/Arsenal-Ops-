@@ -170,7 +170,7 @@ const AdminDashboard = () => {
                 onClick={() => setActiveTab(tab.id as typeof activeTab)}
                 className={`px-4 py-3 flex items-center gap-2 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === tab.id
-                    ? 'border-[#E0B954] text-white'
+                    ? 'border-brand text-white'
                     : 'border-transparent text-[#737373] hover:text-white'
                 }`}
               >

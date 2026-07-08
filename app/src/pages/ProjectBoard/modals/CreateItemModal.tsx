@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
 import { WorkItemCombobox } from '@/components/WorkItemCombobox';
+import { WorkItemSelectField } from '@/components/WorkItemPanel/components/WorkItemSelectField';
 import { CALENDAR_CLASS_NAMES } from '@/lib/calendarClassNames';
 import {
   fieldSupportsType,
@@ -16,6 +17,7 @@ import {
   type WorkItemType,
 } from '@/lib/hierarchy/validateReparent';
 import { clampNonNegInt, blockNegativeKey } from '@/lib/inputUtils';
+import { PRIORITY_OPTIONS, TYPE_OPTIONS_CREATE, typeUsesPoints } from '@/lib/workItemConfig';
 
 export interface CreateItemFormValues {
   type: string;
@@ -77,7 +79,11 @@ const CreateItemModal = ({
     title: '',
     description: '',
     priority: 'medium',
-    story_points: 3,
+    // Only point-bearing types (story/bug) default to 3; task and epic hide the
+    // field, so seed 0 — a hidden default must never carry phantom points/hours
+    // (audit #23). Shares typeUsesPoints with the create-payload builder so the
+    // two can't disagree on which types carry points.
+    story_points: typeUsesPoints(initialType ?? 'user_story') ? 3 : 0,
     assignee_id: null,
     sprint: 'Backlog',
     epic_id: null,
@@ -88,6 +94,10 @@ const CreateItemModal = ({
   });
   const [tagInput, setTagInput] = useState('');
   const [showCalendarCreateForm, setShowCalendarCreateForm] = useState(false);
+  // Inline validation for the required Title. The submit button stays enabled
+  // (so a click always gives feedback); an empty-title submit sets this, which
+  // drives the field's red border + aria-invalid + helper text (audit #21).
+  const [titleError, setTitleError] = useState(false);
 
   // Depth-1 cap: an item that already has a parent cannot itself be picked
   // as a parent — that would create a depth-2 chain.
@@ -104,6 +114,7 @@ const CreateItemModal = ({
 
   const handleCreateItem = () => {
     if (!createForm.title.trim()) {
+      setTitleError(true);
       toast.error('Title is required');
       return;
     }
@@ -114,7 +125,7 @@ const CreateItemModal = ({
     <Modal
       open
       onClose={onClose}
-      maxWidthClass="max-w-lg"
+      maxWidthClass="max-w-2xl"
       panelClassName="flex flex-col max-h-[90vh]"
     >
       <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)] flex-shrink-0">
@@ -136,38 +147,41 @@ const CreateItemModal = ({
               mid-flow would surface the wrong fields and break the user's
               intent from the menu they clicked. */}
         {createForm.type !== 'epic' && (
-          <div>
-            <label className="text-xs font-medium text-[#737373] block mb-1.5">Type</label>
-            <select
-              value={createForm.type}
-              onChange={(e) => {
-                const newType = e.target.value as WorkItemType;
-                setCreateForm((f) => ({
-                  ...f,
-                  type: newType,
-                  epic_id: fieldSupportsType(newType, 'epic_id') ? f.epic_id : null,
-                  parent_id: fieldSupportsType(newType, 'parent_id') ? f.parent_id : null,
-                  // Epics aggregate hours from descendants — don't carry over a
-                  // value the user typed for a different type.
-                  estimated_hours: newType === 'epic' ? '' : f.estimated_hours,
-                }));
-              }}
-              className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
-            >
-              <option value="user_story">User Story</option>
-              <option value="task">Task</option>
-              <option value="bug">Bug</option>
-            </select>
-          </div>
+          <WorkItemSelectField
+            label="Type"
+            value={createForm.type}
+            onChange={(e) => {
+              const newType = e.target.value as WorkItemType;
+              setCreateForm((f) => ({
+                ...f,
+                type: newType,
+                epic_id: fieldSupportsType(newType, 'epic_id') ? f.epic_id : null,
+                parent_id: fieldSupportsType(newType, 'parent_id') ? f.parent_id : null,
+                // Epics aggregate hours from descendants — don't carry over a
+                // value the user typed for a different type.
+                estimated_hours: newType === 'epic' ? '' : f.estimated_hours,
+              }));
+            }}
+            options={TYPE_OPTIONS_CREATE}
+          />
         )}
         <div>
           <label className="text-xs font-medium text-[#737373] block mb-1.5">Title *</label>
           <Input
             value={createForm.title}
-            onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))}
+            onChange={(e) => {
+              setCreateForm((f) => ({ ...f, title: e.target.value }));
+              if (titleError) setTitleError(false);
+            }}
+            aria-invalid={titleError}
             placeholder="Enter a concise title..."
-            className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10 placeholder:text-[#334155]"
+            className={`bg-[rgba(255,255,255,0.025)] text-[#F4F6FF] rounded-xl h-10 placeholder:text-[#334155] ${
+              titleError
+                ? 'border-[#EF4444] focus-visible:border-[#EF4444]'
+                : 'border-[rgba(255,255,255,0.07)]'
+            }`}
           />
+          {titleError && <p className="text-xs text-[#EF4444] mt-1.5">Title is required</p>}
         </div>
         <div>
           <label className="text-xs font-medium text-[#737373] block mb-1.5">Description</label>
@@ -175,28 +189,23 @@ const CreateItemModal = ({
             value={createForm.description}
             onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
             placeholder="Describe the requirements..."
-            className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl min-h-[100px] placeholder:text-[#334155] resize-none whitespace-pre-wrap"
+            className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl min-h-[80px] placeholder:text-[#334155] resize-none whitespace-pre-wrap"
           />
         </div>
         <div
           className={
-            createForm.type === 'task' ? 'grid grid-cols-2 gap-3' : 'grid grid-cols-3 gap-3'
+            // Points only shows for point-bearing types (story/bug) — task and
+            // epic hide it and use 2 columns, the rest use 3.
+            typeUsesPoints(createForm.type) ? 'grid grid-cols-3 gap-3' : 'grid grid-cols-2 gap-3'
           }
         >
-          <div>
-            <label className="text-xs font-medium text-[#737373] block mb-1.5">Priority</label>
-            <select
-              value={createForm.priority}
-              onChange={(e) => setCreateForm((f) => ({ ...f, priority: e.target.value }))}
-              className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#f5f5f5] rounded-xl px-3 text-sm"
-            >
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-          </div>
-          {createForm.type !== 'task' && (
+          <WorkItemSelectField
+            label="Priority"
+            value={createForm.priority}
+            onChange={(e) => setCreateForm((f) => ({ ...f, priority: e.target.value }))}
+            options={PRIORITY_OPTIONS}
+          />
+          {typeUsesPoints(createForm.type) && (
             <div>
               <label className="text-xs font-medium text-[#737373] block mb-1.5">Points</label>
               <Input
@@ -276,10 +285,8 @@ const CreateItemModal = ({
         )}
         {createForm.type === 'task' && (
           /* Tags section for Tasks */
-          <div className="p-3 rounded-lg bg-[rgba(224,185,84,0.08)] border border-[rgba(224,185,84,0.2)]">
-            <label className="text-xs font-medium text-[#E0B954] block mb-1.5">
-              Tags (Optional)
-            </label>
+          <div className="p-3 rounded-lg bg-[rgba(91,155,230,0.1)] border border-[rgba(91,155,230,0.2)]">
+            <label className="text-xs font-medium text-info block mb-1.5">Tags (Optional)</label>
             <p className="text-[10px] text-[#737373] mb-2">
               Organize tasks with tags. Type a new tag or select from existing ones.
             </p>
@@ -304,13 +311,13 @@ const CreateItemModal = ({
                   }
                 }}
                 placeholder="Type tag and press Enter"
-                className="flex-1 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10 px-3 placeholder:text-[#334155] focus:outline-none focus:border-[#E0B954]/50"
+                className="flex-1 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-10 px-3 placeholder:text-[#334155] focus:outline-none focus:border-brand/50"
               />
             </div>
             {/* Suggested existing tags */}
             {existingTags.length > 0 && (
               <div className="mb-2">
-                <p className="text-[10px] text-[#E0B954] font-medium mb-1.5">
+                <p className="text-[10px] text-info font-medium mb-1.5">
                   Available Tags ({existingTags.length}):
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -325,7 +332,7 @@ const CreateItemModal = ({
                             return { ...f, tags: updated };
                           });
                         }}
-                        className="px-3 py-1 rounded-lg bg-[rgba(224,185,84,0.15)] border border-[rgba(224,185,84,0.4)] text-[#E0B954] text-xs hover:bg-[rgba(224,185,84,0.25)] transition-colors cursor-pointer font-medium"
+                        className="px-3 py-1 rounded-lg bg-[rgba(91,155,230,0.2)] border border-info text-info text-xs hover:bg-[rgba(91,155,230,0.25)] transition-colors cursor-pointer font-medium"
                       >
                         + {tag}
                       </button>
@@ -334,7 +341,7 @@ const CreateItemModal = ({
               </div>
             )}
             {existingTags.length === 0 && (
-              <div className="mb-2 p-2 rounded bg-[rgba(224,185,84,0.05)] border border-[rgba(224,185,84,0.15)]">
+              <div className="mb-2 p-2 rounded bg-[rgba(91,155,230,0.1)] border border-[rgba(91,155,230,0.2)]">
                 <p className="text-[10px] text-[#737373]">
                   No existing tags yet. Create new ones by typing and pressing Enter!
                 </p>
@@ -350,7 +357,7 @@ const CreateItemModal = ({
                   {createForm.tags.map((tag) => (
                     <div
                       key={tag}
-                      className="px-2.5 py-1 rounded-lg bg-[rgba(224,185,84,0.2)] border border-[rgba(224,185,84,0.4)] text-[#E0B954] text-xs flex items-center gap-1.5 font-medium"
+                      className="px-2.5 py-1 rounded-lg bg-[rgba(91,155,230,0.2)] border border-info text-info text-xs flex items-center gap-1.5 font-medium"
                     >
                       {tag}
                       <button
@@ -360,7 +367,7 @@ const CreateItemModal = ({
                             return { ...f, tags: updated };
                           });
                         }}
-                        className="text-[#E0B954] hover:text-white ml-0.5"
+                        className="text-info hover:text-white ml-0.5"
                       >
                         ×
                       </button>
@@ -454,9 +461,8 @@ const CreateItemModal = ({
         </Button>
         <Button
           onClick={handleCreateItem}
-          disabled={!createForm.title.trim() || isCreatingItem}
-          className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl px-6 font-medium shadow-lg shadow-[#B8872A]/20 disabled:opacity-50"
-          title={!createForm.title.trim() ? 'Title is required' : ''}
+          disabled={isCreatingItem}
+          className="bg-gradient-to-r from-[#E0B954] to-[#C79E3B] hover:opacity-90 text-[#080808] rounded-xl px-6 font-medium shadow-lg shadow-[#E0B954]/20 disabled:opacity-50"
         >
           {isCreatingItem ? (
             <>
@@ -465,7 +471,8 @@ const CreateItemModal = ({
             </>
           ) : (
             <>
-              <Plus className="w-4 h-4 mr-2" /> Create Item
+              <Plus className="w-4 h-4 mr-2" />{' '}
+              {createForm.type === 'epic' ? 'Create Epic' : 'Create Item'}
             </>
           )}
         </Button>

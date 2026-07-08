@@ -344,7 +344,7 @@ const ItemRow: React.FC<{
   const labelClass = isChild ? 'text-[11px] text-[#d4d4d4]' : 'text-[12px] text-white';
   const descClass = isChild ? 'text-[10px] text-[#737373]' : 'text-[10px] text-[#737373]';
   const rowClass = `grid grid-cols-[1fr_56px_56px] gap-2 items-start p-2 rounded-lg transition ${
-    covered ? 'bg-[rgba(224,185,84,0.04)]' : 'hover:bg-[rgba(255,255,255,0.02)]'
+    covered ? 'bg-[rgba(255,255,255,0.04)]' : 'hover:bg-[rgba(255,255,255,0.02)]'
   }`;
   return (
     <div className={rowClass}>

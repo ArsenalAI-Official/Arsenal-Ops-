@@ -36,7 +36,7 @@ export const WorkItemSprintActions = ({
 
   return (
     <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
-      <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">
+      <div className="text-xs text-progress mb-3 font-semibold uppercase tracking-wider">
         Sprint
       </div>
       {/* "Currently in" indicator — shows the sprint the ticket belongs to
@@ -46,7 +46,7 @@ export const WorkItemSprintActions = ({
       <div className="flex items-center gap-2 mb-3">
         <span className="text-xs text-[#737373]">Currently in</span>
         {item.sprint_id ? (
-          <span className="text-xs font-medium px-2 py-0.5 rounded bg-[rgba(224,185,84,0.1)] border border-[rgba(224,185,84,0.2)] text-[#E0B954]">
+          <span className="text-xs font-medium px-2 py-0.5 rounded bg-[rgba(224,185,84,0.1)] border border-[rgba(224,185,84,0.2)] text-brand">
             {currentSprintLabel}
           </span>
         ) : (

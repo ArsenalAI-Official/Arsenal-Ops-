@@ -447,63 +447,6 @@ Return as JSON with keys:
                 "sprint_recommendation": "Unable to generate tickets",
             }
 
-    def match_developer_to_ticket(
-        self, ticket: dict[str, Any], developers: list[dict[str, Any]]
-    ) -> dict[str, Any] | None:
-        """
-        Match a ticket to the most suitable developer based on skills
-        """
-        if not developers:
-            return None
-
-        ticket_title = ticket.get("title", "").lower()
-        ticket_desc = ticket.get("description", "").lower()
-        ticket_tags = [t.lower() for t in ticket.get("tags", [])]
-
-        best_match = None
-        best_score = 0
-
-        for dev in developers:
-            score = 0
-            role = dev.get("role", "").lower()
-            responsibilities = dev.get("responsibilities", "").lower()
-
-            # Check for keyword matches
-            keywords = role.split() + responsibilities.split()
-
-            for keyword in keywords:
-                if len(keyword) > 3:  # Ignore short words
-                    if keyword in ticket_title:
-                        score += 3
-                    if keyword in ticket_desc:
-                        score += 1
-                    if keyword in ticket_tags:
-                        score += 2
-
-            # Role-based matching
-            if "frontend" in role and any(
-                k in ticket_title for k in ["ui", "frontend", "react", "css", "component"]
-            ):
-                score += 5
-            if "backend" in role and any(
-                k in ticket_title for k in ["api", "backend", "database", "server"]
-            ):
-                score += 5
-            if "devops" in role and any(
-                k in ticket_title for k in ["deploy", "ci/cd", "infrastructure", "docker"]
-            ):
-                score += 5
-            if ("ai" in role or "ml" in role) and any(
-                k in ticket_title for k in ["ai", "ml", "model", "llm"]
-            ):
-                score += 5
-
-            if score > best_score:
-                best_score = score
-                best_match = dev
-
-        return best_match
-
     async def refine_architecture(
         self,
         current_mermaid_code: str,

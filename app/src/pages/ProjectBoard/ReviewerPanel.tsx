@@ -112,9 +112,9 @@ const ReviewerPanel = ({
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-[rgba(255,255,255,0.05)] flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[rgba(224,185,84,0.1)] flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-[rgba(255,255,255,0.12)] flex items-center justify-center">
               {activeTab === 'review' ? (
-                <Eye className="w-4 h-4 text-[#E0B954]" />
+                <Eye className="w-4 h-4 text-muted-foreground" />
               ) : (
                 <Ban className="w-4 h-4 text-[#EF4444]" />
               )}
@@ -155,7 +155,7 @@ const ReviewerPanel = ({
             aria-selected={activeTab === 'review'}
             onClick={() => setActiveTab('review')}
             className={`relative px-3 py-2.5 text-xs font-semibold transition-colors flex items-center gap-2 ${
-              activeTab === 'review' ? 'text-[#E0B954]' : 'text-[#737373] hover:text-[#a3a3a3]'
+              activeTab === 'review' ? 'text-brand' : 'text-[#737373] hover:text-[#a3a3a3]'
             }`}
           >
             <Eye className="w-3.5 h-3.5" />
@@ -163,14 +163,14 @@ const ReviewerPanel = ({
             <span
               className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full text-[10px] font-semibold ${
                 activeTab === 'review'
-                  ? 'bg-[rgba(224,185,84,0.2)] text-[#E0B954]'
+                  ? 'bg-[rgba(224,185,84,0.2)] text-brand'
                   : 'bg-[rgba(255,255,255,0.05)] text-[#737373]'
               }`}
             >
               {reviewCount}
             </span>
             {activeTab === 'review' && (
-              <span className="absolute inset-x-0 -bottom-px h-0.5 bg-[#E0B954]" />
+              <span className="absolute inset-x-0 -bottom-px h-0.5 bg-brand" />
             )}
           </button>
           <button

@@ -112,7 +112,7 @@ const BoardToolbar = ({
             onClick={() => setShowSprintMenu((v) => !v)}
             className={`flex items-center gap-1.5 px-2.5 h-8 text-xs border rounded-lg font-medium transition-colors ${
               selectedSprintId !== 'all'
-                ? 'border-[#E0B954]/50 text-[#E0B954] bg-[#E0B954]/5'
+                ? 'border-brand/50 text-brand bg-brand/5'
                 : 'border-[rgba(255,255,255,0.1)] text-[#737373] bg-transparent hover:border-[rgba(255,255,255,0.2)] hover:text-white'
             }`}
           >
@@ -153,12 +153,12 @@ const BoardToolbar = ({
                     }}
                     className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg transition-colors ${
                       selectedSprintId === opt.id
-                        ? 'bg-[#E0B954]/10 text-[#E0B954]'
+                        ? 'bg-brand/10 text-brand'
                         : 'text-[#a3a3a3] hover:text-white hover:bg-[rgba(255,255,255,0.05)]'
                     }`}
                   >
                     {selectedSprintId === opt.id && (
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#E0B954]" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-brand" />
                     )}
                     {opt.label}
                   </button>
@@ -180,7 +180,7 @@ const BoardToolbar = ({
             placeholder="Search items..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8 h-8 w-48 text-xs bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.05)] text-[#F4F6FF] rounded-lg focus:border-[#E0B954]/50 placeholder:text-[#334155]"
+            className="pl-8 h-8 w-48 text-xs bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.05)] text-[#F4F6FF] rounded-lg focus:border-brand/50 placeholder:text-[#334155]"
           />
         </div>
 
@@ -202,7 +202,7 @@ const BoardToolbar = ({
               onClick={() => setViewMode(mode)}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${
                 viewMode === mode
-                  ? 'border-[#E0B954] text-[#E0B954]'
+                  ? 'border-brand text-brand'
                   : 'border-transparent text-[#737373] hover:text-white'
               }`}
             >
@@ -231,7 +231,7 @@ const BoardToolbar = ({
                     onClick={() => onAddItem('user_story')}
                     className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
                   >
-                    <Plus className="w-3.5 h-3.5 text-[#E0B954]" />
+                    <Plus className="w-3.5 h-3.5 text-muted-foreground" />
                     New Item
                   </button>
                   <button
@@ -245,7 +245,7 @@ const BoardToolbar = ({
                     onClick={onAddSprint}
                     className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
                   >
-                    <Repeat2 className="w-3.5 h-3.5 text-[#E0B954]" />
+                    <Repeat2 className="w-3.5 h-3.5 text-muted-foreground" />
                     New Sprint
                   </button>
                 </div>

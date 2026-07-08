@@ -52,8 +52,8 @@ const ReviewerView: React.FC<ReviewerViewProps> = ({
     return (
       <Empty className="border border-[rgba(255,255,255,0.07)] bg-[rgba(255,255,255,0.02)]">
         <EmptyHeader>
-          <EmptyMedia variant="icon" className="bg-[rgba(224,185,84,0.1)]">
-            <Inbox className="text-[#E0B954]" />
+          <EmptyMedia variant="icon" className="bg-[rgba(255,255,255,0.05)]">
+            <Inbox className="text-muted-foreground" />
           </EmptyMedia>
           <EmptyTitle className="text-white">Review queue is empty</EmptyTitle>
           <EmptyDescription>
@@ -69,14 +69,14 @@ const ReviewerView: React.FC<ReviewerViewProps> = ({
       {/* Section header — outside the card list so it stays sticky-feeling while
           users scroll a long queue. */}
       <div className="flex items-center gap-2 px-1">
-        <div className="w-8 h-8 rounded-xl bg-[rgba(224,185,84,0.1)] flex items-center justify-center">
-          <Eye className="w-4 h-4 text-[#E0B954]" />
+        <div className="w-8 h-8 rounded-xl bg-[rgba(255,255,255,0.05)] flex items-center justify-center">
+          <Eye className="w-4 h-4 text-muted-foreground" />
         </div>
         <div className="flex-1">
           <h2 className="text-base font-semibold text-white">Review Queue</h2>
           <p className="text-[11px] text-[#737373]">Items awaiting your review</p>
         </div>
-        <Badge className="bg-[rgba(224,185,84,0.15)] text-[#E0B954] border border-[rgba(224,185,84,0.3)]">
+        <Badge className="bg-[rgba(255,255,255,0.08)] text-muted-foreground border border-[rgba(255,255,255,0.12)]">
           {reviewItems.length}
         </Badge>
       </div>

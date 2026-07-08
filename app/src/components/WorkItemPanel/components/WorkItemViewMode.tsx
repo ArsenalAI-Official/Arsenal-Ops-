@@ -3,8 +3,8 @@ import { parseLocalDate } from '@/components/ProjectsPage/utils';
 import { Button } from '@/components/ui/button';
 import { Markdown } from '@/components/ui/Markdown';
 import { NumberInput } from '@/components/ui/number-input';
+import { avatarColor } from '@/lib/avatarColor';
 import { STATUS_CONFIG, PRIORITY_COLOR } from '../constants';
-import { avatarColor } from '../lib/renderContent';
 import type { WorkItem } from '../types';
 
 export interface WorkItemViewModeProps {
@@ -54,15 +54,17 @@ export const WorkItemViewMode = ({
       <div className="pb-4 border-b border-[rgba(255,255,255,0.05)]">
         <h2 className="text-xl font-bold text-white mb-2">{item.title}</h2>
         <div className="flex items-center gap-2 mb-3">
-          <div
-            className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-semibold"
-            style={{
-              backgroundColor: `${avatarColor(item.assignee_id)}20`,
-              color: avatarColor(item.assignee_id),
-            }}
-          >
-            {item.assignee ? item.assignee.charAt(0).toUpperCase() : '—'}
-          </div>
+          {(() => {
+            const c = avatarColor(item.assignee_id ?? item.assignee);
+            return (
+              <div
+                className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-semibold"
+                style={{ backgroundColor: c.bg, color: c.fg, border: `1px solid ${c.ring}` }}
+              >
+                {item.assignee ? item.assignee.charAt(0).toUpperCase() : '—'}
+              </div>
+            );
+          })()}
           <span className="text-sm text-[#a3a3a3]">{item.assignee || 'Unassigned'}</span>
           {/* Assign-to-me quick action — surfaces only when the ticket has
               no assignee (and isn't an epic, and the viewer has a Developer
@@ -73,7 +75,7 @@ export const WorkItemViewMode = ({
               type="button"
               onClick={onAssignToMe}
               disabled={isSavingEdit}
-              className="text-xs font-medium px-2.5 py-1 rounded-md bg-[rgba(224,185,84,0.12)] text-[#E0B954] hover:bg-[rgba(224,185,84,0.2)] disabled:opacity-50 transition-colors"
+              className="text-xs font-medium px-2.5 py-1 rounded-md bg-[rgba(255,255,255,0.06)] text-muted-foreground hover:bg-[rgba(255,255,255,0.12)] hover:text-white disabled:opacity-50 transition-colors"
             >
               Assign to me
             </button>
@@ -90,7 +92,7 @@ export const WorkItemViewMode = ({
 
       {/* Status buttons */}
       <div className="pt-4">
-        <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">
+        <div className="text-xs text-progress mb-3 font-semibold uppercase tracking-wider">
           Status
         </div>
         <div className="grid grid-cols-4 gap-2">
@@ -128,7 +130,7 @@ export const WorkItemViewMode = ({
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.10)] rounded-xl p-3.5">
           <dl>
-            <dt className="text-[10px] text-[#8A8A8A] font-medium uppercase tracking-wider mb-1">
+            <dt className="text-[10px] text-progress font-medium uppercase tracking-wider mb-1">
               Story Points
             </dt>
             <dd className="text-lg font-bold text-[#a3a3a3]">{item.story_points}</dd>
@@ -136,7 +138,7 @@ export const WorkItemViewMode = ({
         </div>
         <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.10)] rounded-xl p-3.5">
           <dl>
-            <dt className="text-[10px] text-[#8A8A8A] font-medium uppercase tracking-wider mb-1">
+            <dt className="text-[10px] text-progress font-medium uppercase tracking-wider mb-1">
               Priority
             </dt>
             <dd className="text-lg font-bold" style={{ color: priorityColor }}>
@@ -146,7 +148,7 @@ export const WorkItemViewMode = ({
         </div>
         <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.10)] rounded-xl p-3.5">
           <dl>
-            <dt className="text-[10px] text-[#8A8A8A] font-medium uppercase tracking-wider mb-1">
+            <dt className="text-[10px] text-progress font-medium uppercase tracking-wider mb-1">
               Due Date
             </dt>
             <dd
@@ -155,7 +157,7 @@ export const WorkItemViewMode = ({
                 color: (() => {
                   if (!itemDetail.due_date) return '#555';
                   const d = parseLocalDate(itemDetail.due_date);
-                  if (!d) return '#E0B954';
+                  if (!d) return 'var(--text-mid)';
                   // eslint-disable-next-line react-hooks/purity -- preserves the original due-date urgency color, which compares the due date against the current time on each render.
                   const diffDays = Math.ceil((d.getTime() - Date.now()) / 86400000);
                   return diffDays < 0 ? '#EF4444' : diffDays <= 7 ? '#F59E0B' : '#34D399';
@@ -172,7 +174,7 @@ export const WorkItemViewMode = ({
         {item.type !== 'epic' && (
           <div className="col-span-3 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.10)] rounded-xl p-3.5">
             <dl>
-              <dt className="text-[10px] text-[#8A8A8A] font-medium uppercase tracking-wider mb-2">
+              <dt className="text-[10px] text-progress font-medium uppercase tracking-wider mb-2">
                 Hours
               </dt>
               <dd>
@@ -181,10 +183,10 @@ export const WorkItemViewMode = ({
                   const logged = item.logged_hours || 0;
                   const pct =
                     allocated > 0 ? Math.min(100, Math.round((logged / allocated) * 100)) : 0;
-                  const barColor = pct >= 100 ? '#34D399' : '#E0B954';
+                  const barColor = pct >= 100 ? '#34D399' : 'var(--progress)';
                   return (
                     <div className="space-y-1.5">
-                      <div className="flex justify-between text-xs text-[#8A8A8A]">
+                      <div className="flex justify-between text-xs text-progress">
                         <span>
                           <span className="text-white font-semibold">{logged}h</span> logged
                         </span>
@@ -211,7 +213,7 @@ export const WorkItemViewMode = ({
       {/* Log Work Hours — directly below hours card for quick access */}
       {(variant === 'compact' || isAssignee) && item.type !== 'epic' && (
         <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
-          <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">
+          <div className="text-xs text-progress mb-3 font-semibold uppercase tracking-wider">
             Log Work Hours
           </div>
           <div className="flex items-center gap-3">
@@ -237,7 +239,7 @@ export const WorkItemViewMode = ({
               {isLoggingHours ? 'Logging…' : 'Log Hours'}
             </Button>
           </div>
-          <p id={`log-hours-status-${item.id}`} className="text-xs text-[#8A8A8A] mt-2">
+          <p id={`log-hours-status-${item.id}`} className="text-xs text-progress mt-2">
             <span className="text-white font-medium">{item.logged_hours || 0}h</span> logged ·{' '}
             <span className="text-white font-medium">{item.remaining_hours}h</span> remaining
           </p>
@@ -248,7 +250,7 @@ export const WorkItemViewMode = ({
       {itemDetail.reporter_name && (
         <div className="space-y-3">
           <div className="flex items-center justify-between py-2 border-b border-[rgba(255,255,255,0.03)]">
-            <span className="text-xs text-[#8A8A8A]">Created By</span>
+            <span className="text-xs text-progress">Created By</span>
             <span className="text-sm text-[#f5f5f5]">{itemDetail.reporter_name}</span>
           </div>
         </div>
@@ -260,7 +262,7 @@ export const WorkItemViewMode = ({
       {/* Tags */}
       {item.tags?.length > 0 && (
         <div>
-          <div className="text-xs text-[#8A8A8A] mb-2 font-medium">Tags</div>
+          <div className="text-xs text-progress mb-2 font-medium">Tags</div>
           <div className="flex flex-wrap gap-2">
             {item.tags.map((tag) => (
               <span

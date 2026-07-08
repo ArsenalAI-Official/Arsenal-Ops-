@@ -3,7 +3,7 @@ import { stripMarkdown } from '@/lib/markdown';
 import type { GeneratedTicket } from '../useAIPlanning';
 
 const TYPE_CONFIG = {
-  user_story: { icon: BookOpen, color: '#E0B954', label: 'Story', bg: 'rgba(224,185,84,0.15)' },
+  user_story: { icon: BookOpen, color: '#A6A29C', label: 'Story', bg: 'rgba(166,162,156,0.15)' },
   task: { icon: ClipboardList, color: '#F59E0B', label: 'Task', bg: 'rgba(245,158,11,0.15)' },
   bug: { icon: Bug, color: '#EF4444', label: 'Bug', bg: 'rgba(239,68,68,0.15)' },
   epic: { icon: Target, color: '#A78BFA', label: 'Epic', bg: 'rgba(167,139,250,0.15)' },
@@ -11,10 +11,10 @@ const TYPE_CONFIG = {
 };
 
 const PRIORITY_COLORS = {
-  critical: { hex: '#EF4444' },
-  high: { hex: '#F97316' },
-  medium: { hex: '#F59E0B' },
-  low: { hex: '#737373' },
+  critical: { hex: '#E5484D' },
+  high: { hex: '#EC7A3C' },
+  medium: { hex: '#94A3B8' },
+  low: { hex: '#64748B' },
 };
 
 interface GeneratedTicketCardProps {
@@ -66,7 +66,7 @@ const GeneratedTicketCard = ({ ticket }: GeneratedTicketCardProps) => {
           </div>
           {ticket.assignee_name && (
             <div className="flex items-center gap-2 bg-[rgba(244,246,255,0.05)] rounded-lg px-2 py-1">
-              <Users className="w-3 h-3 text-[#E0B954]" />
+              <Users className="w-3 h-3 text-muted-foreground" />
               <span className="text-xs text-[#a3a3a3]">{ticket.assignee_name}</span>
             </div>
           )}

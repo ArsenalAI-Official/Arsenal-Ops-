@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
+import { avatarColor } from '@/lib/avatarColor';
 import { clampNonNegInt, blockNegativeKey } from '@/lib/inputUtils';
 import { CALENDAR_CLASS_NAMES } from './constants';
 import type { Project, NewPersonalTaskForm } from './types';
@@ -114,7 +115,7 @@ const AddPersonalTaskDialog = ({
                 <PopoverContent
                   side="bottom"
                   align="start"
-                  className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(224,185,84,0.2)]"
+                  className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(255,255,255,0.12)]"
                 >
                   <CalendarIcon
                     mode="single"
@@ -173,16 +174,26 @@ const AddPersonalTaskDialog = ({
                           No team members in this project
                         </div>
                       ) : (
-                        projectMembers.map((member) => (
-                          <SelectItem key={member.id} value={member.id.toString()}>
-                            <div className="flex items-center gap-2">
-                              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#E0B954] to-[#C79E3B] flex items-center justify-center text-[#080808] text-xs font-bold">
-                                {member.name.charAt(0).toUpperCase()}
+                        projectMembers.map((member) => {
+                          const c = avatarColor(member.id);
+                          return (
+                            <SelectItem key={member.id} value={member.id.toString()}>
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
+                                  style={{
+                                    backgroundColor: c.bg,
+                                    color: c.fg,
+                                    border: `1px solid ${c.ring}`,
+                                  }}
+                                >
+                                  {member.name.charAt(0).toUpperCase()}
+                                </div>
+                                {member.name}
                               </div>
-                              {member.name}
-                            </div>
-                          </SelectItem>
-                        ))
+                            </SelectItem>
+                          );
+                        })
                       )}
                     </SelectContent>
                   </Select>

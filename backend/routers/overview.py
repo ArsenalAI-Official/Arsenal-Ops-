@@ -27,6 +27,7 @@ from routers.auth import get_current_user
 # Reuse the existing serialization + access-check helpers rather than
 # duplicating the underlying query logic.
 from routers.projects import (
+    _favorite_project_ids,
     format_project,
     get_project_activity,
     get_project_goals,
@@ -83,9 +84,10 @@ def get_project_overview(
     to a sensible empty value on error so the page still renders.
     """
     project = require_project_access(project_id, current_user, db)
+    favorite_ids = _favorite_project_ids(current_user, db)
 
     return {
-        "project": _safe("project", lambda: format_project(project, db), None),
+        "project": _safe("project", lambda: format_project(project, db, favorite_ids), None),
         "sprints": _safe(
             "sprints",
             lambda: list_project_sprints(project_id, db=db, current_user=current_user),
