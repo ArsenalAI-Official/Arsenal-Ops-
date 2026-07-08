@@ -1,6 +1,7 @@
 import { CheckCircle2, Circle, Trash2, Edit2, Calendar, Flag, Tag } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
+import { stripMarkdown } from '@/lib/markdown';
 import type { PersonalTask } from '../types';
 import { PRIORITY_CONFIG } from '../types';
 
@@ -77,7 +78,9 @@ const PersonalTasksList = ({
                 {task.title}
               </h3>
               {task.description && (
-                <p className="text-sm text-[#a3a3a3] mt-1 line-clamp-2">{task.description}</p>
+                <p className="text-sm text-[#a3a3a3] mt-1 line-clamp-2">
+                  {stripMarkdown(task.description)}
+                </p>
               )}
               <div className="flex flex-wrap gap-2 mt-2">
                 {task.due_date && (

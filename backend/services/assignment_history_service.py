@@ -10,6 +10,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from models.work_item_assignment_history import WorkItemAssignmentHistory
+from time_utils import utcnow
 
 
 def _close_open_span(db: Session, work_item_id: int, at: datetime) -> None:
@@ -36,7 +37,7 @@ def record_assignment_change(
 
     If `new_assignee_id` is None, only the close happens (ticket becomes unassigned).
     """
-    at = at or datetime.utcnow()
+    at = at or utcnow()
     _close_open_span(db, work_item_id, at)
     if new_assignee_id is not None:
         db.add(

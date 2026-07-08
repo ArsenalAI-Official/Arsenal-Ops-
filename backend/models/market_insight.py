@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import JSON, DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from time_utils import utcnow
+
 sys.path.append("..")
 from database import Base
 
@@ -52,6 +54,6 @@ class MarketInsight(Base):
         String(50)
     )  # competitor, trend, opportunity, threat
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=True)
 
     project: Mapped["Project"] = relationship("Project", back_populates="market_insights")

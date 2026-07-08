@@ -25,13 +25,12 @@ from pathlib import Path
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_DIR))
 
-# `main.app` is imported below for pure schema introspection — it never
-# signs or verifies a JWT during this run. routers.auth raises at import
-# time if SECRET_KEY is unset, which breaks CI's gen:schema step without
-# any security benefit (the script doesn't read the value). Provide a
-# placeholder ONLY when the env var is genuinely missing — never override
-# a real one that may have been set by the caller.
-os.environ.setdefault("SECRET_KEY", "schema-export-placeholder-not-for-runtime-use")
+# routers.auth now refuses to import without a real SECRET_KEY (fail-closed
+# against the hardcoded-default JWT-forgery vuln). This export only introspects
+# routes to build the schema — it never serves traffic or signs tokens — so a
+# harmless build-only placeholder is fine here. setdefault preserves any real
+# value the environment already provides.
+os.environ.setdefault("SECRET_KEY", "openapi-export-build-only-not-a-real-secret")
 
 OUTPUT = BACKEND_DIR / "openapi.json"
 

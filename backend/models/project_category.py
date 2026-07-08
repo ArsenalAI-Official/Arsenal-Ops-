@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING
 from sqlalchemy import DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from time_utils import utcnow
+
 sys.path.append("..")
 from database import Base
 
@@ -26,9 +28,9 @@ class ProjectCategory(Base):
     name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
     description: Mapped[str | None] = mapped_column(String(500))
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
     )
 
     projects: Mapped[list["Project"]] = relationship("Project", back_populates="category")

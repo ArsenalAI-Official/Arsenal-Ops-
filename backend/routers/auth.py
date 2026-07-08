@@ -7,7 +7,7 @@ import os
 import secrets
 import string
 import sys
-from datetime import datetime, timedelta
+from datetime import timedelta
 from threading import Lock
 
 from cachetools import TTLCache
@@ -17,6 +17,8 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
+
+from time_utils import utcnow
 
 sys.path.append("..")
 from capabilities import CAPABILITIES, is_valid_grant
@@ -40,7 +42,6 @@ def _is_internal_email(email: str | None) -> bool:
 
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
-
 
 # ── Security configuration ───────────────────────────────────────────────
 
@@ -79,7 +80,7 @@ def _load_secret_key() -> str:
     return raw
 
 
-SECRET_KEY = _load_secret_key()
+SECRET_KEY: str = _load_secret_key()
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
@@ -218,10 +219,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     via ``data``.
     """
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+    expire = utcnow() + (expires_delta if expires_delta else timedelta(minutes=15))
     to_encode["exp"] = expire
     to_encode["purpose"] = SESSION_TOKEN_PURPOSE
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -322,7 +320,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
 
     # Update last login
-    user.last_login_at = datetime.utcnow()
+    user.last_login_at = utcnow()
     db.commit()
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -360,7 +358,7 @@ def change_password(
     # Update password
     current_user.hashed_password = get_password_hash(password_data.new_password)
     current_user.is_first_login = False
-    current_user.password_changed_at = datetime.utcnow()
+    current_user.password_changed_at = utcnow()
     db.commit()
 
     return {"status": "success", "message": "Password changed successfully"}
@@ -573,11 +571,33 @@ def update_user_role(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
+    # Resolve the requested string to known SYSTEM roles up front. This endpoint
+    # sets a user's system role(s); custom roles are managed via the
+    # assign/remove-role endpoints. Reject unknown names (e.g. a typo like
+    # "superuser") and the empty string with 400 rather than silently writing
+    # them to the legacy column while granting zero capabilities — RBAC reads
+    # `user.roles`, not the string, so a silent no-op would look like success.
+    requested_names = [n.strip() for n in (role_data.role or "").split(",") if n.strip()]
+    resolved = {
+        r.name: r
+        for r in db.query(Role)
+        .filter(Role.is_system.is_(True), Role.name.in_(requested_names))
+        .all()
+    }
+    unknown = [n for n in requested_names if n not in resolved]
+    if not requested_names or unknown:
+        detail = (
+            f"Unknown role(s): {', '.join(sorted(set(unknown)))}"
+            if unknown
+            else "A role is required"
+        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
     # Prevent removing the last admin. Read the many-to-many `user.roles`
-    # relationship rather than the legacy comma-string column so this stays
-    # correct even when the column drifts. The legacy string sync still runs
-    # via _sync_legacy_role_string() but is no longer authoritative.
-    is_demoting_admin = _has_admin_role(user) and "admin" not in role_data.role
+    # relationship rather than the legacy comma-string column, since RBAC is
+    # the source of truth for "is this user an admin". Evaluated against the
+    # CURRENT (pre-change) roles, before the resync below.
+    is_demoting_admin = _has_admin_role(user) and "admin" not in resolved
     if is_demoting_admin:
         all_users = db.query(User).options(selectinload(User.roles)).all()
         admin_count = sum(1 for u in all_users if _has_admin_role(u))
@@ -586,7 +606,13 @@ def update_user_role(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove the last admin"
             )
 
-    user.role = role_data.role
+    # Resync the RBAC m2m to the resolved system roles (preserving any custom,
+    # non-system roles assigned via the RBAC UI), then derive the legacy column
+    # FROM the resolved roles via `_sync_legacy_role_column` so the string can't
+    # drift from the m2m. RBAC is authoritative; the legacy column is a mirror.
+    desired_system_roles = [resolved[n] for n in dict.fromkeys(requested_names)]
+    user.roles = [r for r in user.roles if not r.is_system] + desired_system_roles
+    _sync_legacy_role_column(user)
     db.commit()
     _invalidate_caps_cache()
 
@@ -718,7 +744,7 @@ def google_login(request: GoogleLoginRequest, db: Session = Depends(get_db)):
             role=UserRole.DEVELOPER.value,
             is_active=True,
             is_first_login=False,  # SSO users don't need password change
-            last_login_at=datetime.utcnow(),
+            last_login_at=utcnow(),
         )
         db.add(user)
         # Flush (not commit) so user.id is available for the m2m link below,
@@ -751,7 +777,7 @@ def google_login(request: GoogleLoginRequest, db: Session = Depends(get_db)):
             # Continue anyway - user account was created successfully
 
     # Update last login timestamp
-    user.last_login_at = datetime.utcnow()
+    user.last_login_at = utcnow()
     db.commit()
     db.refresh(user)
 
@@ -826,7 +852,7 @@ def dev_login(db: Session = Depends(get_db)):
         db.add(Developer(name=user.name, email=user.email))
         db.commit()
 
-    user.last_login_at = datetime.utcnow()
+    user.last_login_at = utcnow()
     db.commit()
 
     access_token = create_access_token(

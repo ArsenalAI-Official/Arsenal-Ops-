@@ -1,6 +1,7 @@
-import { Plus, X, CheckCircle2, Edit2, Circle, Flag, ArrowRight } from 'lucide-react';
+import { Plus, X, CheckCircle2, Edit2, Circle, Flag, ArrowRight, Calendar } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { PersonalTask } from '../../types';
+import { parseLocalDate } from '../../utils';
 import { priorityColor } from '../lib';
 
 interface PersonalTasksListProps {
@@ -70,6 +71,15 @@ const PersonalTasksList = ({
             >
               {task.title}
             </span>
+            {task.due_date && (
+              <span className="flex items-center gap-1 text-xs text-[#737373] flex-shrink-0">
+                <Calendar className="w-3 h-3" />
+                {parseLocalDate(task.due_date)?.toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </span>
+            )}
             <Badge
               variant="outline"
               className="text-xs"

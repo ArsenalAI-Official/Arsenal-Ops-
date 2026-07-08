@@ -12,9 +12,11 @@ Run with:
 
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
+
+from time_utils import utcnow
 
 # hypothesis is an optional dev-only dep (see backend/pyproject.toml
 # [project.optional-dependencies].dev). It is not installed in the default
@@ -57,7 +59,7 @@ def make_db():
 
 def week_boundaries():
     """Return (week_start, week_end) for current week Saturday-Friday."""
-    today = datetime.utcnow()
+    today = utcnow()
     days_back = (today.weekday() + 2) % 7
     week_start = (today - timedelta(days=days_back)).replace(
         hour=0, minute=0, second=0, microsecond=0
@@ -393,7 +395,7 @@ def test_developer_independence(dev1_allocations, dev2_allocations):
             status="in_progress",
             estimated_hours=hours,
             logged_hours=0,
-            started_at=datetime.utcnow(),
+            started_at=utcnow(),
         )
 
     for hours in dev2_allocations:
@@ -404,7 +406,7 @@ def test_developer_independence(dev1_allocations, dev2_allocations):
             status="in_progress",
             estimated_hours=hours,
             logged_hours=0,
-            started_at=datetime.utcnow(),
+            started_at=utcnow(),
         )
 
     cap1 = compute_capacity(db, dev1)
@@ -440,7 +442,7 @@ def test_status_transition_idempotence(estimated, logged):
         status="in_progress",
         estimated_hours=estimated,
         logged_hours=logged,
-        started_at=datetime.utcnow(),
+        started_at=utcnow(),
     )
 
     cap_before = compute_capacity(db, dev)
@@ -473,7 +475,7 @@ def test_overload_clamping(allocations):
             status="in_progress",
             estimated_hours=hours,
             logged_hours=0,
-            started_at=datetime.utcnow(),
+            started_at=utcnow(),
         )
 
     cap = compute_capacity(db, dev)
@@ -576,7 +578,7 @@ def test_zero_estimates_aggregates_to_zero(num_zeros):
             status="in_progress",
             estimated_hours=0,
             logged_hours=0,
-            started_at=datetime.utcnow(),
+            started_at=utcnow(),
         )
 
     cap = compute_capacity(db, dev)

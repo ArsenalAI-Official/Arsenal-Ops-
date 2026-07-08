@@ -7,11 +7,11 @@ import { useState } from 'react';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { Modal } from '@/components/ui/modal';
 import { useAuth } from '@/contexts/AuthContext';
+import { formatRoleName } from '@/lib/stringUtils';
 import { AdminSpinner } from '../components/AdminSpinner';
 import { useRolesList } from '../hooks/useRolesList';
 import { useUserRoleAssignment } from '../hooks/useUserRoleAssignment';
 import { useUsersAdmin } from '../hooks/useUsersAdmin';
-import { toPascalCase } from '../lib/capabilityPicker';
 import EditUserModal from '../modals/EditUserModal';
 import UserModal from '../modals/UserModal';
 import UsersTab from '../tabs/UsersTab';
@@ -169,7 +169,7 @@ export default function UsersContainer() {
                               }`}
                             >
                               <KeyRound className="w-3 h-3" />
-                              {toPascalCase(role.name)}
+                              {formatRoleName(role.name)}
                             </span>
                             {role.is_system && (
                               <span className="text-[9px] uppercase tracking-wider text-[#737373] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)]">

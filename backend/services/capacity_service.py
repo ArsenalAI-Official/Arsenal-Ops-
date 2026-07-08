@@ -34,11 +34,12 @@ from sqlalchemy.orm import Session, joinedload
 
 from models.time_entry import TimeEntry
 from models.work_item_assignment_history import WorkItemAssignmentHistory
+from time_utils import utcnow
 
 
 def week_boundaries(now: datetime | None = None) -> tuple[datetime, datetime]:
     """Saturday 00:00 → Friday 23:59 UTC for the week containing `now`."""
-    today = now or datetime.utcnow()
+    today = now or utcnow()
     days_back = (today.weekday() + 2) % 7  # Mon=0, Sat=5; (0+2)%7=2 ... (5+2)%7=0
     week_start = (today - timedelta(days=days_back)).replace(
         hour=0, minute=0, second=0, microsecond=0

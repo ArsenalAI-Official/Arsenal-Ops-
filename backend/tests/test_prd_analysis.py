@@ -19,6 +19,7 @@ from unittest.mock import patch
 from models.architecture import Architecture, PRDAnalysis
 from models.developer import Developer, project_developers
 from models.project import Project
+from time_utils import utcnow
 
 
 def seed_project(db, name: str = "Test Project", num_developers: int = 2) -> Project:
@@ -28,7 +29,7 @@ def seed_project(db, name: str = "Test Project", num_developers: int = 2) -> Pro
         description=f"Description for {name}",
         status="active",
         github_repo_urls=[],
-        created_at=datetime.utcnow(),
+        created_at=utcnow(),
     )
     db.add(project)
     db.flush()

@@ -5,7 +5,11 @@
  */
 const ProjectDetailSkeleton = () => {
   return (
-    <div className="min-h-screen bg-[#080808] text-[#F4F6FF]">
+    <div
+      role="status"
+      aria-label="Loading project"
+      className="min-h-screen bg-[#080808] text-[#F4F6FF]"
+    >
       {/* Skeleton Header */}
       <header className="border-b border-[rgba(255,255,255,0.05)] bg-[#080808]/95 sticky top-0 z-40">
         <div className="px-6 py-4 flex items-center justify-between">

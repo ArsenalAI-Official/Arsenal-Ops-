@@ -198,7 +198,9 @@ def create_project(token: str, name: str) -> dict:
     payload = {
         "name": name,
         "description": "Auto-generated seed project for load testing the project board UI at scale.",
-        "key_prefix": name[:4].upper().replace(" ", ""),
+        # Omit key_prefix: the backend derives a guaranteed-unique prefix from
+        # the name. A hand-rolled name[:4] can collide and 400 against the
+        # projects.key_prefix UNIQUE constraint (audit #25).
     }
     resp = requests.post(f"{BASE_URL}/api/projects/", json=payload, headers=headers(token))
     resp.raise_for_status()

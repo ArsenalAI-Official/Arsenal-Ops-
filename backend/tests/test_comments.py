@@ -20,7 +20,6 @@ Fixtures from conftest.py:
 """
 
 # ============= Helpers: Factories for test setup =============
-from datetime import datetime
 from unittest.mock import patch
 
 import pytest
@@ -29,6 +28,7 @@ from models.comment import Comment
 from models.developer import Developer
 from models.project import Project
 from models.work_item import WorkItem
+from time_utils import utcnow
 
 
 def seed_project(db, name: str = "Test Project", num_developers: int = 2) -> Project:
@@ -41,7 +41,7 @@ def seed_project(db, name: str = "Test Project", num_developers: int = 2) -> Pro
         description=f"Description for {name}",
         status="active",
         github_repo_urls=[],
-        created_at=datetime.utcnow(),
+        created_at=utcnow(),
     )
     db.add(project)
     db.flush()

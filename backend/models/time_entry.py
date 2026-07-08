@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from time_utils import utcnow
+
 sys.path.append("..")
 from database import Base
 
@@ -31,7 +33,7 @@ class TimeEntry(Base):
     description: Mapped[str | None] = mapped_column(Text)  # Optional description of work done
 
     # Timestamp
-    logged_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    logged_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
 
     # ── QuickBooks sync state ────────────────────────────────────────────
     # Once successfully pushed to QB, holds the returned TimeActivity Id.

@@ -26,6 +26,8 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from time_utils import utcnow
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from database import Base
@@ -56,6 +58,7 @@ from models.user import User
 from models.work_item import WorkItem
 from routers import pulse as pulse_module
 from routers.pulse import get_pulse_derived
+from tests.conftest import assign_system_role
 
 
 @pytest.fixture
@@ -70,7 +73,12 @@ def db():
 
 @pytest.fixture
 def admin_user(db):
-    """A system-admin user — bypasses per-project membership checks."""
+    """A system-admin user — bypasses per-project membership checks.
+
+    Holds the RBAC ``admin`` Role (granting ``*``) like a real production
+    admin; ``get_pulse_derived`` gates on ``require_project_access``, which
+    reads the RBAC capability set rather than the legacy ``role`` string.
+    """
     u = User(
         id=1,
         email="admin@x.com",
@@ -81,6 +89,7 @@ def admin_user(db):
     )
     db.add(u)
     db.commit()
+    assign_system_role(db, u)
     return u
 
 
@@ -136,7 +145,7 @@ def _seed_mixed_items(db, project_id: int) -> dict:
       * 3 bugs: 1 done, 2 open
       * 2 tasks: 1 critical-open, 1 todo (one with due_date in the past)
     """
-    now = datetime.utcnow()
+    now = utcnow()
     past = now - timedelta(days=5)
     items = [
         # stories
@@ -260,7 +269,7 @@ def _seed_mixed_items(db, project_id: int) -> dict:
 
 class TestSummary:
     def test_counts_match_seed(self, db, admin_user):
-        now = datetime.utcnow()
+        now = utcnow()
         proj = _make_project(
             db, created_at=now - timedelta(days=60), end_date=now + timedelta(days=60)
         )
@@ -279,7 +288,7 @@ class TestSummary:
         assert s["pointsCompleted"] == expected["points_completed"]
 
     def test_delivery_pct_zero_when_no_items(self, db, admin_user):
-        now = datetime.utcnow()
+        now = utcnow()
         proj = _make_project(
             db, created_at=now - timedelta(days=30), end_date=now + timedelta(days=30)
         )
@@ -288,7 +297,7 @@ class TestSummary:
         assert result["summary"]["deliveryPct"] == 0
 
     def test_no_end_date_means_empty_months(self, db, admin_user):
-        now = datetime.utcnow()
+        now = utcnow()
         proj = _make_project(db, created_at=now - timedelta(days=30), end_date=None)
         _seed_mixed_items(db, proj.id)
         result = get_pulse_derived(project_id=proj.id, db=db, current_user=admin_user)
@@ -304,7 +313,7 @@ class TestSummary:
 class TestHealthScore:
     def test_perfect_project_is_healthy(self, db, admin_user):
         """All work done, no bugs, no overdue, on schedule → score 100."""
-        now = datetime.utcnow()
+        now = utcnow()
         proj = _make_project(
             db, created_at=now - timedelta(days=30), end_date=now + timedelta(days=30)
         )
@@ -328,7 +337,7 @@ class TestHealthScore:
 
     def test_small_issues_stay_healthy(self, db, admin_user):
         """A couple of open bugs, no criticals/overdue → still ≥ 80."""
-        now = datetime.utcnow()
+        now = utcnow()
         proj = _make_project(
             db, created_at=now - timedelta(days=30), end_date=now + timedelta(days=30)
         )
@@ -451,7 +460,7 @@ class TestHealthScore:
 
     def test_heavy_issues_is_critical(self, db, admin_user):
         """Lots of criticals + overdue → < 60."""
-        now = datetime.utcnow()
+        now = utcnow()
         proj = _make_project(
             db, created_at=now - timedelta(days=30), end_date=now + timedelta(days=30)
         )
@@ -499,7 +508,7 @@ class TestHealthScore:
 
 class TestSafeSectionFailure:
     def test_forecast_failure_does_not_break_summary(self, db, admin_user, monkeypatch):
-        now = datetime.utcnow()
+        now = utcnow()
         proj = _make_project(
             db, created_at=now - timedelta(days=30), end_date=now + timedelta(days=30)
         )
@@ -530,7 +539,7 @@ class TestAccessControl:
         the suite — assert the HTTPException, not a network response, since
         we're calling the handler directly.
         """
-        now = datetime.utcnow()
+        now = utcnow()
         proj = _make_project(
             db, created_at=now - timedelta(days=30), end_date=now + timedelta(days=30)
         )
@@ -547,7 +556,7 @@ class TestAccessControl:
 class TestMonthsAndForecast:
     def test_months_walk_contract_window(self, db, admin_user):
         # 3-month window: created today, ends ~75 days out.
-        now = datetime.utcnow()
+        now = utcnow()
         proj = _make_project(
             db, created_at=datetime(now.year, now.month, 1), end_date=now + timedelta(days=75)
         )
@@ -559,7 +568,7 @@ class TestMonthsAndForecast:
         assert "partial" in result["months"][0]
 
     def test_forecast_sums_descendant_hours(self, db, admin_user):
-        now = datetime.utcnow()
+        now = utcnow()
         proj = _make_project(
             db, created_at=now - timedelta(days=30), end_date=now + timedelta(days=30)
         )

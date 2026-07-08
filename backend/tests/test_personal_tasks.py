@@ -9,6 +9,8 @@ IDOR Audit Findings:
 - own-task scoping appears correctly implemented in GET/{id}, PUT/{id}, DELETE/{id}
 """
 
+from datetime import datetime
+
 import pytest
 
 from models.personal_task import PersonalTask
@@ -380,6 +382,43 @@ class TestConvertToTicket:
         work_item = db.query(WorkItem).filter(WorkItem.id == data["work_item"]["id"]).first()
         assert work_item is not None
         assert work_item.title == "Convert Me"
+
+    def test_convert_to_ticket_carries_over_due_date(self, test_client, dev_user, db):
+        """Verify the personal task's due_date is preserved on the converted work item.
+
+        Regression: converting a task that had a due_date used to create the work
+        item without it, silently dropping the due date. The due_date lives on the
+        personal task, so conversion must copy it onto the new WorkItem.
+        """
+        _dev, dev_token = dev_user
+        project = seed_project(db)
+
+        due_date_str = "2026-06-21T10:00:00"
+        task_response = test_client.post(
+            "/api/personal-tasks/",
+            headers={"Authorization": f"Bearer {dev_token}"},
+            json={
+                "title": "Convert With Due Date",
+                "description": "Has a due date that must survive conversion",
+                "priority": "medium",
+                "due_date": due_date_str,
+            },
+        )
+        task_id = task_response.json()["id"]
+
+        convert_response = test_client.post(
+            f"/api/personal-tasks/{task_id}/convert-to-ticket",
+            headers={"Authorization": f"Bearer {dev_token}"},
+            json={"project_id": project.id, "type": "task"},
+        )
+
+        assert convert_response.status_code == 200
+        data = convert_response.json()
+
+        work_item = db.query(WorkItem).filter(WorkItem.id == data["work_item"]["id"]).first()
+        assert work_item is not None
+        assert work_item.due_date is not None
+        assert work_item.due_date == datetime.fromisoformat(due_date_str)
 
     @pytest.mark.xfail(
         reason="Assignee-membership validation not implemented on current main: "
