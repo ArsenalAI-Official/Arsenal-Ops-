@@ -5,7 +5,7 @@ import {
   Ban,
   ShieldCheck,
   PanelRight,
-  Maximize2,
+  PictureInPicture2,
   ArrowRightToLine,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -144,7 +144,7 @@ export const WorkItemPanelHeader = ({
             aria-label="Pop out into a floating window"
             className="text-[#737373] hover:text-white hover:bg-[rgba(255,255,255,0.06)] rounded-lg h-8 px-2.5"
           >
-            <Maximize2 className="w-4 h-4" />
+            <PictureInPicture2 className="w-4 h-4" />
           </Button>
         )}
         {/* Dock back — returns a floating window to the right-side dock. */}

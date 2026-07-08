@@ -15,14 +15,24 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/mocks/node';
 import { API_BASE } from '@/mocks/handlers/constants';
+import { projectStore } from '@/mocks/data/projects';
 import { renderPage } from '@/test-utils/render';
 import ProjectBoard from '@/pages/ProjectBoard/ProjectBoard';
 
 // The open panel adds two reads beyond the board defaults: the per-item detail
 // and its time-entries (TicketContributors). Literal `w1` paths so they don't
-// shadow GET /workitems/board.
+// shadow GET /workitems/board. We also seed the project with a developer so the
+// rail's Assignee options are actually built — that path calls
+// `avatarColor(d.id)`, and a broken color helper would crash the panel here
+// (the empty-roster default would silently skip it).
 function stubOpenItem() {
   server.use(
+    http.get(`${API_BASE}/projects/1`, () =>
+      HttpResponse.json({
+        ...projectStore.get(),
+        developers: [{ id: 1, name: 'Priya Menon', role: 'developer' }],
+      }),
+    ),
     http.get(`${API_BASE}/workitems/w1`, () =>
       HttpResponse.json({
         id: 1,

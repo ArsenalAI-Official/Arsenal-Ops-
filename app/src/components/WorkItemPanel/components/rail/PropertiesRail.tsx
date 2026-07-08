@@ -73,6 +73,17 @@ export const PropertiesRail = ({
     })),
   ];
 
+  // Story points can be any integer (the old edit form allowed arbitrary
+  // values), but the rail offers a fixed scale. Inject the current value when
+  // it's off-scale so the Select never renders empty (and a stray reselect
+  // can't silently overwrite it).
+  const sp = String(item.story_points ?? 0);
+  const storyPointOptions = STORY_POINT_OPTIONS.some((o) => o.value === sp)
+    ? STORY_POINT_OPTIONS
+    : [...STORY_POINT_OPTIONS, { value: sp, label: `${sp} pts` }].sort(
+        (a, b) => Number(a.value) - Number(b.value),
+      );
+
   const dueDate = parseLocalDate(item.due_date ?? undefined);
 
   return (
@@ -124,8 +135,8 @@ export const PropertiesRail = ({
         <PropertyRow label="Story Points">
           <EditableSelect
             aria-label="Story points"
-            value={String(item.story_points ?? 0)}
-            options={STORY_POINT_OPTIONS}
+            value={sp}
+            options={storyPointOptions}
             disabled={lockNonStatus}
             onValueChange={(val) => onPatchField({ story_points: parseInt(val) || 0 })}
           />
