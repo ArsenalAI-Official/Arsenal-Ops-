@@ -1703,6 +1703,19 @@ def log_hours(
         # natural ordering and don't all collapse to midnight.
         now = datetime.utcnow()
         resolved_logged_at = datetime.combine(requested_date, now.time())
+    else:
+        # Interim guard: block logging on Sat/Sun via the default (no-date)
+        # path. The explicit-date branch above already restricts to the current
+        # Mon–Fri window; without this, clicking "Log Hours" on a weekend would
+        # create a Sat/Sun entry (stamped with the current time). Uses UTC (via
+        # time_utils.utcnow) to match how logged_at is stamped and how the
+        # backend buckets weeks; a timezone-aware version is part of the
+        # deferred week-boundary work.
+        if utcnow().weekday() >= 5:  # 5 = Saturday, 6 = Sunday
+            raise HTTPException(
+                status_code=400,
+                detail="Hours can only be logged Monday to Friday.",
+            )
 
     # Determine who to attribute the hours to
     developer = None

@@ -290,10 +290,15 @@ def test_log_hours_rejects_malformed_logged_at(db, seed):
     assert exc.value.status_code == 400
 
 
-def test_log_hours_default_logged_at_unchanged_when_field_omitted(db, seed):
+def test_log_hours_default_logged_at_unchanged_when_field_omitted(db, seed, monkeypatch):
     """No regression: existing callers (the work-item "Log Hours" button)
     that don't pass `logged_at` still get the historical `now()` default."""
-    from datetime import date
+    from datetime import date, datetime
+
+    # Pin the guard's clock to a weekday so the Mon–Fri weekend block doesn't
+    # reject the default (no-date) path on weekend CI runs. Only the guard's
+    # clock is patched; the entry still stamps the real column-default now().
+    monkeypatch.setattr("routers.workitems.utcnow", lambda: datetime(2024, 1, 3, 12, 0))
 
     item = seed["item"]
     res = log_hours(

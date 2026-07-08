@@ -543,13 +543,17 @@ def _make_linked_comment(db, wi, dev_id, time_entry_id, hours):
     return c
 
 
-def test_log_hours_links_auto_comment_to_time_entry(db):
+def test_log_hours_links_auto_comment_to_time_entry(db, monkeypatch):
     """End-to-end: calling POST /log-hours creates a Comment whose
     `time_entry_id` matches the freshly created TimeEntry's id and
     whose content is the formatted "Logged Xh" string."""
     from models.comment import Comment
     from models.time_entry import TimeEntry
     from routers.workitems import LogHoursRequest, log_hours
+
+    # Pin the guard's clock to a weekday so the no-date log-hours path isn't
+    # rejected by the Mon–Fri weekend guard on weekend CI runs.
+    monkeypatch.setattr("routers.workitems.utcnow", lambda: datetime(2024, 1, 3, 12, 0))
 
     dev = _make_dev(db)
     proj = _make_project(db)
