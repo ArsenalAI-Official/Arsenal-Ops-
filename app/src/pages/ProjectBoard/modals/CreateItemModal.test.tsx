@@ -84,4 +84,20 @@ describe('CreateItemModal', () => {
       expect.objectContaining({ title: 'Build the thing' }),
     );
   });
+
+  // Ported from main's suite: coverage this component's own contract still owes.
+  it('the Cancel button calls onClose', () => {
+    const props = baseProps();
+    const { getByRole } = renderPlain(<CreateItemModal {...props} />);
+    fireEvent.click(getByRole('button', { name: /Cancel/ }));
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('reflects the isCreatingItem pending state: "Creating..." and a disabled Cancel', () => {
+    const { getByText, getByRole } = renderPlain(
+      <CreateItemModal {...baseProps()} isCreatingItem />,
+    );
+    expect(getByText(/Creating\.\.\./)).toBeTruthy();
+    expect(getByRole('button', { name: /Cancel/ })).toBeDisabled();
+  });
 });

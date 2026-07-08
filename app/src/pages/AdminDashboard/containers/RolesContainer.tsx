@@ -4,12 +4,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { AdminSpinner } from '../components/AdminSpinner';
 import { useRolesAdmin } from '../hooks/useRolesAdmin';
-import {
-  isGrantHeld,
-  isSideEffective,
-  isGroupEffective,
-  toPascalCase,
-} from '../lib/capabilityPicker';
+import { isGrantHeld, isSideEffective, isGroupEffective } from '../lib/capabilityPicker';
 import RoleModal from '../modals/RoleModal';
 import RolesTab from '../tabs/RolesTab';
 
@@ -67,7 +62,6 @@ export default function RolesContainer() {
         isGrantHeld={isGrantHeld}
         isSideEffective={isSideEffective}
         isGroupEffective={isGroupEffective}
-        toPascalCase={toPascalCase}
         handleSaveRole={handleSaveRole}
       />
       {confirmDialog}

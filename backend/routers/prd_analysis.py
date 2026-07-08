@@ -10,7 +10,8 @@ from datetime import date, datetime
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 sys.path.append("..")
@@ -33,6 +34,7 @@ from routers.projects import (
 from services.activity import log_activity
 from services.architecture_generator import architecture_generator
 from services.prd_processor import prd_processor
+from services.project_keys import key_prefix_lock_id
 from services.roadmap_generator import build_week_dates, roadmap_generator
 
 router = APIRouter(prefix="/api/prd", tags=["PRD Analysis"])
@@ -628,51 +630,62 @@ async def commit_architecture(
 
     # Create work items in database
     created_tickets = []
-    # Get the key prefix from project, or generate from project name
-    key_prefix = getattr(project, "key_prefix", None) or (
-        project.name[:4].upper() if project.name else "PROJ"
-    )
-    # Find max existing number for this prefix across ALL projects
-    existing_keys = db.query(WorkItem.key).filter(WorkItem.key.like(f"{key_prefix}-%")).all()
-    max_number = 0
-    for (k,) in existing_keys:
-        try:
-            num = int(k.split("-")[-1])
-            if num > max_number:
-                max_number = num
-        except (ValueError, IndexError):
-            pass
+    # key_prefix is guaranteed populated + unique per project by create_project
+    # (audit #25), so numbering is naturally scoped to this project. Number via
+    # the shared get_next_item_number under the same pg advisory lock as
+    # create_work_item so concurrent inserts on this prefix can't collide —
+    # rather than re-implementing the MAX-scan without a lock.
+    from routers.workitems import get_next_item_number
 
-    for idx, ticket_data in enumerate(ticket_result.get("tickets", [])):
-        # Get next item number
-        item_number = max_number + idx + 1
-        key = f"{key_prefix}-{item_number}"
+    key_prefix = project.key_prefix or "PROJ"
 
-        # Determine sprint_id
+    for ticket_data in ticket_result.get("tickets", []):
+        # Determine sprint_id (independent of numbering).
         sprint_id = None
         sprint_number = ticket_data.get("sprint_number")
         if sprint_number and sprint_number in sprint_map:
             sprint_id = sprint_map[sprint_number].id
 
-        work_item = WorkItem(
-            project_id=project_id,
-            key=key,
-            type=ticket_data.get("type", "task"),
-            title=ticket_data.get("title", "Generated Task"),
-            description=ticket_data.get("description", ""),
-            status="backlog" if not sprint_id else "todo",
-            estimated_hours=ticket_data.get("estimated_hours", 8),
-            remaining_hours=ticket_data.get("estimated_hours", 8),
-            story_points=ticket_data.get("story_points", 3),
-            priority=ticket_data.get("priority", "medium"),
-            assignee_id=ticket_data.get("assignee_id"),
-            sprint_id=sprint_id,
-            tags=ticket_data.get("tags", []),
-            acceptance_criteria=[],
-        )
-
-        db.add(work_item)
-        db.commit()
+        # Number + insert with a bounded retry. The advisory lock serializes
+        # concurrent inserts on this prefix (no-op on SQLite), and the xact-scoped
+        # lock is released when the insert commits. As a safety net — work_items.key
+        # is UNIQUE — a lost race that slips a duplicate key past the lock is
+        # caught and retried with a freshly-scanned number, rather than 500-ing
+        # and orphaning the tickets already committed earlier in this batch.
+        work_item = None
+        for _attempt in range(5):
+            if db.bind is not None and db.bind.dialect.name == "postgresql":
+                lock_id = key_prefix_lock_id(key_prefix)
+                db.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": lock_id})
+            item_number = get_next_item_number(db, key_prefix)
+            candidate = WorkItem(
+                project_id=project_id,
+                key=f"{key_prefix}-{item_number}",
+                type=ticket_data.get("type", "task"),
+                title=ticket_data.get("title", "Generated Task"),
+                description=ticket_data.get("description", ""),
+                status="backlog" if not sprint_id else "todo",
+                estimated_hours=ticket_data.get("estimated_hours", 8),
+                remaining_hours=ticket_data.get("estimated_hours", 8),
+                story_points=ticket_data.get("story_points", 3),
+                priority=ticket_data.get("priority", "medium"),
+                assignee_id=ticket_data.get("assignee_id"),
+                sprint_id=sprint_id,
+                tags=ticket_data.get("tags", []),
+                acceptance_criteria=[],
+            )
+            db.add(candidate)
+            try:
+                db.commit()
+                work_item = candidate
+                break
+            except IntegrityError:
+                db.rollback()
+        if work_item is None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Could not allocate a unique work-item key for prefix '{key_prefix}'",
+            )
         db.refresh(work_item)
 
         # Get assignee name

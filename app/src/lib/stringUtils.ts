@@ -1,12 +1,18 @@
 // Canonical string helpers. Consolidates copies previously duplicated across
-// AdminDashboard tabs (toPascalCase) and ProjectHub views (getInitials).
+// AdminDashboard tabs (formatRoleName) and ProjectHub views (getInitials).
 
-/** `admin_user` → `AdminUser`. */
-export function toPascalCase(str: string): string {
-  return str
+/**
+ * `project_manager` → `Project Manager`. The single canonical role-name
+ * formatter (audit #26): Title Case with spaces, everywhere a role name is
+ * shown in Admin. Capitalizes each underscore-separated part while leaving the
+ * rest of the word intact, so existing acronyms/casing (e.g. `QA`) survive and
+ * already-friendly custom role names pass through cleanly.
+ */
+export function formatRoleName(name: string): string {
+  return name
     .split('_')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join('');
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 /** `"Jane Doe"` → `"JD"` (up to 2 uppercase initials). */

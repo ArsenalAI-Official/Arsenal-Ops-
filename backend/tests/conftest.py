@@ -253,6 +253,14 @@ def seed_project(db, name: str = "Test Project", num_developers: int = 2) -> Pro
     db.add(project)
     db.flush()  # Ensure project.id is set before adding developers
 
+    # Unique key_prefix per seeded project. Tests routinely seed several
+    # projects in one DB, so the projects.key_prefix UNIQUE constraint (audit
+    # #25) would reject the shared default. The flushed id makes it distinct.
+    from services.project_keys import normalize_prefix
+
+    project.key_prefix = f"{normalize_prefix(name, 6) or 'P'}{project.id}"
+    db.flush()
+
     developers = []
     # Ensure at least one developer even if num_developers is 0
     total_devs = max(1, num_developers)
