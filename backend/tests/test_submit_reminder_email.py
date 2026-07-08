@@ -64,16 +64,21 @@ def _make_dev(db, name, email, *, is_external=False):
 
 
 _wi_n = {"n": 0}
+_proj_n = {"n": 0}
 
 
 def _make_project(db, *, linked=True):
     from models.project import Project
 
+    # Unique key_prefix per call — projects.key_prefix is UNIQUE, so tests
+    # that create more than one project (e.g. linked + unlinked) can't share
+    # the literal "P".
+    _proj_n["n"] += 1
     p = Project(
         name="P",
         description="x",
         status="active",
-        key_prefix="P",
+        key_prefix=f"P{_proj_n['n']}",
         workforce_client_id="QB-CUST-1" if linked else None,
         workforce_client_name="Acme" if linked else None,
     )

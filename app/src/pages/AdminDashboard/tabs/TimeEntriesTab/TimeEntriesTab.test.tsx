@@ -3,9 +3,8 @@
 // the ProjectBoard/WorkItemPanel, out of this scope), but it is MONEY-adjacent:
 // it audits every hour logged across projects. The load-bearing behaviors are
 // therefore (a) the filtered request carries the right query params and (b) the
-// client-side (employee × project × day) aggregation sums hours correctly and
-// surfaces the server's total. Those are what a regression would silently
-// corrupt.
+// client-side (employee × project × day) aggregation sums hours correctly into
+// the table. Those are what a regression would silently corrupt.
 //
 // Network faked at the wire by MSW; per-test we override GET /admin/time-entries
 // to return a controlled payload (and capture the request URL for the filter
@@ -70,27 +69,32 @@ describe('TimeEntriesTab', () => {
     vi.useRealTimers();
   });
 
-  it('requests time entries and renders the server total-hours strip', async () => {
+  it('requests time entries and renders the aggregated rows', async () => {
     respondWith({ rows: [row({})], total_hours: 2, total_rows: 1, truncated: false });
 
     renderWithQueryClient(
       <TimeEntriesTab projects={projects} employees={employees} clients={[]} />,
     );
 
-    // Total-hours card reflects the server's sum (2h) once the query resolves.
-    // (Employee/project names also appear as filter <option>s, so we key off
-    // the total strip, which only reflects loaded data.)
-    const totalCard = () => screen.getByText('Total hours').closest('div') as HTMLElement;
-    await waitFor(() => expect(totalCard().textContent?.replace(/\s/g, '')).toContain('2h'));
-    // And a data row for the entry renders in the table body.
-    expect(screen.getByRole('table')).toBeTruthy();
+    // Once the query resolves, the entry renders as a row in the table body.
+    // (The summary strip above the table is a date range + truncation notice,
+    // not a totals card, so we assert against the aggregated row itself.)
+    // Body rows are expandable, so each carries role="button" (the header <tr>
+    // keeps role="row" and stays in <thead>).
+    const table = await screen.findByRole('table');
+    const tbody = table.querySelector('tbody') as HTMLElement;
+    await waitFor(() => expect(within(tbody).getAllByRole('button').length).toBeGreaterThan(0));
+    const bodyRow = within(tbody).getAllByRole('button')[0]!;
+    expect(bodyRow.textContent).toContain('Ada Lovelace');
+    expect(bodyRow.textContent?.replace(/\s/g, '')).toContain('2h');
   });
 
   it('aggregates on the (employee × project × day) key, not just employee/day', async () => {
-    // Same dev, same day, but TWO projects: three Apollo entries collapse to
-    // one 6h row; one Borealis entry stays its own 5h row. A bug that merged on
-    // employee/day alone (ignoring project) would produce a single 11h row and
-    // fail this — that's the point of splitting the buckets.
+    // Same dev, same day, but TWO projects. In the default "By Employee" view
+    // the four entries roll up to ONE employee/day row (11h); its expandable
+    // breakdown splits BY PROJECT — three Apollo entries → 6h, one Borealis → 5h.
+    // A bug that merged on employee/day alone (ignoring project) would collapse
+    // the breakdown to a single 11h child and fail the per-project assertions.
     respondWith({
       rows: [
         row({ id: 1, hours: 2 }),
@@ -103,27 +107,27 @@ describe('TimeEntriesTab', () => {
       truncated: false,
     });
 
+    const user = userEvent.setup();
     renderWithQueryClient(
       <TimeEntriesTab projects={projects} employees={employees} clients={[]} />,
     );
 
-    // Wait for the query to resolve; the total strip preserves the server sum.
-    const totalCard = () => screen.getByText('Total hours').closest('div') as HTMLElement;
-    await waitFor(() => expect(totalCard().textContent?.replace(/\s/g, '')).toContain('11h'));
+    // One top-level employee/day row, summing all four entries to 11h.
+    const table = await screen.findByRole('table');
+    const tbody = table.querySelector('tbody') as HTMLElement;
+    await waitFor(() => expect(within(tbody).getAllByRole('button')).toHaveLength(1));
+    const topRow = within(tbody).getAllByRole('button')[0]!;
+    expect(topRow.textContent).toContain('Ada Lovelace');
+    expect(topRow.textContent?.replace(/\s/g, '')).toContain('11h');
 
-    // The four raw entries collapse into exactly TWO aggregated rows: one per
-    // project bucket. Scope to the table body so the filter <option>s don't count.
-    const tbody = screen.getByRole('table').querySelector('tbody') as HTMLElement;
-    const bodyRows = within(tbody).getAllByRole('row');
-    expect(bodyRows).toHaveLength(2);
-
-    // Per-bucket sums: Apollo = 6h, Borealis = 5h. Rows aren't uniquely
-    // queryable by role/name (both are "Ada Lovelace"), so match by project cell.
-    const apolloRow = bodyRows.find((r) => r.textContent?.includes('Apollo'))!;
-    const borealisRow = bodyRows.find((r) => r.textContent?.includes('Borealis'))!;
-    expect(apolloRow.textContent?.replace(/\s/g, '')).toContain('6h');
-    expect(apolloRow.textContent).toContain('Ada Lovelace');
-    expect(borealisRow.textContent?.replace(/\s/g, '')).toContain('5h');
+    // Expand → the breakdown splits by project: Apollo 6h + Borealis 5h. If the
+    // aggregation ignored project, there'd be one 11h child instead of these two.
+    await user.click(topRow);
+    const breakdown = await screen.findByLabelText('Ada Lovelace breakdown');
+    await waitFor(() => expect(breakdown.textContent).toContain('Borealis'));
+    expect(breakdown.textContent).toContain('Apollo');
+    expect(breakdown.textContent?.replace(/\s/g, '')).toContain('6h');
+    expect(breakdown.textContent?.replace(/\s/g, '')).toContain('5h');
   });
 
   it('sends project_id in the query when a project filter is selected', async () => {

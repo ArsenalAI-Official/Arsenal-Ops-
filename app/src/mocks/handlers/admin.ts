@@ -12,6 +12,13 @@ export const adminHandlers = [
   http.get(`${API_BASE}/admin/projects/weekly-report`, () => HttpResponse.json([])),
   http.get(`${API_BASE}/admin/employees`, () => HttpResponse.json([])),
   http.get(`${API_BASE}/admin/developers/capacity`, () => HttpResponse.json([])),
+  // Workforce/QuickBooks integration status. Default = not connected, so
+  // workforce-aware admin views (e.g. the Time Entries tab) render without a
+  // sync banner. Override per-test with server.use() to exercise connected
+  // states.
+  http.get(`${API_BASE}/admin/workforce/status`, () =>
+    HttpResponse.json({ connected: false, integration: null }),
+  ),
   http.get(`${API_BASE}/admin/stats`, () =>
     HttpResponse.json({ total_projects: 0, total_users: 0, total_employees: 0 }),
   ),
