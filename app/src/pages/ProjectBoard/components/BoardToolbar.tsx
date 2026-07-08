@@ -1,13 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import {
-  Plus,
-  CheckCircle2,
-  Search,
-  Layers,
-  BarChart3,
-  Target,
-  Repeat2,
-} from 'lucide-react';
+import { Plus, CheckCircle2, Search, Layers, BarChart3, Target, Repeat2 } from 'lucide-react';
 import { type Dispatch, type ReactNode, type RefObject, type SetStateAction } from 'react';
 import type { SprintResponse } from '@/client';
 import { Button } from '@/components/ui/button';

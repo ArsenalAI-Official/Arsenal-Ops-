@@ -11438,7 +11438,7 @@
     },
     "/api/workitems/sprints/{sprint_id}": {
       "delete": {
-        "description": "Delete a sprint; work items are unassigned (sprint_id \u2192 NULL) (requires auth)",
+        "description": "Delete a sprint; its work items are moved to the backlog (sprint_id \u2192\nNULL), NOT deleted (requires auth).",
         "operationId": "delete_sprint_api_workitems_sprints__sprint_id__delete",
         "parameters": [
           {
