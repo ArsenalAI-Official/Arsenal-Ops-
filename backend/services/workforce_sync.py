@@ -70,6 +70,7 @@ from services.workforce_oauth import WorkforceOAuthError
 from services.workforce_qb_client import (
     QBApiError,
     QBRateLimitError,
+    connection_pool as qb_connection_pool,
     fetch_qb_classes,
     fetch_qb_employees,
     post_time_activity,
@@ -340,15 +341,19 @@ def run_workforce_sync(
         }
 
     try:
-        return _run_inside_lock(
-            db,
-            integration,
-            window_start=window_start,
-            window_end=window_end,
-            batch_cap=batch_cap,
-            triggered_by=triggered_by,
-            base_result=base_result,
-        )
+        # One keep-alive httpx client for the whole run — the per-entry push
+        # loop makes hundreds of serial QB calls, so pooling avoids a fresh
+        # TLS handshake each time. Bounded to this block; closed on exit.
+        with qb_connection_pool():
+            return _run_inside_lock(
+                db,
+                integration,
+                window_start=window_start,
+                window_end=window_end,
+                batch_cap=batch_cap,
+                triggered_by=triggered_by,
+                base_result=base_result,
+            )
     except WorkforceCryptoCorrupted:
         # ensure_fresh_access_token → decrypt() raises this when the stored
         # tokens can't be decrypted (WORKFORCE_TOKEN_ENCRYPTION_KEY rotated or

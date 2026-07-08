@@ -27,8 +27,11 @@ the OAuth router) want to distinguish:
 API reference: https://developer.intuit.com/app/developer/qbo/docs/api/accounting
 """
 
+import contextlib
+import contextvars
 import logging
 import os
+from collections.abc import Iterator
 from datetime import date
 from typing import Any
 
@@ -39,6 +42,34 @@ from models.workforce_integration import WorkforceIntegration
 from services.workforce_oauth import ensure_fresh_access_token
 
 logger = logging.getLogger(__name__)
+
+# Run-scoped connection pool. A sync run pushes hundreds of entries through
+# `_request` serially; without pooling each call opened a fresh
+# httpx.Client() → a new TCP+TLS handshake per request. `connection_pool()`
+# binds ONE keep-alive client for the duration of a batch (the `with` block),
+# and `_request` reuses it. The client is torn down when the block exits, so
+# connection lifetime is bounded to the run — no long-lived idle sockets.
+# Callers outside a pool (one-off admin lookups) transparently fall back to a
+# per-call client, preserving prior behavior.
+_run_client: contextvars.ContextVar[httpx.Client | None] = contextvars.ContextVar(
+    "_qb_run_client", default=None
+)
+
+
+@contextlib.contextmanager
+def connection_pool() -> Iterator[None]:
+    """Bind one keep-alive httpx.Client for a batch of QB calls (e.g. a sync run).
+
+    Bounded to the `with` block: the client — and all pooled connections — is
+    closed on exit, including on exception.
+    """
+    client = httpx.Client(timeout=30.0)
+    token = _run_client.set(client)
+    try:
+        yield
+    finally:
+        _run_client.reset(token)
+        client.close()
 
 
 # ── Configuration ────────────────────────────────────────────────────────
@@ -128,17 +159,22 @@ def _request(
     merged_params.setdefault("minorversion", QB_MINOR_VERSION)
 
     def _send(token: str) -> httpx.Response:
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+        pooled = _run_client.get()
+        if pooled is not None:
+            # Reuse the run-scoped keep-alive client (see connection_pool()).
+            return pooled.request(
+                method, url, params=merged_params, json=json_body, headers=headers
+            )
+        # No active pool → one-off client (unchanged behavior for callers
+        # outside a batch).
         with httpx.Client(timeout=30.0) as client:
             return client.request(
-                method,
-                url,
-                params=merged_params,
-                json=json_body,
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                },
+                method, url, params=merged_params, json=json_body, headers=headers
             )
 
     try:
