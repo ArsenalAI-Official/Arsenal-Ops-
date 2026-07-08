@@ -439,8 +439,15 @@ Return ONLY this JSON object — no prose, no markdown fences:
                 milestone_name: str = m_name,
                 milestone_weeks: list[str] = m_weeks,
             ) -> None:
+                # Leaf rows may be typed "TASK" or "STORY" — parser.py treats
+                # them identically. Honor whatever the suggestion carries so the
+                # scaffold can showcase both; default to TASK, and fall back to
+                # TASK for any unrecognized value.
+                row_type = str(t.get("row_type") or "TASK").strip().upper()
+                if row_type not in ("TASK", "STORY"):
+                    row_type = "TASK"
                 row = [
-                    "TASK",
+                    row_type,
                     t["name"],
                     t.get("description", ""),
                     milestone_name,
