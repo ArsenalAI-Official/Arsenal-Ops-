@@ -1,4 +1,4 @@
-import { Plus, Target, ClipboardList, Link2, List } from 'lucide-react';
+import { Plus, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { STATUS_CONFIG } from '../constants';
 import { avatarColor } from '../lib/renderContent';
@@ -24,69 +24,45 @@ export const WorkItemFullHierarchy = ({
   const subjectType = item.type;
   const subjectId = parseInt(item.id);
 
-  const epicItem = item.epic_id
-    ? fullWorkItems.find((wi) => wi.id === item.epic_id?.toString())
-    : null;
-
   const renderEmpty = (label: string) => (
-    <div className="flex items-center px-3 py-2 rounded-lg border border-dashed border-[rgba(255,255,255,0.06)] text-xs text-[#555] italic">
+    <div className="flex items-center rounded-xl border border-dashed border-[rgba(255,255,255,0.08)] px-3 py-2.5 text-xs text-[#555] italic">
       {label}
     </div>
   );
 
-  const sectionLabel = (icon: React.ReactNode, text: string) => (
-    <div className="flex items-center gap-1.5 text-xs text-[#8A8A8A] mb-2 font-medium">
-      {icon}
+  const sectionLabel = (text: string) => (
+    <div className="mb-3 text-[11px] font-semibold tracking-wider text-[#8A8A8A] uppercase">
       {text}
     </div>
   );
 
-  // Shared row renderer: avatar · key+title+progress · status badge
+  // Reference-style row: avatar · key · title · status chip · open-in-board.
   const renderItemRow = (target: WorkItem) => {
     const sc = STATUS_CONFIG[target.status as keyof typeof STATUS_CONFIG];
-    const allocated = target.assigned_hours ?? 0;
-    const logged = target.logged_hours ?? 0;
-    const pct = allocated > 0 ? Math.min(100, Math.round((logged / allocated) * 100)) : 0;
-    const barColor = logged >= allocated && allocated > 0 ? '#34D399' : '#E0B954';
-    const ac = avatarColor(target.assignee_id);
+    const ac = avatarColor(target.assignee_id) ?? '#737373';
     return (
-      <div
+      <button
+        type="button"
         key={target.id}
-        className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)] cursor-pointer hover:border-[rgba(255,255,255,0.1)] transition-colors"
+        className="group flex w-full cursor-pointer items-center gap-3 rounded-xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)] px-3 py-2.5 text-left transition-colors hover:border-[rgba(255,255,255,0.12)] hover:bg-[rgba(255,255,255,0.04)]"
         onClick={() => navigate(`/project/${projectId}/board/${target.id}`)}
       >
-        {/* Assignee avatar */}
         <div
-          className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-semibold"
-          style={{ backgroundColor: `${ac}20`, color: ac }}
+          className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[9px] font-semibold"
+          style={{ backgroundColor: `${ac}22`, color: ac }}
         >
           {target.assignee ? target.assignee.charAt(0).toUpperCase() : '—'}
         </div>
-        {/* Key + title + progress bar */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <span className="text-[11px] text-[#737373] font-mono flex-shrink-0">{target.key}</span>
-            <span className="text-sm text-white truncate">{target.title}</span>
-          </div>
-          <div className="h-1 rounded-full bg-[rgba(255,255,255,0.07)] overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{ width: `${pct}%`, backgroundColor: barColor }}
-            />
-          </div>
-        </div>
-        {/* Hours — logged / allocated */}
-        <span className="text-[11px] text-[#555] flex-shrink-0 tabular-nums">
-          {logged}h/{allocated}h
-        </span>
-        {/* Status badge — right end */}
+        <span className="flex-shrink-0 font-mono text-[11px] text-[#737373]">{target.key}</span>
+        <span className="flex-1 truncate text-sm text-[#F4F6FF]">{target.title}</span>
         <span
-          className="text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wide flex-shrink-0"
+          className="flex-shrink-0 rounded-md px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase"
           style={{ color: sc?.color ?? '#737373', background: `${sc?.color ?? '#737373'}1a` }}
         >
           {sc?.label ?? target.status}
         </span>
-      </div>
+        <ExternalLink className="h-3.5 w-3.5 flex-shrink-0 text-[#555] transition-colors group-hover:text-[#8A8A8A]" />
+      </button>
     );
   };
 
@@ -97,7 +73,7 @@ export const WorkItemFullHierarchy = ({
       : null;
     return (
       <div>
-        {sectionLabel(<Link2 className="w-3.5 h-3.5" />, 'Belongs to')}
+        {sectionLabel('Belongs to')}
         {parentItem ? renderItemRow(parentItem) : renderEmpty('No parent')}
       </div>
     );
@@ -108,12 +84,9 @@ export const WorkItemFullHierarchy = ({
     const epicItems = fullWorkItems.filter((wi) => wi.epic_id === subjectId);
     return (
       <div>
-        {sectionLabel(
-          <List className="w-3.5 h-3.5" />,
-          `Items${epicItems.length > 0 ? ` (${epicItems.length})` : ''}`,
-        )}
+        {sectionLabel(`Items${epicItems.length > 0 ? ` · ${epicItems.length}` : ''}`)}
         {epicItems.length > 0 ? (
-          <div className="space-y-1.5">{epicItems.map(renderItemRow)}</div>
+          <div className="space-y-2">{epicItems.map(renderItemRow)}</div>
         ) : (
           renderEmpty('No items')
         )}
@@ -121,31 +94,20 @@ export const WorkItemFullHierarchy = ({
     );
   }
 
-  // ── Bug / Story / Task: Epic + Subtasks (with creation form) ─────────
+  // ── Bug / Story / Task: Subtasks only. Epic lives in the Properties rail
+  // now, so it's no longer duplicated here (matches the reference layout). ──
   const subtasks = subtasksOfCurrent;
   return (
-    <div className="space-y-4">
-      <div>
-        {sectionLabel(<Target className="w-3.5 h-3.5" />, 'Epic')}
-        {epicItem ? renderItemRow(epicItem) : renderEmpty('No epic')}
-      </div>
-      <div>
-        {sectionLabel(
-          <ClipboardList className="w-3.5 h-3.5" />,
-          `Subtasks${subtasks.length > 0 ? ` (${subtasks.length})` : ''}`,
-        )}
-        {subtasks.length > 0 && (
-          <div className="space-y-1.5 mb-3">{subtasks.map(renderItemRow)}</div>
-        )}
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={onAddSubtask}
-          className="w-full border border-dashed border-[rgba(255,255,255,0.08)] text-[#555] hover:bg-[rgba(255,255,255,0.04)] hover:text-white hover:border-[rgba(255,255,255,0.15)] rounded-lg h-9 text-xs"
-        >
-          <Plus className="w-3.5 h-3.5 mr-1.5" /> Add a subtask
-        </Button>
-      </div>
+    <div>
+      {sectionLabel(`Subtasks${subtasks.length > 0 ? ` · ${subtasks.length}` : ''}`)}
+      {subtasks.length > 0 && <div className="mb-2 space-y-2">{subtasks.map(renderItemRow)}</div>}
+      <Button
+        variant="ghost"
+        onClick={onAddSubtask}
+        className="h-10 w-full rounded-xl border border-dashed border-[rgba(255,255,255,0.1)] text-sm text-[#737373] hover:border-[rgba(255,255,255,0.15)] hover:bg-[rgba(255,255,255,0.04)] hover:text-[#a3a3a3]"
+      >
+        <Plus className="mr-1.5 h-4 w-4" /> Add a subtask
+      </Button>
     </div>
   );
 };
