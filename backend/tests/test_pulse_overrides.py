@@ -16,12 +16,14 @@ explicitly (same trick the rest of the test suite uses — FastAPI's
 import os
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
+from time_utils import utcnow
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -126,7 +128,7 @@ def outsider_user(db):
 
 
 def _make_project(db) -> Project:
-    now = datetime.utcnow()
+    now = utcnow()
     p = Project(
         id=1,
         name="Pulse Project",
@@ -231,7 +233,7 @@ class TestUpsert:
         assert first["updated_by"]["id"] == admin_user.id
 
         # Sleep just long enough that the isoformat string is guaranteed
-        # to differ (datetime.utcnow has microsecond resolution, but be
+        # to differ (utcnow has microsecond resolution, but be
         # defensive against truncation on some drivers).
         time.sleep(0.01)
 

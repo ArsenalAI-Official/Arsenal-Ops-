@@ -118,7 +118,7 @@ export type BodyAnalyzePrdFileApiPrdAnalyzeFilePost = {
   /**
    * File
    */
-  file: string;
+  file: Blob | File;
   /**
    * Project Id
    */
@@ -162,7 +162,7 @@ export type BodyParseRoadmapFileApiRoadmapParseFilePost = {
   /**
    * File
    */
-  file: string;
+  file: Blob | File;
   /**
    * Project Id
    */
@@ -180,7 +180,7 @@ export type BodyUploadProjectFileApiProjectsProjectIdFilesPost = {
   /**
    * File
    */
-  file: string;
+  file: Blob | File;
 };
 
 /**

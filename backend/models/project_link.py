@@ -9,6 +9,7 @@ from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
+from time_utils import utcnow
 
 if TYPE_CHECKING:
     from models.project import Project
@@ -23,7 +24,7 @@ class ProjectLink(Base):
     )
     name: Mapped[str] = mapped_column(String)
     url: Mapped[str] = mapped_column(String)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
 
     # Relationships
     project: Mapped["Project"] = relationship("Project", foreign_keys=[project_id])

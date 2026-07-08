@@ -16,6 +16,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
+from time_utils import utcnow
+
 sys.path.append("..")
 from database import get_db
 from models.architecture import Architecture
@@ -432,7 +434,7 @@ def format_projects_batch(projects: list[Project], db: Session) -> list[dict]:
                 "github_repo_name": github_repo_name,
                 "created_at": project.created_at.isoformat()
                 if project.created_at
-                else datetime.utcnow().isoformat(),
+                else utcnow().isoformat(),
                 "end_date": project.end_date.isoformat() if project.end_date else None,
                 "work_item_stats": stats_by_id.get(project.id, _empty_stats()),
                 "developers": devs_by_id.get(project.id, []),
@@ -835,7 +837,7 @@ def update_project(
                 )
             project.category_id = update.category_id
 
-    project.updated_at = datetime.utcnow()
+    project.updated_at = utcnow()
     try:
         db.commit()
     except IntegrityError:
@@ -1275,13 +1277,13 @@ def update_project_goal(
     if goal_update.status is not None:
         goal.status = goal_update.status
         if goal_update.status == "completed":
-            goal.completed_at = datetime.utcnow()
+            goal.completed_at = utcnow()
     if goal_update.progress is not None:
         goal.progress = goal_update.progress
     if goal_update.due_date is not None:
         goal.due_date = goal_update.due_date
 
-    goal.updated_at = datetime.utcnow()
+    goal.updated_at = utcnow()
 
     # Log activity
     activity = ActivityLog(
@@ -1444,7 +1446,7 @@ def complete_project_milestone(
 
     require_project_access(milestone.project_id, current_user, db)
 
-    milestone.completed_at = datetime.utcnow()
+    milestone.completed_at = utcnow()
 
     # Log activity
     activity = ActivityLog(
@@ -1647,7 +1649,7 @@ def get_project_workload(
         else:
             bucket["todo_items"] += 1
 
-        if item.due_date and item.due_date < datetime.utcnow() and item.status != "done":
+        if item.due_date and item.due_date < utcnow() and item.status != "done":
             bucket["overdue_items"] += 1
 
         bucket["items"].append(

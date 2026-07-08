@@ -7,7 +7,7 @@ import os
 import secrets
 import string
 import sys
-from datetime import datetime, timedelta
+from datetime import timedelta
 from threading import Lock
 
 from cachetools import TTLCache
@@ -17,6 +17,8 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
+
+from time_utils import utcnow
 
 sys.path.append("..")
 from capabilities import CAPABILITIES, is_valid_grant
@@ -162,10 +164,7 @@ def get_password_hash(password):
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+    expire = utcnow() + (expires_delta if expires_delta else timedelta(minutes=15))
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -258,7 +257,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
 
     # Update last login
-    user.last_login_at = datetime.utcnow()
+    user.last_login_at = utcnow()
     db.commit()
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -295,7 +294,7 @@ def change_password(
     # Update password
     current_user.hashed_password = get_password_hash(password_data.new_password)
     current_user.is_first_login = False
-    current_user.password_changed_at = datetime.utcnow()
+    current_user.password_changed_at = utcnow()
     db.commit()
 
     return {"status": "success", "message": "Password changed successfully"}
@@ -670,7 +669,7 @@ def google_login(request: GoogleLoginRequest, db: Session = Depends(get_db)):
             role=UserRole.DEVELOPER.value,
             is_active=True,
             is_first_login=False,  # SSO users don't need password change
-            last_login_at=datetime.utcnow(),
+            last_login_at=utcnow(),
         )
         db.add(user)
         # Flush (not commit) so user.id is available for the m2m link below,
@@ -703,7 +702,7 @@ def google_login(request: GoogleLoginRequest, db: Session = Depends(get_db)):
             # Continue anyway - user account was created successfully
 
     # Update last login timestamp
-    user.last_login_at = datetime.utcnow()
+    user.last_login_at = utcnow()
     db.commit()
     db.refresh(user)
 
@@ -777,7 +776,7 @@ def dev_login(db: Session = Depends(get_db)):
         db.add(Developer(name=user.name, email=user.email))
         db.commit()
 
-    user.last_login_at = datetime.utcnow()
+    user.last_login_at = utcnow()
     db.commit()
 
     access_token = create_access_token(

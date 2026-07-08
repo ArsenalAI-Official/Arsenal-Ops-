@@ -25,6 +25,7 @@ from models.time_entry import TimeEntry
 from models.work_item import WorkItem
 from services.capacity_service import week_boundaries
 from services.email_service import email_service
+from time_utils import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +76,7 @@ def _hours_per_developer(db: Session, week_start: datetime, week_end: datetime) 
 
 def build_weekly_report_html(db: Session, generated_at: datetime | None = None) -> str:
     """Render the team weekly logged-hours report as a self-contained HTML string."""
-    generated_at = generated_at or datetime.utcnow()
+    generated_at = generated_at or utcnow()
     week_start, week_end = week_boundaries(generated_at)
 
     # Internal employees only. Externals (admin-added users on non-internal
