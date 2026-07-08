@@ -118,7 +118,7 @@ export type BodyAnalyzePrdFileApiPrdAnalyzeFilePost = {
   /**
    * File
    */
-  file: string;
+  file: Blob | File;
   /**
    * Project Id
    */
@@ -162,7 +162,7 @@ export type BodyParseRoadmapFileApiRoadmapParseFilePost = {
   /**
    * File
    */
-  file: string;
+  file: Blob | File;
   /**
    * Project Id
    */
@@ -180,7 +180,7 @@ export type BodyUploadProjectFileApiProjectsProjectIdFilesPost = {
   /**
    * File
    */
-  file: string;
+  file: Blob | File;
 };
 
 /**
@@ -1470,7 +1470,7 @@ export type ProjectCreate = {
   /**
    * Key Prefix
    */
-  key_prefix?: string;
+  key_prefix?: string | null;
   /**
    * Name
    */
@@ -1720,6 +1720,10 @@ export type ProjectUpdate = {
    * Github Repo Urls
    */
   github_repo_urls?: Array<string> | null;
+  /**
+   * Key Prefix
+   */
+  key_prefix?: string | null;
   /**
    * Name
    */

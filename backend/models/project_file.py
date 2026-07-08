@@ -9,6 +9,7 @@ from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
+from time_utils import utcnow
 
 if TYPE_CHECKING:
     from models.project import Project
@@ -28,7 +29,7 @@ class ProjectFile(Base):
     file_url: Mapped[str] = mapped_column(String)  # URL or path to download
     uploaded_by: Mapped[int] = mapped_column(ForeignKey("users.id"))  # User ID who uploaded
     uploaded_by_name: Mapped[str] = mapped_column(String)  # Email/name of uploader
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
 
     # Relationships
     project: Mapped["Project"] = relationship("Project", foreign_keys=[project_id])

@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 from sqlalchemy import JSON, DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from time_utils import utcnow
+
 sys.path.append("..")
 from database import Base
 from models.developer import project_developers
@@ -42,9 +44,16 @@ class Project(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(255))
-    key_prefix: Mapped[str] = mapped_column(
-        String(10), default="PROJ", nullable=True
-    )  # Short key for work items (e.g., PROJ-123)
+    # Short key for work items (e.g., ASSE-123). Unique per project so keys are
+    # globally distinct across projects (audit #25). `unique=True` builds the
+    # constraint on fresh DBs (tests/local SQLite). NOTE: the one-shot backfill +
+    # `CREATE UNIQUE INDEX` for already-existing Postgres DBs is currently DISABLED
+    # (commented out in database.py) — this branch only fixes the issue going
+    # forward. So on an already-migrated Postgres deployment, legacy rows keep the
+    # shared 'PROJ' prefix and no DB-level unique index exists; uniqueness for NEW
+    # projects is enforced at the application layer in routers/projects.py
+    # (`_generate_unique_prefix` / `_prefix_in_use`).
+    key_prefix: Mapped[str] = mapped_column(String(10), default="PROJ", nullable=True, unique=True)
     description: Mapped[str] = mapped_column(Text)
     vision: Mapped[str | None] = mapped_column(Text)
     target_market: Mapped[str | None] = mapped_column(String(255))
@@ -77,10 +86,10 @@ class Project(Base):
     )
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=True)
     end_date: Mapped[datetime | None] = mapped_column(DateTime)  # Project end date
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
     )
 
     # Relationships

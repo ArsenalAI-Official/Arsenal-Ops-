@@ -59,8 +59,8 @@ npm run gen:api     # re-dump the schema from the backend, THEN regenerate types
 `gen:types` is backend-free and fully reproducible — it's the path most
 contributors want. `gen:api` additionally runs `gen:schema`
 (`cd ../backend && python scripts/export_openapi.py`), which invokes a bare
-`python`: activate the backend venv first and use **Python 3.11** (the backend
-uses `int | None` runtime syntax, needs 3.10+; CI pins 3.11). A different
+`python`: activate the backend venv first and use **Python 3.12** (the backend
+uses `int | None` runtime syntax, needs 3.10+; CI pins 3.12). A different
 interpreter or missing deps will fail — or worse, emit a schema that drifts from
 CI.
 

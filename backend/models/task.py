@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from time_utils import utcnow
+
 sys.path.append("..")
 from database import Base
 
@@ -49,9 +51,9 @@ class Task(Base):
     sprint: Mapped[str | None] = mapped_column(String(100))
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
     )
     due_date: Mapped[datetime | None] = mapped_column(DateTime)
 

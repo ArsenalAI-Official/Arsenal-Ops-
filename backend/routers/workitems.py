@@ -12,6 +12,8 @@ from pydantic import BaseModel
 from sqlalchemy import case, func, text
 from sqlalchemy.orm import Session, selectinload
 
+from time_utils import utcnow
+
 sys.path.append("..")
 from database import get_db
 from models.project import Project
@@ -22,6 +24,7 @@ from routers.auth import get_current_user, require_capability
 from services.email_service import email_service
 from services.hierarchy import validate_hierarchy
 from services.llm_agent import llm_agent
+from services.project_keys import key_prefix_lock_id
 
 router = APIRouter(prefix="/api/workitems", tags=["Work Items"])
 
@@ -139,7 +142,7 @@ def update_epic_hours(epic_id: int, db: Session):
     epic.estimated_hours = (direct.est or 0) + (subtasks.est or 0)
     epic.logged_hours = (direct.logged or 0) + (subtasks.logged or 0)
     epic.remaining_hours = (direct.remaining or 0) + (subtasks.remaining or 0)
-    epic.updated_at = datetime.utcnow()
+    epic.updated_at = utcnow()
 
 
 def update_parent_status_from_subtasks(parent_id: int, db: Session):
@@ -182,7 +185,7 @@ def update_parent_status_from_subtasks(parent_id: int, db: Session):
         parent.status = WorkItemStatus.TODO.value
         parent.completed_at = None
         parent.started_at = None
-        parent.updated_at = datetime.utcnow()
+        parent.updated_at = utcnow()
 
 
 def refresh_parent_and_epic(parent: WorkItem, db: Session):
@@ -270,7 +273,7 @@ def update_epic_status_from_stories(epic_id: int, db: Session):
         epic.status = WorkItemStatus.TODO.value
         epic.completed_at = None
         epic.started_at = None
-        epic.updated_at = datetime.utcnow()
+        epic.updated_at = utcnow()
 
 
 # Request/Response models
@@ -704,7 +707,7 @@ def get_my_tasks(db: Session = Depends(get_db), current_user: User = Depends(get
                 "remaining_hours": item.remaining_hours,
                 "is_overdue": bool(
                     item.due_date
-                    and item.due_date.date() < datetime.utcnow().date()
+                    and item.due_date.date() < utcnow().date()
                     and item.status != "done"
                 ),
                 "completed_at": item.completed_at.isoformat() if item.completed_at else None,
@@ -838,10 +841,13 @@ def create_work_item(
 
     # Acquire a PostgreSQL transaction-level advisory lock scoped to this key_prefix.
     # This serializes concurrent inserts for the same prefix across all Gunicorn workers,
-    # making key collisions impossible without any retry logic. No-op on SQLite (local
-    # dev), which is single-writer anyway so there's nothing to serialize.
+    # making key collisions impossible without any retry logic. The lock id comes from
+    # key_prefix_lock_id (a stable crc32) — NOT the builtin hash(), which is per-process
+    # randomized and would hand each worker a different id, breaking serialization.
+    # No-op on SQLite (local dev), which is single-writer anyway so there's nothing to
+    # serialize.
     if db.bind is not None and db.bind.dialect.name == "postgresql":
-        lock_id = abs(hash(key_prefix)) % 2_147_483_647
+        lock_id = key_prefix_lock_id(key_prefix)
         db.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": lock_id})
 
     # Now we're the only transaction touching this prefix — get next number safely
@@ -871,9 +877,9 @@ def create_work_item(
         acceptance_criteria=item.acceptance_criteria,
         start_date=datetime.fromisoformat(item.start_date) if item.start_date else None,
         due_date=datetime.fromisoformat(item.due_date) if item.due_date else None,
-        started_at=datetime.utcnow() if item.status == "in_progress" else None,
-        completed_at=datetime.utcnow() if item.status == "done" else None,
-        last_assigned_at=datetime.utcnow() if item.assignee_id else None,
+        started_at=utcnow() if item.status == "in_progress" else None,
+        completed_at=utcnow() if item.status == "done" else None,
+        last_assigned_at=utcnow() if item.assignee_id else None,
     )
     db.add(work_item)
     db.flush()  # assigns work_item.id without committing
@@ -1108,9 +1114,9 @@ def update_work_item(
     if "status" in update_data:
         new_status = update_data["status"]
         if new_status == WorkItemStatus.IN_PROGRESS.value and not item.started_at:
-            item.started_at = datetime.utcnow()
+            item.started_at = utcnow()
         elif new_status == WorkItemStatus.DONE.value and not item.completed_at:
-            item.completed_at = datetime.utcnow()
+            item.completed_at = utcnow()
 
     for key, value in update_data.items():
         # Allow null for certain fields, skip only for others
@@ -1136,7 +1142,7 @@ def update_work_item(
     if "estimated_hours" in update_data or "logged_hours" in update_data:
         item.remaining_hours = max(0, (item.estimated_hours or 0) - (item.logged_hours or 0))
 
-    item.updated_at = datetime.utcnow()
+    item.updated_at = utcnow()
 
     # Handle ticket transfer - create automatic comment
     if "assignee_id" in update_data:
@@ -1144,7 +1150,7 @@ def update_work_item(
         # Only create comment if assignee actually changed
         if new_assignee_id != old_assignee_id:
             # Stamp the transfer time so the new assignee's capacity uses remaining (not estimated)
-            item.last_assigned_at = datetime.utcnow()
+            item.last_assigned_at = utcnow()
             # Record the assignment change in the audit trail
             from services.assignment_history_service import record_assignment_change
 
@@ -1376,9 +1382,7 @@ def update_work_item(
         "due_date": item.due_date.isoformat() if item.due_date else None,
         "start_date": item.start_date.isoformat() if item.start_date else None,
         "is_overdue": bool(
-            item.due_date
-            and item.due_date.date() < datetime.utcnow().date()
-            and item.status != "done"
+            item.due_date and item.due_date.date() < utcnow().date() and item.status != "done"
         ),
         "started_at": item.started_at.isoformat() if item.started_at else None,
         "completed_at": item.completed_at.isoformat() if item.completed_at else None,
@@ -1455,10 +1459,10 @@ def batch_update_status(
     for item in items:
         item.status = update.status
         if update.status == WorkItemStatus.IN_PROGRESS.value and not item.started_at:
-            item.started_at = datetime.utcnow()
+            item.started_at = utcnow()
         elif update.status == WorkItemStatus.DONE.value and not item.completed_at:
-            item.completed_at = datetime.utcnow()
-        item.updated_at = datetime.utcnow()
+            item.completed_at = utcnow()
+        item.updated_at = utcnow()
 
         # Track epics that need status updates
         if item.epic_id:
@@ -1562,7 +1566,7 @@ def unblock_work_item(
             Comment.is_resolved.is_(False),
         )
         .update(
-            {"is_resolved": True, "updated_at": datetime.utcnow()},
+            {"is_resolved": True, "updated_at": utcnow()},
             synchronize_session=False,
         )
     )
@@ -1675,7 +1679,7 @@ def log_hours(
     if dev_id_for_dedupe is not None:
         from datetime import timedelta
 
-        dedupe_window_start = datetime.utcnow() - timedelta(seconds=5)
+        dedupe_window_start = utcnow() - timedelta(seconds=5)
         recent_duplicate = (
             db.query(TimeEntry)
             .filter(
@@ -1726,7 +1730,7 @@ def log_hours(
         .scalar()
     ) or 0
     item.remaining_hours = max(0, (item.estimated_hours or 0) - (item.logged_hours or 0))
-    item.updated_at = datetime.utcnow()
+    item.updated_at = utcnow()
 
     db.commit()
     db.refresh(item)
@@ -1786,7 +1790,7 @@ def get_work_item_time_entries(
     week_start = None
     week_end = None
     if this_week_only:
-        today = datetime.utcnow()
+        today = utcnow()
         days_since_sunday = (today.weekday() + 1) % 7
         week_start = today - timedelta(days=days_since_sunday)
         week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -1928,8 +1932,8 @@ async def generate_work_items(
                 "product_id": request.product_id,
                 "tags": item_data.get("tags", []),
                 "epic": item_data.get("epic", ""),
-                "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat(),
+                "created_at": utcnow().isoformat(),
+                "updated_at": utcnow().isoformat(),
             }
             generated_items.append(work_item)
 
@@ -1959,8 +1963,8 @@ async def generate_work_items(
                 "product_id": request.product_id,
                 "tags": ["ai-generated"],
                 "epic": "",
-                "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat(),
+                "created_at": utcnow().isoformat(),
+                "updated_at": utcnow().isoformat(),
             }
             generated_items.append(work_item)
 
@@ -2088,7 +2092,7 @@ def activate_sprint(
         raise HTTPException(status_code=404, detail="Sprint not found")
 
     sprint.status = SprintStatus.ACTIVE.value
-    sprint.activated_at = datetime.utcnow()
+    sprint.activated_at = utcnow()
     db.commit()
     db.refresh(sprint)
     return sprint
@@ -2104,7 +2108,7 @@ def complete_sprint(
         raise HTTPException(status_code=404, detail="Sprint not found")
 
     sprint.status = SprintStatus.COMPLETED.value
-    sprint.completed_at = datetime.utcnow()
+    sprint.completed_at = utcnow()
 
     # Calculate velocity (completed story points)
     completed_points = (
@@ -2167,7 +2171,7 @@ async def update_sprint(
     if data.capacity_hours is not None:
         sprint.capacity_hours = data.capacity_hours
 
-    sprint.updated_at = datetime.utcnow()
+    sprint.updated_at = utcnow()
 
     # Log name / date changes to the activity feed (goal + capacity edits are
     # intentionally not surfaced — they're low-signal for the timeline).
@@ -2290,7 +2294,7 @@ def move_ticket_to_sprint(
         if item.status == WorkItemStatus.BACKLOG.value:
             item.status = WorkItemStatus.TODO.value
 
-    item.updated_at = datetime.utcnow()
+    item.updated_at = utcnow()
     db.commit()
     db.refresh(item)
 
@@ -2410,7 +2414,7 @@ def list_project_sprints(
     )
 
     # Compute sprint status on-read (no DB mutation on GET)
-    today = datetime.utcnow()
+    today = utcnow()
 
     def _computed_status(sprint: Sprint) -> str:
         """Compute display status without mutating the row."""
@@ -2579,7 +2583,7 @@ def get_project_analytics(
 
     burndown_data = []
     for i in range(14, -1, -1):
-        date = datetime.utcnow() - timedelta(days=i)
+        date = utcnow() - timedelta(days=i)
         # Count items done by this date
         done_count = sum(
             1
@@ -2667,7 +2671,7 @@ def get_hours_analytics(
     )
 
     # Compute sprint status on-read (no DB mutation on GET) — same logic as list endpoint
-    now = datetime.utcnow()
+    now = utcnow()
 
     def _sprint_display_status(sprint: Sprint) -> str:
         if (
@@ -2936,7 +2940,7 @@ def get_hours_analytics(
     time_entries = all_time_entries
 
     # Calculate weeks from first sprint start (or project start if no sprints) to now
-    today = datetime.utcnow()
+    today = utcnow()
 
     # Find the earliest sprint start date, or use project creation if no sprints
     earliest_sprint = (
@@ -3325,7 +3329,7 @@ def debug_hours_calculation(
     work_item_map = {item.id: item for item in items}
 
     # Calculate week boundaries
-    today = datetime.utcnow()
+    today = utcnow()
     days_since_sunday = (today.weekday() + 1) % 7
     week_start = today - timedelta(days=days_since_sunday)
     week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)

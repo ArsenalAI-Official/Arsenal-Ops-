@@ -30,7 +30,7 @@
     "https://github.com/org/alpha"
   ],
   "id": 1,
-  "key_prefix": "active",
+  "key_prefix": "ALPH",
   "name": "Alpha",
   "selected_architecture": null,
   "status": "active",
