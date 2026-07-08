@@ -6,9 +6,11 @@ developer can stand it up against the Intuit sandbox with no help), and the
 production rollout (split into Arsenal-developer steps and QuickBooks-admin
 steps so the handoff is unambiguous).
 
-The sync logic lives in `backend/services/workforce_sync.py`; the cron entry
-point is `backend/scripts/run_workforce_sync.py`; the schedule is configured
-outside the code (Render Cron Job in prod).
+The sync logic lives in `backend/services/workforce_sync.py`. Syncs are
+triggered **manually** by an admin clicking **Sync Now** in the Integrations
+tab — there is no scheduled/cron trigger. (An admin must run Sync Now at least
+once every ~100 days to keep the OAuth refresh token alive; see the token-TTL
+note under "Rate limits & costs".)
 
 ---
 
@@ -47,7 +49,6 @@ Bookmark these once — every step below links into one of them.
 |---|---|
 | Dashboard | https://dashboard.render.com |
 | Create a new service | https://dashboard.render.com/select-repo |
-| Create a new Cron Job specifically | https://dashboard.render.com/select-repo?type=cron |
 | Environment groups | https://dashboard.render.com/env-groups |
 
 ### Intuit API reference (for debugging only — not needed for routine setup)
@@ -68,18 +69,21 @@ Bookmark these once — every step below links into one of them.
 
 ## What the sync does on each run
 
-1. Resolves the Mon–Fri of the calendar week the trigger fires in (so a Saturday cron and a same-week manual click both target the same window).
+1. Resolves the Mon–Fri of the calendar week the trigger fires in.
 2. Pulls TimeEntries logged in that window whose project is tagged to a QB Customer and that aren't already in QuickBooks.
 3. Looks up each developer's QB Employee by email (case-insensitive); skips with a logged reason if no match.
 4. Posts each entry to QuickBooks `/timeactivity` under Service Item "Hours" (HR-mandated).
 5. Stores the QB TimeActivity Id back on the row so re-runs are idempotent.
 
-The same code is reachable two ways:
+**Trigger — manual only.** An admin clicks **Sync Now** in the Integrations
+tab; this calls `POST /api/admin/workforce/sync`, which invokes the sync
+function inline. On completion it sends an HTML summary email to the admin who
+clicked (template: `services/workforce_sync_notify.py` — status pill, count
+cards, error/notes block). Email failures are logged and swallowed; a
+misconfigured Gmail never fails a successful sync.
 
-- **Cron** — `python -m scripts.run_workforce_sync` (Render Cron Job). On completion, sends an HTML summary email to `WEEKLY_REPORT_RECIPIENTS` (same env var as the existing weekly hours report).
-- **Manual** — admin clicks **Sync Now** in the Integrations tab; calls `POST /api/admin/workforce/sync`, which invokes the same function inline. On completion, sends an HTML summary email to the admin who clicked.
-
-Both notifications use the same template (`services/workforce_sync_notify.py`) modeled on the existing weekly report — status pill, count cards, error/notes block — so the two emails read as a coherent series. Email failures are logged and swallowed; a misconfigured Gmail never fails a successful sync.
+> There is no scheduled trigger. The CLI (`python -m scripts.run_workforce_sync`)
+> still exists for on-demand/manual runs, but nothing invokes it on a schedule.
 
 ---
 
@@ -98,8 +102,7 @@ Both notifications use the same template (`services/workforce_sync_notify.py`) m
 │ integration row │
 └────────┬────────┘
          │  Triggered by:
-         │   (a) weekly cron — Saturday 08:00 UTC
-         │   (b) manual "Sync Now" — admin button
+         │   manual "Sync Now" — admin button (no scheduled trigger)
          ▼
 ┌──────────────────────────────────────────────┐
 │ Sync worker                                  │
@@ -118,9 +121,9 @@ Both notifications use the same template (`services/workforce_sync_notify.py`) m
 
 Three key design choices:
 
-- **One-time admin OAuth, not per-user.** Backend stores a long-lived refresh token (~100-day TTL, auto-renewed on each use). Subsequent syncs run server-side with no further user interaction. The backend writes on behalf of employees by setting `EmployeeRef`.
+- **One-time admin OAuth, not per-user.** Backend stores a long-lived refresh token (~100-day TTL, auto-renewed on each use). Subsequent syncs run server-side with no further user interaction. The backend writes on behalf of employees by setting `EmployeeRef`. (Because there's no scheduled sync, that "each use" renewal only happens when an admin actually clicks Sync Now — see the token-TTL note under "Rate limits & costs".)
 - **Email-based employee mapping at sync time.** If an Arsenal email doesn't match any QB Employee, that entry is skipped + a reason is recorded. The sync never fails wholesale on a single missing employee.
-- **Idempotent via `TimeEntry.workforce_entry_id`.** Once a TimeEntry has a QB id stored, the worker skips it. Re-running the sync (or having the Saturday cron and a manual click race) never double-pushes.
+- **Idempotent via `TimeEntry.workforce_entry_id`.** Once a TimeEntry has a QB id stored, the worker skips it. Re-running the sync (or two admins clicking **Sync Now** at once) never double-pushes.
 
 ---
 
@@ -147,7 +150,7 @@ Three key design choices:
 
 ### New table — `workforce_clients` (cached QB Customer list)
 
-Read by the per-project picker so opening the dropdown is free of Intuit round-trips. Refreshed by the OAuth callback (eager seed), the Saturday cron (preflight), and a manual "Refresh clients" button. Soft-delete pattern (`active=False`) so projects already tagged to a deactivated customer keep rendering the cached name.
+Read by the per-project picker so opening the dropdown is free of Intuit round-trips. Refreshed by the OAuth callback (eager seed), each sync run (preflight), and a manual "Refresh clients" button. Soft-delete pattern (`active=False`) so projects already tagged to a deactivated customer keep rendering the cached name.
 
 ### Additions to existing tables
 
@@ -447,9 +450,9 @@ Two roles split the work cleanly. Do them in order — section 2A before 2B befo
 
 | Section | Done by | What |
 |---|---|---|
-| **2A** — Developer pre-work | Arsenal developer / devops | Provisions production credentials, env vars, and the Render cron job. Prepares everything **except** the OAuth click. |
+| **2A** — Developer pre-work | Arsenal developer / devops | Provisions production credentials and env vars. Prepares everything **except** the OAuth click. |
 | **2B** — QB admin handoff | Real QuickBooks admin | The **only** person who can sign Arsenal into the real QB company. Sets up the QB-side prerequisites and clicks Connect. Designed to be sent verbatim to the QB admin. |
-| **2C** — Developer wrap-up | Arsenal developer / devops | Tags projects, verifies the cron job, confirms first sync. |
+| **2C** — Developer wrap-up | Arsenal developer / devops | Tags projects, confirms first sync. |
 
 **Why the split:** Intuit's OAuth flow inherits the connecting user's QB permissions. If a non-admin clicks Connect, Intuit either refuses or returns a read-only token that cannot write TimeActivity. So the actual Connect click in 2B **must** be done by the QB admin in person.
 
@@ -482,9 +485,12 @@ This is a **different** key from the local-dev one. Treat it like a production d
 
 - **Never** commit it to git.
 - **Never** put it in the local `.env`.
-- Paste it into Render's secret store in step 2.5 / 2.6.
+- Paste it into Render's secret store in step 2.5.
 
-> Critical: the same key must be set on **both** the Render web service and the Render cron job. If they differ, the cron can't decrypt the tokens the web service wrote and every sync fails with `Stored workforce token could not be decrypted.`
+> The key is set once, on the Render web service. If it's ever changed while an
+> integration is connected, the stored tokens can no longer be decrypted and
+> every sync fails with a "reconnection required" error until an admin
+> Disconnects + Connects again.
 
 ### Step 2.3 — Get the production Intuit credentials
 
@@ -542,42 +548,7 @@ WORKFORCE_TOKEN_ENCRYPTION_KEY=<from step 2.2>
 
 > Render env var docs (for syntax of secrets, env groups, etc.): https://render.com/docs/environment-variables
 
-### Step 2.6 — Set env vars on the Render cron job
-
-The cron job needs the **same five values** plus `DATABASE_URL`. Two ways:
-
-**Option A — Environment Group (recommended).** Create once, link to both services, no drift:
-
-1. https://dashboard.render.com/env-groups → **New Environment Group**.
-2. Name it `arsenal-ops-workforce` (or similar). Add all five workforce vars from step 2.5 plus `DATABASE_URL` (same Postgres connection string as the web service uses).
-3. Link the group to the web service (https://dashboard.render.com → backend service → Environment → **Link Environment Group**) AND to the cron job (created in step 2.7 — link it there as well).
-4. Now updating a value in the env group propagates to both services on next deploy.
-
-**Option B — Per-service vars.** Copy the five workforce vars + `DATABASE_URL` directly onto each service's Environment tab. Simpler initially, but easy to forget to sync them when you rotate the encryption key.
-
-> Env-group docs: https://render.com/docs/configure-environment-variables#environment-groups
-
-### Step 2.7 — Create the Render Cron Job
-
-1. Direct link: https://dashboard.render.com/select-repo?type=cron — pre-selects "Cron Job" as the service type.
-2. Pick the Arsenal Ops repo and the branch (`main` or your prod branch).
-3. Fill in the form:
-
-| Field | Value |
-|---|---|
-| Name | `arsenal-ops-workforce-sync` |
-| Region | same as the backend web service |
-| Branch | `main` (or your prod branch) |
-| Runtime | `Docker` |
-| Dockerfile Path | `backend/Dockerfile`   *(reuses the backend image)* |
-| Docker Build Context Directory | `backend` |
-| Schedule | `0 8 * * 6`   *(Saturday 08:00 UTC — see DST note below)* |
-| Command | `python -m scripts.run_workforce_sync` |
-| Instance type | `Starter` is plenty |
-
-Attach the env group from step 2.6 (or set env vars individually).
-
-### Step 2.8 — Deploy the backend with the new env
+### Step 2.6 — Deploy the backend with the new env
 
 Trigger a redeploy of the web service so the env vars take effect. Wait until the deploy is healthy and the `/api/admin/workforce/status` endpoint returns:
 
@@ -587,11 +558,11 @@ Trigger a redeploy of the web service so the env vars take effect. Wait until th
 
 If it returns 500 or "encryption key not configured", re-check step 2.5.
 
-### Step 2.9 — Hand off to the QB admin
+### Step 2.7 — Hand off to the QB admin
 
 Send the QB admin **Part 2B verbatim** (it's self-contained — they don't need to read anything else in this doc). Suggested message:
 
-> Hey [QB admin], we're enabling automatic QuickBooks time-sync from Arsenal Ops. There's a one-time setup on your end — about 15 minutes total. The steps are in this doc under "Part 2B — QuickBooks admin steps." After you complete step 2.15 (the "Connect QuickBooks" click in Arsenal), ping me back and I'll finish the rest.
+> Hey [QB admin], we're enabling QuickBooks time-sync from Arsenal Ops. There's a one-time setup on your end — about 15 minutes total. The steps are in this doc under "Part 2B — QuickBooks admin steps." Once you finish the "Connect QuickBooks" step and the card shows **Connected**, ping me back and I'll finish the rest.
 
 Wait until you get the "done" ping before continuing to Part 2C.
 
@@ -613,14 +584,14 @@ Wait until you get the "done" ping before continuing to Part 2C.
 
 | Step | Link |
 |---|---|
-| 2.10 — Create Hours Service Item | https://app.qbo.intuit.com/app/items |
-| 2.11 — Verify employee emails | https://app.qbo.intuit.com/app/employees |
-| 2.12 — Pre-create customers (optional) | https://app.qbo.intuit.com/app/customers |
-| 2.13–2.14 — Connect in Arsenal Ops | `https://<your-arsenal-host>/admin?tab=integrations` |
+| 2.8 — Create Hours Service Item | https://app.qbo.intuit.com/app/items |
+| 2.9 — Verify employee emails | https://app.qbo.intuit.com/app/employees |
+| 2.10 — Pre-create customers (optional) | https://app.qbo.intuit.com/app/customers |
+| 2.11–2.12 — Connect in Arsenal Ops | `https://<your-arsenal-host>/admin?tab=integrations` |
 
 ---
 
-### Step 2.10 — Create the "Hours" Service Item in QuickBooks
+### Step 2.8 — Create the "Hours" Service Item in QuickBooks
 
 Even if your QuickBooks company already has time tracking enabled, the sync requires a specific Service Item named exactly `Hours`.
 
@@ -634,7 +605,7 @@ Even if your QuickBooks company already has time tracking enabled, the sync requ
 
 > Why this exact name: HR mandated a single Service Item for all Arsenal billable hours so finance reports are consistent. The sync looks up this item by name on every connect.
 
-### Step 2.11 — Verify employee emails match Arsenal
+### Step 2.9 — Verify employee emails match Arsenal
 
 The sync matches each Arsenal user's email against a QB Employee's primary email. **Case-insensitive, but otherwise exact.**
 
@@ -648,7 +619,7 @@ The sync matches each Arsenal user's email against a QB Employee's primary email
 
 If an employee has no email in QB, add one. Time entries for employees with no QB match will be **skipped** (not failed) with a logged reason; you can fix them later without re-running anything.
 
-### Step 2.12 — (Optional) Pre-create QB Customers
+### Step 2.10 — (Optional) Pre-create QB Customers
 
 If you already maintain QB Customers for each client Arsenal bills against, skip this step.
 
@@ -662,7 +633,7 @@ If not, create them now:
 
 > You can also create customers later — projects without a QB Customer tagged are simply ignored by the sync. Pre-creating them lets the developer tag projects in 2C without going back and forth.
 
-### Step 2.13 — Sign in to Arsenal Ops
+### Step 2.11 — Sign in to Arsenal Ops
 
 1. Open the Arsenal Ops URL your devops contact gave you (e.g. `https://app.arsenalai.com`).
 2. Direct link to the Integrations tab: `https://app.arsenalai.com/admin?tab=integrations` (substitute the actual hostname).
@@ -670,7 +641,7 @@ If not, create them now:
 
 If you don't see an **Admin** option in the navigation, your account is missing the required capability — ping the devops contact and ask them to grant `admin.workforce_connect`.
 
-### Step 2.14 — Connect QuickBooks
+### Step 2.12 — Connect QuickBooks
 
 1. Navigate to **Admin → Integrations** (direct: `https://<your-arsenal-host>/admin?tab=integrations`).
 2. You should see a card titled "QuickBooks Time Sync" with status **Not connected**.
@@ -689,28 +660,28 @@ If you don't see an **Admin** option in the navigation, your account is missing 
 - **Connected:** today's timestamp
 - **Last Sync:** Never (this is correct — the first sync hasn't run yet)
 
-### Step 2.15 — Verify the connection
+### Step 2.13 — Verify the connection
 
-Quick visual check that the Integrations card shows everything in step 2.14's expected list. If anything is wrong:
+Quick visual check that the Integrations card shows everything in step 2.12's expected list. If anything is wrong:
 
 | What you see | What it means | Fix |
 |---|---|---|
-| `?workforce=connected&warn=service_item_missing` in the URL | The Hours Service Item doesn't exist in QB | Go back to step 2.10, then click **Disconnect** → **Connect** again. |
+| `?workforce=connected&warn=service_item_missing` in the URL | The Hours Service Item doesn't exist in QB | Go back to step 2.8, then click **Disconnect** → **Connect** again. |
 | `?workforce=error&reason=token_exchange_failed` | Intuit rejected the handshake — usually wrong redirect URI | Ping the devops contact — this is on the Arsenal side. |
 | Red badge "Encryption not configured" | Server is missing `WORKFORCE_TOKEN_ENCRYPTION_KEY` | Ping the devops contact. |
 | Anything else unexpected | n/a | Screenshot it and ping the devops contact. |
 
-### Step 2.16 — Notify the developer that you're done
+### Step 2.14 — Notify the developer that you're done
 
 Send a quick "connected — over to you" message. The developer will tag billable projects to QB Customers and verify the first sync (Part 2C).
 
-You do **not** need to do anything else after this point. The Saturday cron will push hours automatically; if you ever want to disconnect, the **Disconnect** button on the same Integrations card revokes Arsenal's access at Intuit immediately.
+You do **not** need to do anything else after this point. From now on an Arsenal admin pushes hours to QuickBooks by clicking **Sync Now** on the Integrations card (there's no automatic/scheduled sync). If you ever want to disconnect, the **Disconnect** button on the same card revokes Arsenal's access at Intuit immediately.
 
 ---
 
 ## Part 2C — Developer wrap-up
 
-### Step 2.17 — Tag projects to QB Customers
+### Step 2.15 — Tag projects to QB Customers
 
 Once the QB admin completes 2B, the per-project picker is fully populated with the real QB customer list.
 
@@ -720,7 +691,7 @@ Once the QB admin completes 2B, the per-project picker is fully populated with t
 
 Projects without a QB client tag are **ignored** by the sync — there is no error, they're simply not eligible. You can leave non-billable / internal projects untagged.
 
-### Step 2.18 — Trigger a first manual sync
+### Step 2.16 — Trigger a first manual sync
 
 1. Direct link: `https://<your-arsenal-host>/admin?tab=integrations` (alternatively: **Admin → Integrations**).
 2. Click **Sync Now**.
@@ -728,58 +699,19 @@ Projects without a QB client tag are **ignored** by the sync — there is no err
 4. If you triggered the click as an authenticated admin, you also receive an HTML summary email (provided Gmail OAuth2 is configured per the existing weekly-report setup — see `EMAIL_SETUP.md`).
 5. **Verify in QuickBooks:** open https://app.qbo.intuit.com/app/time in the real (non-sandbox) QB tab → confirm the new TimeActivity records appear with the right Employee + Customer + Hours.
 
-### Step 2.19 — Verify the cron job's next-run timestamp
+### Step 2.17 — Confirm the integration is healthy
 
-1. Open the cron job in Render: https://dashboard.render.com → click `arsenal-ops-workforce-sync` (URL pattern `https://dashboard.render.com/cron/srv-<id>`).
-2. **Next run** should be the upcoming Saturday at 08:00 UTC (or whatever schedule you set in step 2.7).
-3. Optionally click **Trigger Run** to fire it once on-demand. Watch the **Logs** tab — you should see a line like:
-   ```
-   result: {"status": "ok", "synced": N, "failed": 0, "skipped": M, "window_start": "...", "window_end": "..."}
-   ```
-4. Check `WEEKLY_REPORT_RECIPIENTS` got the summary email (assuming Gmail is configured).
+On the Integrations card, confirm **Last Sync** now shows a timestamp and the status badge is green. That's the whole rollout — there is no cron job to verify.
+
+> **Keep the connection alive.** Because sync is manual-only, the OAuth refresh
+> token is only renewed when an admin clicks **Sync Now** (or **Refresh
+> clients**). Intuit expires an unused refresh token after ~100 days — so if
+> nobody syncs for that long, the next attempt fails with a "reconnection
+> required" error and an admin must **Disconnect → Connect** again. Running
+> Sync Now on any regular cadence (e.g. weekly at payroll time) keeps it alive
+> indefinitely.
 
 Production rollout is complete.
-
----
-
-## DST gotcha (Render is UTC-only)
-
-Render cron expressions are **UTC**; there is no timezone field. `0 8 * * 6` (Sat 08:00 UTC) corresponds to:
-
-- **EST (winter):** Sat 03:00 ET — early morning, before anyone is in the office.
-- **EDT (summer):** Sat 04:00 ET — also early morning, drifts by 1h vs. winter.
-- **IST (India):** Sat 13:30 IST.
-
-If a different local Saturday time fits the team better, pick a different UTC expression — there's no business reason it must be 08:00.
-
----
-
-## Optional: `render.yaml` (Infrastructure-as-Code)
-
-Committing a blueprint makes the cron job reproducible:
-
-```yaml
-services:
-  - type: cron
-    name: arsenal-ops-workforce-sync
-    runtime: docker
-    dockerfilePath: backend/Dockerfile
-    schedule: "0 8 * * 6"                         # Sat 08:00 UTC
-    buildCommand: ""
-    startCommand: python -m scripts.run_workforce_sync
-    envVars:
-      - fromGroup: arsenal-ops-shared              # DATABASE_URL etc.
-      - key: INTUIT_CLIENT_ID
-        sync: false
-      - key: INTUIT_CLIENT_SECRET
-        sync: false
-      - key: INTUIT_REDIRECT_URI
-        sync: false
-      - key: WORKFORCE_TOKEN_ENCRYPTION_KEY
-        sync: false
-```
-
-`sync: false` means "set the value in the Render dashboard, don't sync from this file" — keeps secrets out of git.
 
 ---
 
@@ -797,7 +729,7 @@ curl -X POST http://localhost:8000/api/admin/workforce/sync \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-For automatic local scheduling, add a `scheduler` container to `docker-compose.yml` running supercronic (mirrors the pattern in `WEEKLY_EMAIL_REPORT_SETUP.md`). Not shipped by default — Render's managed cron is the canonical scheduler.
+Both run the exact same sync the **Sync Now** button does. There is no scheduled trigger in any environment — sync is always initiated by an admin (the button) or on demand (the commands above).
 
 ---
 
@@ -807,23 +739,16 @@ For automatic local scheduling, add a `scheduler` container to `docker-compose.y
 |---|---|---|
 | `INTUIT_CLIENT_ID` | — | Intuit developer app client id (different between Development and Production keys) |
 | `INTUIT_CLIENT_SECRET` | — | Intuit developer app client secret |
-| `INTUIT_REDIRECT_URI` | — | OAuth redirect URI — must match the URI registered in the Intuit app exactly. Web service uses this; cron does not. |
+| `INTUIT_REDIRECT_URI` | — | OAuth redirect URI — must match the URI registered in the Intuit app exactly. |
 | `INTUIT_OAUTH_BASE_URL` | `https://appcenter.intuit.com` | Override for tests; same for sandbox + production |
 | `INTUIT_TOKEN_URL` | `https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer` | Override for tests; same for sandbox + production |
 | `INTUIT_REVOKE_URL` | `https://developer.api.intuit.com/v2/oauth2/tokens/revoke` | Override for tests; same for sandbox + production |
 | `INTUIT_API_BASE_URL` | `https://quickbooks.api.intuit.com` | **THIS is the sandbox/prod toggle.** Set to `https://sandbox-quickbooks.api.intuit.com` for sandbox. |
-| `WORKFORCE_TOKEN_ENCRYPTION_KEY` | — | Fernet key. Generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. **MUST match between web and cron services.** |
+| `WORKFORCE_TOKEN_ENCRYPTION_KEY` | — | Fernet key. Generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Set on the web service; changing it while connected breaks decryption until reconnect. |
 | `FRONTEND_URL` | `http://localhost:5173` | Origin of the SPA. The OAuth callback builds `${FRONTEND_URL}/admin?tab=integrations` to bounce the admin's browser back to the Integrations tab after Connect completes. Already used by other Arsenal flows. |
 | `DATABASE_URL` | — | Postgres connection string — must point at the same DB the API uses |
-| `WEEKLY_REPORT_RECIPIENTS` | *empty* | Comma-separated emails that receive both the weekly hours report AND the Saturday QuickBooks sync summary. Empty / unset → cron sync runs silently (no email). |
+| `WEEKLY_REPORT_RECIPIENTS` | *empty* | Comma-separated emails for the existing weekly hours report. The manual QuickBooks sync additionally emails its summary to the admin who clicked **Sync Now**. |
 | Gmail OAuth2 env (`MAIL_REFRESH_TOKEN`, `BOT_EMAIL`, `SMTP_FROM_NAME`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`) | — | Required to actually deliver the sync notification email. Same setup as the existing weekly report (see `EMAIL_SETUP.md`). If not configured, the sync still runs — the email send logs a warning and is skipped. |
-
----
-
-## Schedule changes
-
-- **Render:** edit the cron job's `Schedule` field in the dashboard (or update `render.yaml` and redeploy).
-- **Local Compose:** if you add a `scheduler` container, edit `backend/crontab` and `docker compose restart scheduler`.
 
 ---
 
@@ -833,7 +758,7 @@ For automatic local scheduling, add a `scheduler` container to `docker-compose.y
 
 The integration itself is **free**. Intuit doesn't charge per API call, per OAuth handshake, or for sandbox usage. You pay for your existing QuickBooks Online subscription (any QBO tier — Simple Start, Essentials, Plus, Advanced — supports the TimeActivity endpoint we use); the integration doesn't push you to a higher tier.
 
-The only incremental cost is the Render Cron Job container — currently ~$1–2/month on Render's Starter tier (verify against current Render pricing). If you'd rather avoid it, trigger `POST /api/admin/workforce/sync` from any cron source you already pay for (GitHub Actions scheduled workflows, an existing crontab, etc.). The sync code is indifferent to who triggers it.
+There is **no incremental hosting cost**: the sync runs inline in the existing backend web service when an admin clicks **Sync Now** — there's no separate scheduler/cron service to pay for.
 
 ### Intuit QBO API rate limits
 
@@ -852,16 +777,16 @@ Intuit publishes the following limits per QB Online realm (your QB company). The
 
 ### Arsenal's expected volume
 
-A typical weekly sync at Arsenal makes:
+A typical **Sync Now** run at Arsenal makes:
 
-| Operation | Calls / week |
+| Operation | Calls / run |
 |---|---|
 | `fetch_qb_employees` (one query at sync start) | 1 |
 | `resolve_service_item` (only if `service_item_id` is null) | 0–1 |
 | `post_time_activity` (one per eligible TimeEntry) | ~50–200 |
-| **Total per Saturday cron** | **~50–202** |
+| **Total per sync run** | **~50–202** |
 
-Spread across ~30 seconds. **About 7 requests/second peak — roughly 1.4% of the 500/min limit.** You will never hit the limit in normal operation.
+Spread across ~30 seconds (all over one reused keep-alive connection). **About 7 requests/second peak — roughly 1.4% of the 500/min limit.** You will never hit the limit in normal operation.
 
 ### What happens if we do hit a limit
 
@@ -877,7 +802,7 @@ Worst case from hitting a rate limit: a one-week delay in fully draining the que
 
 - **OAuth handshake** is unmetered. The Connect button doesn't consume API quota.
 - **Refresh token** rolls every time we mint an access token (about once an hour during a sync). Intuit doesn't rate-limit refreshes separately from API calls.
-- **The ~100-day refresh-token TTL** is the only timer that can quietly kill the integration. The Saturday cron's once-a-week activity is more than enough to keep it rolling. If the integration sits idle for >100 days without a sync, the next run will fail with `status=error, reason=oauth_failed` — see Troubleshooting below for the disconnect/reconnect fix.
+- **The ~100-day refresh-token TTL** is the only timer that can quietly kill the integration, and with **no scheduled sync it is no longer auto-kept-alive** — the token only rolls when an admin runs **Sync Now** (or **Refresh clients**). If nobody syncs for >100 days, the next run fails with `status=error, reason=oauth_failed` and needs a Disconnect → Connect (see Troubleshooting). Running Sync Now on any regular cadence (e.g. weekly at payroll time) keeps it rolling indefinitely.
 
 ---
 
@@ -890,8 +815,8 @@ Worst case from hitting a rate limit: a one-week delay in fully draining the que
 | `status=partial, reason=rate_limited; resumes next run` | Hit Intuit's per-realm rate limit (rare at our volume) | None — next run picks up the remainder |
 | Many `skipped` entries with `not in QuickBooks` | Developer emails don't match QB employee emails | Check each developer's Arsenal email matches their QB Employee primary email exactly (case-insensitive) |
 | `status=error, reason=oauth_failed` | Refresh token revoked or aged out (~100-day TTL with no refresh) | Admin → Integrations → **Disconnect** then **Connect** again |
-| Cron job runs but no entries push | No projects have been tagged with a QB Customer | Admin → Projects → click the QB client chip on each billable project |
-| `Stored workforce token could not be decrypted` | `WORKFORCE_TOKEN_ENCRYPTION_KEY` differs between web service and cron job | Set the same value on both, then Disconnect + Connect again |
+| Sync Now runs but no entries push | No projects have been tagged with a QB Customer | Admin → Projects → click the QB client chip on each billable project |
+| `status=error, reason=...reconnection required...the stored credentials could not be decrypted` | `WORKFORCE_TOKEN_ENCRYPTION_KEY` changed since the integration was connected | Restore the original key if you have it, otherwise Disconnect + Connect again to re-encrypt with the current key |
 | `INTUIT_REDIRECT_URI is not set` on Connect | Env var missing on web service | Set it, redeploy. URI must match the one registered in the Intuit app. |
 | OAuth completes but lands on `workforce=error&reason=bad_state` | State token expired (10-min TTL) — admin took too long to click through Intuit | Click Connect again and complete within 10 minutes |
 | OAuth lands on `workforce=connected&warn=service_item_missing` | "Hours" item didn't exist at connect time | Create the item in QB, then click Sync Now — the worker resolves it lazily |
@@ -940,7 +865,7 @@ Other implementation notes:
 - **Singleton integration row:** the `workforce_integration` table holds at most one row (`id=1`). One Arsenal install = one QB realm.
 - **Per-project tagging:** a project is "eligible for sync" when `projects.workforce_client_id IS NOT NULL`. Removing the tag stops new entries from being eligible but doesn't undo entries already pushed.
 - **Idempotency:** `time_entries.workforce_entry_id IS NULL` is the eligibility filter. A successful push sets it to the QB TimeActivity Id, which is why re-running the sync never duplicates work.
-- **Concurrency:** a Postgres advisory lock prevents the Saturday cron and a manual click from overlapping. On SQLite (tests) the lock is a no-op; idempotency from `workforce_entry_id IS NULL` is sufficient there.
+- **Concurrency:** a Postgres advisory lock prevents two concurrent **Sync Now** clicks from overlapping. On SQLite (tests) the lock is a no-op; idempotency from `workforce_entry_id IS NULL` is sufficient there.
 
 ---
 
