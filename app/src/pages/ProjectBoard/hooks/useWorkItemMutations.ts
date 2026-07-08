@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import type { ConfirmFn } from '@/components/ui/confirm-dialog';
 import { apiFetch, ApiError, permissionAwareError } from '@/lib/api';
 import { invalidateProjectScope } from '@/lib/invalidations';
+import { WORK_ITEM_PATCH_FIELD_KEY } from '@/lib/mutationKeys';
 import { toastErrorHandler } from '@/lib/mutationToast';
 import { HOURS_PER_POINT, typeUsesPoints } from '@/lib/workItemConfig';
 import type { WorkItem } from '@/types/workItems';
@@ -237,6 +238,62 @@ export function useWorkItemMutations(
     saveEditMutation.mutate({ itemId: selectedItem.id, edits });
   };
 
+  // Inline per-field patch — the edit-in-place path for the Properties rail
+  // (Assignee / Priority / Story Points / Epic / Due Date / Allocated hours).
+  // Distinct from `saveEditMutation` (the retiring Edit-form path) in three
+  // ways that inline editing needs:
+  //   1. Optimistic with rollback (onMutate snapshot → setQueryData → onError
+  //      restore), so a dropdown change that the backend rejects visibly snaps
+  //      back — a form-with-Save can wait for onSuccess, a mutate-on-change
+  //      control cannot. Mirrors moveMutation's exact-key optimistic pattern
+  //      against ['workItems', workItemFilters, 'board'] (R2 / F-C3).
+  //   2. No success toast — one toast per field change would be noise.
+  //   3. Invalidation is GUARDED by the shared-key `isMutating` count so a burst
+  //      of edits only refetches once, at the end (see WORK_ITEM_PATCH_FIELD_KEY).
+  // Status is NOT routed here — it stays on the DnD-shared moveMutation.
+  const patchFieldMutation = useMutation({
+    mutationKey: WORK_ITEM_PATCH_FIELD_KEY,
+    mutationFn: ({ itemId, edits }: { itemId: string; edits: Partial<WorkItem> }) =>
+      apiFetch<WorkItem>(`/api/workitems/${itemId}`, {
+        method: 'PUT',
+        body: JSON.stringify(edits),
+      }),
+    onMutate: async ({ itemId, edits }) => {
+      // Prefix-cancel so sibling ['workItems', ...] queries can't overwrite the
+      // optimistic patch mid-flight (mirrors moveMutation, F-C3).
+      await queryClient.cancelQueries({ queryKey: ['workItems'] });
+      const previous = queryClient.getQueryData<WorkItem[]>([
+        'workItems',
+        workItemFilters,
+        'board',
+      ]);
+      queryClient.setQueryData<WorkItem[]>(['workItems', workItemFilters, 'board'], (old) =>
+        (old ?? []).map((wi) => (wi.id === itemId ? ({ ...wi, ...edits } as WorkItem) : wi)),
+      );
+      return { previous };
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.previous)
+        queryClient.setQueryData(['workItems', workItemFilters, 'board'], ctx.previous);
+      const detail = err instanceof ApiError ? err.message : 'Failed to update ticket';
+      toast.error(detail);
+    },
+    onSettled: () => {
+      // Only the last in-flight field patch invalidates (our own still-running
+      // mutation counts as 1), so a rapid sequence of inline edits doesn't
+      // refetch mid-burst and revert a later optimistic value.
+      if (queryClient.isMutating({ mutationKey: WORK_ITEM_PATCH_FIELD_KEY }) === 1) {
+        invalidateWorkItems();
+        invalidateProject();
+      }
+    },
+  });
+
+  const handlePatchField = (edits: Partial<WorkItem>) => {
+    if (!selectedItem) return;
+    patchFieldMutation.mutate({ itemId: selectedItem.id, edits });
+  };
+
   // Delete item mutation
   const deleteItemMutation = useMutation({
     mutationFn: (itemId: string) => apiFetch(`/api/workitems/${itemId}`, { method: 'DELETE' }),
@@ -311,6 +368,8 @@ export function useWorkItemMutations(
     saveEditMutation,
     isSavingEdit,
     handleSaveEdit,
+    patchFieldMutation,
+    handlePatchField,
     deleteItemMutation,
     handleDeleteItem,
     logHoursMutation,

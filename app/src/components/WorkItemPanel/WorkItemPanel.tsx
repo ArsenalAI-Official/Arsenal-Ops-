@@ -1,6 +1,7 @@
+import * as Dialog from '@radix-ui/react-dialog';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ExternalLink, Pencil } from 'lucide-react';
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { toast } from 'sonner';
 import type { SprintResponse } from '@/client';
 import type { ProjectDeveloperEntry } from '@/client';
@@ -9,13 +10,18 @@ import TicketContributors from '@/components/TicketContributors';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
 import { AddSubtaskModal } from './AddSubtaskModal';
+import type { RailDeveloper } from './components/rail/PropertiesRail';
 import { WorkItemCompactEditForm } from './components/WorkItemCompactEditForm';
 import { WorkItemCompactHierarchy } from './components/WorkItemCompactHierarchy';
 import { WorkItemFullEditForm } from './components/WorkItemFullEditForm';
 import { WorkItemFullHierarchy } from './components/WorkItemFullHierarchy';
 import { WorkItemPanelHeader } from './components/WorkItemPanelHeader';
 import { WorkItemSprintActions } from './components/WorkItemSprintActions';
-import { WorkItemViewMode } from './components/WorkItemViewMode';
+import { WorkItemTwoPaneView } from './components/WorkItemTwoPaneView';
+import { useFloatingPosition } from './hooks/useFloatingPosition';
+import { useFloatingSize } from './hooks/useFloatingSize';
+import { usePanelWidth } from './hooks/usePanelWidth';
+import { useRailCollapsed } from './hooks/useRailCollapsed';
 import { useWorkItemPanel } from './hooks/useWorkItemPanel';
 import { hasCompactHierarchy } from './lib/renderContent';
 import type { WorkItem, ProjectLite } from './types';
@@ -27,6 +33,19 @@ interface WorkItemPanelCommon {
   token: string;
   currentUserId: number | null;
   onClose: () => void;
+  /** 'docked' (default): modal right-anchored slide-over. 'floating': a movable,
+   *  non-modal window (board only — for viewing multiple tickets at once). */
+  presentation?: 'docked' | 'floating';
+  /** Docked only: detaches this ticket into a floating window. Shows the header
+   *  pop-out button when provided. */
+  onPopOut?: () => void;
+  /** Floating only: re-docks this window back into the right-side dock. */
+  onDock?: () => void;
+  /** Floating only: stacking order + bring-to-front on interaction, and the
+   *  initial on-screen position. */
+  zIndex?: number;
+  onFocus?: () => void;
+  initialPosition?: { x: number; y: number };
 }
 
 export interface WorkItemPanelFullProps extends WorkItemPanelCommon {
@@ -38,6 +57,9 @@ export interface WorkItemPanelFullProps extends WorkItemPanelCommon {
   navigate: (path: string) => void;
   isSavingEdit: boolean;
   onSaveEdit: (edits: Partial<WorkItem>) => void;
+  /** Inline per-field patch (Properties rail). Optimistic + rollback on the
+   *  board cache; status is NOT sent here (it routes through onStatusChange). */
+  onPatchField: (edits: Partial<WorkItem>) => void;
   onStatusChange: (item: WorkItem, newStatus: string) => void;
   onLogHours: (item: WorkItem, hours: number) => void;
   isLoggingHours: boolean;
@@ -57,7 +79,7 @@ export type WorkItemPanelProps = WorkItemPanelFullProps | WorkItemPanelCompactPr
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const WorkItemPanel = (props: WorkItemPanelProps) => {
-  const { item, token, currentUserId, onClose } = props;
+  const { item, token, onClose } = props;
   const { can } = useAuth();
   // Write actions (edit + delete) require the same capability the backend
   // enforces on PUT/DELETE /api/workitems/{id}. Without it the buttons are
@@ -90,6 +112,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
     selectedItemHasChildren,
     subtasksOfCurrent,
     saveEditCompact,
+    patchFieldCompact,
     statusChangeCompact,
     logHoursCompact,
     createSubtask,
@@ -138,28 +161,50 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
     }
   };
 
-  // "Assign to me" quick-action — visible in view mode when the ticket has
-  // no assignee, is not an epic (epics aggregate; never directly assigned),
-  // and the current user is mapped to a Developer row on this project
-  // (`currentUserId` is the resolved Developer.id — the prop is misnamed but
-  // semantically that's what it carries). Routes through the same save path
-  // as the inline Edit form so cache, toast, and invalidation are consistent.
-  //
-  // The "unassigned" predicate matches the display logic right below: we
-  // base it on `item.assignee` (the name string) — the same field the avatar
-  // + label fall back on — because `assignee_id` and `assignee` can diverge
-  // in optimistic cache patches (e.g. status drag-and-drop) where only the
-  // name string is updated.
-  const isUnassigned = !item.assignee || item.assignee === 'Unassigned';
-  const canAssignToMe =
-    isUnassigned && item.type !== 'epic' && currentUserId != null && !isSavingEdit;
-  const handleAssignToMe = () => {
-    if (!canAssignToMe || currentUserId == null) return;
-    const edits = { assignee_id: currentUserId } as Partial<WorkItem>;
+  // Developers for the rail's inline Assignee dropdown: the project roster for
+  // the full variant, the full developer list otherwise. Mapped to {id,name}.
+  const projectDevs = props.variant === 'full' ? props.project?.developers : undefined;
+  const railDevelopers: RailDeveloper[] = useMemo(
+    () => (projectDevs ?? allDevelopers).map((d) => ({ id: d.id, name: d.name })),
+    [projectDevs, allDevelopers],
+  );
+
+  // Rail collapse state (persisted per-user); driven by the header layout-toggle.
+  const { collapsed: railCollapsed, toggle: toggleRail } = useRailCollapsed();
+
+  // Drag-to-resize the panel width (persisted per-variant). Defaults match the
+  // previous fixed max-widths (max-w-4xl / max-w-3xl).
+  const { width, startResize, onHandleKeyDown } = usePanelWidth({
+    storageKey: `workItemPanel.width.${props.variant}`,
+    defaultWidth: props.variant === 'full' ? 896 : 768,
+    min: 480,
+    max: 1600,
+  });
+
+  // Floating presentation: a movable, non-modal window (board only). Docked is
+  // the default modal slide-over.
+  const isFloating = props.presentation === 'floating';
+  const { pos, startDrag } = useFloatingPosition(props.initialPosition ?? { x: 140, y: 90 });
+  // Floating windows resize from a bottom-right corner grip (independent w/h).
+  const { size: floatSize, startResize: startFloatResize } = useFloatingSize(
+    props.variant === 'full' ? 900 : 760,
+    700,
+  );
+
+  // Single edit-in-place seam for the Properties rail. Status routes through the
+  // DnD-shared optimistic mutation (handleStatusChange); every other field goes
+  // through the field-patch path — the parent callback for the full variant, the
+  // internal compact mutation otherwise. This is where the "Assign to me" quick
+  // action used to live; the rail's Assignee dropdown replaces it.
+  const handlePatchField = (edits: Partial<WorkItem>) => {
+    if ('status' in edits && edits.status) {
+      handleStatusChange(edits.status);
+      return;
+    }
     if (props.variant === 'full') {
-      props.onSaveEdit(edits);
+      props.onPatchField(edits);
     } else {
-      saveEditCompact.mutate(edits);
+      patchFieldCompact.mutate(edits);
     }
   };
 
@@ -277,37 +322,42 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
     </div>
   );
 
-  return (
-    <>
-      <div className="fixed inset-0 bg-black/40 z-40" onClick={onClose} />
-      <div
-        className={`fixed right-0 top-0 bottom-0 w-full ${props.variant === 'full' ? 'max-w-xl animate-in slide-in-from-right duration-300' : 'max-w-lg'} bg-[#080808] border-l border-[rgba(255,255,255,0.07)] z-50 flex flex-col shadow-2xl shadow-black/50`}
-      >
-        {/* Header */}
-        <WorkItemPanelHeader
-          item={item}
-          variant={props.variant}
-          canWriteTracker={canWriteTracker}
-          isEditing={isEditing}
-          isDoneAndNotEditing={isDoneAndNotEditing}
-          onToggleEdit={() => {
-            if (isEditing) {
-              setIsEditing(false);
-              setEditForm({});
-            } else {
-              startEditing();
-            }
-          }}
-          onDelete={() => props.variant === 'full' && props.onDeleteItem(item.id)}
-          onClose={onClose}
-          isUnblocking={unblockMutation.isPending}
-          onUnblock={() => unblockMutation.mutate()}
-        />
+  // ── Chrome pieces shared by the docked + floating presentations ───────────
+  const cardInner = (
+    <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[#111114] shadow-xl shadow-black/40">
+      {/* Header */}
+      <WorkItemPanelHeader
+        item={item}
+        variant={props.variant}
+        canWriteTracker={canWriteTracker}
+        isEditing={isEditing}
+        isDoneAndNotEditing={isDoneAndNotEditing}
+        onToggleEdit={() => {
+          if (isEditing) {
+            setIsEditing(false);
+            setEditForm({});
+          } else {
+            startEditing();
+          }
+        }}
+        onDelete={() => props.variant === 'full' && props.onDeleteItem(item.id)}
+        onClose={onClose}
+        isUnblocking={unblockMutation.isPending}
+        onUnblock={() => unblockMutation.mutate()}
+        // Rail toggle is only meaningful in the two-pane view (not edit mode).
+        railCollapsed={railCollapsed}
+        onToggleRail={isEditing ? undefined : toggleRail}
+        // Pop-out: docked full-variant view only. Dock-back + drag: floating.
+        onPopOut={!isFloating && !isEditing ? props.onPopOut : undefined}
+        onDock={isFloating ? props.onDock : undefined}
+        onTitleBarPointerDown={isFloating ? startDrag : undefined}
+      />
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-6">
-          {isEditing ? (
-            props.variant === 'full' ? (
+      {/* Body */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {isEditing ? (
+          <div className="flex-1 space-y-6 overflow-y-auto p-5">
+            {props.variant === 'full' ? (
               <WorkItemFullEditForm
                 item={item}
                 itemDetail={itemDetail}
@@ -339,83 +389,163 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
                   setCompactEditDevs([]);
                 }}
               />
-            )
-          ) : (
-            <WorkItemViewMode
-              item={item}
-              itemDetail={itemDetail}
-              variant={props.variant}
-              isAssignee={isAssignee}
-              canAssignToMe={canAssignToMe}
-              onAssignToMe={handleAssignToMe}
-              isSavingEdit={isSavingEdit}
-              onStatusChange={handleStatusChange}
-              isLoggingHours={isLoggingHours}
-              onLogHours={handleLogHours}
-              logHoursRef={logHoursRef}
-              linkedItems={linkedItems}
-              contributors={
-                props.variant === 'full' ? (
-                  <TicketContributors workItemId={item.id} token={token || ''} />
-                ) : null
-              }
-              sprintActions={
-                props.variant === 'full' ? (
-                  <WorkItemSprintActions
-                    item={item}
-                    sprints={props.sprints}
-                    onMoveToSprint={props.onMoveToSprint}
-                    getNextSprint={props.getNextSprint}
-                  />
-                ) : null
-              }
-              comments={commentsNode}
-            />
-          )}
-        </div>
-
-        {/* Footer (compact only: Edit + Open ticket). Edit is hidden when the
-            user lacks project.tracker_write — Open ticket stays so the user
-            can still navigate to the board view. */}
-        {props.variant === 'compact' && !isEditing && (
-          <div className="flex-shrink-0 p-4 border-t border-[rgba(255,255,255,0.05)] flex gap-3">
-            {canWriteTracker && (
-              <button
-                onClick={startEditing}
-                disabled={isDoneAndNotEditing}
-                title={isDoneAndNotEditing ? 'Re-open this ticket before editing.' : undefined}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] text-white font-semibold text-sm hover:bg-[rgba(255,255,255,0.08)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <Pencil className="w-4 h-4" />
-                Edit
-              </button>
             )}
-            <button
-              onClick={() =>
-                props.variant === 'compact' &&
-                props.onOpenInBoard(
-                  (item as WorkItem & { project_id?: number }).project_id ?? 0,
-                  item.id,
-                )
-              }
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-[#E0B954] to-[#C79E3B] text-[#080808] font-semibold text-sm hover:opacity-90 transition-opacity"
-            >
-              <ExternalLink className="w-4 h-4" />
-              Open ticket
-            </button>
           </div>
+        ) : (
+          <WorkItemTwoPaneView
+            item={item}
+            itemDetail={itemDetail}
+            railDevelopers={railDevelopers}
+            canWrite={canWriteTracker}
+            isFrozen={isDoneAndNotEditing}
+            onPatchField={handlePatchField}
+            collapsed={railCollapsed}
+            variant={props.variant}
+            isAssignee={isAssignee}
+            isLoggingHours={isLoggingHours}
+            onLogHours={handleLogHours}
+            logHoursRef={logHoursRef}
+            linkedItems={linkedItems}
+            contributors={
+              props.variant === 'full' ? (
+                <TicketContributors workItemId={item.id} token={token || ''} />
+              ) : null
+            }
+            sprintActions={
+              props.variant === 'full' ? (
+                <WorkItemSprintActions
+                  item={item}
+                  sprints={props.sprints}
+                  onMoveToSprint={props.onMoveToSprint}
+                  getNextSprint={props.getNextSprint}
+                />
+              ) : null
+            }
+            comments={commentsNode}
+          />
         )}
       </div>
 
-      {showAddSubtaskModal && (
-        <AddSubtaskModal
-          developers={props.variant === 'full' ? (props.project?.developers ?? []) : []}
-          isPending={createSubtask.isPending}
-          onClose={() => setShowAddSubtaskModal(false)}
-          onSubmit={(form) => createSubtask.mutate(form)}
-        />
+      {/* Footer (compact only: Edit + Open ticket). Edit is hidden when the
+        user lacks project.tracker_write — Open ticket stays so the user
+        can still navigate to the board view. */}
+      {props.variant === 'compact' && !isEditing && (
+        <div className="flex-shrink-0 p-4 border-t border-[rgba(255,255,255,0.05)] flex gap-3">
+          {canWriteTracker && (
+            <button
+              onClick={startEditing}
+              disabled={isDoneAndNotEditing}
+              title={isDoneAndNotEditing ? 'Re-open this ticket before editing.' : undefined}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] text-white font-semibold text-sm hover:bg-[rgba(255,255,255,0.08)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Pencil className="w-4 h-4" />
+              Edit
+            </button>
+          )}
+          <button
+            onClick={() =>
+              props.variant === 'compact' &&
+              props.onOpenInBoard(
+                (item as WorkItem & { project_id?: number }).project_id ?? 0,
+                item.id,
+              )
+            }
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-[#E0B954] to-[#C79E3B] text-[#080808] font-semibold text-sm hover:opacity-90 transition-opacity"
+          >
+            <ExternalLink className="w-4 h-4" />
+            Open ticket
+          </button>
+        </div>
       )}
-    </>
+    </div>
+  );
+
+  const dockedResizeHandle = (
+    <button
+      type="button"
+      aria-label="Resize panel"
+      onPointerDown={startResize}
+      onKeyDown={onHandleKeyDown}
+      className="group absolute top-0 bottom-0 left-0 z-10 flex w-2 -translate-x-1/2 cursor-col-resize items-center justify-center focus:outline-none"
+    >
+      <div className="h-full w-px bg-[rgba(255,255,255,0.08)] transition-colors group-hover:bg-[#E0B954] group-focus:bg-[#E0B954]" />
+    </button>
+  );
+
+  const floatingGrip = (
+    <button
+      type="button"
+      aria-label="Resize window"
+      onPointerDown={startFloatResize}
+      className="absolute right-0.5 bottom-0.5 z-20 flex h-4 w-4 cursor-nwse-resize items-end justify-end text-[#555] hover:text-[#E0B954] focus:outline-none"
+    >
+      <svg viewBox="0 0 10 10" className="h-3 w-3" fill="none" stroke="currentColor">
+        <path d="M9 3 L3 9 M9 6.5 L6.5 9" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    </button>
+  );
+
+  const addSubtaskModalNode = showAddSubtaskModal && (
+    <AddSubtaskModal
+      developers={props.variant === 'full' ? (props.project?.developers ?? []) : []}
+      isPending={createSubtask.isPending}
+      onClose={() => setShowAddSubtaskModal(false)}
+      onSubmit={(form) => createSubtask.mutate(form)}
+    />
+  );
+
+  // Floating: a movable, non-modal window (board multi-ticket view). No scrim,
+  // no focus trap — the board stays interactive and windows coexist.
+  if (isFloating) {
+    return (
+      <>
+        <div
+          style={{
+            left: pos.x,
+            top: pos.y,
+            width: floatSize.w,
+            height: floatSize.h,
+            zIndex: props.zIndex ?? 50,
+          }}
+          onPointerDown={props.onFocus}
+          className="fixed flex animate-in fade-in zoom-in-95 rounded-2xl border border-[rgba(255,255,255,0.08)] bg-[#0a0a0a] p-1.5 shadow-2xl shadow-black/70 duration-200 ease-out"
+        >
+          {cardInner}
+          {floatingGrip}
+        </div>
+        {addSubtaskModalNode}
+      </>
+    );
+  }
+
+  // Docked: modal right-anchored slide-over on Radix Dialog — focus trap,
+  // Escape, focus-restore-to-trigger, aria-modal, and scroll-lock come for free.
+  // AddSubtaskModal renders INSIDE Content so it stays within the focus trap
+  // (it's a plain fixed overlay, not a portal). Overlay-click / Escape close via
+  // onOpenChange → onClose.
+  return (
+    <Dialog.Root
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/60 animate-in fade-in duration-300" />
+        <Dialog.Content
+          aria-describedby={undefined}
+          style={{ width }}
+          className="fixed right-0 top-0 bottom-0 z-50 flex max-w-[100vw] animate-in fade-in slide-in-from-right-8 border-l border-[rgba(255,255,255,0.06)] bg-[#0a0a0a] p-3 shadow-2xl shadow-black/60 duration-500 ease-out focus:outline-none"
+        >
+          <Dialog.Title className="sr-only">
+            {item.key}: {item.title}
+          </Dialog.Title>
+          {cardInner}
+          {dockedResizeHandle}
+          {addSubtaskModalNode}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 };
 

@@ -14,10 +14,15 @@ import {
   getAllowedTargetTypes,
   fieldSupportsType,
 } from '@/lib/hierarchy/validateReparent';
-import { PRIORITY_OPTIONS, TYPE_OPTIONS_EDIT } from '@/lib/workItemConfig';
 import { CALENDAR_CLASS_NAMES } from '../constants';
 import type { WorkItem } from '../types';
-import { WorkItemSelectField } from './WorkItemSelectField';
+
+// Shared field styling, aligned to the two-pane redesign's tokens (rounded-lg,
+// h-9, the rail's border/bg). Single-sourced so the fields can't drift.
+const LABEL = 'mb-1.5 block text-xs font-medium text-[#8A8A8A]';
+const FIELD =
+  'w-full h-9 rounded-lg border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] text-[#F4F6FF]';
+const SELECT = `${FIELD} px-3 text-sm`;
 
 export interface WorkItemFullEditFormProps {
   item: WorkItem;
@@ -52,101 +57,94 @@ export const WorkItemFullEditForm = ({
 }: WorkItemFullEditFormProps) => (
   <div className="space-y-4">
     <div>
-      <label className="text-xs font-medium text-[#737373] block mb-1.5">Title</label>
+      <label className={LABEL}>Title</label>
       <Input
         defaultValue={item.title}
         onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
-        className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
+        className={FIELD}
       />
     </div>
     <div>
-      <label className="text-xs font-medium text-[#737373] block mb-1.5">Description</label>
+      <label className={LABEL}>Description</label>
       <Textarea
         defaultValue={itemDetail.description}
         onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
-        className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl min-h-[120px] resize-none whitespace-pre-wrap"
-      />
-    </div>
-    <div className={item.type === 'epic' ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-2 gap-3'}>
-      <WorkItemSelectField
-        label="Type"
-        defaultValue={item.type}
-        onChange={(e) => {
-          const newType = e.target.value as WorkItem['type'];
-          setEditForm((f) => {
-            const next: Partial<WorkItem> = { ...f, type: newType };
-            if (!fieldSupportsType(newType, 'epic_id')) {
-              next.epic_id = null;
-              next.epic_key = null;
-            }
-            if (!fieldSupportsType(newType, 'parent_id')) {
-              next.parent_id = null;
-              next.parent_key = null;
-            }
-            return next;
-          });
-        }}
-        options={TYPE_OPTIONS_EDIT}
-      />
-      <WorkItemSelectField
-        label="Priority"
-        defaultValue={item.priority}
-        onChange={(e) =>
-          setEditForm((f) => ({ ...f, priority: e.target.value as WorkItem['priority'] }))
-        }
-        options={PRIORITY_OPTIONS}
+        className={`${FIELD} min-h-[120px] resize-none whitespace-pre-wrap`}
       />
     </div>
     <div className={item.type === 'epic' ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-2 gap-3'}>
       <div>
-        <label className="text-xs font-medium text-[#737373] block mb-1.5">Story Points</label>
+        <label className={LABEL}>Type</label>
+        <select
+          defaultValue={item.type}
+          onChange={(e) => {
+            const newType = e.target.value as WorkItem['type'];
+            setEditForm((f) => {
+              const next: Partial<WorkItem> = { ...f, type: newType };
+              if (!fieldSupportsType(newType, 'epic_id')) {
+                next.epic_id = null;
+                next.epic_key = null;
+              }
+              if (!fieldSupportsType(newType, 'parent_id')) {
+                next.parent_id = null;
+                next.parent_key = null;
+              }
+              return next;
+            });
+          }}
+          className={SELECT}
+        >
+          <option value="user_story">Story</option>
+          <option value="task">Task</option>
+          <option value="bug">Bug</option>
+          <option value="epic">Epic</option>
+        </select>
+      </div>
+      <div>
+        <label className={LABEL}>Priority</label>
+        <select
+          defaultValue={item.priority}
+          onChange={(e) =>
+            setEditForm((f) => ({ ...f, priority: e.target.value as WorkItem['priority'] }))
+          }
+          className={SELECT}
+        >
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+    </div>
+    <div className={item.type === 'epic' ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-2 gap-3'}>
+      <div>
+        <label className={LABEL}>Story Points</label>
         <NumberInput
           defaultValue={item.story_points}
           onChange={(e) =>
             setEditForm((f) => ({ ...f, story_points: parseInt(e.target.value) || 0 }))
           }
-          className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
+          className={FIELD}
         />
       </div>
       {item.type !== 'epic' && (
         <div>
-          <label className="text-xs font-medium text-[#737373] block mb-1.5">Allocated Hours</label>
+          <label className={LABEL}>Allocated Hours</label>
           <NumberInput
             defaultValue={item.assigned_hours}
             onChange={(e) =>
               setEditForm((f) => ({ ...f, assigned_hours: parseInt(e.target.value) || 0 }))
             }
-            className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
+            className={FIELD}
           />
         </div>
       )}
     </div>
-    {item.type !== 'epic' && (
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs font-medium text-[#737373] block mb-1.5">Logged Hours</label>
-          <NumberInput
-            defaultValue={item.logged_hours || 0}
-            onChange={(e) =>
-              setEditForm((f) => ({ ...f, logged_hours: parseInt(e.target.value) || 0 }))
-            }
-            className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-[#737373] block mb-1.5">Remaining Hours</label>
-          <NumberInput
-            defaultValue={item.remaining_hours}
-            onChange={(e) =>
-              setEditForm((f) => ({ ...f, remaining_hours: parseInt(e.target.value) || 0 }))
-            }
-            className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
-          />
-        </div>
-      </div>
-    )}
+    {/* Logged / Remaining hours are server-derived (Logged from time-entry rows,
+        Remaining = Allocated − Logged) and are stripped from PUT, so they're not
+        edited here — Logged changes via the Log-hours action, Remaining follows. */}
     <div>
-      <label className="text-xs font-medium text-[#737373] block mb-1.5">Assignee</label>
+      <label className={LABEL}>Assignee</label>
       <select
         value={editForm.assignee_id ?? item.assignee_id ?? ''}
         onChange={(e) =>
@@ -155,7 +153,7 @@ export const WorkItemFullEditForm = ({
             assignee_id: e.target.value ? parseInt(e.target.value) : null,
           }))
         }
-        className="w-full h-10 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl px-3 text-sm"
+        className={SELECT}
       >
         <option value="">Unassigned</option>
         {developers?.map((dev) => (
@@ -167,7 +165,7 @@ export const WorkItemFullEditForm = ({
     </div>
     {fieldSupportsType((editForm.type ?? item.type) as WorkItem['type'], 'epic_id') && (
       <div>
-        <label className="text-xs font-medium text-[#737373] block mb-1.5">Epic</label>
+        <label className={LABEL}>Epic</label>
         <WorkItemCombobox
           value={editForm.epic_id ?? item.epic_id ?? null}
           valueKey={editForm.epic_key ?? item.epic_key ?? null}
@@ -198,10 +196,7 @@ export const WorkItemFullEditForm = ({
     )}
     {fieldSupportsType((editForm.type ?? item.type) as WorkItem['type'], 'parent_id') && (
       <div>
-        <label
-          className="text-xs font-medium text-[#737373] block mb-1.5"
-          title="This task is part of a larger story or task."
-        >
+        <label className={LABEL} title="This task is part of a larger story or task.">
           Belongs to
         </label>
         <WorkItemCombobox
@@ -232,18 +227,20 @@ export const WorkItemFullEditForm = ({
           placeholder="No parent"
         />
         {selectedItemHasChildren && (
-          <p className="text-[10px] text-[#737373] mt-1.5 leading-snug">
+          <p className="mt-1.5 text-[10px] leading-snug text-[#737373]">
             This task already has child tasks, so it can't be nested under another item.
           </p>
         )}
       </div>
     )}
     <div>
-      <label className="text-xs font-medium text-[#737373] block mb-1.5">Due Date</label>
+      <label className={LABEL}>Due Date</label>
       <Popover open={showCalendarEditForm} onOpenChange={setShowCalendarEditForm}>
         <PopoverTrigger asChild>
-          <Button className="w-full justify-start text-left font-normal bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] text-[#F4F6FF] hover:bg-[rgba(255,255,255,0.04)] hover:text-[#F4F6FF] rounded-xl h-10">
-            <Calendar className="w-4 h-4 mr-2" />
+          <Button
+            className={`${FIELD} justify-start px-3 text-left font-normal hover:bg-[rgba(255,255,255,0.05)] hover:text-[#F4F6FF]`}
+          >
+            <Calendar className="mr-2 h-4 w-4 text-[#8A8A8A]" />
             {editForm.due_date
               ? parseLocalDate(editForm.due_date as string)?.toLocaleDateString('en-US', {
                   month: 'short',
@@ -254,7 +251,7 @@ export const WorkItemFullEditForm = ({
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          className="w-auto p-0 bg-[#0d0d0d] border-[rgba(255,255,255,0.07)]"
+          className="w-auto border-[rgba(255,255,255,0.08)] bg-[#0d0d0d] p-0"
           align="start"
         >
           <CalendarIcon
@@ -279,16 +276,16 @@ export const WorkItemFullEditForm = ({
     <Button
       onClick={onSaveEdit}
       disabled={isSavingEdit}
-      className="bg-gradient-to-r from-[#E0B954] to-[#B8872A] text-white rounded-xl w-full h-10 disabled:opacity-70"
+      className="h-10 w-full rounded-xl bg-gradient-to-r from-[#E0B954] to-[#C79E3B] font-semibold text-[#080808] hover:opacity-90 disabled:opacity-70"
     >
       {isSavingEdit ? (
         <>
-          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           Saving…
         </>
       ) : (
         <>
-          <Save className="w-4 h-4 mr-2" />
+          <Save className="mr-2 h-4 w-4" />
           Save Changes
         </>
       )}

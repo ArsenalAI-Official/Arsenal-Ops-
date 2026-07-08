@@ -1,4 +1,13 @@
-import { Pencil, Trash2, X, Ban, ShieldCheck } from 'lucide-react';
+import {
+  Pencil,
+  Trash2,
+  X,
+  Ban,
+  ShieldCheck,
+  PanelRight,
+  PictureInPicture2,
+  ArrowRightToLine,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TYPE_CONFIG } from '../constants';
 import type { WorkItem } from '../types';
@@ -19,6 +28,19 @@ export interface WorkItemPanelHeaderProps {
    *  ticket in one shot. Parent owns the mutation lifecycle (toast +
    *  invalidations). When omitted, the button is hidden. */
   onUnblock?: () => void;
+  /** Whether the Properties rail is currently collapsed (drives aria-expanded). */
+  railCollapsed?: boolean;
+  /** Toggles the Properties rail. When omitted, the toggle button is hidden
+   *  (e.g. in edit mode, where the two-pane layout isn't shown). */
+  onToggleRail?: () => void;
+  /** Detaches the docked panel into a floating window. When omitted, the
+   *  pop-out button is hidden (floating windows, compact variant, edit mode). */
+  onPopOut?: () => void;
+  /** Re-docks a floating window back into the right-side dock. Shown only on
+   *  floating windows (where onPopOut is hidden). */
+  onDock?: () => void;
+  /** When set, the header acts as a drag handle for a floating window. */
+  onTitleBarPointerDown?: (e: React.PointerEvent) => void;
 }
 
 export const WorkItemPanelHeader = ({
@@ -32,11 +54,21 @@ export const WorkItemPanelHeader = ({
   onClose,
   isUnblocking = false,
   onUnblock,
+  railCollapsed = false,
+  onToggleRail,
+  onPopOut,
+  onDock,
+  onTitleBarPointerDown,
 }: WorkItemPanelHeaderProps) => {
   const typeConfig = TYPE_CONFIG[item.type] ?? TYPE_CONFIG.task;
 
   return (
-    <div className="flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)]">
+    <div
+      onPointerDown={onTitleBarPointerDown}
+      className={`flex items-center justify-between p-5 border-b border-[rgba(255,255,255,0.05)] ${
+        onTitleBarPointerDown ? 'cursor-move select-none' : ''
+      }`}
+    >
       <div className="flex items-center gap-3">
         <div
           className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-sm font-medium"
@@ -101,6 +133,43 @@ export const WorkItemPanelHeader = ({
             className="text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg h-8 px-2.5"
           >
             <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+        )}
+        {/* Pop out — detaches the docked panel into a floating window. */}
+        {onPopOut && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onPopOut}
+            aria-label="Pop out into a floating window"
+            className="text-[#737373] hover:text-white hover:bg-[rgba(255,255,255,0.06)] rounded-lg h-8 px-2.5"
+          >
+            <PictureInPicture2 className="w-4 h-4" />
+          </Button>
+        )}
+        {/* Dock back — returns a floating window to the right-side dock. */}
+        {onDock && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onDock}
+            aria-label="Dock back to the side panel"
+            className="text-[#737373] hover:text-white hover:bg-[rgba(255,255,255,0.06)] rounded-lg h-8 px-2.5"
+          >
+            <ArrowRightToLine className="w-4 h-4" />
+          </Button>
+        )}
+        {/* Rail toggle — collapses/expands the Properties pane. */}
+        {onToggleRail && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onToggleRail}
+            aria-label="Toggle properties panel"
+            aria-expanded={!railCollapsed}
+            className="text-[#737373] hover:text-white hover:bg-[rgba(255,255,255,0.06)] rounded-lg h-8 px-2.5"
+          >
+            <PanelRight className="w-4 h-4" />
           </Button>
         )}
         <Button
