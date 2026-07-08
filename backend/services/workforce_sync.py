@@ -70,11 +70,13 @@ from services.workforce_oauth import WorkforceOAuthError
 from services.workforce_qb_client import (
     QBApiError,
     QBRateLimitError,
-    connection_pool as qb_connection_pool,
     fetch_qb_classes,
     fetch_qb_employees,
     post_time_activity,
     resolve_service_item,
+)
+from services.workforce_qb_client import (
+    connection_pool as qb_connection_pool,
 )
 from time_utils import utcnow
 
