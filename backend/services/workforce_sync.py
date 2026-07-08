@@ -65,6 +65,7 @@ from models.time_entry import TimeEntry
 from models.work_item import WorkItem
 from models.workforce_integration import WorkforceIntegration
 from services.workforce_clients import refresh_quietly as refresh_clients_quietly
+from services.workforce_crypto import WorkforceCryptoCorrupted
 from services.workforce_oauth import WorkforceOAuthError
 from services.workforce_qb_client import (
     QBApiError,
@@ -74,6 +75,7 @@ from services.workforce_qb_client import (
     post_time_activity,
     resolve_service_item,
 )
+from time_utils import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -347,6 +349,30 @@ def run_workforce_sync(
             triggered_by=triggered_by,
             base_result=base_result,
         )
+    except WorkforceCryptoCorrupted:
+        # ensure_fresh_access_token → decrypt() raises this when the stored
+        # tokens can't be decrypted (WORKFORCE_TOKEN_ENCRYPTION_KEY rotated or
+        # ciphertext corrupted). It isn't a QB/OAuth error, so without this it
+        # would escape run_workforce_sync, bypass _finalize, and leave
+        # last_sync_status stale with no actionable message. Map it onto the
+        # same "reconnect required" surface as an OAuth failure.
+        logger.error(
+            "[workforce_sync] %s: stored credentials could not be decrypted "
+            "(encryption key rotated?)",
+            triggered_by,
+        )
+        return _finalize(
+            db,
+            integration,
+            base_result,
+            status="error",
+            reason=(
+                "QuickBooks reconnection required: the stored credentials could "
+                "not be decrypted (the encryption key may have been rotated). "
+                "Disconnect and reconnect QuickBooks in Admin → Integrations."
+            ),
+            triggered_by=triggered_by,
+        )
     finally:
         _release_advisory_lock(lock_conn)
 
@@ -517,7 +543,7 @@ def _run_inside_lock(
             # submitted at the time of the force-sync. Entries the dev
             # already submitted earlier keep their original timestamp.
             if entry.submitted_at is None:
-                entry.submitted_at = datetime.utcnow()
+                entry.submitted_at = utcnow()
             synced += 1
             # Commit every entry so a mid-run rate-limit doesn't lose
             # work already pushed to QB. The flip side is more commits;
@@ -614,7 +640,7 @@ def _finalize(
     locked, no-eligible) updates the same fields in the same way; the
     admin UI never sees stale or inconsistent last-sync state.
     """
-    integration.last_sync_at = datetime.utcnow()
+    integration.last_sync_at = utcnow()
     integration.last_sync_status = status
     integration.last_sync_error = (reason or None) if status != "ok" else None
     integration.last_synced_count = int(result.get("synced", 0))

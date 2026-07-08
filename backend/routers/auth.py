@@ -239,9 +239,16 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     # Pin required claims explicitly — `exp` is verified by jose; `sub`
     # and `purpose` we check ourselves so a malformed token can't slip
     # through with missing fields.
-    if payload.get("purpose") != SESSION_TOKEN_PURPOSE:
-        # Anything narrower-scope (e.g. OAuth state token, future
-        # email-link tokens) must not be reusable as a session.
+    purpose = payload.get("purpose")
+    # Grandfather window: session tokens minted before the `purpose` claim
+    # existed carry no purpose at all. Accept them (purpose is None) for one
+    # release so this deploy doesn't 401 every mid-session user at once (the
+    # 24h token lifetime means essentially the whole logged-in population).
+    # State / email-link tokens carry a NON-None, non-"auth" purpose, so they
+    # are still rejected as sessions — the token-reuse protection holds.
+    # TODO(auth): drop the `is not None` grandfather ~24h after deploy, once
+    # every pre-cutover token has expired.
+    if purpose is not None and purpose != SESSION_TOKEN_PURPOSE:
         raise credentials_exception
     user_id: str | None = payload.get("sub")
     if user_id is None:

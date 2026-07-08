@@ -1308,18 +1308,47 @@ def reconcile_internal_developers():
     try:
         # Pass 1: reconcile every Developer's `is_external` flag against its
         # email domain — in BOTH directions:
-        #   • internal domain but flagged external  → flip to internal
-        #   • non-internal domain but flagged internal → flip to external
-        # The second direction is essential: `is_external` defaults to FALSE
+        #   • internal domain but flagged external  → flip to internal (promote)
+        #   • non-internal domain but flagged internal → flip to external (demote)
+        # The demote direction is essential: `is_external` defaults to FALSE
         # (the column default), so a developer whose domain is NOT in
         # ALLOWED_EMAIL_DOMAINS would otherwise stay "internal" and wrongly
         # appear in the Employees tab (which filters `is_external == False`).
-        flipped = 0
-        for dev in db.query(Developer).all():
+        all_devs = db.query(Developer).all()
+        promotions: list[Developer] = []  # external → internal
+        demotions: list[Developer] = []  # internal → external
+        for dev in all_devs:
             should_be_external = not is_internal(dev.email)
-            if bool(dev.is_external) != should_be_external:
-                dev.is_external = should_be_external
-                flipped += 1
+            if bool(dev.is_external) == should_be_external:
+                continue
+            (demotions if should_be_external else promotions).append(dev)
+
+        # Misconfig guard for the DANGEROUS (demote) direction. A wrong-but-
+        # nonempty ALLOWED_EMAIL_DOMAINS (typo, partial list, domain rename)
+        # makes is_internal() return False for real employees, so Pass 1 would
+        # demote them en masse — and _get_internal_developer_or_404 then hides
+        # the timesheet/capacity feature for everyone, silently. The empty-var
+        # early-return above only covers the *unset* case, not this one.
+        # Promotions are always safe to apply; only demotions can disable the
+        # feature. If demotions would flip a MAJORITY of the currently-internal
+        # population, assume misconfiguration: skip demotions this boot (still
+        # applying promotions) and log loudly so it's diagnosable.
+        currently_internal = sum(1 for d in all_devs if not bool(d.is_external))
+        if demotions and currently_internal and len(demotions) > currently_internal / 2:
+            print(
+                f"[RECONCILE] SKIPPING {len(demotions)} developer demotion(s) to "
+                f"external — that would flip a majority of the {currently_internal} "
+                f"currently-internal developer(s), which almost always means "
+                f"ALLOWED_EMAIL_DOMAINS is misconfigured (parsed: {sorted(allowed)}). "
+                f"Fix the domain list and reboot. Promotions were still applied."
+            )
+            demotions = []
+
+        for dev in promotions:
+            dev.is_external = False
+        for dev in demotions:
+            dev.is_external = True
+        flipped = len(promotions) + len(demotions)
 
         # Pass 2: insert missing Developer rows for internal-domain Users.
         # One query for existing Developer emails (set membership beats N selects).

@@ -25,7 +25,8 @@ import logging
 import os
 import secrets
 import sys
-from datetime import datetime, timedelta
+from datetime import timedelta
+from urllib.parse import urlencode
 
 from cachetools import TTLCache
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
@@ -67,6 +68,7 @@ from services.workforce_qb_client import (
 )
 from services.workforce_sync import is_sync_in_progress, run_workforce_sync
 from services.workforce_sync_notify import send_sync_notification
+from time_utils import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +115,7 @@ def _issue_state_token(user_id: int) -> str:
     payload = {
         "sub": str(user_id),
         "purpose": STATE_TOKEN_PURPOSE,
-        "exp": datetime.utcnow() + timedelta(minutes=STATE_TOKEN_TTL_MINUTES),
+        "exp": utcnow() + timedelta(minutes=STATE_TOKEN_TTL_MINUTES),
         "jti": secrets.token_urlsafe(16),
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
@@ -281,7 +283,9 @@ def oauth_callback(
     # User declined consent at Intuit — bounce back to the admin UI.
     if error:
         return RedirectResponse(
-            _post_oauth_redirect_url(f"workforce=denied&reason={error}"),
+            # urlencode the reflected Intuit param so it can't inject extra
+            # query params / fragments onto the trusted admin origin.
+            _post_oauth_redirect_url("workforce=denied&" + urlencode({"reason": error})),
             status_code=302,
         )
 
@@ -297,7 +301,11 @@ def oauth_callback(
         admin_user_id = _verify_state_token(state)
     except HTTPException as e:
         return RedirectResponse(
-            _post_oauth_redirect_url(f"workforce=error&reason=bad_state&detail={e.detail[:80]}"),
+            # urlencode the reflected detail so it can't inject extra query
+            # params / fragments onto the trusted admin origin.
+            _post_oauth_redirect_url(
+                "workforce=error&reason=bad_state&" + urlencode({"detail": str(e.detail)[:80]})
+            ),
             status_code=302,
         )
 
@@ -342,7 +350,7 @@ def oauth_callback(
         realm_changed = integration.realm_id != realmId
         integration.realm_id = realmId
         integration.connected_by_user_id = admin.id
-        integration.connected_at = datetime.utcnow()
+        integration.connected_at = utcnow()
         # Force re-resolution of the service item against the new realm.
         integration.service_item_id = None
         integration.service_item_name = None
@@ -459,15 +467,28 @@ def disconnect(db: Session = Depends(get_db)):
         return {"disconnected": True}
 
     # Try to revoke before deletion so even if the row delete fails the
-    # token is invalidated upstream. Failures here don't propagate.
-    try:
-        plaintext = decrypt(integration.refresh_token_ciphertext)
-        revoke_token(plaintext)
-    except Exception as e:
-        # Decryption can fail if the encryption key was rotated; revoke
-        # itself swallows network errors. Either way we proceed to
-        # delete the local row.
-        logger.warning("Workforce token revoke failed (continuing with local delete): %s", e)
+    # tokens are invalidated upstream. Failures here don't propagate.
+    # Revoke BOTH tokens: revoking the refresh token doesn't invalidate an
+    # already-issued access token, which stays valid at Intuit for ~1h —
+    # and `disconnect` is the "something's wrong, kill it" button, so it
+    # should leave nothing usable behind. `revoke_token` accepts either type.
+    for label, ciphertext in (
+        ("refresh", integration.refresh_token_ciphertext),
+        ("access", integration.access_token_ciphertext),
+    ):
+        if not ciphertext:
+            continue
+        try:
+            revoke_token(decrypt(ciphertext))
+        except Exception as e:
+            # Decryption can fail if the encryption key was rotated; revoke
+            # itself swallows network errors. Either way we proceed to
+            # delete the local row.
+            logger.warning(
+                "Workforce %s-token revoke failed (continuing with local delete): %s",
+                label,
+                e,
+            )
 
     # Order matters: drop the integration row FIRST so that even if the
     # subsequent cache clear blows up (FK race, DB error mid-commit) the
