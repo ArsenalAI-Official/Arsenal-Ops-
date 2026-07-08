@@ -141,7 +141,18 @@ if _oauth_enabled and _google_client_id and _google_client_secret:
         redirect_path="/auth/callback",
         allowed_client_redirect_uris=_allowed_client_redirect_uris,
     )
-    _auth = MultiAuth(server=_google_provider, verifiers=[_jwt_verifier])
+    # required_scopes=[] on the resource-server gate is deliberate. MultiAuth
+    # otherwise inherits the GoogleProvider's required_scopes (openid/email/
+    # profile) and RequireAuthMiddleware then enforces them on EVERY token —
+    # including our own Bearer JWTs (Claude Code header auth, API connector,
+    # custom agents), which carry only {sub, exp} and no OAuth scope claim. That
+    # made enabling OAuth silently 403 the entire JWT path with "insufficient_
+    # scope". Those scopes belong to the Google *consent* flow (still requested
+    # via GoogleProvider above); authorization at the tool boundary is done by
+    # our RBAC capabilities (assert_capability), not by OAuth scopes — so the
+    # coarse scope gate is intentionally left open and both token families pass
+    # verification, then get RBAC-checked inside each tool.
+    _auth = MultiAuth(server=_google_provider, verifiers=[_jwt_verifier], required_scopes=[])
 else:
     _auth = _jwt_verifier  # JWT-only (OAuth flag off, or creds missing)
 

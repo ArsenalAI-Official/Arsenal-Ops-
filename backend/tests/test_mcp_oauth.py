@@ -80,3 +80,34 @@ def test_oauth_disabled_in_test_environment():
     import mcp_server
 
     assert type(mcp_server._auth).__name__ == "JWTVerifier"
+
+
+def test_oauth_enabled_keeps_jwt_path_open(monkeypatch):
+    """Regression: enabling OAuth must NOT gate the resource server on OAuth
+    scopes. MultiAuth otherwise inherits the GoogleProvider's openid/email/
+    profile scopes and RequireAuthMiddleware 403s every Bearer-JWT client (our
+    tokens carry only {sub, exp}, no scope claim). The resource-level
+    required_scopes must be [] so both token families pass to the per-tool RBAC.
+    """
+    import importlib
+
+    import mcp_server
+
+    monkeypatch.setenv("MCP_OAUTH_ENABLED", "1")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id.apps.googleusercontent.com")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "test-secret")
+    monkeypatch.setenv("MCP_BASE_URL", "http://localhost:8000/mcp")
+    try:
+        importlib.reload(mcp_server)
+        assert type(mcp_server._auth).__name__ == "MultiAuth"
+        # The coarse OAuth-scope gate is intentionally empty...
+        assert mcp_server._auth.required_scopes == []
+        # ...while the JWT verifier is still an active token source.
+        assert any(type(v).__name__ == "JWTVerifier" for v in mcp_server._auth.verifiers)
+    finally:
+        # Undo the env FIRST (monkeypatch only reverts at teardown, after this
+        # block), then reload so the module rebuilds as JWT-only — otherwise a
+        # reload here would re-read the still-set OAuth env and leak MultiAuth
+        # into whichever test runs next (the suite shuffles order).
+        monkeypatch.undo()
+        importlib.reload(mcp_server)
