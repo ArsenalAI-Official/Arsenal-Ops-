@@ -39,7 +39,7 @@ export const WorkItemFullHierarchy = ({
   // Reference-style row: avatar · key · title · status chip · open-in-board.
   const renderItemRow = (target: WorkItem) => {
     const sc = STATUS_CONFIG[target.status as keyof typeof STATUS_CONFIG];
-    const ac = avatarColor(target.assignee_id) ?? '#737373';
+    const ac = avatarColor(target.assignee_id);
     return (
       <button
         type="button"
@@ -49,7 +49,7 @@ export const WorkItemFullHierarchy = ({
       >
         <div
           className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[9px] font-semibold"
-          style={{ backgroundColor: `${ac}22`, color: ac }}
+          style={{ backgroundColor: ac.bg, color: ac.fg }}
         >
           {target.assignee ? target.assignee.charAt(0).toUpperCase() : '—'}
         </div>

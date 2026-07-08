@@ -4,12 +4,12 @@ import { parseLocalDate, formatLocalDate } from '@/components/ProjectsPage/utils
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { avatarColor } from '@/lib/avatarColor';
 import { PRIORITY_COLOR, STATUS_CONFIG } from '@/lib/workItemConfig';
 import { EditableSelect, type EditableSelectOption } from './EditableSelect';
 import { HoursBlock } from './HoursBlock';
 import { PropertyRow } from './PropertyRow';
 import { CALENDAR_CLASS_NAMES } from '../../constants';
-import { avatarColor } from '../../lib/renderContent';
 import type { WorkItem } from '../../types';
 
 // A developer option for the Assignee dropdown. Both variants supply {id,name}
@@ -69,7 +69,7 @@ export const PropertiesRail = ({
     ...developers.map((d) => ({
       value: String(d.id),
       label: d.name,
-      avatar: { initial: d.name.charAt(0).toUpperCase(), color: avatarColor(d.id) ?? '#737373' },
+      avatar: { initial: d.name.charAt(0).toUpperCase(), color: avatarColor(d.id).fg },
     })),
   ];
 
