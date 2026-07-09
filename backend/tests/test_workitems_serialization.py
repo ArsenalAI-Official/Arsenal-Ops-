@@ -42,6 +42,7 @@ from models.sprint import Sprint
 from models.user import User
 from models.work_item import WorkItem
 from routers.auth import create_access_token, get_password_hash
+from time_utils import utcnow
 
 
 def _assign_system_role(db, target_user):
@@ -99,7 +100,7 @@ def project(db):
         description="d",
         status="active",
         github_repo_urls=[],
-        created_at=datetime.utcnow(),
+        created_at=utcnow(),
         key_prefix="SER",
     )
     db.add(p)

@@ -161,22 +161,9 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
                       classNames={{
                         months: 'flex flex-col',
                         month: 'space-y-4',
-                        caption: 'flex justify-between items-center px-0 pb-4 relative h-7 mb-2',
                         caption_label: 'text-sm font-medium text-white',
                         nav: 'space-x-1 flex items-center',
-                        nav_button: 'text-white hover:bg-[rgba(255,255,255,0.12)] rounded p-1',
-                        nav_button_previous: 'absolute left-0',
-                        nav_button_next: 'absolute right-0',
-                        table: 'w-full border-collapse space-y-1',
-                        head_row: 'flex gap-1 mb-1',
-                        head_cell: 'w-8 h-8 rounded text-[#737373] font-normal text-sm',
-                        row: 'flex gap-1 mb-1',
-                        cell: 'relative p-0 text-center text-sm focus-within:relative focus-within:z-20',
                         day: 'p-0 h-8 w-8 rounded bg-transparent text-white text-sm cursor-pointer hover:bg-[rgba(255,255,255,0.12)]',
-                        day_selected: 'bg-brand text-[#0d0d0d] font-medium hover:bg-brand',
-                        day_today: 'bg-[rgba(255,255,255,0.12)] text-muted-foreground',
-                        day_outside: 'text-[#555]',
-                        day_disabled: 'text-[#333] cursor-not-allowed',
                       }}
                     />
                   </PopoverContent>
@@ -221,22 +208,9 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
                       classNames={{
                         months: 'flex flex-col',
                         month: 'space-y-4',
-                        caption: 'flex justify-between items-center px-0 pb-4 relative h-7 mb-2',
                         caption_label: 'text-sm font-medium text-white',
                         nav: 'space-x-1 flex items-center',
-                        nav_button: 'text-white hover:bg-[rgba(255,255,255,0.12)] rounded p-1',
-                        nav_button_previous: 'absolute left-0',
-                        nav_button_next: 'absolute right-0',
-                        table: 'w-full border-collapse space-y-1',
-                        head_row: 'flex gap-1 mb-1',
-                        head_cell: 'w-8 h-8 rounded text-[#737373] font-normal text-sm',
-                        row: 'flex gap-1 mb-1',
-                        cell: 'relative p-0 text-center text-sm focus-within:relative focus-within:z-20',
                         day: 'p-0 h-8 w-8 rounded bg-transparent text-white text-sm cursor-pointer hover:bg-[rgba(255,255,255,0.12)]',
-                        day_selected: 'bg-brand text-[#0d0d0d] font-medium hover:bg-brand',
-                        day_today: 'bg-[rgba(255,255,255,0.12)] text-muted-foreground',
-                        day_outside: 'text-[#555]',
-                        day_disabled: 'text-[#333] cursor-not-allowed',
                       }}
                     />
                   </PopoverContent>

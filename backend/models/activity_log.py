@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import JSON, DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from time_utils import utcnow
+
 sys.path.append("..")
 from database import Base
 
@@ -43,7 +45,7 @@ class ActivityLog(Base):
         JSON, default=dict, nullable=True
     )  # Additional context (old_value, new_value, etc.)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
 
     # Relationships
     project: Mapped["Project"] = relationship("Project", back_populates="activity_logs")

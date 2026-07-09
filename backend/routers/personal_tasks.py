@@ -9,6 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from time_utils import utcnow
+
 sys.path.append("..")
 from database import get_db
 from models.personal_task import PersonalTask
@@ -254,7 +256,7 @@ def convert_to_ticket(
 
     # Update personal task
     task.is_converted = True
-    task.converted_at = datetime.utcnow()
+    task.converted_at = utcnow()
     task.project_id = request.project_id
     task.work_item_id = work_item.id
 

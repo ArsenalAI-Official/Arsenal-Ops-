@@ -141,28 +141,11 @@ const WorkItemRow = ({
                   classNames={{
                     months: 'flex flex-col',
                     month: 'space-y-3',
-                    caption: 'flex justify-between items-center px-0 pb-3 relative h-7 mb-2',
                     caption_label: 'text-sm font-semibold text-white',
                     nav: 'space-x-1 flex items-center',
-                    nav_button:
-                      'text-[#a3a3a3] hover:text-white hover:bg-[rgba(255,255,255,0.08)] rounded-md p-1 transition-colors',
-                    nav_button_previous: 'absolute left-0',
-                    nav_button_next: 'absolute right-0',
-                    table: 'w-full border-collapse',
-                    head_row: 'flex',
-                    head_cell:
-                      'text-[10px] uppercase tracking-wider font-semibold text-[#737373] w-9 h-7 flex items-center justify-center',
-                    row: 'flex w-full gap-0.5 mt-1',
-                    cell: 'relative p-0 text-center text-sm focus-within:relative focus-within:z-20',
                     day: 'h-9 w-9 p-0 font-normal',
                     day_button:
                       'text-white hover:bg-[rgba(255,255,255,0.08)] hover:text-white rounded-lg h-9 w-9 transition-all',
-                    day_selected:
-                      'bg-brand text-[#0d0d0d] hover:bg-brand hover:text-[#0d0d0d] font-bold',
-                    day_today: 'ring-1 ring-info/40 text-info font-semibold',
-                    day_outside: 'text-[#3a3a3a]',
-                    day_disabled: 'text-[#2a2a2a] opacity-40 cursor-not-allowed',
-                    day_hidden: 'invisible',
                   }}
                 />
               </div>

@@ -780,7 +780,7 @@ def put_pulse_overrides(
     else:
         override.data = payload.data
         override.updated_by_user_id = current_user.id
-        # ``onupdate=datetime.utcnow`` doesn't fire when only JSON contents
+        # ``onupdate=utcnow`` doesn't fire when only JSON contents
         # change (SQLAlchemy can't tell the dict was mutated in-place),
         # so set updated_at explicitly to be safe across drivers.
         override.updated_at = _utc_now()

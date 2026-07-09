@@ -11,7 +11,7 @@ Provides:
 
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -22,6 +22,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+
+from time_utils import utcnow
 
 load_dotenv(Path(__file__).parent.parent / ".env.test")
 
@@ -248,7 +250,7 @@ def seed_project(db, name: str = "Test Project", num_developers: int = 2) -> Pro
         description=f"Description for {name}",
         status="active",
         github_repo_urls=[],
-        created_at=datetime.utcnow(),
+        created_at=utcnow(),
     )
     db.add(project)
     db.flush()  # Ensure project.id is set before adding developers

@@ -134,25 +134,10 @@ const TRIGGER_CLASSES =
 const CALENDAR_CLASSNAMES = {
   months: 'flex flex-col',
   month: 'space-y-4',
-  caption: 'flex justify-between items-center px-0 pb-4 relative h-7 mb-2',
   caption_label: 'text-sm font-medium text-white',
   nav: 'space-x-1 flex items-center',
-  nav_button: 'text-white hover:bg-[rgba(255,255,255,0.12)] rounded p-1',
-  nav_button_previous: 'absolute left-0',
-  nav_button_next: 'absolute right-0',
-  table: 'w-full border-collapse space-y-1',
-  head_row: 'flex',
-  head_cell: 'text-xs font-medium text-[#737373] w-8 h-8 flex items-center justify-center rounded',
-  row: 'flex w-full gap-1',
-  cell: 'relative p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-transparent',
   day: 'h-8 w-8 p-0 font-normal',
   day_button: 'text-white hover:bg-[rgba(255,255,255,0.12)] rounded-lg h-8 w-8 transition-colors',
-  day_selected: 'bg-brand text-[#0d0d0d] hover:bg-brand font-semibold',
-  day_today: 'bg-[rgba(255,255,255,0.12)] text-muted-foreground font-semibold',
-  day_outside: 'text-[#444]',
-  day_disabled: 'text-[#333] opacity-50 cursor-not-allowed',
-  day_range_middle: 'aria-selected:bg-[rgba(255,255,255,0.12)] aria-selected:text-white',
-  day_hidden: 'invisible',
 };
 
 const GenerateRoadmapModal = ({

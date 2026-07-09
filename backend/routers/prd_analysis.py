@@ -14,6 +14,8 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from time_utils import utcnow
+
 sys.path.append("..")
 from sqlalchemy import func
 
@@ -394,7 +396,7 @@ def update_architecture(
     if update.description is not None:
         architecture.description = update.description
 
-    architecture.updated_at = datetime.utcnow()
+    architecture.updated_at = utcnow()
     db.commit()
     db.refresh(architecture)
 
@@ -438,7 +440,7 @@ async def ai_refine_architecture(
     # Update the architecture in database
     architecture.mermaid_code = refined.get("mermaid_code", request.current_mermaid_code)
     architecture.description = refined.get("description", architecture.description)
-    architecture.updated_at = datetime.utcnow()
+    architecture.updated_at = utcnow()
 
     # Update pros/cons if AI provided them
     if refined.get("pros"):
@@ -485,7 +487,7 @@ def select_architecture(
 
         print(f"[SELECT] Selecting architecture {architecture_id}...")
         architecture.is_selected = True
-        architecture.selected_at = datetime.utcnow()
+        architecture.selected_at = utcnow()
         db.commit()
         db.refresh(architecture)
 
@@ -736,11 +738,11 @@ async def commit_architecture(
         )
 
         epic.estimated_hours = total_hours
-        epic.updated_at = datetime.utcnow()
+        epic.updated_at = utcnow()
 
     # Mark architecture as selected
     architecture.is_selected = True
-    architecture.selected_at = datetime.utcnow()
+    architecture.selected_at = utcnow()
     db.commit()
 
     return {
@@ -847,8 +849,10 @@ def _empty_starter_suggestions(week_dates: list[date]) -> dict:
     """Pre-filled scaffold for the no-PRD path.
 
     Includes one MILESTONE (parser.py rejects files without any milestone
-    week dates), two EPICs, and two TASKs under each — every column populated
-    so the user can see the expected shape and replace cells as they go.
+    week dates), two EPICs, and two leaf rows under each — every column
+    populated so the user can see the expected shape and replace cells as they
+    go. The leaf rows deliberately mix "TASK" and "STORY" row types (parser.py
+    accepts both as assignable work items) so the template shows both are valid.
 
     All effort/week-hours math clamps to the available week range so the
     file passes parser.py's effort_mismatch check on re-upload regardless
@@ -897,6 +901,7 @@ def _empty_starter_suggestions(week_dates: list[date]) -> dict:
                 "effort_hrs": t1_total,
                 "week_hours": t1_wh,
                 "assignee": "Jane Doe",
+                "row_type": "TASK",
             },
             {
                 "name": "CI/CD pipeline",
@@ -907,6 +912,7 @@ def _empty_starter_suggestions(week_dates: list[date]) -> dict:
                 "effort_hrs": t2_total,
                 "week_hours": t2_wh,
                 "assignee": "John Smith",
+                "row_type": "STORY",
             },
             {
                 "name": "User authentication",
@@ -917,6 +923,7 @@ def _empty_starter_suggestions(week_dates: list[date]) -> dict:
                 "effort_hrs": t3_total,
                 "week_hours": t3_wh,
                 "assignee": "Jane Doe",
+                "row_type": "STORY",
             },
             {
                 "name": "Dashboard UI",
@@ -927,6 +934,7 @@ def _empty_starter_suggestions(week_dates: list[date]) -> dict:
                 "effort_hrs": t4_total,
                 "week_hours": t4_wh,
                 "assignee": "John Smith",
+                "row_type": "TASK",
             },
         ],
     }
@@ -1009,7 +1017,7 @@ async def generate_roadmap_template(
             existing.end_date = end_date
             existing.sprint_weeks = request.sprint_weeks
             existing.suggestions = suggestions
-            existing.updated_at = datetime.utcnow()
+            existing.updated_at = utcnow()
         else:
             existing = RoadmapTemplate(
                 project_id=project_id,

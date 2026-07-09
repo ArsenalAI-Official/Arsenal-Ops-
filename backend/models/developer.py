@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from time_utils import utcnow
+
 sys.path.append("..")
 from database import Base
 
@@ -24,7 +26,7 @@ project_developers = Table(
     Column("role", String(100), nullable=False),  # Role in this specific project
     Column("responsibilities", Text),  # What they'll be working on
     Column("is_admin", Boolean, default=False),  # Project-specific admin role
-    Column("assigned_at", DateTime, default=datetime.utcnow),
+    Column("assigned_at", DateTime, default=utcnow),
 )
 
 
@@ -44,9 +46,9 @@ class Developer(Base):
     is_external: Mapped[bool] = mapped_column(default=False)
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
     )
 
     # Relationships
