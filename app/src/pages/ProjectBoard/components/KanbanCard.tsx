@@ -3,6 +3,7 @@ import React from 'react';
 import { EpicChip } from '@/components/board/EpicChip';
 import { ParentChip } from '@/components/board/ParentChip';
 import TimeEntriesTable from '@/components/TimeEntriesTable';
+import { avatarColor } from '@/lib/avatarColor';
 import type { WorkItem } from '@/types/workItems';
 
 interface StatusConfig {
@@ -10,7 +11,7 @@ interface StatusConfig {
 }
 
 const TYPE_CONFIG = {
-  user_story: { icon: BookOpen, color: '#E0B954', label: 'Story', bg: 'rgba(224,185,84,0.15)' },
+  user_story: { icon: BookOpen, color: '#A6A29C', label: 'Story', bg: 'rgba(166,162,156,0.15)' },
   task: { icon: ClipboardList, color: '#F59E0B', label: 'Task', bg: 'rgba(245,158,11,0.15)' },
   bug: { icon: Bug, color: '#EF4444', label: 'Bug', bg: 'rgba(239,68,68,0.15)' },
   epic: { icon: Target, color: '#A78BFA', label: 'Epic', bg: 'rgba(167,139,250,0.15)' },
@@ -23,10 +24,10 @@ const TYPE_CONFIG = {
 };
 
 const PRIORITY_COLORS = {
-  critical: { hex: '#EF4444' },
-  high: { hex: '#F97316' },
-  medium: { hex: '#F59E0B' },
-  low: { hex: '#737373' },
+  critical: { hex: '#E5484D' },
+  high: { hex: '#EC7A3C' },
+  medium: { hex: '#94A3B8' },
+  low: { hex: '#64748B' },
 };
 
 export interface KanbanCardProps {
@@ -79,7 +80,7 @@ const KanbanCard = ({
           <TypeIcon className="w-3 h-3" />
           {typeInfo.label}
         </div>
-        <span className="text-[10px] text-[#E0B954] font-mono font-medium">{item.key}</span>
+        <span className="text-[10px] text-muted-foreground font-mono font-medium">{item.key}</span>
         {/* Blocked badge — derived from `is_blocked` (server-computed:
             ticket has ≥1 unresolved blocker comment). Red so it pops at
             a glance on the kanban; the side panel's Unblock button is
@@ -128,7 +129,7 @@ const KanbanCard = ({
             {item.remaining_hours}h left
           </span>
           <span className="flex items-center gap-2">
-            <span className="text-[#E0B954]">{item.logged_hours || 0}h logged</span>
+            <span className="text-muted-foreground">{item.logged_hours || 0}h logged</span>
             <span>/ {item.assigned_hours}h</span>
           </span>
         </div>
@@ -146,8 +147,8 @@ const KanbanCard = ({
       {/* Bottom: Points + Priority + Assignee */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-[#E0B954]/15 flex items-center justify-center">
-            <span className="text-[10px] font-bold text-[#E0B954]">{item.story_points}</span>
+          <div className="w-6 h-6 rounded-md bg-muted-foreground/15 flex items-center justify-center">
+            <span className="text-[10px] font-bold text-muted-foreground">{item.story_points}</span>
           </div>
           <span
             className="text-[10px] px-1.5 py-0.5 rounded font-medium"
@@ -159,16 +160,22 @@ const KanbanCard = ({
             {item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}
           </span>
         </div>
-        {item.assignee && item.assignee !== 'Unassigned' && (
-          <div
-            className="w-6 h-6 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center"
-            title={item.assignee}
-          >
-            <span className="text-[10px] font-semibold text-white">
-              {item.assignee?.charAt?.(0)?.toUpperCase() || '?'}
-            </span>
-          </div>
-        )}
+        {item.assignee &&
+          item.assignee !== 'Unassigned' &&
+          (() => {
+            const c = avatarColor(item.assignee_id ?? item.assignee);
+            return (
+              <div
+                className="w-6 h-6 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: c.bg, color: c.fg, border: `1px solid ${c.ring}` }}
+                title={item.assignee}
+              >
+                <span className="text-[10px] font-semibold">
+                  {item.assignee?.charAt?.(0)?.toUpperCase() || '?'}
+                </span>
+              </div>
+            );
+          })()}
       </div>
 
       {/* Tags */}

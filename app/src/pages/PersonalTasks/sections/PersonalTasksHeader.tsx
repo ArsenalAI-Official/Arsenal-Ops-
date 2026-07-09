@@ -1,5 +1,6 @@
 import { ArrowLeft, LogOut, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { avatarColor } from '@/lib/avatarColor';
 
 interface PersonalTasksHeaderProps {
   userName?: string;
@@ -32,14 +33,21 @@ const PersonalTasksHeader = ({
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {userName && (
-            <div className="flex items-center gap-2 mr-2">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center text-[#080808] text-sm font-medium">
-                {userName?.charAt(0).toUpperCase()}
-              </div>
-              <span className="text-sm text-[#a3a3a3] hidden md:block">{userName}</span>
-            </div>
-          )}
+          {userName &&
+            (() => {
+              const c = avatarColor(userName);
+              return (
+                <div className="flex items-center gap-2 mr-2">
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium"
+                    style={{ backgroundColor: c.bg, color: c.fg, border: `1px solid ${c.ring}` }}
+                  >
+                    {userName?.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="text-sm text-[#a3a3a3] hidden md:block">{userName}</span>
+                </div>
+              );
+            })()}
           {/* Admin nav link visibility uses the same admin-cap set as the
               /admin route guard (RequireAnyAdminCapability in App.tsx).
               Keeps link + route in sync via lib/adminCaps.ts. */}

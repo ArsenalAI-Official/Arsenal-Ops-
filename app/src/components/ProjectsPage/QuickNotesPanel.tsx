@@ -36,7 +36,7 @@ const QuickNotesPanel = ({
             </div>
             <div className="flex items-center gap-2">
               <span
-                className={`text-xs transition-colors duration-300 ${notepadSaved ? 'text-[#E0B954]' : 'text-[#737373]'}`}
+                className={`text-xs transition-colors duration-300 ${notepadSaved ? 'text-status-done' : 'text-[#737373]'}`}
               >
                 {notepadSaved ? '✓ Saved' : 'Saving...'}
               </span>

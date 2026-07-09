@@ -79,7 +79,10 @@ describe('MyTasksBox + useMyTasks', () => {
   it('renders assigned work items from the ["myTasks"] cache', async () => {
     server.use(
       http.get(`${API_BASE}/workitems/my-tasks`, () =>
-        HttpResponse.json([seedMyTask({ title: 'Wire up the launch sequence' })]),
+        // Past due_date → useMyTasks derives is_overdue, landing it in "focus".
+        HttpResponse.json([
+          seedMyTask({ title: 'Wire up the launch sequence', due_date: '2020-01-01' }),
+        ]),
       ),
     );
 
@@ -98,7 +101,12 @@ describe('MyTasksBox + useMyTasks', () => {
     server.use(
       http.get(`${API_BASE}/workitems/my-tasks`, () => {
         myTasksFetchCount += 1;
-        return HttpResponse.json([seedMyTask({ id: 'w1', status: persistedStatus })]);
+        // Past due_date keeps the task in the default "focus" tab across the
+        // todo → in_progress change (useMyTasks derives is_overdue from
+        // due_date; both statuses are non-done, so it stays "focus").
+        return HttpResponse.json([
+          seedMyTask({ id: 'w1', status: persistedStatus, due_date: '2020-01-01' }),
+        ]);
       }),
       http.put(`${API_BASE}/workitems/:id`, async ({ request }) => {
         putBody = (await request.json()) as Record<string, unknown>;
@@ -141,8 +149,8 @@ describe('MyTasksBox + useMyTasks', () => {
     // ['workItems'] has nothing cached under it here, so assert the invalidation
     // was actually issued — this is the half a regression would silently drop.
     await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['workItems'] }));
-    // 'todo' and 'in_progress' both live under the "upcoming" tab, so the item
-    // stays visible through the change + refetch.
+    // 'todo' and 'in_progress' are both non-done, so the overdue task stays in
+    // the "focus" tab through the change + refetch.
     expect(screen.getByText('Wire up the launch sequence')).toBeInTheDocument();
   });
 });

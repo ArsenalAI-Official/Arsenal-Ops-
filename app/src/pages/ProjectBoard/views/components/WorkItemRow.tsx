@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import StatusDotMenu from '@/components/ProjectsPage/StatusDotMenu';
+import { avatarColor } from '@/lib/avatarColor';
 import type { WorkItem } from '@/types/workItems';
 import { parseLocalDate } from '../../lib/listGrouping';
 
@@ -92,7 +93,7 @@ const WorkItemRow = ({
             └─
           </span>
         )}
-        <span className="text-[10px] text-[#E0B954] font-mono font-medium shrink-0">
+        <span className="text-[10px] text-muted-foreground font-mono font-medium shrink-0">
           {item.key}
         </span>
         <span className="text-sm text-[#f5f5f5] truncate group-hover:text-white transition-colors">
@@ -121,21 +122,27 @@ const WorkItemRow = ({
         </span>
       </div>
       <div className="flex items-center">
-        <span className="text-sm font-semibold text-[#E0B954]">{item.story_points}</span>
+        <span className="text-sm font-semibold text-muted-foreground">{item.story_points}</span>
       </div>
       <div className="flex items-center gap-1.5">
         {item.assignee && item.assignee !== 'Unassigned' ? (
-          <>
-            <div
-              className="w-5 h-5 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center shrink-0"
-              title={item.assignee}
-            >
-              <span className="text-[9px] font-semibold text-white">
-                {item.assignee.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <span className="text-xs text-[#a3a3a3] truncate">{item.assignee}</span>
-          </>
+          (() => {
+            const c = avatarColor(item.assignee_id ?? item.assignee);
+            return (
+              <>
+                <div
+                  className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: c.bg, color: c.fg, border: `1px solid ${c.ring}` }}
+                  title={item.assignee}
+                >
+                  <span className="text-[9px] font-semibold">
+                    {item.assignee.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <span className="text-xs text-[#a3a3a3] truncate">{item.assignee}</span>
+              </>
+            );
+          })()
         ) : (
           <span className="text-xs text-[#555] truncate">—</span>
         )}
@@ -148,7 +155,7 @@ const WorkItemRow = ({
       <div className="flex items-center">
         <span
           className={`text-xs truncate ${
-            highlightCompleted && item.completed_at ? 'text-[#E0B954]' : 'text-[#a3a3a3]'
+            highlightCompleted && item.completed_at ? 'text-status-done' : 'text-[#a3a3a3]'
           }`}
         >
           {item.completed_at ? new Date(item.completed_at).toLocaleDateString() : '—'}

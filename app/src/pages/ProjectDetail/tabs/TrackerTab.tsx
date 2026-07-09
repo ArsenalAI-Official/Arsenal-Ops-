@@ -1,8 +1,5 @@
 import { TrendingUp, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
 import {
-  PieChart,
-  Pie,
-  Cell,
   BarChart,
   Bar,
   XAxis,
@@ -15,7 +12,9 @@ import {
   Line,
 } from 'recharts';
 import type { ProjectAnalyticsResponse, SprintResponse } from '@/client';
+import { StatusDonut } from '@/components/charts/StatusDonut';
 import { Badge } from '@/components/ui/badge';
+import { Empty, EmptyDescription } from '@/components/ui/empty';
 
 interface TrackerTabProps {
   hubLoading: boolean;
@@ -36,7 +35,7 @@ const TrackerTab = ({
     return (
       <div className="space-y-4 animate-pulse">
         {/* Active Sprints skeleton */}
-        <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(224,185,84,0.12)] rounded-2xl p-5 space-y-3">
+        <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.12)] rounded-2xl p-5 space-y-3">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 rounded-xl bg-[rgba(255,255,255,0.06)]" />
             <div className="h-4 w-28 bg-[rgba(255,255,255,0.07)] rounded" />
@@ -88,10 +87,10 @@ const TrackerTab = ({
     <div className="space-y-4">
       {/* Active Sprints */}
       {sprints.length > 0 && (
-        <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(224,185,84,0.12)] rounded-2xl p-5">
+        <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.12)] rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#E0B954] to-[#C79E3B] flex items-center justify-center shadow-lg shadow-[#E0B954]/20">
+              <div className="w-9 h-9 rounded-xl bg-[rgba(255,255,255,0.06)] flex items-center justify-center">
                 <TrendingUp className="w-4 h-4 text-white" />
               </div>
               <div>
@@ -105,7 +104,7 @@ const TrackerTab = ({
             {sprints.length > 2 && (
               <button
                 onClick={() => setSprintsExpanded((p) => !p)}
-                className="flex items-center gap-1.5 text-xs text-[#E0B954] hover:text-[#F3D57E] px-3 py-1.5 rounded-lg bg-[#E0B954]/10 hover:bg-[#E0B954]/15 transition-colors font-medium flex-shrink-0"
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-white px-3 py-1.5 rounded-lg bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.12)] transition-colors font-medium flex-shrink-0"
               >
                 {sprintsExpanded ? (
                   <>
@@ -125,9 +124,9 @@ const TrackerTab = ({
                 key={sprint.id}
                 className={`border rounded-xl p-4 ${
                   sprint.status === 'active'
-                    ? 'border-[#E0B954]/30 bg-[#E0B954]/5'
+                    ? 'border-status-in-progress/30 bg-status-in-progress/5'
                     : sprint.status === 'completed'
-                      ? 'border-[#E0B954]/20 bg-[rgba(224,185,84,0.03)]'
+                      ? 'border-status-done/20 bg-status-done/5'
                       : 'border-[rgba(255,255,255,0.05)] bg-[rgba(255,255,255,0.02)]'
                 }`}
               >
@@ -136,9 +135,9 @@ const TrackerTab = ({
                     <span
                       className={`w-2 h-2 rounded-full flex-shrink-0 ${
                         sprint.status === 'active'
-                          ? 'bg-[#E0B954] animate-pulse'
+                          ? 'bg-status-in-progress animate-pulse'
                           : sprint.status === 'completed'
-                            ? 'bg-[#E0B954]'
+                            ? 'bg-status-done'
                             : 'bg-[#737373]'
                       }`}
                     />
@@ -147,9 +146,9 @@ const TrackerTab = ({
                   <Badge
                     className={`text-[10px] border-0 flex-shrink-0 ${
                       sprint.status === 'active'
-                        ? 'bg-[#E0B954]/20 text-[#E0B954]'
+                        ? 'bg-status-in-progress/20 text-status-in-progress'
                         : sprint.status === 'completed'
-                          ? 'bg-[#E0B954]/20 text-[#E0B954]'
+                          ? 'bg-status-done/20 text-status-done'
                           : 'bg-[#737373]/20 text-[#737373]'
                     }`}
                   >
@@ -162,11 +161,11 @@ const TrackerTab = ({
                 <div className="flex items-center gap-2 mb-2">
                   <div className="flex-1 h-1.5 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-[#E0B954] to-[#E0B954] rounded-full transition-all"
+                      className="h-full bg-progress rounded-full transition-all"
                       style={{ width: `${sprint.completion_pct}%` }}
                     />
                   </div>
-                  <span className="text-xs font-bold text-[#E0B954] w-10 text-right">
+                  <span className="text-xs font-bold text-muted-foreground w-10 text-right">
                     {sprint.completion_pct}%
                   </span>
                 </div>
@@ -193,7 +192,7 @@ const TrackerTab = ({
       {analytics && (
         <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl p-5">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E0B954] to-[#C79E3B] flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-[rgba(255,255,255,0.06)] flex items-center justify-center">
               <BarChart3 className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -220,74 +219,13 @@ const TrackerTab = ({
             <div className="space-y-4">
               <div className="bg-[rgba(255,255,255,0.025)] rounded-xl p-4">
                 <h4 className="text-sm font-medium text-[#a3a3a3] mb-4">Status Distribution</h4>
-                <ResponsiveContainer width="100%" height={200}>
-                  <PieChart>
-                    <Pie
-                      data={Object.entries(analytics.status_distribution).map(([name, value]) => ({
-                        name,
-                        value,
-                      }))}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={40}
-                      outerRadius={80}
-                      paddingAngle={5}
-                      dataKey="value"
-                      label={({ value, cx, cy, midAngle }) => {
-                        const RADIAN = Math.PI / 180;
-                        const radius = 65;
-                        const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                        const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                        return (
-                          <text
-                            x={x}
-                            y={y}
-                            fill="#ffffff"
-                            fontSize="14"
-                            fontWeight="bold"
-                            textAnchor="middle"
-                            dominantBaseline="central"
-                          >
-                            {value}
-                          </text>
-                        );
-                      }}
-                      labelLine={false}
-                    >
-                      {Object.entries(analytics.status_distribution).map(([name], index) => {
-                        const statusColors: Record<string, string> = {
-                          backlog: '#6B7280',
-                          todo: '#60A5FA',
-                          in_progress: '#E0B954',
-                          in_review: '#A78BFA',
-                          done: '#34D399',
-                          blocked: '#EF4444',
-                        };
-                        const fallback = [
-                          '#6B7280',
-                          '#60A5FA',
-                          '#E0B954',
-                          '#A78BFA',
-                          '#34D399',
-                          '#EF4444',
-                        ];
-                        return (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={statusColors[name] ?? fallback[index % fallback.length]}
-                          />
-                        );
-                      })}
-                    </Pie>
-                    <Legend
-                      formatter={(value: string) =>
-                        value.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
-                      }
-                      wrapperStyle={{ paddingTop: '12px' }}
-                      iconType="circle"
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+                <StatusDonut
+                  data={Object.entries(analytics.status_distribution).map(([name, value]) => ({
+                    name,
+                    label: name.replace(/_/g, ' '),
+                    value,
+                  }))}
+                />
               </div>
               <div className="bg-[rgba(255,255,255,0.025)] rounded-xl p-4">
                 <h4 className="text-sm font-medium text-[#a3a3a3] mb-4">
@@ -321,9 +259,9 @@ const TrackerTab = ({
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="flex items-center justify-center h-[300px] text-[#737373]">
-                    <p>No Sprints Created for the project</p>
-                  </div>
+                  <Empty className="min-h-[180px]">
+                    <EmptyDescription>No sprints created for this project yet.</EmptyDescription>
+                  </Empty>
                 )}
               </div>
               <div className="bg-[rgba(255,255,255,0.025)] rounded-xl p-4">

@@ -52,7 +52,7 @@ const ProjectsToolbar: React.FC<ProjectsToolbarProps> = ({
             placeholder="Search projects…"
             value={projectSearch}
             onChange={(e) => onProjectSearchChange(e.target.value)}
-            className="pl-8 w-56 bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-9 text-sm focus:border-[#E0B954]/50"
+            className="pl-8 w-56 bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-9 text-sm focus:border-brand/50"
           />
         </div>
         <div className="flex items-center gap-1.5 text-xs text-[#737373]">

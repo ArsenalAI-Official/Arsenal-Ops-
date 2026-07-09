@@ -187,7 +187,7 @@ const ProjectDetail = () => {
     return (
       <div className="min-h-screen bg-[#080808] flex flex-col items-center justify-center text-center">
         <h2 className="text-xl font-bold text-white mb-2">Project not found</h2>
-        <Button onClick={() => navigate('/')} variant="ghost" className="text-[#E0B954]">
+        <Button onClick={() => navigate('/')} variant="ghost" className="text-muted-foreground">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Projects
         </Button>

@@ -56,7 +56,7 @@ export default function TimeEntriesTable({ workItemId, token }: TimeEntriesTable
     <div className="mt-2 border-t border-[rgba(255,255,255,0.05)] pt-2">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1 text-[10px] text-[#C79E3B] hover:text-[#E0B954] transition-colors"
+        className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-white transition-colors"
       >
         <Clock className="w-3 h-3" />
         <span>This Week: {thisWeekTotal}h logged</span>
@@ -84,7 +84,7 @@ export default function TimeEntriesTable({ workItemId, token }: TimeEntriesTable
                     <td className="py-1 text-white truncate max-w-[80px]">
                       {entry.developer_name}
                     </td>
-                    <td className="py-1 text-right text-[#E0B954]">{entry.hours}h</td>
+                    <td className="py-1 text-right text-muted-foreground">{entry.hours}h</td>
                     <td className="py-1 text-right text-[#737373]">
                       {new Date(entry.logged_at).toLocaleDateString('en-US', {
                         month: 'short',
@@ -97,7 +97,9 @@ export default function TimeEntriesTable({ workItemId, token }: TimeEntriesTable
               <tfoot>
                 <tr className="border-t border-[rgba(255,255,255,0.1)]">
                   <td className="py-1 text-[#737373]">Total</td>
-                  <td className="py-1 text-right text-[#C79E3B] font-medium">{thisWeekTotal}h</td>
+                  <td className="py-1 text-right text-muted-foreground font-medium">
+                    {thisWeekTotal}h
+                  </td>
                   <td></td>
                 </tr>
               </tfoot>

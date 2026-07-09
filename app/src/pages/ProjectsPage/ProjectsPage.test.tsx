@@ -95,7 +95,10 @@ describe('ProjectsPage (home)', () => {
   it('renders an assigned work item from the ["myTasks"] feed in MyTasksBox', async () => {
     installHomeBackend({
       projects: [seedProject()],
-      myTasks: [seedMyTask({ title: 'Wire up the launch sequence' })],
+      // MyTasksBox defaults to the "focus" tab (overdue / due-today, not done).
+      // useMyTasks recomputes is_overdue locally from due_date, so a past
+      // due_date (not the backend is_overdue flag) is what lands it in focus.
+      myTasks: [seedMyTask({ title: 'Wire up the launch sequence', due_date: '2020-01-01' })],
     });
 
     renderPage(<ProjectsPage />, { route: '/', path: '/' });

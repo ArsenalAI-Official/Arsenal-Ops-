@@ -140,6 +140,23 @@ describe('board hook cache invalidation', () => {
     expect(keys).toContainEqual(['workItem', 'w1', 'comments']); // R10 auto-comment
   });
 
+  it('inline field patch invalidates work-item + project scope (guarded)', async () => {
+    const { queryClient, wrapper, spy } = makeHarness();
+    const { result } = renderHook(() => useWorkItemMutations(ID, workItemArgs(queryClient)), {
+      wrapper,
+    });
+
+    await act(async () => {
+      result.current.handlePatchField({ story_points: 5 });
+    });
+    await waitFor(() => expect(spy).toHaveBeenCalled());
+
+    const keys = invalidatedKeys(spy);
+    expect(keys).toContainEqual(['workItems']); // invalidateWorkItemScope
+    expect(keys).toContainEqual(['myTasks']); // CLAUDE.md cross-cutting rule
+    expect(keys).toContainEqual(['project', ID]); // invalidateProjectScope
+  });
+
   it('create item invalidates work-item + project scope', async () => {
     const { queryClient, wrapper, spy } = makeHarness();
     const { result } = renderHook(() => useWorkItemMutations(ID, workItemArgs(queryClient)), {
@@ -298,5 +315,54 @@ describe('board optimistic status cache (R2)', () => {
     });
 
     await waitFor(() => expect(statusOf(queryClient, 'w1')).toBe('todo'));
+  });
+
+  // The inline field-patch path (Properties rail) shares the same exact-key
+  // optimistic contract as `move`, but merges an arbitrary field partial rather
+  // than flipping status. A wrong key shape or a dropped rollback would let a
+  // rejected dropdown change stick in the UI.
+  const spOf = (qc: QueryClient, itemId: string) =>
+    (qc.getQueryData(BOARD_KEY) as Array<{ id: string; story_points?: number }> | undefined)?.find(
+      (t) => t.id === itemId,
+    )?.story_points;
+
+  it('patch field: optimistic write merges the edit at the exact board key', async () => {
+    const { queryClient, wrapper } = makeHarness();
+    seed(queryClient);
+    // PUT never settles → the optimistic merge stays in place.
+    server.use(http.put(`${API_BASE}/workitems/:id`, () => new Promise(() => {})));
+    const { result } = renderHook(
+      () => useWorkItemMutations(ID, { ...workItemArgs(queryClient), workItemFilters: FILTERS }),
+      { wrapper },
+    );
+
+    await act(async () => {
+      result.current.patchFieldMutation.mutate({ itemId: 'w1', edits: { story_points: 8 } });
+    });
+
+    await waitFor(() => expect(spOf(queryClient, 'w1')).toBe(8));
+    expect(statusOf(queryClient, 'w1')).toBe('todo'); // other fields untouched
+    expect(spOf(queryClient, 'w2')).toBeUndefined(); // other rows untouched
+  });
+
+  it('patch field: rejected PUT rolls the exact board key back + toasts the error', async () => {
+    const { queryClient, wrapper } = makeHarness();
+    seed(queryClient);
+    server.use(
+      http.put(`${API_BASE}/workitems/:id`, () =>
+        HttpResponse.json({ detail: 'Ticket is done' }, { status: 400 }),
+      ),
+    );
+    const { result } = renderHook(
+      () => useWorkItemMutations(ID, { ...workItemArgs(queryClient), workItemFilters: FILTERS }),
+      { wrapper },
+    );
+
+    await act(async () => {
+      result.current.patchFieldMutation.mutate({ itemId: 'w1', edits: { story_points: 8 } });
+    });
+
+    await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Ticket is done'));
+    expect(spOf(queryClient, 'w1')).toBeUndefined(); // rolled back to the seeded shape
   });
 });

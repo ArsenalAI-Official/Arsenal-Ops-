@@ -15,7 +15,7 @@ const MyTasksHeader = ({
   return (
     <div className="flex items-center justify-between px-5 pt-5 pb-3 flex-shrink-0">
       <div className="flex items-center gap-2">
-        <h2 className="text-xl font-semibold text-white">My tasks</h2>
+        <h2 className="text-base font-bold text-white">My Work</h2>
         <CheckSquare2 className="w-3.5 h-3.5 text-[#737373]" />
       </div>
       <div className="flex items-center gap-2">
@@ -28,7 +28,7 @@ const MyTasksHeader = ({
             placeholder="Search..."
             value={taskSearch}
             onChange={(e) => setTaskSearch(e.target.value)}
-            className="pl-8 w-32 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-lg h-7 text-xs focus:border-[#E0B954]/50"
+            className="pl-8 w-32 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-lg h-7 text-xs focus:border-[rgba(255,255,255,0.12)]"
           />
         </div>
         <button

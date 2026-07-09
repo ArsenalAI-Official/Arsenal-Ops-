@@ -35,7 +35,6 @@ import json
 import logging
 import re
 import sys
-from calendar import monthrange
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -112,17 +111,6 @@ def _start_of_month(dt: datetime) -> datetime:
     return datetime(dt.year, dt.month, 1)
 
 
-def _end_of_month(dt: datetime) -> datetime:
-    """Return the last second of ``dt``'s month.
-
-    Prefer ``< _start_of_month(_add_month(dt))`` at call sites where an
-    exclusive upper bound is cleaner; this helper is kept for places that
-    want a representable "end" datetime.
-    """
-    last_day = monthrange(dt.year, dt.month)[1]
-    return datetime(dt.year, dt.month, last_day, 23, 59, 59)
-
-
 def _enumerate_months(start: datetime, end: datetime) -> list[datetime]:
     """Return a list of first-of-month datetimes from ``start`` to ``end``
     inclusive. Both bounds are normalized to the first of the month."""
@@ -176,8 +164,10 @@ def _derive_project_meta(project: Project, db: Session) -> dict:
     (no real contract date column today; see plan caveat). ``launchTarget``
     picks the nearest milestone titled like /launch|go.?live|release/i,
     falling back to ``end_date``."""
-    contract_start = project.created_at.isoformat() if project.created_at else ""
-    contract_end = project.end_date.isoformat() if project.end_date else ""
+    # Formatted "Month YYYY" (not ISO) — these are display-only and the frontend
+    # renders them verbatim. Keep in sync with IncludedServicesRow.month.
+    contract_start = _month_label(project.created_at) if project.created_at else ""
+    contract_end = _month_label(project.end_date) if project.end_date else ""
 
     # Heuristic: find a launch-y milestone if one exists.
     launch_target = contract_end
@@ -191,7 +181,7 @@ def _derive_project_meta(project: Project, db: Session) -> dict:
     )
     for m in candidates:
         if m.title and launch_re.search(m.title):
-            launch_target = m.due_date.isoformat() if m.due_date else launch_target
+            launch_target = _month_label(m.due_date) if m.due_date else launch_target
             break
 
     return {
@@ -469,7 +459,7 @@ def _derive_milestones(project: Project, db: Session) -> list[dict]:
         {
             "id": str(m.id),
             "phase": m.title or "",
-            "date": m.due_date.isoformat() if m.due_date else "",
+            "date": _month_label(m.due_date) if m.due_date else "",
             "status": _milestone_status(m, now),
         }
         for m in milestones

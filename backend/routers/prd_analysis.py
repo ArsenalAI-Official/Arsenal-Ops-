@@ -20,19 +20,20 @@ sys.path.append("..")
 from sqlalchemy import func
 
 from database import get_db
-from models.activity_log import ActivityLog
 from models.architecture import Architecture, PRDAnalysis, RoadmapTemplate
 from models.developer import Developer, project_developers
 from models.project import Project
 from models.sprint import Sprint, SprintStatus
 from models.user import User
 from models.work_item import WorkItem
+from routers._common import get_or_404
 from routers.auth import get_current_user, require_capability
 from routers.projects import (
     CostAnalysisResponse,
     ProjectArchitectureResponse,
     require_project_admin,
 )
+from services.activity import log_activity
 from services.architecture_generator import architecture_generator
 from services.prd_processor import prd_processor
 from services.project_keys import key_prefix_lock_id
@@ -196,15 +197,14 @@ async def _run_prd_analysis_pipeline(
     # Activity tab. Atomic with the PRDAnalysis insert: if the commit fails,
     # neither row persists. Committed BEFORE architecture generation so the
     # log entry survives even if the architecture LLM call errors out.
-    db.add(
-        ActivityLog(
-            project_id=project.id,
-            user_id=current_user.id,
-            action="created",
-            entity_type="prd_analysis",
-            entity_id=prd_analysis.id,
-            title=(f"Analyzed PRD: {filename}" if filename else "Analyzed PRD from pasted text"),
-        )
+    log_activity(
+        db,
+        project_id=project.id,
+        user_id=current_user.id,
+        action="created",
+        entity_type="prd_analysis",
+        entity_id=prd_analysis.id,
+        title=(f"Analyzed PRD: {filename}" if filename else "Analyzed PRD from pasted text"),
     )
     db.commit()
     db.refresh(prd_analysis)
@@ -268,9 +268,7 @@ async def analyze_prd_file(
     Upload and analyze a PRD file (PDF or Word) (requires `project.ai.write`).
     Returns: PRD analysis and generated architectures.
     """
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_or_404(db, Project, project_id, detail="Project not found")
 
     file_content = await file.read()
     if len(file_content) > MAX_PRD_FILE_BYTES:
@@ -308,9 +306,7 @@ async def analyze_prd_text(
     Analyze PRD from text input (requires `project.ai.write`).
     Returns: PRD analysis and generated architectures.
     """
-    project = db.query(Project).filter(Project.id == request.project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_or_404(db, Project, request.project_id, detail="Project not found")
 
     return await _run_prd_analysis_pipeline(
         db=db,
@@ -371,9 +367,7 @@ def get_architecture(
     current_user: User = Depends(get_current_user),
 ):
     """Get a specific architecture (requires auth)"""
-    architecture = db.query(Architecture).filter(Architecture.id == architecture_id).first()
-    if not architecture:
-        raise HTTPException(status_code=404, detail="Architecture not found")
+    architecture = get_or_404(db, Architecture, architecture_id, detail="Architecture not found")
 
     return architecture.to_dict()
 
@@ -392,9 +386,7 @@ def update_architecture(
     three accept paths (tool admin, `project.overview_write`, per-project
     admin). Project is resolved from the architecture row.
     """
-    architecture = db.query(Architecture).filter(Architecture.id == architecture_id).first()
-    if not architecture:
-        raise HTTPException(status_code=404, detail="Architecture not found")
+    architecture = get_or_404(db, Architecture, architecture_id, detail="Architecture not found")
     require_project_admin(architecture.project_id, current_user, db)
 
     if update.mermaid_code is not None:
@@ -428,9 +420,7 @@ async def ai_refine_architecture(
     - "Add authentication service with OAuth2 support"
     """
     # Get the architecture
-    architecture = db.query(Architecture).filter(Architecture.id == architecture_id).first()
-    if not architecture:
-        raise HTTPException(status_code=404, detail="Architecture not found")
+    architecture = get_or_404(db, Architecture, architecture_id, detail="Architecture not found")
 
     # AI-refine mutates the architecture row — same Overview-write gate.
     require_project_admin(architecture.project_id, current_user, db)
@@ -480,9 +470,9 @@ def select_architecture(
     )
     try:
         print("[SELECT] Querying architecture...")
-        architecture = db.query(Architecture).filter(Architecture.id == architecture_id).first()
-        if not architecture:
-            raise HTTPException(status_code=404, detail="Architecture not found")
+        architecture = get_or_404(
+            db, Architecture, architecture_id, detail="Architecture not found"
+        )
 
         # Selecting an architecture is a write — same Overview-write gate.
         require_project_admin(architecture.project_id, current_user, db)
@@ -530,18 +520,16 @@ async def commit_architecture(
     """
     require_project_admin(project_id, current_user, db)
     # Get project
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_or_404(db, Project, project_id, detail="Project not found")
 
     # Get architecture
-    architecture = (
-        db.query(Architecture)
-        .filter(Architecture.id == request.architecture_id, Architecture.project_id == project_id)
-        .first()
+    architecture = get_or_404(
+        db,
+        Architecture,
+        request.architecture_id,
+        detail="Architecture not found",
+        project_id=project_id,
     )
-    if not architecture:
-        raise HTTPException(status_code=404, detail="Architecture not found")
 
     # Get PRD analysis for the project (to enrich ticket generation)
     prd_analysis = (
@@ -788,18 +776,16 @@ async def preview_generated_tickets(
     Preview tickets that would be generated without committing (requires auth)
     """
     # Get project
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_or_404(db, Project, project_id, detail="Project not found")
 
     # Get architecture
-    architecture = (
-        db.query(Architecture)
-        .filter(Architecture.id == request.architecture_id, Architecture.project_id == project_id)
-        .first()
+    architecture = get_or_404(
+        db,
+        Architecture,
+        request.architecture_id,
+        detail="Architecture not found",
+        project_id=project_id,
     )
-    if not architecture:
-        raise HTTPException(status_code=404, detail="Architecture not found")
 
     # Get PRD analysis for the project (to enrich ticket generation)
     prd_analysis = (
@@ -969,9 +955,7 @@ async def generate_roadmap_template(
     the correct columns and one placeholder milestone — they fill it in and
     re-upload via POST /api/roadmap/parse-file.
     """
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_or_404(db, Project, project_id, detail="Project not found")
 
     try:
         start_date = date.fromisoformat(request.start_date)
@@ -1062,9 +1046,7 @@ def get_roadmap_template(
     current_user: User = Depends(get_current_user),
 ):
     """Return metadata for the saved roadmap template, or 404 if none exists."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    get_or_404(db, Project, project_id, detail="Project not found")
 
     template = db.query(RoadmapTemplate).filter(RoadmapTemplate.project_id == project_id).first()
     if not template:
@@ -1080,9 +1062,7 @@ def download_roadmap_template(
     current_user: User = Depends(get_current_user),
 ):
     """Re-render the saved roadmap template and stream the .xlsx."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = get_or_404(db, Project, project_id, detail="Project not found")
 
     template = db.query(RoadmapTemplate).filter(RoadmapTemplate.project_id == project_id).first()
     if not template:

@@ -32,7 +32,6 @@ const analytics = (developer_hours: DeveloperHours[]): HoursAnalytics => ({
   total_remaining_hours: 0,
   sprint_hours: [],
   developer_hours,
-  weekly_hours: [],
 });
 
 describe('DeveloperHoursTable', () => {

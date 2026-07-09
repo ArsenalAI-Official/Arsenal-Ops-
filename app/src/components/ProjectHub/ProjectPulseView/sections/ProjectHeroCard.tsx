@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { PulseData, computeDerived, currentIncludedServices } from '../../pulseData';
 import { Card } from '../components/Card';
 import { Stat } from '../components/Stat';
-import { fmt$, fmtPct } from '../lib/format';
+import { fmt$, fmtPct, fmtPulseDate } from '../lib/format';
 
 /* -------------------------------------------------------------------- */
 /*  PROJECT HERO CARD — Variant E first box (1:1 port)                  */
@@ -15,6 +15,15 @@ export const ProjectHeroCard: React.FC<{ pulse: PulseData }> = React.memo(({ pul
   const burnedPct = contractTotal > 0 ? burnedToDate / contractTotal : 0;
   const forecastVariance = forecastEnd - contractTotal;
   const underBudget = forecastVariance < 0;
+  // Overage severity scales with the overage as a share of the contract: amber
+  // under 10%, red at/above it. Under-budget stays the calm "done" green.
+  const overageShare = contractTotal > 0 ? forecastVariance / contractTotal : 0;
+  const overageSeverity = underBudget ? 'under' : overageShare >= 0.1 ? 'critical' : 'high';
+  const varianceBadgeClass = {
+    under: 'bg-status-done/15 text-status-done',
+    high: 'bg-priority-high/15 text-priority-high',
+    critical: 'bg-priority-critical/15 text-priority-critical',
+  }[overageSeverity];
 
   const devHoursActual = monthsWithCum
     .slice(0, pulse.lastActualIdx + 1)
@@ -28,7 +37,16 @@ export const ProjectHeroCard: React.FC<{ pulse: PulseData }> = React.memo(({ pul
   const s = currentIncludedServices(pulse);
   const inclPct = s.totalHours > 0 ? s.usedHours / s.totalHours : 0;
   const lastMonth = monthsWithCum[pulse.lastActualIdx];
-  const monthShort = (pulse.summary.monthLabel || '').split(' ')[0]!.slice(0, 3);
+  // Derive the tile's month from the SAME row that supplies its value, so the
+  // "(Apr, MTD)" label, the $ figure, and the tracked-% bar all refer to one
+  // month. Empty (no actuals yet) → drop the parenthetical rather than show a
+  // bare comma.
+  // Label the tile by the actual month it summarizes (the latest month with
+  // actuals) rather than asserting "Current month" — with lagging data the
+  // latest-actuals month can trail the calendar month, and claiming "Current"
+  // then reads as wrong. In production the two coincide.
+  const monthShort = lastMonth?.m?.split(' ')[0] ?? '';
+  const trackedPct = Math.min(100, Math.max(0, pulse.currentMonthTrackedPct));
 
   return (
     <Card className="p-6">
@@ -47,9 +65,7 @@ export const ProjectHeroCard: React.FC<{ pulse: PulseData }> = React.memo(({ pul
               <div
                 className={
                   'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold ' +
-                  (underBudget
-                    ? 'bg-[#34D399]/15 text-[#34D399]'
-                    : 'bg-[#FBBF24]/15 text-[#FBBF24]')
+                  varianceBadgeClass
                 }
               >
                 <span>{underBudget ? '↓' : '↑'}</span>
@@ -77,7 +93,7 @@ export const ProjectHeroCard: React.FC<{ pulse: PulseData }> = React.memo(({ pul
                 className="absolute top-0 left-0 h-full rounded-full"
                 style={{
                   width: `${burnedPct * 100}%`,
-                  background: 'linear-gradient(90deg,#C79E3B,#E0B954)',
+                  background: 'var(--progress)',
                 }}
               />
               <div
@@ -86,9 +102,13 @@ export const ProjectHeroCard: React.FC<{ pulse: PulseData }> = React.memo(({ pul
               />
             </div>
             <div className="flex items-center justify-between text-[10px] text-[#737373] font-mono mt-1.5">
-              <span>{pulse.project.contractStart}</span>
-              <span>Target launch · {pulse.project.launchTarget}</span>
-              <span>{pulse.project.contractEnd}</span>
+              <span>{fmtPulseDate(pulse.project.contractStart)}</span>
+              <span>
+                {pulse.project.launchTarget
+                  ? `Target launch · ${fmtPulseDate(pulse.project.launchTarget)}`
+                  : 'Target launch — not set'}
+              </span>
+              <span>{fmtPulseDate(pulse.project.contractEnd)}</span>
             </div>
           </div>
         </div>
@@ -96,18 +116,15 @@ export const ProjectHeroCard: React.FC<{ pulse: PulseData }> = React.memo(({ pul
         {/* Right: 3 stat tiles */}
         <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Stat
-            label={`Current month (${monthShort}, MTD)`}
+            label={monthShort ? `${monthShort} · month-to-date` : 'Current month'}
             value={fmt$(lastMonth?.total || 0)}
             tone="amber"
           >
             <div className="mt-3 h-1 rounded-full bg-[rgba(255,255,255,0.05)] overflow-hidden">
-              <div
-                className="h-full bg-[#FBBF24]"
-                style={{ width: `${pulse.currentMonthTrackedPct}%` }}
-              />
+              <div className="h-full bg-[#FBBF24]" style={{ width: `${trackedPct}%` }} />
             </div>
             <div className="text-[10px] text-[#FBBF24] mt-1.5 font-mono">
-              {pulse.currentMonthTrackedPct}% of month tracked
+              {trackedPct}% of month tracked
             </div>
           </Stat>
 
@@ -118,7 +135,7 @@ export const ProjectHeroCard: React.FC<{ pulse: PulseData }> = React.memo(({ pul
           >
             <div className="mt-3 h-1 rounded-full bg-[rgba(255,255,255,0.05)] overflow-hidden relative">
               <div
-                className="absolute top-0 left-0 h-full rounded-full bg-[#E0B954]"
+                className="absolute top-0 left-0 h-full rounded-full bg-progress"
                 style={{ width: `${Math.min(100, devHoursPct * 100)}%` }}
               />
             </div>
@@ -138,7 +155,7 @@ export const ProjectHeroCard: React.FC<{ pulse: PulseData }> = React.memo(({ pul
                 className="h-full"
                 style={{
                   width: `${Math.min(100, inclPct * 100)}%`,
-                  background: inclPct >= 1 ? '#FBBF24' : '#E0B954',
+                  background: inclPct >= 1 ? '#FBBF24' : 'var(--progress)',
                 }}
               />
             </div>
@@ -201,7 +218,7 @@ export const ProjectHeroCard: React.FC<{ pulse: PulseData }> = React.memo(({ pul
               <div className="text-sm text-[#737373]">hrs</div>
             </div>
             <div className="text-[11px] text-[#737373] mt-1">
-              Through end of contract · {pulse.project.contractEnd}
+              Through end of contract · {fmtPulseDate(pulse.project.contractEnd)}
             </div>
           </div>
         </div>

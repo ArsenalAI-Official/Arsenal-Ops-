@@ -3,8 +3,9 @@ import React from 'react';
 import type { EmployeeResponse } from '@/client';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription } from '@/components/ui/empty';
+import { avatarColor } from '@/lib/avatarColor';
 import EmployeeExpandedRow, { type ProjectGroup } from './EmployeeExpandedRow';
-import { projectColor } from './types';
+import { CAPACITY_STATUS_COLOR, projectColor } from './types';
 import type { DeveloperCapacity, EmployeeRow, EmployeeSort, EmployeeSortKey } from './types';
 
 interface EmployeeCapacityTableProps {
@@ -125,6 +126,7 @@ const EmployeeCapacityTable: React.FC<EmployeeCapacityTableProps> = ({
             const projectsByHours = Object.values(projectGroupsMap).sort(
               (a, b) => b.total - a.total,
             );
+            const ac = avatarColor(emp.id);
 
             return (
               <React.Fragment key={emp.id}>
@@ -137,7 +139,14 @@ const EmployeeCapacityTable: React.FC<EmployeeCapacityTableProps> = ({
                 >
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-[rgba(224,185,84,0.2)] flex items-center justify-center text-sm font-medium text-[#E0B954]">
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium"
+                        style={{
+                          backgroundColor: ac.bg,
+                          color: ac.fg,
+                          border: `1px solid ${ac.ring}`,
+                        }}
+                      >
                         {emp.name.charAt(0).toUpperCase()}
                       </div>
                       <div>
@@ -175,43 +184,36 @@ const EmployeeCapacityTable: React.FC<EmployeeCapacityTableProps> = ({
                             <span>No tickets this week</span>
                           ) : (
                             <>
-                              {projectsByHours.slice(0, 3).map((p, i) => (
-                                <React.Fragment key={p.projectId}>
-                                  {i > 0 && (
-                                    <span className="text-[rgba(255,255,255,0.15)]">·</span>
-                                  )}
-                                  <span className="flex items-center gap-1">
-                                    <span
-                                      className="w-1.5 h-1.5 rounded-sm"
-                                      style={{
-                                        backgroundColor: projectColor(p.projectId),
-                                      }}
-                                    />
-                                    <span className="truncate max-w-[120px]" title={p.projectName}>
-                                      {p.projectName}
-                                    </span>
-                                    <span>· {p.total}h</span>
+                              {/* Items are separated by the flex `gap-2` + the
+                                  leading color swatch, NOT by standalone `·`
+                                  spans — in a flex-wrap row a bare separator span
+                                  orphans at a line break and reads as a dangling
+                                  "20h ·". The only `·` left is glued between a
+                                  name and its hours, so it can never trail. */}
+                              {projectsByHours.slice(0, 3).map((p) => (
+                                <span key={p.projectId} className="flex items-center gap-1 min-w-0">
+                                  <span
+                                    className="w-1.5 h-1.5 rounded-sm shrink-0"
+                                    style={{
+                                      backgroundColor: projectColor(p.projectId),
+                                    }}
+                                  />
+                                  <span className="truncate max-w-[120px]" title={p.projectName}>
+                                    {p.projectName}
                                   </span>
-                                </React.Fragment>
+                                  <span className="shrink-0">· {p.total}h</span>
+                                </span>
                               ))}
                               {projectsByHours.length > 3 && (
-                                <>
-                                  <span className="text-[rgba(255,255,255,0.15)]">·</span>
-                                  <span>+{projectsByHours.length - 3} more</span>
-                                </>
+                                <span className="shrink-0">+{projectsByHours.length - 3} more</span>
                               )}
                             </>
                           )}
                         </div>
                       </div>
                       <span
-                        className={`text-xs font-medium whitespace-nowrap ${
-                          capacityStatus === 'Available'
-                            ? 'text-[#E0B954]'
-                            : capacityStatus === 'Busy'
-                              ? 'text-[#F59E0B]'
-                              : 'text-[#a3a3a3]'
-                        }`}
+                        className="text-xs font-medium whitespace-nowrap"
+                        style={{ color: CAPACITY_STATUS_COLOR[capacityStatus].text }}
                       >
                         {capacityStatus} · {capacityUsed}h/40h ({capacityPercentage}%)
                       </span>

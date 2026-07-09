@@ -47,7 +47,7 @@ const ArchitectureSection = ({
     <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl overflow-hidden">
       <div className="p-4 border-b border-[rgba(255,255,255,0.05)] flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Layers className="w-5 h-5 text-[#E0B954]" />
+          <Layers className="w-5 h-5 text-muted-foreground" />
           <div>
             <h3 className="font-semibold text-white">Selected Architecture</h3>
             <p className="text-xs text-[#737373]">{arch.name}</p>
@@ -96,7 +96,7 @@ const ArchitectureSection = ({
               size="sm"
               variant="ghost"
               onClick={() => setShowDiagram(true)}
-              className="text-[#E0B954] hover:text-[#E0B954] hover:bg-[rgba(224,185,84,0.08)]"
+              className="text-muted-foreground hover:text-white hover:bg-[rgba(255,255,255,0.06)]"
             >
               <Eye className="w-4 h-4 mr-2" />
               Show diagram
@@ -136,24 +136,24 @@ const ArchitectureSection = ({
           </div>
           <div className="bg-[rgba(255,255,255,0.02)] rounded-xl p-3">
             <div className="flex items-center gap-2 mb-1">
-              <Clock className="w-4 h-4 text-[#E0B954]" />
+              <Clock className="w-4 h-4 text-muted-foreground" />
               <span className="text-xs text-[#737373]">Timeline</span>
             </div>
-            <p className="text-lg font-bold text-[#E0B954]">{arch.time_to_implement}</p>
+            <p className="text-lg font-bold text-muted-foreground">{arch.time_to_implement}</p>
           </div>
           <div className="bg-[rgba(255,255,255,0.02)] rounded-xl p-3">
             <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="w-4 h-4 text-[#E0B954]" />
+              <DollarSign className="w-4 h-4 text-muted-foreground" />
               <span className="text-xs text-[#737373]">Est. Cost</span>
             </div>
-            <p className="text-lg font-bold text-[#E0B954]">{arch.estimated_cost}</p>
+            <p className="text-lg font-bold text-muted-foreground">{arch.estimated_cost}</p>
           </div>
         </div>
 
         {/* Architecture Cost Analysis */}
         {arch.cost_analysis && (
-          <div className="bg-[rgba(224,185,84,0.05)] border border-[rgba(224,185,84,0.2)] rounded-xl p-4">
-            <h4 className="text-sm font-medium text-[#E0B954] mb-3 flex items-center gap-2">
+          <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.12)] rounded-xl p-4">
+            <h4 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
               <DollarSign className="w-4 h-4" />
               Architecture Cost Breakdown
             </h4>
@@ -167,7 +167,7 @@ const ArchitectureSection = ({
                       className="flex items-center justify-between py-1 px-2 bg-[rgba(255,255,255,0.025)] rounded"
                     >
                       <span className="text-xs text-[#f5f5f5]">{item.item}</span>
-                      <span className="text-xs font-medium text-[#E0B954]">{item.cost}</span>
+                      <span className="text-xs font-medium text-muted-foreground">{item.cost}</span>
                     </div>
                   ))}
                 </div>
@@ -204,14 +204,14 @@ const ArchitectureSection = ({
         <div className="grid grid-cols-2 gap-4">
           {arch.pros && arch.pros.length > 0 && (
             <div>
-              <h4 className="text-xs font-medium text-[#E0B954] mb-2 flex items-center gap-1">
+              <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 Advantages
               </h4>
               <ul className="space-y-1">
                 {arch.pros.map((pro, idx) => (
                   <li key={idx} className="text-xs text-[#a3a3a3] flex items-start gap-2">
-                    <span className="text-[#E0B954] mt-1">•</span>
+                    <span className="text-muted-foreground mt-1">•</span>
                     {pro}
                   </li>
                 ))}
@@ -251,7 +251,7 @@ const ArchitectureSection = ({
                   tools.map((tool, idx) => (
                     <span
                       key={`${category}-${idx}`}
-                      className="text-xs bg-[rgba(224,185,84,0.1)] text-[#E0B954] px-2 py-1 rounded-lg"
+                      className="text-xs bg-[rgba(255,255,255,0.06)] text-muted-foreground px-2 py-1 rounded-lg"
                     >
                       {tool}
                     </span>

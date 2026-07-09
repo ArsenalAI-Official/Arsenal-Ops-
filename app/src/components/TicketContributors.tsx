@@ -1,6 +1,7 @@
 import { Users } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '@/config/api';
+import { avatarColor } from '@/lib/avatarColor';
 
 interface TimeEntry {
   id: number;
@@ -103,15 +104,23 @@ export default function TicketContributors({ workItemId, token }: Props) {
       <div className="space-y-2.5">
         {contributors.map((c) => {
           const pct = totalHours > 0 ? Math.round((c.total_hours / totalHours) * 100) : 0;
+          const avatar = avatarColor(c.developer_id);
           return (
             <div key={c.developer_id} className="flex items-center gap-3">
-              <div className="w-7 h-7 rounded-full bg-[rgba(224,185,84,0.2)] flex items-center justify-center text-xs font-medium text-[#E0B954] flex-shrink-0">
+              <div
+                className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0"
+                style={{
+                  backgroundColor: avatar.bg,
+                  color: avatar.fg,
+                  border: `1px solid ${avatar.ring}`,
+                }}
+              >
                 {c.developer_name.charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm text-white truncate">{c.developer_name}</span>
-                  <span className="text-xs font-mono tabular-nums text-[#E0B954] flex-shrink-0">
+                  <span className="text-xs font-mono tabular-nums text-muted-foreground flex-shrink-0">
                     {c.total_hours}h
                     {c.this_week_hours > 0 && (
                       <span className="ml-1 text-[10px] text-[#737373] font-sans">
@@ -121,7 +130,7 @@ export default function TicketContributors({ workItemId, token }: Props) {
                   </span>
                 </div>
                 <div className="h-1 mt-1 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden">
-                  <div className="h-full bg-[#E0B954] rounded-full" style={{ width: `${pct}%` }} />
+                  <div className="h-full bg-progress rounded-full" style={{ width: `${pct}%` }} />
                 </div>
               </div>
               <span className="text-[10px] text-[#737373] tabular-nums w-9 text-right flex-shrink-0">

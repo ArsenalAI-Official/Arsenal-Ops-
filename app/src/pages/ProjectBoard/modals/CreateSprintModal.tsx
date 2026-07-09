@@ -92,7 +92,7 @@ const CreateSprintModal = ({
               <PopoverContent
                 side="bottom"
                 align="start"
-                className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(224,185,84,0.2)]"
+                className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(255,255,255,0.12)]"
               >
                 <CalendarIcon
                   mode="single"
@@ -136,7 +136,7 @@ const CreateSprintModal = ({
               <PopoverContent
                 side="bottom"
                 align="start"
-                className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(224,185,84,0.2)]"
+                className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(255,255,255,0.12)]"
               >
                 <div className="mb-3 pb-3 border-b border-[rgba(255,255,255,0.05)]">
                   <p className="text-[10px] text-[#737373] font-medium uppercase mb-1.5">
@@ -145,7 +145,7 @@ const CreateSprintModal = ({
                   <div className="space-y-1">
                     <p className="text-xs text-[#737373]">
                       Start:{' '}
-                      <span className="text-[#E0B954] font-medium">
+                      <span className="text-muted-foreground font-medium">
                         {parseLocalDate(newSprint.start_date)?.toLocaleDateString(undefined, {
                           month: 'short',
                           day: 'numeric',

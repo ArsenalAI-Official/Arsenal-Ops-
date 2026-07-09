@@ -1,4 +1,4 @@
-import { Activity } from 'lucide-react';
+import { Gauge } from 'lucide-react';
 import { WEEKLY_CAPACITY } from '../types';
 
 interface CapacityTileProps {
@@ -6,42 +6,48 @@ interface CapacityTileProps {
   hasData: boolean;
   statusColor: string;
   used: number;
-  totalLoggedThisWeek: number;
   onClick: () => void;
 }
 
-const CapacityTile = ({
-  isLoading,
-  hasData,
-  statusColor,
-  used,
-  totalLoggedThisWeek,
-  onClick,
-}: CapacityTileProps) => {
+const CapacityTile = ({ isLoading, hasData, statusColor, used, onClick }: CapacityTileProps) => {
+  const pct = Math.min(100, Math.round((used / WEEKLY_CAPACITY) * 100));
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={isLoading || !hasData}
-      className="flex-1 text-left bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)] rounded-2xl px-6 py-5 flex flex-col justify-between cursor-pointer hover:border-[rgba(255,255,255,0.12)] hover:bg-[rgba(255,255,255,0.04)] transition-colors disabled:cursor-default disabled:hover:border-[rgba(255,255,255,0.05)] disabled:hover:bg-[rgba(255,255,255,0.025)]"
+      className="flex items-center gap-3.5 px-5 py-4 rounded-2xl border border-[rgba(255,255,255,0.07)] bg-[rgba(255,255,255,0.02)] text-left hover:border-[rgba(255,255,255,0.16)] hover:bg-[rgba(255,255,255,0.035)] transition-colors disabled:cursor-default disabled:hover:border-[rgba(255,255,255,0.07)] disabled:hover:bg-[rgba(255,255,255,0.02)]"
     >
-      <div className="mb-3">
-        <Activity className="w-4 h-4" style={{ color: statusColor }} />
-      </div>
-      {isLoading ? (
-        <div className="h-8 w-16 bg-[rgba(255,255,255,0.06)] rounded-lg animate-pulse mb-1" />
-      ) : (
-        <>
-          <div className="text-3xl font-bold tracking-tight" style={{ color: statusColor }}>
-            {used}h
-            <span className="text-base text-[#737373] font-normal"> / {WEEKLY_CAPACITY}h</span>
-          </div>
-          <div className="text-[11px] text-[#E0B954] font-medium mt-0.5">
-            {totalLoggedThisWeek}h logged this week
-          </div>
-        </>
-      )}
-      <div className="text-xs text-[#737373] font-medium mt-1">Capacity this week</div>
+      <span
+        className="w-[42px] h-[42px] rounded-[11px] flex items-center justify-center flex-shrink-0"
+        style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--text-mid)' }}
+      >
+        <Gauge className="w-[18px] h-[18px]" />
+      </span>
+      <span className="flex flex-col flex-1 min-w-0">
+        {isLoading ? (
+          <span className="h-7 w-16 bg-[rgba(255,255,255,0.06)] rounded-lg animate-pulse" />
+        ) : (
+          <span className="flex items-baseline gap-1.5 leading-none">
+            <span
+              className="text-[28px] font-bold tracking-[-0.02em]"
+              style={{ color: statusColor }}
+            >
+              {used}
+            </span>
+            <span className="text-[13px] text-[#737373] font-semibold">/ {WEEKLY_CAPACITY}h</span>
+          </span>
+        )}
+        <span className="flex items-center gap-2 mt-2">
+          <span className="flex-1 h-1.5 rounded-full bg-[rgba(255,255,255,0.06)] overflow-hidden">
+            <span
+              className="block h-full rounded-full"
+              style={{ width: `${pct}%`, backgroundColor: statusColor }}
+            />
+          </span>
+          <span className="text-[11px] text-muted-foreground flex-shrink-0">Capacity</span>
+        </span>
+      </span>
     </button>
   );
 };

@@ -1,14 +1,15 @@
-import { X, Calendar } from 'lucide-react';
+import { X, Calendar, Flag } from 'lucide-react';
 import { Calendar as CalendarIcon } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { getPriorityColor } from '@/lib/workItemConfig';
+import { STATUS_COLOR } from '../../constants';
 import StatusDotMenu from '../../StatusDotMenu';
 import type { MyTask } from '../../types';
 import { parseLocalDate } from '../../utils';
-import { priorityColor, type MyTaskTab } from '../lib';
+import { projectDotColor } from '../lib';
 
 interface WorkItemRowProps {
   task: MyTask;
-  myTaskTab: MyTaskTab;
   openDateRowId: string | null;
   setOpenDateRowId: (id: string | null) => void;
   onSelectTask: (task: MyTask) => void;
@@ -18,53 +19,66 @@ interface WorkItemRowProps {
 
 const WorkItemRow = ({
   task,
-  myTaskTab,
   openDateRowId,
   setOpenDateRowId,
   onSelectTask,
   onChangeTaskStatus,
   onQuickDueDateChange,
 }: WorkItemRowProps) => {
+  const isLoudPriority = task.priority === 'critical' || task.priority === 'high';
+  const statusColor = STATUS_COLOR[task.status] || '#555';
+
   return (
     <div
-      className="flex items-center gap-4 px-3 py-2.5 rounded-xl hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer group"
+      className="flex items-start gap-3 px-3 py-2.5 rounded-xl hover:bg-[rgba(255,255,255,0.035)] transition-colors cursor-pointer group"
       onClick={() => onSelectTask(task)}
     >
-      <div className="w-[112px] flex-shrink-0 flex items-center">
-        <span className="text-xs px-2 py-0.5 rounded-md bg-[rgba(224,185,84,0.08)] text-[#C79E3B] truncate min-w-0">
-          {task.project_name}
-        </span>
-      </div>
+      {/* Decorative status dot — the interactive status control is the
+          StatusDotMenu pill on the right. */}
       <span
-        className={`flex-1 min-w-0 text-sm truncate ${
-          task.status === 'done' ? 'line-through text-[#555]' : 'text-[#f5f5f5]'
-        }`}
-      >
-        {task.title}
-      </span>
-      <div className="flex items-center flex-shrink-0 gap-3">
-        <div className="w-[118px]">
-          <StatusDotMenu
-            status={task.status}
-            onChange={(newStatus) => onChangeTaskStatus(task, newStatus)}
-          />
+        className="w-2.5 h-2.5 rounded-full mt-[5px] flex-shrink-0"
+        style={{ backgroundColor: statusColor }}
+      />
+      <div className="flex-1 min-w-0">
+        <div
+          title={task.title}
+          className={`clamp2 text-[13.5px] leading-[1.4] ${
+            task.status === 'done' ? 'line-through text-[#6f6f6f]' : 'text-[#e8e8e8]'
+          }`}
+        >
+          {task.title}
         </div>
-        <div className="w-[76px]">
-          {(myTaskTab === 'upcoming' || myTaskTab === 'overdue') &&
-            task.priority &&
+        <div className="flex items-center gap-2.5 mt-1.5 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-[#9a9a9a] min-w-0">
+            <span
+              className="w-1.5 h-1.5 rounded-sm flex-shrink-0"
+              style={{ backgroundColor: projectDotColor(task.project_id) }}
+            />
+            <span className="truncate max-w-[180px]">{task.project_name}</span>
+          </span>
+          <span className="font-mono text-[10.5px] text-[#6f6f6f] flex-shrink-0">{task.key}</span>
+          {task.priority &&
             (() => {
-              const color = priorityColor(task.priority);
+              // Show every priority; emphasize critical/high with their color +
+              // a flag, mute medium/low to grey so the loud ones still stand out.
+              const color = isLoudPriority ? getPriorityColor(task.priority) : 'var(--progress)';
+              const bg = isLoudPriority
+                ? `${getPriorityColor(task.priority)}22`
+                : 'rgba(255,255,255,0.05)';
               return (
                 <span
-                  className="text-xs px-2 py-0.5 rounded-md"
-                  style={{ backgroundColor: `${color}15`, color }}
+                  className="inline-flex items-center gap-1 text-[10.5px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0"
+                  style={{ backgroundColor: bg, color }}
                 >
+                  {isLoudPriority && <Flag className="w-2.5 h-2.5" />}
                   {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
                 </span>
               );
             })()}
         </div>
-        <div className="w-[96px]">
+      </div>
+      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+        <div>
           <Popover
             open={openDateRowId === task.id}
             onOpenChange={(o) => setOpenDateRowId(o ? task.id : null)}
@@ -82,8 +96,8 @@ const WorkItemRow = ({
                   task.is_overdue
                     ? 'bg-red-400/5 text-red-400 hover:bg-red-400/10'
                     : task.due_date
-                      ? 'bg-[rgba(255,255,255,0.02)] text-[#a3a3a3] hover:text-[#E0B954]'
-                      : 'text-[#555] hover:bg-[#E0B954]/5 hover:text-[#E0B954]'
+                      ? 'bg-[rgba(255,255,255,0.02)] text-[#a3a3a3] hover:text-white'
+                      : 'text-[#555] hover:bg-[rgba(255,255,255,0.05)] hover:text-white'
                 }`}
               >
                 <Calendar className="w-3.5 h-3.5" />
@@ -104,7 +118,7 @@ const WorkItemRow = ({
             >
               <div className="px-4 py-3 border-b border-[rgba(255,255,255,0.05)] bg-[rgba(255,255,255,0.02)]">
                 <div className="flex items-center gap-2">
-                  <Calendar className="w-3.5 h-3.5 text-[#E0B954]" />
+                  <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
                   <div className="text-xs font-semibold text-white">Due date</div>
                 </div>
                 <div className="text-[11px] text-[#737373] mt-0.5 truncate max-w-[280px]">
@@ -131,7 +145,7 @@ const WorkItemRow = ({
                     nav: 'space-x-1 flex items-center',
                     day: 'h-9 w-9 p-0 font-normal',
                     day_button:
-                      'text-white hover:bg-[rgba(224,185,84,0.15)] hover:text-[#E0B954] rounded-lg h-9 w-9 transition-all',
+                      'text-white hover:bg-[rgba(255,255,255,0.08)] hover:text-white rounded-lg h-9 w-9 transition-all',
                   }}
                 />
               </div>
@@ -150,7 +164,7 @@ const WorkItemRow = ({
                       onQuickDueDateChange(task, `${y}-${mo}-${dy}`);
                       setOpenDateRowId(null);
                     }}
-                    className="flex-1 text-[11px] py-1.5 rounded-md bg-[rgba(255,255,255,0.04)] text-[#a3a3a3] hover:bg-[#E0B954]/15 hover:text-[#E0B954] transition-colors font-medium"
+                    className="flex-1 text-[11px] py-1.5 rounded-md bg-[rgba(255,255,255,0.04)] text-[#a3a3a3] hover:bg-[rgba(255,255,255,0.08)] hover:text-white transition-colors font-medium"
                   >
                     {label}
                   </button>
@@ -172,6 +186,10 @@ const WorkItemRow = ({
             </PopoverContent>
           </Popover>
         </div>
+        <StatusDotMenu
+          status={task.status}
+          onChange={(newStatus) => onChangeTaskStatus(task, newStatus)}
+        />
       </div>
     </div>
   );

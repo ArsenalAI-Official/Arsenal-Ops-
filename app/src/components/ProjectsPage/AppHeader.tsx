@@ -1,8 +1,9 @@
-import { Settings, LogOut } from 'lucide-react';
+import { SlidersHorizontal, LogOut } from 'lucide-react';
 import arsenalOpsLogo from '@/assets/images/arsenal-ops-logo.webp';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { hasAnyAdminCapability } from '@/lib/adminCaps';
+import { avatarColor } from '@/lib/avatarColor';
 
 interface AppHeaderProps {
   user: { name: string; role: string } | null;
@@ -22,19 +23,25 @@ const AppHeader = ({ user, onAdminClick, onLogout }: AppHeaderProps) => {
           width={1043}
           height={198}
           loading="eager"
-          // @ts-expect-error — fetchpriority is a valid HTML attr that React 18 lower-cases
-          fetchpriority="high"
+          fetchPriority="high"
           decoding="async"
         />
         <div className="flex items-center gap-3">
-          {user && (
-            <div className="flex items-center gap-2 mr-2">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center text-[#080808] text-sm font-medium">
-                {user.name.charAt(0).toUpperCase()}
-              </div>
-              <span className="text-sm text-[#a3a3a3] hidden md:block">{user.name}</span>
-            </div>
-          )}
+          {user &&
+            (() => {
+              const c = avatarColor(user.name);
+              return (
+                <div className="flex items-center gap-2 mr-2">
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium"
+                    style={{ backgroundColor: c.bg, color: c.fg, border: `1px solid ${c.ring}` }}
+                  >
+                    {user.name.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="text-sm text-[#a3a3a3] hidden md:block">{user.name}</span>
+                </div>
+              );
+            })()}
           {/* Admin nav link visibility uses the same admin-cap set as the
               /admin route guard (RequireAnyAdminCapability in App.tsx).
               Keeps link + route in sync via lib/adminCaps.ts. */}
@@ -44,7 +51,7 @@ const AppHeader = ({ user, onAdminClick, onLogout }: AppHeaderProps) => {
               onClick={onAdminClick}
               className="text-[#737373] hover:text-white hover:bg-[rgba(244,246,255,0.05)] rounded-xl px-3"
             >
-              <Settings className="w-4 h-4 mr-2" />
+              <SlidersHorizontal className="w-4 h-4 mr-2" />
               Admin
             </Button>
           )}

@@ -54,7 +54,7 @@ const PulseSettingsHeader: React.FC<PulseSettingsHeaderProps> = ({
               variant="outline"
               size="sm"
               disabled={isSaving}
-              className="border-[#EF4444]/30 text-[#FCA5A5] hover:bg-[#EF4444]/10 hover:text-[#FCA5A5]"
+              className="border-[rgba(255,255,255,0.12)] text-[#a3a3a3] hover:bg-[rgba(255,255,255,0.05)] hover:text-white"
             >
               <RotateCcw className="w-4 h-4 mr-2" />
               Reset to dummy data
@@ -85,12 +85,15 @@ const PulseSettingsHeader: React.FC<PulseSettingsHeaderProps> = ({
             latter restores the demo fixture, this wipes to truly empty.
             Two-stage confirmation because the action is irreversible and
             destructive of *all* Pulse editorial content. */}
+        {/* Clear is the catastrophic action (wipes to empty, vs Reset's demo
+            restore) — give it solid-red destructive weight so it stands apart
+            from the now-neutral Reset button beside it (audit #15). */}
         <Button
           variant="outline"
           size="sm"
           disabled={isSaving}
           onClick={() => setClearStage('first')}
-          className="border-[#EF4444]/30 text-[#FCA5A5] hover:bg-[#EF4444]/10 hover:text-[#FCA5A5]"
+          className="border-transparent bg-[#EF4444] text-white hover:bg-[#DC2626] hover:text-white"
         >
           <Trash2 className="w-4 h-4 mr-2" />
           Clear all data

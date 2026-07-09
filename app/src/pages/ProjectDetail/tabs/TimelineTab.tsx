@@ -1,5 +1,7 @@
+import { useSearchParams } from 'react-router-dom';
 import type { GoalResponse, MilestoneResponse, WorkItemUpdate } from '@/client';
 import { TimelineView, CalendarView } from '@/components/ProjectHub';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 interface HubWorkItem {
   id: string;
@@ -39,6 +41,24 @@ const TimelineTab = ({
   projectId,
   onTaskUpdate,
 }: TimelineTabProps) => {
+  // Persist the sub-view in the URL (?view=calendar) so it survives refresh and
+  // is shareable, matching the parent's ?tab= pattern. Default (and absent) is
+  // the Gantt timeline. Building from `prev` preserves the ?tab= param.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view: 'timeline' | 'calendar' =
+    searchParams.get('view') === 'calendar' ? 'calendar' : 'timeline';
+  const setView = (next: 'timeline' | 'calendar') => {
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        if (next === 'calendar') p.set('view', 'calendar');
+        else p.delete('view');
+        return p;
+      },
+      { replace: true },
+    );
+  };
+
   if (hubLoading) {
     return (
       <div className="space-y-4 animate-pulse">
@@ -67,15 +87,32 @@ const TimelineTab = ({
 
   return (
     <div className="space-y-4">
-      <TimelineView
-        workItems={hubWorkItems}
-        milestones={milestones}
-        goals={goals}
-        projectStartDate={projectStartDate}
-        projectId={projectId}
-        onTaskUpdate={onTaskUpdate}
-      />
-      <CalendarView workItems={hubWorkItems} milestones={milestones} goals={goals} />
+      <ToggleGroup
+        type="single"
+        value={view}
+        onValueChange={(v) => {
+          // Radix emits '' when the active item is re-clicked; ignore it so a
+          // view is always selected.
+          if (v) setView(v as 'timeline' | 'calendar');
+        }}
+        variant="outline"
+        size="sm"
+      >
+        <ToggleGroupItem value="timeline">Timeline</ToggleGroupItem>
+        <ToggleGroupItem value="calendar">Calendar</ToggleGroupItem>
+      </ToggleGroup>
+      {view === 'timeline' ? (
+        <TimelineView
+          workItems={hubWorkItems}
+          milestones={milestones}
+          goals={goals}
+          projectStartDate={projectStartDate}
+          projectId={projectId}
+          onTaskUpdate={onTaskUpdate}
+        />
+      ) : (
+        <CalendarView workItems={hubWorkItems} milestones={milestones} goals={goals} />
+      )}
     </div>
   );
 };

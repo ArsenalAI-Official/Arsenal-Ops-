@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import ConvertToTicketDialog from '@/components/ConvertToTicketDialog';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { hasAnyAdminCapability } from '@/lib/adminCaps';
+import { LIST_SORT_PRIORITY_ORDER } from '@/pages/ProjectBoard/lib/listSort';
 import { usePersonalTasksData } from './hooks/usePersonalTasksData';
 import AddTaskDialog from './modals/AddTaskDialog';
-import ConvertToTicketDialog from './modals/ConvertToTicketDialog';
 import EditTaskDialog from './modals/EditTaskDialog';
 import PersonalTasksHeader from './sections/PersonalTasksHeader';
 import PersonalTasksList from './sections/PersonalTasksList';
@@ -92,13 +93,12 @@ const PersonalTasksPage = () => {
       );
     });
   } else if (sortBy === 'priority') {
-    const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
     filteredTasks.sort((a, b) => {
       // Completed tasks always last
       if (a.status === 'done' && b.status !== 'done') return 1;
       if (a.status !== 'done' && b.status === 'done') return -1;
-      const aPriority = priorityOrder[a.priority?.toLowerCase() || 'medium'] ?? 999;
-      const bPriority = priorityOrder[b.priority?.toLowerCase() || 'medium'] ?? 999;
+      const aPriority = LIST_SORT_PRIORITY_ORDER[a.priority?.toLowerCase() || 'medium'] ?? 999;
+      const bPriority = LIST_SORT_PRIORITY_ORDER[b.priority?.toLowerCase() || 'medium'] ?? 999;
       return aPriority - bPriority;
     });
   }

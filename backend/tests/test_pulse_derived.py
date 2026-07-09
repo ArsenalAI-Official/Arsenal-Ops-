@@ -689,11 +689,13 @@ class TestResponseShape:
         assert set(project_section.keys()) == self.EXPECTED_PROJECT_KEYS
         assert project_section["name"] == "Pulse Project"
         assert project_section["keyPrefix"] == "PP"
-        assert project_section["contractStart"] == proj.created_at.isoformat()
+        # Dates are display-formatted "Month YYYY" (not ISO) — the frontend
+        # renders them verbatim.
+        assert project_section["contractStart"] == "April 2026"
         assert proj.end_date is not None
-        assert project_section["contractEnd"] == proj.end_date.isoformat()
+        assert project_section["contractEnd"] == "July 2026"
         # Without a matching milestone, launchTarget falls back to contractEnd.
-        assert project_section["launchTarget"] == proj.end_date.isoformat()
+        assert project_section["launchTarget"] == "July 2026"
 
     def test_launch_target_resolves_matching_milestone(self, db, admin_user):
         """A milestone whose title matches /launch|go.?live|release/i should
@@ -714,7 +716,7 @@ class TestResponseShape:
         )
         db.commit()
         result = get_pulse_derived(project_id=proj.id, db=db, current_user=admin_user)
-        assert result["project"]["launchTarget"] == launch_date.isoformat()
+        assert result["project"]["launchTarget"] == "June 2026"
 
 
 # ---------------------------------------------------------------------------

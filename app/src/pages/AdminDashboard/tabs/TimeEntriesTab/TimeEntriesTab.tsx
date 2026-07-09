@@ -254,7 +254,7 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ projects, employees }) 
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Clock className="w-5 h-5 text-[#E0B954]" />
+            <Clock className="w-5 h-5 text-muted-foreground" />
             Time Entries
           </h2>
           <p className="text-xs text-[#737373] mt-1">

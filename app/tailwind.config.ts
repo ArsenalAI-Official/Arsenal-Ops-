@@ -51,6 +51,34 @@ export default {
                     DEFAULT: "hsl(var(--card))",
                     foreground: "hsl(var(--card-foreground))",
                 },
+                // Style Guide 1a semantic palette. Brand gold is for the logo +
+                // one primary CTA per screen only; status is a cool workflow
+                // ramp; priority a warm severity ramp; surface/line are warm
+                // neutrals. Hexes mirror the tokens in src/index.css.
+                brand: { DEFAULT: "#E0B954", fg: "#080808" },
+                info: "#5B9BE6",
+                surface: { DEFAULT: "#151312", raised: "#1E1B18" },
+                line: "#2A2724",
+                // Warm-neutral text ramp (mirrors --text-* in index.css). Note
+                // text-hi == foreground and text-mid == muted-foreground, so
+                // prefer those shadcn utilities; `ink` covers the rest + intent.
+                ink: { hi: "#F5F3EF", mid: "#A6A29C", low: "#6E6A64" },
+                // Default (non-status) progress-bar fill.
+                progress: "#8A8A8A",
+                status: {
+                    backlog: "#64748B",
+                    todo: "#3B82F6",
+                    "in-progress": "#6E62E6",
+                    "in-review": "#D06BB0",
+                    done: "#40BE86",
+                    blocked: "#E5484D",
+                },
+                priority: {
+                    low: "#64748B",
+                    medium: "#94A3B8",
+                    high: "#EC7A3C",
+                    critical: "#E5484D",
+                },
             },
             borderRadius: {
                 lg: "var(--radius)",

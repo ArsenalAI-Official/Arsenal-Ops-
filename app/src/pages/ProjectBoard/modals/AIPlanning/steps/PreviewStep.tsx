@@ -32,7 +32,7 @@ const PreviewStep = ({
       {uploadMode === 'prd' && ticketsSummary && (
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-[#E0B954]">{generatedTickets.length}</p>
+            <p className="text-2xl font-bold text-muted-foreground">{generatedTickets.length}</p>
             <p className="text-xs text-[#737373]">Tickets</p>
           </div>
           <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] rounded-xl p-4 text-center">
@@ -40,7 +40,7 @@ const PreviewStep = ({
             <p className="text-xs text-[#737373]">Total Points</p>
           </div>
           <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-[#E0B954]">
+            <p className="text-2xl font-bold text-muted-foreground">
               {ticketsSummary.total_estimated_hours}h
             </p>
             <p className="text-xs text-[#737373]">Estimated Hours</p>
@@ -56,9 +56,11 @@ const PreviewStep = ({
               <p className="text-xs text-[#737373] mb-1">Epics</p>
               <p className="text-lg font-bold text-[#66b8ff]">{roadmapSummary.total_epics}</p>
             </div>
-            <div className="bg-[rgba(224,185,84,0.1)] rounded-lg p-3">
+            <div className="bg-[rgba(166,162,156,0.1)] rounded-lg p-3">
               <p className="text-xs text-[#737373] mb-1">Tasks</p>
-              <p className="text-lg font-bold text-[#E0B954]">{roadmapSummary.total_tasks}</p>
+              <p className="text-lg font-bold text-muted-foreground">
+                {roadmapSummary.total_tasks}
+              </p>
             </div>
             <div className="bg-[rgba(16,185,129,0.1)] rounded-lg p-3">
               <p className="text-xs text-[#737373] mb-1">Team Size</p>
@@ -74,17 +76,17 @@ const PreviewStep = ({
 
           {/* Sprint Info */}
           {roadmapSummary.total_sprints !== undefined && (
-            <div className="bg-[rgba(224,185,84,0.1)] border border-[#E0B954]/20 rounded-xl p-4">
+            <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.12)] rounded-xl p-4">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-lg bg-[#E0B954]/20 flex items-center justify-center">
-                  <BarChart3 className="w-5 h-5 text-[#E0B954]" />
+                <div className="w-10 h-10 rounded-lg bg-[rgba(255,255,255,0.05)] flex items-center justify-center">
+                  <BarChart3 className="w-5 h-5 text-muted-foreground" />
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-white">Sprint Plan</p>
                   <p className="text-xs text-[#737373]">{sprintWeeks} weeks per sprint</p>
                 </div>
               </div>
-              <p className="text-2xl font-bold text-[#E0B954] mb-1">
+              <p className="text-2xl font-bold text-muted-foreground mb-1">
                 {roadmapSummary.total_sprints} Sprints
               </p>
               <p className="text-xs text-[#a3a3a3]">
@@ -97,8 +99,8 @@ const PreviewStep = ({
 
       {/* Sprint Recommendation (PRD only) */}
       {uploadMode === 'prd' && ticketsSummary?.sprint_recommendation && (
-        <div className="bg-[#E0B954]/10 border border-[#E0B954]/20 rounded-xl p-4">
-          <p className="text-sm text-[#E0B954] font-medium">Sprint Recommendation</p>
+        <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.12)] rounded-xl p-4">
+          <p className="text-sm text-muted-foreground font-medium">Sprint Recommendation</p>
           <p className="text-xs text-[#a3a3a3] mt-1">{ticketsSummary.sprint_recommendation}</p>
         </div>
       )}
@@ -107,7 +109,7 @@ const PreviewStep = ({
       {uploadMode === 'prd' && (
         <div>
           <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-            <ClipboardList className="w-4 h-4 text-[#E0B954]" />
+            <ClipboardList className="w-4 h-4 text-muted-foreground" />
             Generated Tickets ({generatedTickets.length})
           </h3>
           <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
@@ -130,7 +132,7 @@ const PreviewStep = ({
       {uploadMode === 'roadmap' && roadmapParsedData && (
         <div>
           <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-            <ClipboardList className="w-4 h-4 text-[#E0B954]" />
+            <ClipboardList className="w-4 h-4 text-muted-foreground" />
             Roadmap Tickets ({roadmapParsedData.tickets?.length || 0})
           </h3>
           <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
@@ -149,7 +151,7 @@ const PreviewStep = ({
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-2">
-                        <Badge className="text-[10px] bg-[#E0B954]/20 text-[#E0B954] border-0">
+                        <Badge className="text-[10px] bg-[rgba(166,162,156,0.15)] text-muted-foreground border-0">
                           {ticket.priority || 'medium'}
                         </Badge>
                       </div>
@@ -162,7 +164,7 @@ const PreviewStep = ({
                       <span className="text-xs text-[#737373]">{ticket.effort_hrs || 0}h</span>
                       {ticket.assignee && (
                         <div className="flex items-center gap-2 bg-[rgba(244,246,255,0.05)] rounded-lg px-2 py-1">
-                          <Users className="w-3 h-3 text-[#E0B954]" />
+                          <Users className="w-3 h-3 text-muted-foreground" />
                           <span className="text-xs text-[#a3a3a3]">{ticket.assignee}</span>
                         </div>
                       )}

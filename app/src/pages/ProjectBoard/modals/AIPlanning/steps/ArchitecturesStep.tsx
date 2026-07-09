@@ -29,7 +29,7 @@ const ArchitecturesStep = ({
       {analysis && (
         <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] rounded-xl p-5">
           <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <Target className="w-4 h-4 text-[#E0B954]" />
+            <Target className="w-4 h-4 text-muted-foreground" />
             PRD Analysis Summary
           </h3>
           <p className="text-sm text-[#a3a3a3] mb-4">{analysis.summary}</p>
@@ -41,7 +41,7 @@ const ArchitecturesStep = ({
                 {analysis.key_features.slice(0, 6).map((feature, i) => (
                   <span
                     key={i}
-                    className="px-2.5 py-1 rounded-lg bg-[#E0B954]/10 text-[#E0B954] text-xs"
+                    className="px-2.5 py-1 rounded-lg bg-[rgba(166,162,156,0.1)] text-muted-foreground text-xs"
                   >
                     {feature}
                   </span>

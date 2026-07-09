@@ -10,5 +10,5 @@ export const CALENDAR_CLASS_NAMES = {
   caption_label: 'text-sm font-medium text-white',
   nav: 'space-x-1 flex items-center',
   day: 'h-8 w-8 p-0 font-normal',
-  day_button: 'text-white hover:bg-[rgba(224,185,84,0.1)] rounded-lg h-8 w-8 transition-colors',
+  day_button: 'text-white hover:bg-[rgba(255,255,255,0.12)] rounded-lg h-8 w-8 transition-colors',
 };

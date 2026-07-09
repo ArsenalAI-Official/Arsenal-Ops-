@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { ProjectWeeklyReportRow, ProjectWeeklyTicketsResponse, WeeklyTicket } from '@/client';
 import { TASK_TYPE_CONFIG } from '@/components/ProjectsPage/constants';
 import { apiFetch } from '@/lib/api';
+import { avatarColor } from '@/lib/avatarColor';
 import { PRIORITY_COLOR, STATUS_ACCENTS, STATUS_BUTTONS } from './types';
 import type { StatusBucket } from './types';
 
@@ -139,13 +140,14 @@ const ExpandedProjectRow = ({ project }: ExpandedProjectRowProps) => {
             const estimated = t.estimated_hours ?? 0;
             const progress = estimated > 0 ? Math.min(100, (logged / estimated) * 100) : 0;
             const isComplete = estimated > 0 && logged >= estimated;
+            const ac = avatarColor(t.assignee_name);
             return (
               <li key={t.id}>
                 <a
                   href={`/project/${project.project_id}/board/${t.id}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-center gap-3 px-3 py-2.5 bg-[rgba(255,255,255,0.025)] hover:bg-[rgba(255,255,255,0.045)] border border-[rgba(255,255,255,0.05)] hover:border-[rgba(224,185,84,0.25)] rounded-lg transition-colors"
+                  className="group flex items-center gap-3 px-3 py-2.5 bg-[rgba(255,255,255,0.025)] hover:bg-[rgba(255,255,255,0.045)] border border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.12)] rounded-lg transition-colors"
                   title="Open ticket in new tab"
                 >
                   {/* Type icon tile */}
@@ -158,7 +160,7 @@ const ExpandedProjectRow = ({ project }: ExpandedProjectRowProps) => {
                   </div>
                   {/* Key */}
                   {t.key && (
-                    <span className="font-mono text-[11px] font-semibold text-[#E0B954] tabular-nums shrink-0">
+                    <span className="font-mono text-[11px] font-semibold text-muted-foreground tabular-nums shrink-0">
                       {t.key}
                     </span>
                   )}
@@ -179,8 +181,11 @@ const ExpandedProjectRow = ({ project }: ExpandedProjectRowProps) => {
                       className="flex items-center gap-1.5 shrink-0"
                       title={`Assignee: ${t.assignee_name}`}
                     >
-                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center shrink-0">
-                        <span className="text-[10px] font-semibold text-white">
+                      <div
+                        className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: ac.bg, border: `1px solid ${ac.ring}` }}
+                      >
+                        <span className="text-[10px] font-semibold" style={{ color: ac.fg }}>
                           {t.assignee_name.charAt(0).toUpperCase()}
                         </span>
                       </div>
@@ -201,7 +206,7 @@ const ExpandedProjectRow = ({ project }: ExpandedProjectRowProps) => {
                           className="h-full rounded-full transition-all"
                           style={{
                             width: `${progress}%`,
-                            backgroundColor: isComplete ? '#34D399' : '#E0B954',
+                            backgroundColor: isComplete ? 'var(--status-done)' : 'var(--progress)',
                           }}
                         />
                       </div>

@@ -42,7 +42,7 @@ const PersonalTasksToolbar = ({
               placeholder="Search tasks..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-lg h-10 text-sm focus:border-[#E0B954]/50"
+              className="pl-9 bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-lg h-10 text-sm focus:border-[rgba(255,255,255,0.12)]"
             />
           </div>
 

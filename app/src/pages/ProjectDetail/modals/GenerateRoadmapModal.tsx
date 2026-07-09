@@ -137,7 +137,7 @@ const CALENDAR_CLASSNAMES = {
   caption_label: 'text-sm font-medium text-white',
   nav: 'space-x-1 flex items-center',
   day: 'h-8 w-8 p-0 font-normal',
-  day_button: 'text-white hover:bg-[rgba(224,185,84,0.1)] rounded-lg h-8 w-8 transition-colors',
+  day_button: 'text-white hover:bg-[rgba(255,255,255,0.12)] rounded-lg h-8 w-8 transition-colors',
 };
 
 const GenerateRoadmapModal = ({
@@ -230,7 +230,7 @@ const GenerateRoadmapModal = ({
       <DialogContent className="bg-[#0d0d0d] border-[rgba(255,255,255,0.08)] text-white">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-[#E0B954]" />
+            <Calendar className="w-5 h-5 text-muted-foreground" />
             Generate roadmap template
           </DialogTitle>
           <DialogDescription className="text-[#a3a3a3]">
@@ -257,7 +257,7 @@ const GenerateRoadmapModal = ({
                 <PopoverContent
                   side="bottom"
                   align="start"
-                  className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(224,185,84,0.2)]"
+                  className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(255,255,255,0.12)]"
                 >
                   <CalendarIcon
                     mode="single"
@@ -287,7 +287,7 @@ const GenerateRoadmapModal = ({
                 <PopoverContent
                   side="bottom"
                   align="start"
-                  className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(224,185,84,0.2)]"
+                  className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(255,255,255,0.12)]"
                 >
                   <CalendarIcon
                     mode="single"
@@ -327,9 +327,10 @@ const GenerateRoadmapModal = ({
 
           {!isInvalidRange && totalWeeks > 0 && (
             <p className="text-xs text-[#737373]">
-              Template will contain <span className="text-[#E0B954] font-medium">{totalWeeks}</span>{' '}
+              Template will contain{' '}
+              <span className="text-muted-foreground font-medium">{totalWeeks}</span>{' '}
               {totalWeeks === 1 ? 'week column' : 'week columns'}, starting{' '}
-              <span className="text-[#E0B954] font-medium">
+              <span className="text-muted-foreground font-medium">
                 {parseLocalDate(snapToMondayISO(form.startDate))?.toLocaleDateString(undefined, {
                   weekday: 'short',
                   month: 'short',
@@ -358,7 +359,7 @@ const GenerateRoadmapModal = ({
           <Button
             onClick={() => generateMutation.mutate()}
             disabled={isPending || isInvalidRange}
-            className="bg-[#E0B954] hover:bg-[#C79E3B] text-black"
+            className="bg-brand hover:bg-[#C79E3B] text-black"
           >
             {isPending ? (
               <>

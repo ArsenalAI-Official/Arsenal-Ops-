@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import type { CommentResponse, DeveloperResponse, WorkItemDetailResponse } from '@/client';
 import { useAllDevelopers } from '@/hooks/useAllDevelopers';
 import { apiFetch } from '@/lib/api';
+import { WORK_ITEM_PATCH_FIELD_KEY } from '@/lib/mutationKeys';
 import { toastErrorHandler } from '@/lib/mutationToast';
 import { applyWorkItemDetail } from '@/types/workItemMappers';
 import type { AddSubtaskFormValues } from '../AddSubtaskModal';
@@ -163,6 +164,40 @@ export function useWorkItemPanel({
     onError: toastErrorHandler('update task'),
   });
 
+  // Inline per-field patch (compact) — the edit-in-place path for the Properties
+  // rail, the compact counterpart to the board's `patchFieldMutation`. Unlike
+  // `saveEditCompact` (the retiring Edit-form path) it fires no "Task updated"
+  // toast and doesn't touch `isEditing`/`editForm`, since it's driven by a
+  // dropdown/stepper change rather than a Save button.
+  //
+  // Compact stays PESSIMISTIC (patch on success via `onItemChanged`), mirroring
+  // the existing `saveEditCompact`/`statusChangeCompact` here — the my-tasks
+  // slide-over doesn't sit over a live board that needs the instant flip the
+  // optimistic full variant provides. Invalidation is guarded by the shared-key
+  // `isMutating` count so a burst of edits only refetches once.
+  const patchFieldCompact = useMutation({
+    mutationKey: WORK_ITEM_PATCH_FIELD_KEY,
+    mutationFn: (edits: Partial<WorkItem>) =>
+      apiFetch<WorkItem>(`/api/workitems/${item.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(edits),
+      }),
+    onSuccess: (updated: WorkItem, edits) => {
+      // Merge order mirrors the board's saveEditMutation: base item, then the
+      // edits we sent (backend may omit fields like due_date), then the server
+      // response wins. Keeps assignee_id + assignee-name in step for the
+      // unassigned/"Assign to me" predicate.
+      if (props.variant === 'compact') props.onItemChanged({ ...item, ...edits, ...updated });
+    },
+    onError: toastErrorHandler('update task'),
+    onSettled: () => {
+      if (queryClient.isMutating({ mutationKey: WORK_ITEM_PATCH_FIELD_KEY }) === 1) {
+        invalidateWorkItems();
+        queryClient.invalidateQueries({ queryKey: ['workItem', item.id, 'detail'] });
+      }
+    },
+  });
+
   const statusChangeCompact = useMutation({
     mutationFn: (newStatus: string) =>
       apiFetch<WorkItem>(`/api/workitems/${item.id}`, {
@@ -275,6 +310,7 @@ export function useWorkItemPanel({
     selectedItemHasChildren,
     subtasksOfCurrent,
     saveEditCompact,
+    patchFieldCompact,
     statusChangeCompact,
     logHoursCompact,
     createSubtask,

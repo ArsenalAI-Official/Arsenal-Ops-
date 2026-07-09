@@ -145,7 +145,7 @@ export const AddSubtaskModal = ({
                 // shadcn's base Popover style, which would render the
                 // calendar BEHIND the modal. Same trap applies to any
                 // shadcn popover used inside a modal with z >= 50.
-                className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(224,185,84,0.2)] z-[70]"
+                className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(255,255,255,0.12)] z-[70]"
               >
                 <CalendarIcon
                   mode="single"

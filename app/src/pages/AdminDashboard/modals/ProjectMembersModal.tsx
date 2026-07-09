@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription } from '@/components/ui/empty';
 import { Modal } from '@/components/ui/modal';
 import { Spinner } from '@/components/ui/spinner';
+import { avatarColor } from '@/lib/avatarColor';
 
 interface ProjectLike {
   id: number;
@@ -91,46 +92,56 @@ const ProjectMembersModal: React.FC<ProjectMembersModalProps> = ({
             </Empty>
           ) : (
             <ul className="space-y-2">
-              {projectMembers.map((m) => (
-                <li
-                  key={m.id}
-                  className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)]"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-full bg-[rgba(224,185,84,0.2)] flex items-center justify-center text-sm font-medium text-[#E0B954] flex-shrink-0">
-                      {m.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium text-white truncate flex items-center gap-2">
-                        {m.name}
-                        {m.is_admin && (
-                          <span className="px-1.5 py-0.5 rounded bg-[rgba(224,185,84,0.15)] text-[#E0B954] text-[9px] font-semibold uppercase tracking-wider">
-                            Admin
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-[#737373] truncate">
-                        {m.email}
-                        {m.role && <span className="ml-2 capitalize">· {m.role}</span>}
-                      </div>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleRemoveProjectMember(m.id)}
-                    disabled={removeMemberPending}
-                    className="text-red-400 hover:text-red-300 h-8 w-8 p-0 flex-shrink-0"
-                    title="Remove from project"
+              {projectMembers.map((m) => {
+                const ac = avatarColor(m.id);
+                return (
+                  <li
+                    key={m.id}
+                    className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)]"
                   >
-                    {removeMemberPending ? (
-                      <Spinner size="xs" tone="red" />
-                    ) : (
-                      <Trash2 className="w-4 h-4" />
-                    )}
-                  </Button>
-                </li>
-              ))}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0"
+                        style={{
+                          backgroundColor: ac.bg,
+                          color: ac.fg,
+                          border: `1px solid ${ac.ring}`,
+                        }}
+                      >
+                        {m.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-white truncate flex items-center gap-2">
+                          {m.name}
+                          {m.is_admin && (
+                            <span className="px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.06)] text-muted-foreground text-[9px] font-semibold uppercase tracking-wider">
+                              Admin
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-[#737373] truncate">
+                          {m.email}
+                          {m.role && <span className="ml-2 capitalize">· {m.role}</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveProjectMember(m.id)}
+                      disabled={removeMemberPending}
+                      className="text-red-400 hover:text-red-300 h-8 w-8 p-0 flex-shrink-0"
+                      title="Remove from project"
+                    >
+                      {removeMemberPending ? (
+                        <Spinner size="xs" tone="red" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

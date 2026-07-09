@@ -74,6 +74,32 @@ export default defineConfig([
           caughtErrors: 'none',
         },
       ],
+      // Style Guide 1a: keep the neutral/info/progress colors coming from tokens,
+      // not raw hexes. These have exact utility/CSS-var equivalents and no
+      // legitimate literal use (unlike brand-gold gradients and chart series,
+      // which are intentionally left literal and NOT matched here). Warn-level so
+      // it's loud, not blocking — matching the repo's lint posture.
+      // Scoped to className strings — the actual anti-pattern. Data literals
+      // (palettes, chart series, config color maps) legitimately hold hexes and
+      // are intentionally NOT matched.
+      'no-restricted-syntax': [
+        'warn',
+        {
+          selector:
+            "JSXAttribute[name.name='className'] Literal[value=/#(?:[Aa]6[Aa]29[Cc]|5[Bb]9[Bb][Ee]6|8[Aa]8[Aa]8[Aa]|[Ff]5[Ff]3[Ee][Ff]|6[Ee]6[Aa]64)/]",
+          message:
+            'Use a color token instead of a raw hex in className: text-muted-foreground (#A6A29C), text-info (#5B9BE6), bg-progress (#8A8A8A), text-foreground (#F5F3EF), text-ink-low (#6E6A64).',
+        },
+        {
+          // Same rule for hexes baked into template-literal classNames
+          // (className={`… #A6A29C …`}) — the Literal selector above can't see
+          // TemplateElement quasis.
+          selector:
+            "JSXAttribute[name.name='className'] TemplateElement[value.raw=/#(?:[Aa]6[Aa]29[Cc]|5[Bb]9[Bb][Ee]6|8[Aa]8[Aa]8[Aa]|[Ff]5[Ff]3[Ee][Ff]|6[Ee]6[Aa]64)/]",
+          message:
+            'Use a color token instead of a raw hex in className: text-muted-foreground (#A6A29C), text-info (#5B9BE6), bg-progress (#8A8A8A), text-foreground (#F5F3EF), text-ink-low (#6E6A64).',
+        },
+      ],
     },
   },
   {

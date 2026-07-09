@@ -12,7 +12,7 @@ export const Stat: React.FC<{
 }> = ({ label, value, sub, tone = 'neutral', children }) => {
   const toneBorder: Record<string, string> = {
     neutral: 'border-[rgba(255,255,255,0.05)]',
-    gold: 'border-[#E0B954]/25 bg-[#E0B954]/[0.04]',
+    gold: 'border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.03)]',
     green: 'border-[#34D399]/20 bg-[#34D399]/[0.04]',
     amber: 'border-[#FBBF24]/20 bg-[#FBBF24]/[0.04]',
   };

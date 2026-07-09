@@ -1,8 +1,8 @@
 import { Plus, X, CheckCircle2, Edit2, Circle, Flag, ArrowRight, Calendar } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { getPriorityColor } from '@/lib/workItemConfig';
 import type { PersonalTask } from '../../types';
 import { parseLocalDate } from '../../utils';
-import { priorityColor } from '../lib';
 
 interface PersonalTasksListProps {
   activePersonalTasks: PersonalTask[];
@@ -29,12 +29,12 @@ const PersonalTasksList = ({
 }: PersonalTasksListProps) => {
   if (activePersonalTasks.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-10 text-center">
-        <CheckCircle2 className="w-8 h-8 text-[#E0B954]/30 mb-2" />
+      <div className="flex h-full min-h-[240px] flex-col items-center justify-center py-10 text-center">
+        <CheckCircle2 className="w-8 h-8 text-muted-foreground/50 mb-2" />
         <p className="text-sm text-[#737373]">No personal tasks yet</p>
         <button
           onClick={onAddPersonalTaskClick}
-          className="mt-3 text-xs text-[#E0B954] hover:text-[#C79E3B] flex items-center gap-1"
+          className="mt-3 text-xs text-muted-foreground hover:text-white flex items-center gap-1"
         >
           <Plus className="w-3 h-3" /> Add your first task
         </button>
@@ -45,7 +45,7 @@ const PersonalTasksList = ({
   return (
     <div className="space-y-1.5">
       {visiblePersonalTasks.map((task) => {
-        const color = priorityColor(task.priority);
+        const color = getPriorityColor(task.priority);
         return (
           <div
             key={task.id}
@@ -55,7 +55,7 @@ const PersonalTasksList = ({
           >
             <button
               onClick={() => onTogglePersonalTaskComplete(task)}
-              className="flex-shrink-0 text-[#737373] hover:text-[#E0B954] transition-colors"
+              className="flex-shrink-0 text-[#737373] hover:text-white transition-colors"
               title={task.status === 'done' ? 'Mark as pending' : 'Mark as complete'}
             >
               {task.status === 'done' ? (
@@ -94,7 +94,7 @@ const PersonalTasksList = ({
             </Badge>
             <button
               onClick={() => onEditPersonalTask(task)}
-              className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs text-[#E0B954] hover:text-[#C79E3B] flex-shrink-0 transition-opacity"
+              className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs text-[#a3a3a3] hover:text-white flex-shrink-0 transition-opacity"
               title="Edit task"
             >
               <Edit2 className="w-3.5 h-3.5" />
@@ -103,7 +103,7 @@ const PersonalTasksList = ({
             {canAssignToProject && (
               <button
                 onClick={() => onConvertPersonalTask(task)}
-                className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs text-[#E0B954] hover:text-[#C79E3B] flex-shrink-0 transition-opacity"
+                className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs text-[#a3a3a3] hover:text-white flex-shrink-0 transition-opacity"
                 title="Convert to project ticket"
               >
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -122,7 +122,7 @@ const PersonalTasksList = ({
       {activePersonalTasks.length > 5 && (
         <button
           onClick={onNavigateToPersonalTasks}
-          className="w-full text-center text-xs text-[#737373] hover:text-[#E0B954] py-2.5 transition-colors"
+          className="w-full text-center text-xs text-[#737373] hover:text-white py-2.5 transition-colors"
         >
           View all ({activePersonalTasks.length - 5} more) →
         </button>

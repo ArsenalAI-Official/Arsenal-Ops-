@@ -2,6 +2,7 @@ import { BarChart3, ChevronUp, ChevronDown } from 'lucide-react';
 import type { SprintResponse } from '@/client';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Empty, EmptyDescription } from '@/components/ui/empty';
 import type { HoursAnalytics } from '../types';
 
 interface SprintOverviewProps {
@@ -18,10 +19,10 @@ export default function SprintOverview({
   setProgressExpanded,
 }: SprintOverviewProps) {
   return (
-    <Card className="bg-[rgba(255,255,255,0.02)] border border-[rgba(224,185,84,0.12)] rounded-2xl p-5 shadow-[0_0_30px_rgba(224,185,84,0.05)]">
+    <Card className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.12)] rounded-2xl p-5">
       <CardHeader className="flex flex-row items-center justify-between pb-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E0B954] to-[#C79E3B] flex items-center justify-center shadow-lg shadow-[#E0B954]/25">
+          <div className="w-10 h-10 rounded-xl bg-[rgba(255,255,255,0.06)] flex items-center justify-center">
             <BarChart3 className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -32,7 +33,7 @@ export default function SprintOverview({
         {sprints.length > 1 && (
           <button
             onClick={() => setProgressExpanded((p) => !p)}
-            className="flex items-center gap-1.5 text-xs text-[#E0B954] hover:text-[#F3D57E] px-3 py-1.5 rounded-lg bg-[#E0B954]/10 hover:bg-[#E0B954]/15 transition-colors font-medium flex-shrink-0"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-white px-3 py-1.5 rounded-lg bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.12)] transition-colors font-medium flex-shrink-0"
           >
             {progressExpanded ? (
               <>
@@ -48,9 +49,11 @@ export default function SprintOverview({
       </CardHeader>
       <CardContent>
         {sprints.length === 0 ? (
-          <div className="text-center py-8 text-[#737373]">
-            <p>No sprints created yet. Create a sprint to start tracking progress and hours.</p>
-          </div>
+          <Empty className="min-h-[160px]">
+            <EmptyDescription>
+              No sprints created yet. Create a sprint to start tracking progress and hours.
+            </EmptyDescription>
+          </Empty>
         ) : (
           <div className="space-y-5">
             {(progressExpanded ? sprints : sprints.filter((s) => s.status === 'active')).map(
@@ -82,15 +85,19 @@ export default function SprintOverview({
                 const allocatedHours =
                   sprintAnalytics?.allocated_hours ?? sprint.capacity_hours ?? 0;
                 const loggedHours = sprintAnalytics?.logged_hours ?? sprint.velocity ?? 0;
+                // Remaining = Allocated − Logged, unclamped: an over-logged sprint
+                // surfaces as a negative (audit #13). The fallback must NOT floor at
+                // 0, or the same over-budget sprint would read -12h with analytics
+                // and 0h without — two displays of one state.
                 const remainingHours =
-                  sprintAnalytics?.remaining_hours ?? Math.max(0, allocatedHours - loggedHours);
+                  sprintAnalytics?.remaining_hours ?? allocatedHours - loggedHours;
 
                 return (
                   <div
                     key={sprint.id}
                     className={`border rounded-xl p-5 transition-colors ${
                       sprint.status === 'completed'
-                        ? 'border-[#E0B954]/20 bg-[rgba(224,185,84,0.03)]'
+                        ? 'border-status-done/20 bg-status-done/5'
                         : isFar && !isAhead
                           ? 'border-[#EF4444]/20 bg-[rgba(239,68,68,0.03)]'
                           : 'border-[rgba(255,255,255,0.05)] bg-[rgba(255,255,255,0.02)]'
@@ -103,9 +110,9 @@ export default function SprintOverview({
                           <span
                             className={`w-2.5 h-2.5 rounded-full ${
                               sprint.status === 'active'
-                                ? 'bg-[#E0B954] animate-pulse'
+                                ? 'bg-status-in-progress animate-pulse'
                                 : sprint.status === 'completed'
-                                  ? 'bg-[#E0B954]'
+                                  ? 'bg-status-done'
                                   : 'bg-[#737373]'
                             }`}
                           />
@@ -113,9 +120,9 @@ export default function SprintOverview({
                           <Badge
                             className={`text-[10px] border-0 ml-1 ${
                               sprint.status === 'active'
-                                ? 'bg-[#E0B954]/20 text-[#E0B954]'
+                                ? 'bg-status-in-progress/20 text-status-in-progress'
                                 : sprint.status === 'completed'
-                                  ? 'bg-[#E0B954]/20 text-[#E0B954]'
+                                  ? 'bg-status-done/20 text-status-done'
                                   : 'bg-[#737373]/20 text-[#737373]'
                             }`}
                           >
@@ -142,7 +149,7 @@ export default function SprintOverview({
                       <span
                         className={`text-xs font-bold px-3 py-1 rounded-lg whitespace-nowrap ml-4 flex-shrink-0 ${
                           isAhead
-                            ? 'bg-[#E0B954]/15 text-[#E0B954]'
+                            ? 'bg-status-done/15 text-status-done'
                             : isFar
                               ? 'bg-[#EF4444]/15 text-[#EF4444]'
                               : 'bg-[#F59E0B]/15 text-[#F59E0B]'
@@ -168,11 +175,13 @@ export default function SprintOverview({
                         <div>
                           <div className="flex items-center justify-between mb-1.5">
                             <span className="text-sm font-medium text-white">Completion</span>
-                            <span className="text-sm font-bold text-[#E0B954]">{actual}%</span>
+                            <span className="text-sm font-bold text-muted-foreground">
+                              {actual}%
+                            </span>
                           </div>
                           <div className="h-2.5 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden">
                             <div
-                              className="h-full bg-gradient-to-r from-[#E0B954] to-[#F3D57E] rounded-full transition-all duration-500"
+                              className="h-full bg-progress rounded-full transition-all duration-500"
                               style={{ width: `${actual}%` }}
                             />
                           </div>
@@ -197,11 +206,13 @@ export default function SprintOverview({
                           </p>
                         </div>
                         {/* Logged Hours */}
-                        <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.04)] rounded-lg p-3 border-l-2 border-l-[#E0B954]">
+                        <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.04)] rounded-lg p-3 border-l-2 border-l-[rgba(255,255,255,0.12)]">
                           <div className="text-[10px] text-[#737373] font-medium mb-1.5">
                             Logged Hours
                           </div>
-                          <div className="text-lg font-bold text-[#E0B954]">{loggedHours}h</div>
+                          <div className="text-lg font-bold text-muted-foreground">
+                            {loggedHours}h
+                          </div>
                           <p className="text-[9px] text-[#737373] mt-1">Hours tracked</p>
                         </div>
                         {/* Remaining Hours */}
@@ -224,7 +235,7 @@ export default function SprintOverview({
                         <div className="text-[10px] text-[#737373]">Items Completed</div>
                       </div>
                       <div className="py-2 border-l border-r border-[rgba(255,255,255,0.05)]">
-                        <div className="text-sm font-bold text-[#E0B954]">
+                        <div className="text-sm font-bold text-muted-foreground">
                           {sprint.completed_points}/{sprint.total_points}
                         </div>
                         <div className="text-[10px] text-[#737373]">Story Points</div>

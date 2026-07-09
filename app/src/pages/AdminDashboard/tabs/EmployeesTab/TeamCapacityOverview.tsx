@@ -1,4 +1,5 @@
 import { TrendingUp } from 'lucide-react';
+import { CAPACITY_STATUS_COLOR } from './types';
 import type { EmployeeStatusFilter, TeamCapacity } from './types';
 
 interface TeamCapacityOverviewProps {
@@ -19,7 +20,7 @@ const TeamCapacityOverview: React.FC<TeamCapacityOverviewProps> = ({
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-[#E0B954]" />
+            <TrendingUp className="w-4 h-4 text-muted-foreground" />
             <h3 className="text-sm font-semibold text-white">Team Capacity Overview</h3>
           </div>
           <div className="text-xs text-[#737373] mt-1">
@@ -48,20 +49,20 @@ const TeamCapacityOverview: React.FC<TeamCapacityOverviewProps> = ({
               {
                 key: 'Available',
                 count: teamCapacity.counts.Available,
-                base: 'rgba(224,185,84',
-                text: '#E0B954',
+                base: `rgba(${CAPACITY_STATUS_COLOR.Available.rgb}`,
+                text: CAPACITY_STATUS_COLOR.Available.text,
               },
               {
                 key: 'Moderate',
                 count: teamCapacity.counts.Moderate,
-                base: 'rgba(245,158,11',
-                text: '#F59E0B',
+                base: `rgba(${CAPACITY_STATUS_COLOR.Moderate.rgb}`,
+                text: CAPACITY_STATUS_COLOR.Moderate.text,
               },
               {
                 key: 'Busy',
                 count: teamCapacity.counts.Busy,
-                base: 'rgba(239,68,68',
-                text: '#EF4444',
+                base: `rgba(${CAPACITY_STATUS_COLOR.Busy.rgb}`,
+                text: CAPACITY_STATUS_COLOR.Busy.text,
               },
             ] as const
           ).map((pill) => {
@@ -106,13 +107,15 @@ const TeamCapacityOverview: React.FC<TeamCapacityOverviewProps> = ({
         <div className="rounded-lg p-3 bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)]">
           <div className="text-[10px] uppercase tracking-wider text-[#737373]">Utilization</div>
           <div
-            className={`text-xl font-bold tabular-nums mt-1 ${
-              teamCapacity.utilization >= 90
-                ? 'text-[#EF4444]'
-                : teamCapacity.utilization >= 70
-                  ? 'text-[#F59E0B]'
-                  : 'text-[#34D399]'
-            }`}
+            className="text-xl font-bold tabular-nums mt-1"
+            style={{
+              color:
+                teamCapacity.utilization >= 90
+                  ? CAPACITY_STATUS_COLOR.Busy.text
+                  : teamCapacity.utilization >= 70
+                    ? CAPACITY_STATUS_COLOR.Moderate.text
+                    : CAPACITY_STATUS_COLOR.Available.text,
+            }}
           >
             {teamCapacity.utilization}%
           </div>
@@ -135,21 +138,21 @@ const TeamCapacityOverview: React.FC<TeamCapacityOverviewProps> = ({
         </div>
         <div className="h-3 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden flex">
           <div
-            className="h-full bg-[#E0B954]"
+            className="h-full bg-status-in-progress"
             style={{
               width: `${teamCapacity.totalCapacity ? (teamCapacity.totalInProgress / teamCapacity.totalCapacity) * 100 : 0}%`,
             }}
             title={`In progress: ${teamCapacity.totalInProgress}h`}
           />
           <div
-            className="h-full bg-[#A78BFA]"
+            className="h-full bg-status-in-review"
             style={{
               width: `${teamCapacity.totalCapacity ? (teamCapacity.totalInReview / teamCapacity.totalCapacity) * 100 : 0}%`,
             }}
             title={`In review: ${teamCapacity.totalInReview}h`}
           />
           <div
-            className="h-full bg-[#34D399]"
+            className="h-full bg-status-done"
             style={{
               width: `${teamCapacity.totalCapacity ? (teamCapacity.totalDone / teamCapacity.totalCapacity) * 100 : 0}%`,
             }}
@@ -158,15 +161,15 @@ const TeamCapacityOverview: React.FC<TeamCapacityOverviewProps> = ({
         </div>
         <div className="text-[10px] text-[#737373] mt-1.5 flex items-center gap-3 flex-wrap">
           <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-sm bg-[#E0B954]" />
+            <span className="w-2 h-2 rounded-sm bg-status-in-progress" />
             In progress · {teamCapacity.totalInProgress}h
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-sm bg-[#A78BFA]" />
+            <span className="w-2 h-2 rounded-sm bg-status-in-review" />
             In review · {teamCapacity.totalInReview}h
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-sm bg-[#34D399]" />
+            <span className="w-2 h-2 rounded-sm bg-status-done" />
             Done · {teamCapacity.totalDone}h
           </span>
           <span className="flex items-center gap-1">

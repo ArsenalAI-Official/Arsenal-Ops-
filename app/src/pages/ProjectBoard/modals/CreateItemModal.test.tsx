@@ -1,142 +1,103 @@
-// CreateItemModal is a presentational modal: it owns the create-form state and
-// calls back via onSubmit(form) / onClose. It touches no network directly (the
-// POST lives in useWorkItemMutations, covered separately), so these tests assert
-// the component's OWN contract:
-//   - the required-title guard blocks submit (button disabled + toast) with an
-//     empty title, and unblocks once a title is typed;
-//   - a filled form calls onSubmit exactly once with the collected form values;
-//   - the close affordances (header X, Cancel) call onClose;
-//   - the create button reflects the isCreatingItem pending state.
-//
-// No queries/router are used, so renderPlain suffices. sonner is stubbed to
-// assert the guard's error toast. Query by role/label per the testing guide.
-import { render } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-vi.mock('sonner', () => ({
-  toast: { error: vi.fn(), success: vi.fn(), message: vi.fn() },
-}));
-
-import { toast } from 'sonner';
+import { describe, it, expect, vi } from 'vitest';
+import { fireEvent } from '@testing-library/react';
+import { renderPlain } from '@/test-utils/render';
 import CreateItemModal, { type CreateItemModalProps } from './CreateItemModal';
 
-// The modal calls parseLocalDate for the due-date label; a passthrough that
-// mirrors the real local-date parse is enough (no date is picked in these tests).
-const parseLocalDate = (s: string | undefined) => (s ? new Date(`${s}T00:00:00`) : undefined);
-
-function renderModal(overrides: Partial<CreateItemModalProps> = {}) {
-  const onSubmit = vi.fn();
-  const onClose = vi.fn();
-  const props: CreateItemModalProps = {
-    project: { developers: [{ id: 3, name: 'Dev One', role: 'engineer' }] },
-    workItems: [],
-    existingTags: [],
-    parseLocalDate,
-    isCreatingItem: false,
-    onClose,
-    onSubmit,
-    ...overrides,
-  };
-  const user = userEvent.setup();
-  const result = render(<CreateItemModal {...props} />);
-  return { ...result, user, onSubmit, onClose };
-}
-
-const createButton = (getByRole: ReturnType<typeof renderModal>['getByRole']) =>
-  getByRole('button', { name: /create item/i });
-
-describe('CreateItemModal — required-title guard', () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it('disables the Create button and does not submit while the title is empty', async () => {
-    const { getByRole, onSubmit } = renderModal();
-    const btn = createButton(getByRole);
-    expect(btn).toBeDisabled();
-    // Nothing submitted because the guard button is disabled.
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
-
-  it('enables Create once a non-whitespace title is entered', async () => {
-    const { getByRole, getByPlaceholderText, user } = renderModal();
-    const btn = createButton(getByRole);
-    expect(btn).toBeDisabled();
-
-    await user.type(getByPlaceholderText(/concise title/i), '   '); // whitespace only
-    expect(btn).toBeDisabled(); // trimmed empty → still blocked
-
-    await user.type(getByPlaceholderText(/concise title/i), 'Real title');
-    expect(btn).toBeEnabled();
-  });
+const baseProps = (): CreateItemModalProps => ({
+  project: { developers: [] },
+  workItems: [],
+  existingTags: [],
+  parseLocalDate: () => undefined,
+  isCreatingItem: false,
+  onClose: vi.fn(),
+  onSubmit: vi.fn(),
 });
 
-describe('CreateItemModal — submit', () => {
-  beforeEach(() => vi.clearAllMocks());
+describe('CreateItemModal', () => {
+  it('[21] empty-title submit shows an inline error and does not submit', () => {
+    const props = baseProps();
+    const { getByRole, getByText, queryByText } = renderPlain(<CreateItemModal {...props} />);
 
-  it('calls onSubmit once with the collected form values', async () => {
-    const { getByRole, getByPlaceholderText, user, onSubmit } = renderModal();
+    expect(queryByText('Title is required')).toBeNull();
+    fireEvent.click(getByRole('button', { name: /Create Item/ }));
 
-    await user.type(getByPlaceholderText(/concise title/i), 'Build the thing');
-    await user.type(getByPlaceholderText(/requirements/i), 'some details');
-    await user.click(createButton(getByRole));
-
-    expect(onSubmit).toHaveBeenCalledTimes(1);
-    expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'user_story', // default
-        title: 'Build the thing',
-        description: 'some details',
-        priority: 'medium', // default
-      }),
-    );
+    expect(getByText('Title is required')).toBeTruthy();
+    expect(props.onSubmit).not.toHaveBeenCalled();
   });
 
-  it('respects initialType, submitting an epic without a type selector', async () => {
-    const { getByRole, getByPlaceholderText, queryByText, user, onSubmit } = renderModal({
-      initialType: 'epic',
+  it('[21] typing a title clears the inline error', () => {
+    const props = baseProps();
+    const { getByRole, queryByText, getByPlaceholderText } = renderPlain(
+      <CreateItemModal {...props} />,
+    );
+    fireEvent.click(getByRole('button', { name: /Create Item/ }));
+    expect(queryByText('Title is required')).toBeTruthy();
+
+    fireEvent.change(getByPlaceholderText('Enter a concise title...'), {
+      target: { value: 'Build the thing' },
     });
-    // Epic flow hides the type selector and shows the "Create Epic" header.
-    expect(queryByText('Create Epic')).toBeTruthy();
+    expect(queryByText('Title is required')).toBeNull();
+  });
 
-    await user.type(getByPlaceholderText(/concise title/i), 'My Epic');
-    await user.click(createButton(getByRole));
+  it('[22] epic type labels the submit button "Create Epic"', () => {
+    const { getByRole, queryByRole } = renderPlain(
+      <CreateItemModal {...baseProps()} initialType="epic" />,
+    );
+    expect(getByRole('button', { name: /Create Epic/ })).toBeTruthy();
+    expect(queryByRole('button', { name: /Create Item/ })).toBeNull();
+  });
 
-    expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'epic', title: 'My Epic' }),
+  it('[23] Points field is hidden for epics but shown for user stories', () => {
+    const epic = renderPlain(<CreateItemModal {...baseProps()} initialType="epic" />);
+    expect(epic.queryByText('Points')).toBeNull();
+
+    const story = renderPlain(<CreateItemModal {...baseProps()} initialType="user_story" />);
+    expect(story.getByText('Points')).toBeTruthy();
+  });
+
+  it('[23] epics carry no story points (default 0, not 3) so no phantom hours are seeded', () => {
+    const props = baseProps();
+    const { getByRole, getByPlaceholderText } = renderPlain(
+      <CreateItemModal {...props} initialType="epic" />,
+    );
+    fireEvent.change(getByPlaceholderText('Enter a concise title...'), {
+      target: { value: 'Auth epic' },
+    });
+    fireEvent.click(getByRole('button', { name: /Create Epic/ }));
+
+    expect(props.onSubmit).toHaveBeenCalledTimes(1);
+    expect(props.onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'epic', story_points: 0 }),
     );
   });
-});
 
-describe('CreateItemModal — close affordances', () => {
-  beforeEach(() => vi.clearAllMocks());
+  it('a valid title submits the form (happy path)', () => {
+    const props = baseProps();
+    const { getByRole, getByPlaceholderText } = renderPlain(<CreateItemModal {...props} />);
+    fireEvent.change(getByPlaceholderText('Enter a concise title...'), {
+      target: { value: 'Build the thing' },
+    });
+    fireEvent.click(getByRole('button', { name: /Create Item/ }));
 
-  it('Cancel button calls onClose', async () => {
-    const { getByRole, user, onClose } = renderModal();
-    await user.click(getByRole('button', { name: /cancel/i }));
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('CreateItemModal — pending state', () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it('shows "Creating..." and disables Cancel while a create is in flight', () => {
-    const { getByRole, getByText } = renderModal({ isCreatingItem: true });
-    expect(getByText(/creating\.\.\./i)).toBeTruthy();
-    expect(getByRole('button', { name: /cancel/i })).toBeDisabled();
+    expect(props.onSubmit).toHaveBeenCalledTimes(1);
+    expect(props.onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Build the thing' }),
+    );
   });
 
-  it('clearing a typed title re-blocks submit without ever calling onSubmit or the guard toast', async () => {
-    // The <button disabled> is the primary guard; handleCreateItem's toast is a
-    // belt-and-suspenders fallback. Typing then clearing re-disables the button,
-    // so no submit fires and the fallback toast is never reached.
-    const { getByRole, getByPlaceholderText, user, onSubmit } = renderModal();
-    const title = getByPlaceholderText(/concise title/i);
-    await user.type(title, 'x');
-    expect(createButton(getByRole)).toBeEnabled();
-    await user.clear(title);
-    expect(createButton(getByRole)).toBeDisabled();
-    expect(onSubmit).not.toHaveBeenCalled();
-    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
+  // Ported from main's suite: coverage this component's own contract still owes.
+  it('the Cancel button calls onClose', () => {
+    const props = baseProps();
+    const { getByRole } = renderPlain(<CreateItemModal {...props} />);
+    fireEvent.click(getByRole('button', { name: /Cancel/ }));
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('reflects the isCreatingItem pending state: "Creating..." and a disabled Cancel', () => {
+    const { getByText, getByRole } = renderPlain(
+      <CreateItemModal {...baseProps()} isCreatingItem />,
+    );
+    expect(getByText(/Creating\.\.\./)).toBeTruthy();
+    expect(getByRole('button', { name: /Cancel/ })).toBeDisabled();
   });
 });

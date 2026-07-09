@@ -50,8 +50,8 @@ const ProjectReportsView: React.FC<ProjectReportsViewProps> = ({
         <div className="px-5 py-4 border-b border-[rgba(255,255,255,0.05)] bg-[rgba(255,255,255,0.015)]">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[rgba(224,185,84,0.1)] flex items-center justify-center border border-[rgba(224,185,84,0.15)]">
-                <CalendarRange className="w-4 h-4 text-[#E0B954]" />
+              <div className="w-8 h-8 rounded-lg bg-[rgba(255,255,255,0.04)] flex items-center justify-center border border-[rgba(255,255,255,0.08)]">
+                <CalendarRange className="w-4 h-4 text-muted-foreground" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-white leading-tight">
@@ -82,7 +82,7 @@ const ProjectReportsView: React.FC<ProjectReportsViewProps> = ({
 
       {weeklyReportLoading && reportRows.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 py-12 text-xs text-[#737373]">
-          <Loader2 className="w-4 h-4 animate-spin text-[#E0B954]" />
+          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
           <span>Loading report…</span>
         </div>
       ) : reportRows.length === 0 ? (
@@ -159,7 +159,7 @@ const ProjectReportsView: React.FC<ProjectReportsViewProps> = ({
                       <div className="flex items-center gap-2 mb-1.5">
                         <span className="text-sm font-medium text-white">{row.project_name}</span>
                         {row.category_name && (
-                          <span className="text-[10px] text-[#E0B954] bg-[rgba(224,185,84,0.08)] border border-[rgba(224,185,84,0.15)] px-1.5 py-0.5 rounded">
+                          <span className="text-[10px] text-muted-foreground bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.12)] px-1.5 py-0.5 rounded">
                             {row.category_name}
                           </span>
                         )}
@@ -229,7 +229,7 @@ const ProjectReportsView: React.FC<ProjectReportsViewProps> = ({
               footer would just duplicate them. */}
           {reportRows.length > 1 && (
             <tfoot>
-              <tr className="border-t-2 border-[rgba(224,185,84,0.2)] bg-[rgba(255,255,255,0.025)]">
+              <tr className="border-t-2 border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.025)]">
                 <td className="px-4 py-3"></td>
                 <td className="px-4 py-3 text-[11px] uppercase tracking-wider font-semibold text-[#a3a3a3]">
                   Total · {reportRows.length} projects

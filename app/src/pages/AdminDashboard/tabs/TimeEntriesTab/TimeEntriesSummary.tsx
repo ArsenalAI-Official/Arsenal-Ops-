@@ -51,7 +51,7 @@ const TimeEntriesSummary: React.FC<TimeEntriesSummaryProps> = ({
 
       {/* Truncation warning */}
       {truncated && (
-        <div className="rounded-lg border border-[#E0B954]/30 bg-[#E0B954]/10 p-3 flex items-center gap-2 text-xs text-[#E0B954]">
+        <div className="rounded-lg border border-info/30 bg-info/10 p-3 flex items-center gap-2 text-xs text-info">
           <AlertTriangle className="w-4 h-4 shrink-0" />
           Capped at {totalRawRows} raw entries before aggregation. Refine your filters to include
           older data.
@@ -78,7 +78,7 @@ const TimeEntriesSummary: React.FC<TimeEntriesSummaryProps> = ({
               onClick={() => onGroupByChange(opt.id)}
               className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
                 active
-                  ? 'bg-[#E0B954]/20 text-[#E0B954] border border-[#E0B954]/40'
+                  ? 'bg-[rgba(255,255,255,0.08)] text-white border border-[rgba(255,255,255,0.15)]'
                   : 'bg-[rgba(255,255,255,0.03)] text-[#a3a3a3] border border-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.06)]'
               }`}
             >

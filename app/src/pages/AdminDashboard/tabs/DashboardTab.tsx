@@ -1,17 +1,8 @@
 import { Users, FolderKanban, Ticket, Calendar, ChevronRight } from 'lucide-react';
 import type { ElementType } from 'react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-  PieChart,
-  Pie,
-} from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import type { DashboardStats } from '@/client';
+import { StatusDonut } from '@/components/charts/StatusDonut';
 import { Empty, EmptyDescription } from '@/components/ui/empty';
 
 type AdminTab = 'dashboard' | 'employees' | 'projects' | 'users' | 'roles';
@@ -22,25 +13,15 @@ interface DashboardTabProps {
 }
 
 const DashboardTab = ({ stats, setActiveTab }: DashboardTabProps) => {
-  const statusColor = (s: string) => {
-    const key = s.toLowerCase();
-    if (key === 'done' || key === 'completed' || key === 'closed') return '#34D399';
-    if (key === 'in_progress' || key === 'in progress') return '#E0B954';
-    if (key === 'in_review' || key === 'in review' || key === 'review') return '#A78BFA';
-    if (key === 'blocked') return '#EF4444';
-    if (key === 'cancelled' || key === 'canceled' || key === 'wontfix') return '#525252';
-    if (key === 'backlog') return '#64748B';
-    if (key === 'todo' || key === 'to_do' || key === 'to do') return '#94A3B8';
-    if (key === 'open' || key === 'new') return '#60A5FA';
-    return '#737373';
-  };
+  // Style Guide 1a priority ramp (literal hexes: these feed a recharts donut,
+  // which can't read CSS vars). Kept in lockstep with PRIORITY_COLOR.
   const priorityColor = (p: string) => {
     const key = p.toLowerCase();
-    if (key === 'critical') return '#EF4444';
-    if (key === 'high') return '#F97316';
-    if (key === 'medium') return '#F59E0B';
-    if (key === 'low') return '#E0B954';
-    return '#737373';
+    if (key === 'critical') return '#E5484D';
+    if (key === 'high') return '#EC7A3C';
+    if (key === 'medium') return '#94A3B8';
+    if (key === 'low') return '#64748B';
+    return '#64748B';
   };
   const priorityOrder = ['critical', 'high', 'medium', 'low'];
   const statusData = Object.entries(stats.tickets_by_status)
@@ -48,7 +29,6 @@ const DashboardTab = ({ stats, setActiveTab }: DashboardTabProps) => {
       name,
       label: name.replace(/_/g, ' '),
       value,
-      color: statusColor(name),
     }))
     .sort((a, b) => b.value - a.value);
   const priorityData = Object.entries(stats.tickets_by_priority)
@@ -78,27 +58,27 @@ const DashboardTab = ({ stats, setActiveTab }: DashboardTabProps) => {
       label: 'Total Employees',
       value: stats.total_employees,
       icon: Users,
-      color: '#E0B954',
+      color: '#A6A29C',
       tab: 'employees',
     },
     {
       label: 'Total Projects',
       value: stats.total_projects,
       icon: FolderKanban,
-      color: '#E0B954',
+      color: '#A6A29C',
       tab: 'projects',
     },
     {
       label: 'Total Tickets',
       value: stats.total_tickets,
       icon: Ticket,
-      color: '#F59E0B',
+      color: '#A6A29C',
     },
     {
       label: 'Active Sprints',
       value: stats.active_sprints,
       icon: Calendar,
-      color: '#EC4899',
+      color: '#A6A29C',
     },
   ];
 
@@ -121,7 +101,7 @@ const DashboardTab = ({ stats, setActiveTab }: DashboardTabProps) => {
                 : {})}
               className={`text-left bg-[#0d0d0d] border border-[rgba(255,255,255,0.05)] rounded-xl p-5 transition-colors ${
                 clickable
-                  ? 'cursor-pointer hover:border-[rgba(224,185,84,0.3)] hover:bg-[rgba(255,255,255,0.015)] focus:outline-none focus:ring-1 focus:ring-[#E0B954]'
+                  ? 'cursor-pointer hover:border-[rgba(255,255,255,0.12)] hover:bg-[rgba(255,255,255,0.015)] focus:outline-none focus:ring-1 focus:ring-brand'
                   : ''
               }`}
             >
@@ -148,64 +128,7 @@ const DashboardTab = ({ stats, setActiveTab }: DashboardTabProps) => {
               <EmptyDescription>No ticket data yet.</EmptyDescription>
             </Empty>
           ) : (
-            <div className="flex items-center gap-5">
-              <div className="relative flex-shrink-0" style={{ width: 180, height: 180 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={statusData}
-                      dataKey="value"
-                      nameKey="label"
-                      innerRadius={55}
-                      outerRadius={80}
-                      paddingAngle={2}
-                      stroke="none"
-                    >
-                      {statusData.map((d) => (
-                        <Cell key={d.name} fill={d.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#121212',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                        borderRadius: 8,
-                        fontSize: 12,
-                        textTransform: 'capitalize',
-                      }}
-                      itemStyle={{ color: '#a3a3a3' }}
-                      wrapperStyle={{ outline: 'none', zIndex: 50 }}
-                      formatter={(value: number, name: string) => [
-                        `${value} (${Math.round((value / stats.total_tickets) * 100)}%)`,
-                        name,
-                      ]}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <div className="text-2xl font-bold text-white tabular-nums">
-                    {stats.total_tickets}
-                  </div>
-                  <div className="text-[10px] text-[#737373] uppercase tracking-wider">Total</div>
-                </div>
-              </div>
-              <ul className="flex-1 space-y-1.5 min-w-0">
-                {statusData.map((d) => {
-                  const pct = Math.round((d.value / stats.total_tickets) * 100);
-                  return (
-                    <li key={d.name} className="flex items-center gap-2 text-xs">
-                      <span
-                        className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
-                        style={{ backgroundColor: d.color }}
-                      />
-                      <span className="text-[#a3a3a3] capitalize truncate">{d.label}</span>
-                      <span className="ml-auto text-[#737373] tabular-nums">{d.value}</span>
-                      <span className="text-[#525252] tabular-nums w-9 text-right">{pct}%</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
+            <StatusDonut data={statusData} />
           )}
         </div>
 

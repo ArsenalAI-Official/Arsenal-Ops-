@@ -174,10 +174,10 @@ const ArchitectureEditor = ({ architecture, onSave, onClose }: ArchitectureEdito
       </div>
 
       {/* AI Refine Panel */}
-      <div className="border-b border-[rgba(255,255,255,0.05)] bg-gradient-to-r from-[#E0B954]/5 to-transparent">
+      <div className="border-b border-[rgba(255,255,255,0.05)] bg-gradient-to-r from-[rgba(255,255,255,0.03)] to-transparent">
         <div className="px-4 py-3">
           <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="w-4 h-4 text-[#E0B954]" />
+            <Sparkles className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm font-medium text-white">AI Architecture Refine</span>
             <span className="text-xs text-[#737373]">Describe changes in plain English</span>
           </div>
@@ -218,21 +218,21 @@ const ArchitectureEditor = ({ architecture, onSave, onClose }: ArchitectureEdito
 
           {/* Changes Applied */}
           {changesApplied.length > 0 && (
-            <div className="mt-3 p-3 bg-[#E0B954]/10 border border-[#E0B954]/20 rounded-lg">
+            <div className="mt-3 p-3 bg-info/10 border border-info/20 rounded-lg">
               <div className="flex items-center gap-2 mb-2">
-                <CheckCircle2 className="w-4 h-4 text-[#E0B954]" />
-                <span className="text-sm font-medium text-[#E0B954]">Changes Applied</span>
+                <CheckCircle2 className="w-4 h-4 text-info" />
+                <span className="text-sm font-medium text-info">Changes Applied</span>
               </div>
               <ul className="space-y-1">
                 {changesApplied.map((change, i) => (
                   <li key={i} className="text-xs text-[#a3a3a3] flex items-start gap-2">
-                    <span className="text-[#E0B954]">+</span>
+                    <span className="text-info">+</span>
                     <span>{change}</span>
                   </li>
                 ))}
               </ul>
               {aiNotes && (
-                <p className="text-xs text-[#737373] mt-2 italic border-t border-[#E0B954]/20 pt-2">
+                <p className="text-xs text-[#737373] mt-2 italic border-t border-info/20 pt-2">
                   AI Notes: {aiNotes}
                 </p>
               )}
@@ -286,13 +286,14 @@ const ArchitectureEditor = ({ architecture, onSave, onClose }: ArchitectureEdito
       <div className="h-8 border-t border-[rgba(255,255,255,0.05)] bg-[#080808] flex items-center justify-between px-4 text-xs text-[#737373] flex-shrink-0">
         <div className="flex items-center gap-4">
           <span>
-            Cost: <span className="text-[#E0B954]">{architecture.estimated_cost}</span>
+            Cost: <span className="text-muted-foreground">{architecture.estimated_cost}</span>
           </span>
           <span>
             Complexity: <span className="text-[#F59E0B] capitalize">{architecture.complexity}</span>
           </span>
           <span>
-            Timeline: <span className="text-[#E0B954]">{architecture.time_to_implement}</span>
+            Timeline:{' '}
+            <span className="text-muted-foreground">{architecture.time_to_implement}</span>
           </span>
         </div>
         <div className="flex items-center gap-2">

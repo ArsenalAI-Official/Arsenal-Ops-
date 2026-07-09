@@ -1,5 +1,5 @@
 import { CheckCircle2 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '@/contexts/AuthContext';
 import type { MyTask, PersonalTask } from '../types';
@@ -8,7 +8,13 @@ import MyTasksTabs from './components/MyTasksTabs';
 import PersonalTasksList from './components/PersonalTasksList';
 import StatusBar from './components/StatusBar';
 import WorkItemRow from './components/WorkItemRow';
-import { sortPersonalTasks, sortUpcomingTasks, sortCompletedTasks, type MyTaskTab } from './lib';
+import {
+  isFocusTask,
+  sortPersonalTasks,
+  sortUpcomingTasks,
+  sortCompletedTasks,
+  type MyTaskTab,
+} from './lib';
 
 interface MyTasksBoxProps {
   myTasks: MyTask[];
@@ -66,21 +72,26 @@ const MyTasksBox = ({
     return fields.some((f) => (f ?? '').toLowerCase().includes(normalizedSearch));
   };
 
+  // One Date per render for the Focus predicate — keeps isFocusTask pure
+  // (react-hooks/purity) and consistent across all rows this pass.
+  const today = useMemo(() => new Date(), []);
   const filteredMyTasks = myTasks.filter((t) => {
     const inTab =
-      myTaskTab === 'upcoming'
-        ? t.status !== 'done' && !t.is_overdue
-        : myTaskTab === 'overdue'
-          ? t.is_overdue
-          : myTaskTab === 'completed'
-            ? t.status === 'done'
-            : false;
+      myTaskTab === 'focus'
+        ? isFocusTask(t, today)
+        : myTaskTab === 'upcoming'
+          ? t.status !== 'done' && !t.is_overdue
+          : myTaskTab === 'overdue'
+            ? t.is_overdue
+            : myTaskTab === 'completed'
+              ? t.status === 'done'
+              : false;
     if (!inTab) return false;
     return matchesSearch(t.title, t.key, t.project_name);
   });
 
   const sortedFiltered =
-    myTaskTab === 'upcoming'
+    myTaskTab === 'upcoming' || myTaskTab === 'focus'
       ? sortUpcomingTasks(filteredMyTasks)
       : myTaskTab === 'completed'
         ? sortCompletedTasks(filteredMyTasks)
@@ -110,6 +121,11 @@ const MyTasksBox = ({
       />
 
       <div className="flex-1 overflow-y-auto p-4 space-y-0.5">
+        {myTaskTab === 'focus' && (
+          <div className="text-[11.5px] text-[#6f6f6f] px-2 pt-0.5 pb-1.5">
+            Overdue and due-today tasks — what needs you first.
+          </div>
+        )}
         {myTaskTab === 'personal' ? (
           <PersonalTasksList
             activePersonalTasks={activePersonalTasks}
@@ -123,18 +139,20 @@ const MyTasksBox = ({
             onNavigateToPersonalTasks={onNavigateToPersonalTasks}
           />
         ) : myTasksLoading ? (
-          <div className="flex items-center justify-center py-10">
+          <div className="flex h-full min-h-[240px] items-center justify-center py-10">
             <Spinner size="sm" tone="gold" />
           </div>
         ) : filteredMyTasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 text-center">
-            <CheckCircle2 className="w-8 h-8 text-[#E0B954]/30 mb-2" />
+          <div className="flex h-full min-h-[240px] flex-col items-center justify-center py-10 text-center">
+            <CheckCircle2 className="w-8 h-8 text-muted-foreground/50 mb-2" />
             <p className="text-sm text-[#737373]">
               {myTaskTab === 'completed'
                 ? 'No completed tasks yet'
                 : myTaskTab === 'overdue'
                   ? 'No overdue tasks 🎉'
-                  : 'No upcoming tasks'}
+                  : myTaskTab === 'focus'
+                    ? 'Nothing needs you right now 🎉'
+                    : 'No upcoming tasks'}
             </p>
           </div>
         ) : (
@@ -142,7 +160,6 @@ const MyTasksBox = ({
             <WorkItemRow
               key={task.id}
               task={task}
-              myTaskTab={myTaskTab}
               openDateRowId={openDateRowId}
               setOpenDateRowId={setOpenDateRowId}
               onSelectTask={onSelectTask}
@@ -154,16 +171,15 @@ const MyTasksBox = ({
         {myTaskTab !== 'personal' && filteredMyTasks.length > 6 && (
           <button
             onClick={() => setShowAllTasks((p) => !p)}
-            className="w-full text-center text-xs text-[#737373] hover:text-[#E0B954] py-2.5 transition-colors"
+            className="w-full text-center text-xs text-[#737373] hover:text-white py-2.5 transition-colors"
           >
             {showAllTasks ? 'Show less' : `Show ${filteredMyTasks.length - 6} more`}
           </button>
         )}
       </div>
 
-      {(myTaskTab === 'upcoming' || myTaskTab === 'overdue') && filteredMyTasks.length > 0 && (
-        <StatusBar filteredMyTasks={filteredMyTasks} />
-      )}
+      {(myTaskTab === 'focus' || myTaskTab === 'upcoming' || myTaskTab === 'overdue') &&
+        filteredMyTasks.length > 0 && <StatusBar filteredMyTasks={filteredMyTasks} />}
     </div>
   );
 };

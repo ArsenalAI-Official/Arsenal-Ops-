@@ -114,7 +114,7 @@ const PRDAnalysisSection = ({ prdAnalysis, projectId, projectName }: PRDAnalysis
   return (
     <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-2xl p-5">
       <div className="flex items-center gap-3 mb-4">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E0B954] to-[#B8872A] flex items-center justify-center">
+        <div className="w-10 h-10 rounded-xl bg-[rgba(255,255,255,0.06)] flex items-center justify-center">
           <FileText className="w-5 h-5 text-white" />
         </div>
         <div>
@@ -133,14 +133,14 @@ const PRDAnalysisSection = ({ prdAnalysis, projectId, projectName }: PRDAnalysis
       {prdAnalysis.key_features && prdAnalysis.key_features.length > 0 && (
         <div className="mb-4">
           <h4 className="text-sm font-medium text-[#a3a3a3] mb-3 flex items-center gap-2">
-            <Target className="w-4 h-4 text-[#E0B954]" />
+            <Target className="w-4 h-4 text-muted-foreground" />
             Key Features
           </h4>
           <div className="flex flex-wrap gap-2">
             {prdAnalysis.key_features.map((feature, idx) => (
               <Badge
                 key={idx}
-                className="bg-[#E0B954]/10 text-[#E0B954] border border-[#E0B954]/20 hover:bg-[#E0B954]/20"
+                className="bg-[rgba(255,255,255,0.06)] text-muted-foreground border border-[rgba(255,255,255,0.12)] hover:bg-[rgba(255,255,255,0.1)]"
               >
                 {feature}
               </Badge>
@@ -153,13 +153,13 @@ const PRDAnalysisSection = ({ prdAnalysis, projectId, projectName }: PRDAnalysis
       {prdAnalysis.technical_requirements && prdAnalysis.technical_requirements.length > 0 && (
         <div className="mb-4">
           <h4 className="text-sm font-medium text-[#a3a3a3] mb-3 flex items-center gap-2">
-            <Wrench className="w-4 h-4 text-[#E0B954]" />
+            <Wrench className="w-4 h-4 text-muted-foreground" />
             Technical Requirements
           </h4>
           <ul className="space-y-2">
             {prdAnalysis.technical_requirements.map((req, idx) => (
               <li key={idx} className="flex items-start gap-2 text-sm text-[#f5f5f5]">
-                <CheckCircle2 className="w-4 h-4 text-[#E0B954] mt-0.5 flex-shrink-0" />
+                <CheckCircle2 className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
                 {req}
               </li>
             ))}
@@ -186,7 +186,7 @@ const PRDAnalysisSection = ({ prdAnalysis, projectId, projectName }: PRDAnalysis
                       {tools.slice(0, 3).map((tool, idx) => (
                         <span
                           key={idx}
-                          className="text-xs bg-[rgba(224,185,84,0.1)] text-[#E0B954] px-2 py-0.5 rounded"
+                          className="text-xs bg-[rgba(255,255,255,0.06)] text-muted-foreground px-2 py-0.5 rounded"
                         >
                           {tool}
                         </span>
@@ -208,28 +208,28 @@ const PRDAnalysisSection = ({ prdAnalysis, projectId, projectName }: PRDAnalysis
       {/* Cost Analysis - Infrastructure Only */}
       <div className="mb-4">
         <h4 className="text-sm font-medium text-[#a3a3a3] mb-3 flex items-center gap-2">
-          <DollarSign className="w-4 h-4 text-[#E0B954]" />
+          <DollarSign className="w-4 h-4 text-muted-foreground" />
           Infrastructure Cost Analysis
         </h4>
         {prdAnalysis.cost_analysis?.infrastructure ? (
-          <div className="bg-[rgba(224,185,84,0.05)] border border-[rgba(224,185,84,0.2)] rounded-xl p-4">
+          <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.12)] rounded-xl p-4">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <p className="text-xs text-[#737373]">Monthly Cost</p>
-                <p className="text-2xl font-bold text-[#E0B954]">
+                <p className="text-2xl font-bold text-muted-foreground">
                   {prdAnalysis.cost_analysis.infrastructure.monthly || 'N/A'}
                 </p>
               </div>
               <div className="text-right">
                 <p className="text-xs text-[#737373]">Annual Cost</p>
-                <p className="text-lg font-bold text-[#E0B954]">
+                <p className="text-lg font-bold text-muted-foreground">
                   {prdAnalysis.cost_analysis.infrastructure.annual || 'N/A'}
                 </p>
               </div>
             </div>
             {prdAnalysis.cost_analysis.infrastructure.breakdown &&
               prdAnalysis.cost_analysis.infrastructure.breakdown.length > 0 && (
-                <div className="border-t border-[rgba(224,185,84,0.2)] pt-3">
+                <div className="border-t border-[rgba(255,255,255,0.12)] pt-3">
                   <p className="text-xs font-medium text-[#737373] mb-2">Detailed Breakdown</p>
                   <div className="space-y-2">
                     {prdAnalysis.cost_analysis.infrastructure.breakdown.map((item, idx) => (
@@ -238,7 +238,9 @@ const PRDAnalysisSection = ({ prdAnalysis, projectId, projectName }: PRDAnalysis
                         className="flex items-center justify-between py-1.5 px-2 bg-[rgba(255,255,255,0.025)] rounded-lg"
                       >
                         <span className="text-sm text-[#f5f5f5]">{item.item}</span>
-                        <span className="text-sm font-medium text-[#E0B954]">{item.cost}</span>
+                        <span className="text-sm font-medium text-muted-foreground">
+                          {item.cost}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -285,20 +287,20 @@ const PRDAnalysisSection = ({ prdAnalysis, projectId, projectName }: PRDAnalysis
       {/* Timeline */}
       <div>
         <h4 className="text-sm font-medium text-[#a3a3a3] mb-3 flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-[#E0B954]" />
+          <Calendar className="w-4 h-4 text-muted-foreground" />
           Project Timeline
         </h4>
         {prdAnalysis.timeline && prdAnalysis.timeline.length > 0 ? (
           <div className="space-y-3">
             {prdAnalysis.timeline.map((phase, idx) => (
               <div key={idx} className="flex items-start gap-4">
-                <div className="w-8 h-8 rounded-full bg-[#E0B954]/10 flex items-center justify-center flex-shrink-0">
-                  <span className="text-xs font-bold text-[#E0B954]">{idx + 1}</span>
+                <div className="w-8 h-8 rounded-full bg-[rgba(255,255,255,0.06)] flex items-center justify-center flex-shrink-0">
+                  <span className="text-xs font-bold text-muted-foreground">{idx + 1}</span>
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-sm font-medium text-white">{phase.phase}</p>
-                    <span className="text-xs text-[#E0B954]">{phase.duration}</span>
+                    <span className="text-xs text-muted-foreground">{phase.duration}</span>
                   </div>
                   <div className="flex flex-wrap gap-1">
                     {phase.tasks &&
@@ -359,7 +361,7 @@ const PRDAnalysisSection = ({ prdAnalysis, projectId, projectName }: PRDAnalysis
                 {canWriteAI && (
                   <Button
                     onClick={() => setRoadmapModalOpen(true)}
-                    className="bg-[#E0B954] hover:bg-[#C79E3B] text-black"
+                    className="bg-brand hover:bg-[#C79E3B] text-black"
                   >
                     <RefreshCw className="w-4 h-4 mr-1" />
                     Regenerate
@@ -368,7 +370,7 @@ const PRDAnalysisSection = ({ prdAnalysis, projectId, projectName }: PRDAnalysis
                 <Button
                   onClick={handleDownload}
                   disabled={downloading}
-                  className="bg-[#E0B954] hover:bg-[#C79E3B] text-black"
+                  className="bg-brand hover:bg-[#C79E3B] text-black"
                 >
                   {downloading ? (
                     <>
@@ -396,7 +398,7 @@ const PRDAnalysisSection = ({ prdAnalysis, projectId, projectName }: PRDAnalysis
                 </div>
                 <Button
                   onClick={() => setRoadmapModalOpen(true)}
-                  className="bg-[#E0B954] hover:bg-[#C79E3B] text-black shrink-0"
+                  className="bg-brand hover:bg-[#C79E3B] text-black shrink-0"
                 >
                   <Download className="w-4 h-4 mr-1" />
                   Generate roadmap

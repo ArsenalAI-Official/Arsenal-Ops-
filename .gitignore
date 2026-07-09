@@ -61,5 +61,12 @@ verification-*.png
 app/playwright-report/
 app/test-results/
 
+# Local dev-only Docker overrides (e.g. DEV_AUTH_BYPASS for the dev-login button)
+docker-compose.override.yml
+
+# Dev-only WorkItemPanel preview harness (not linked from the app)
+app/preview.html
+app/src/preview.tsx
+
 # Local simplify-audit analysis reports (not part of any PR)
 .simplify-audit/

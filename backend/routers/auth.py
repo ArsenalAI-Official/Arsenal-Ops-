@@ -4,8 +4,6 @@ Authentication Router - Login, logout, password management, Google SSO
 
 import hashlib
 import os
-import secrets
-import string
 import sys
 from datetime import timedelta
 from threading import Lock
@@ -25,6 +23,7 @@ from capabilities import CAPABILITIES, is_valid_grant
 from database import _allowed_internal_domains, get_db
 from models.role import Role
 from models.user import User, UserRole
+from routers._common import get_or_404
 from services.google_oauth_service import google_oauth_service
 
 
@@ -143,12 +142,6 @@ class GoogleLoginRequest(BaseModel):
     """Request model for Google SSO login"""
 
     token: str  # Google ID token from frontend
-
-
-def generate_temp_password(length=12):
-    """Generate a secure temporary password"""
-    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-    return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
 def verify_password(plain_password, hashed_password):
@@ -395,9 +388,7 @@ def admin_reset_password(
     db: Session = Depends(get_db),
 ):
     """Admin: Reset a user's password"""
-    user = db.query(User).filter(User.id == reset_data.user_id).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    user = get_or_404(db, User, reset_data.user_id, detail="User not found")
 
     user.hashed_password = get_password_hash(reset_data.new_password)
     user.is_first_login = True  # Force password change
@@ -430,9 +421,7 @@ def update_user_profile(
     """
     from models.developer import Developer
 
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    user = get_or_404(db, User, user_id, detail="User not found")
 
     old_email = user.email
     new_email = payload.email.strip() if payload.email is not None else None
@@ -503,9 +492,7 @@ def update_user_role(
     db: Session = Depends(get_db),
 ):
     """Admin: Update a user's role"""
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    user = get_or_404(db, User, user_id, detail="User not found")
 
     # Resolve the requested string to known SYSTEM roles up front. This endpoint
     # sets a user's system role(s); custom roles are managed via the
@@ -567,9 +554,7 @@ def delete_user(
     db: Session = Depends(get_db),
 ):
     """Admin: Delete a user permanently"""
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    user = get_or_404(db, User, user_id, detail="User not found")
 
     # Prevent deleting yourself
     if user.id == admin.id:
@@ -983,9 +968,7 @@ def get_role(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_capability("admin.roles")),
 ):
-    role = db.query(Role).filter(Role.id == role_id).first()
-    if not role:
-        raise HTTPException(status_code=404, detail="Role not found")
+    role = get_or_404(db, Role, role_id, detail="Role not found")
     return _role_to_dict(role, user_count=len(role.users))
 
 
@@ -996,9 +979,7 @@ def update_role(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_capability("admin.roles_write")),
 ):
-    role = db.query(Role).filter(Role.id == role_id).first()
-    if not role:
-        raise HTTPException(status_code=404, detail="Role not found")
+    role = get_or_404(db, Role, role_id, detail="Role not found")
 
     if req.name is not None:
         new_name = req.name.strip()
@@ -1032,9 +1013,7 @@ def delete_role(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_capability("admin.roles_write")),
 ):
-    role = db.query(Role).filter(Role.id == role_id).first()
-    if not role:
-        raise HTTPException(status_code=404, detail="Role not found")
+    role = get_or_404(db, Role, role_id, detail="Role not found")
     if role.is_system:
         raise HTTPException(status_code=400, detail="Cannot delete a system role")
 
@@ -1060,9 +1039,7 @@ def replace_role_capabilities(
 ):
     from models.role import RoleCapability
 
-    role = db.query(Role).filter(Role.id == role_id).first()
-    if not role:
-        raise HTTPException(status_code=404, detail="Role not found")
+    role = get_or_404(db, Role, role_id, detail="Role not found")
 
     cleaned_keys = _validate_grants_or_400(req.capability_keys)
 
@@ -1080,9 +1057,7 @@ def get_user_roles(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_capability("admin.roles")),
 ):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = get_or_404(db, User, user_id, detail="User not found")
     return [_role_to_dict(r) for r in user.roles]
 
 
@@ -1093,12 +1068,8 @@ def assign_role_to_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_capability("admin.roles_write")),
 ):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    role = db.query(Role).filter(Role.id == role_id).first()
-    if not role:
-        raise HTTPException(status_code=404, detail="Role not found")
+    user = get_or_404(db, User, user_id, detail="User not found")
+    role = get_or_404(db, Role, role_id, detail="Role not found")
 
     if role in user.roles:
         raise HTTPException(status_code=400, detail="Role already assigned to user")
@@ -1117,12 +1088,8 @@ def remove_role_from_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_capability("admin.roles_write")),
 ):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    role = db.query(Role).filter(Role.id == role_id).first()
-    if not role:
-        raise HTTPException(status_code=404, detail="Role not found")
+    user = get_or_404(db, User, user_id, detail="User not found")
+    role = get_or_404(db, Role, role_id, detail="Role not found")
 
     if role not in user.roles:
         raise HTTPException(status_code=400, detail="Role not assigned to user")

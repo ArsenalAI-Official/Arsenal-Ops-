@@ -4,64 +4,105 @@
 
 @layer base {
   :root {
-    /* Arsenal AI - Light fallback (unused - app is always dark) */
-    --background: 0 0% 3%;
-    --foreground: 0 0% 96%;
-    --card: 0 0% 7%;
-    --card-foreground: 0 0% 96%;
-    --popover: 0 0% 7%;
-    --popover-foreground: 0 0% 96%;
-    --primary: 43 73% 60%; /* Gold #E0B954 */
+    /* Warm-dark neutrals (Style Guide 1a). HSL triplets feed shadcn tokens
+       via hsl(var(--x)). Hex equivalents live in the semantic token block
+       below: bg #0A0A0A · surface #151312 · raised #1E1B18 · line #2A2724 ·
+       text-hi #F5F3EF · text-mid #A6A29C. */
+    --background: 0 0% 4%;
+    --foreground: 40 23% 95%;
+    --card: 20 8% 8%;
+    --card-foreground: 40 23% 95%;
+    --popover: 20 8% 8%;
+    --popover-foreground: 40 23% 95%;
+    --primary: 43 73% 60%; /* Brand gold #E0B954 */
     --primary-foreground: 0 0% 5%;
-    --secondary: 0 0% 13%;
-    --secondary-foreground: 0 0% 96%;
-    --muted: 0 0% 13%;
-    --muted-foreground: 0 0% 64%;
+    --secondary: 30 11% 11%; /* raised surface */
+    --secondary-foreground: 40 23% 95%;
+    --muted: 30 11% 11%;
+    --muted-foreground: 40 5% 63%; /* text-mid #A6A29C */
     --accent: 43 73% 60%;
     --accent-foreground: 0 0% 5%;
-    --destructive: 0 62.8% 55%;
+    --destructive: 358 75% 59%; /* danger red #E5484D */
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 16%; /* #2a2a2a */
-    --input: 0 0% 13%;
+    --border: 30 8% 15%; /* line #2A2724 */
+    --input: 30 11% 11%;
     --ring: 43 73% 60%; /* Gold ring */
     --radius: 0.625rem;
-    --sidebar-background: 0 0% 7%;
-    --sidebar-foreground: 0 0% 64%;
+    --sidebar-background: 20 8% 8%;
+    --sidebar-foreground: 40 5% 63%;
     --sidebar-primary: 43 73% 60%;
     --sidebar-primary-foreground: 0 0% 5%;
-    --sidebar-accent: 0 0% 13%;
-    --sidebar-accent-foreground: 0 0% 96%;
-    --sidebar-border: 0 0% 16%;
+    --sidebar-accent: 30 11% 11%;
+    --sidebar-accent-foreground: 40 23% 95%;
+    --sidebar-border: 30 8% 15%;
     --sidebar-ring: 43 73% 60%;
+
+    /* ── Style Guide 1a "Refined Gold" — semantic design tokens ──────────────
+       Hex tokens (theme-agnostic; the app is always dark). Every color has one
+       job. Consumed via Tailwind (bg-status-done, text-priority-high, …) and
+       directly in JS via src/lib/workItemConfig.ts. NOTE: the guide's
+       "secondary / info" (#5B9BE6) is exposed as --info here, NOT --secondary,
+       because shadcn already uses --secondary for a neutral surface. */
+
+    /* Brand — logo + the ONE primary action per screen only */
+    --brand: #e0b954;
+    --brand-fg: #080808;
+    --info: #5b9be6; /* links / informational accents */
+
+    /* Neutrals (warm dark) */
+    --bg: #0a0a0a;
+    --surface: #151312;
+    --raised: #1e1b18;
+    --line: #2a2724;
+    --text-hi: #f5f3ef;
+    --text-mid: #a6a29c;
+    --text-low: #6e6a64;
+
+    /* Status — cool workflow ramp (identical on every surface) */
+    --status-backlog: #64748b;
+    --status-todo: #3b82f6;
+    --status-in-progress: #6e62e6;
+    --status-in-review: #d06bb0;
+    --status-done: #40be86;
+    --status-blocked: #e5484d;
+
+    /* Priority — warm severity ramp (low/medium stay muted grey) */
+    --priority-low: #64748b;
+    --priority-medium: #94a3b8;
+    --priority-high: #ec7a3c;
+    --priority-critical: #e5484d;
+
+    /* Chrome */
+    --progress: #8a8a8a;
   }
 
   .dark {
-    --background: 0 0% 3%;
-    --foreground: 0 0% 96%;
-    --card: 0 0% 7%;
-    --card-foreground: 0 0% 96%;
-    --popover: 0 0% 7%;
-    --popover-foreground: 0 0% 96%;
+    --background: 0 0% 4%;
+    --foreground: 40 23% 95%;
+    --card: 20 8% 8%;
+    --card-foreground: 40 23% 95%;
+    --popover: 20 8% 8%;
+    --popover-foreground: 40 23% 95%;
     --primary: 43 73% 60%;
     --primary-foreground: 0 0% 5%;
-    --secondary: 0 0% 13%;
-    --secondary-foreground: 0 0% 96%;
-    --muted: 0 0% 13%;
-    --muted-foreground: 0 0% 64%;
+    --secondary: 30 11% 11%;
+    --secondary-foreground: 40 23% 95%;
+    --muted: 30 11% 11%;
+    --muted-foreground: 40 5% 63%;
     --accent: 43 73% 60%;
     --accent-foreground: 0 0% 5%;
-    --destructive: 0 62.8% 40%;
+    --destructive: 358 75% 59%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 16%;
-    --input: 0 0% 13%;
+    --border: 30 8% 15%;
+    --input: 30 11% 11%;
     --ring: 43 73% 60%;
-    --sidebar-background: 0 0% 5%;
-    --sidebar-foreground: 0 0% 64%;
+    --sidebar-background: 20 8% 8%;
+    --sidebar-foreground: 40 5% 63%;
     --sidebar-primary: 43 73% 60%;
     --sidebar-primary-foreground: 0 0% 5%;
-    --sidebar-accent: 0 0% 13%;
-    --sidebar-accent-foreground: 0 0% 96%;
-    --sidebar-border: 0 0% 16%;
+    --sidebar-accent: 30 11% 11%;
+    --sidebar-accent-foreground: 40 23% 95%;
+    --sidebar-border: 30 8% 15%;
     --sidebar-ring: 43 73% 60%;
   }
 }

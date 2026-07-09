@@ -29,7 +29,7 @@ const CapacityModal = ({
       <DialogContent className="bg-[#0d0d0d] border-[rgba(255,255,255,0.07)] max-w-[95vw] max-h-[88vh] overflow-y-auto">
         <DialogHeader className="pb-2">
           <DialogTitle className="text-white flex items-center gap-2.5 text-lg">
-            <Activity className="w-5 h-5 text-[#E0B954]" />
+            <Activity className="w-5 h-5 text-muted-foreground" />
             My Capacity This Week
           </DialogTitle>
           {data && (
@@ -127,7 +127,7 @@ const CapacityModal = ({
                   Logged this week
                 </p>
                 <div className="flex items-baseline gap-2 mb-1">
-                  <span className="text-4xl font-bold text-[#E0B954] tracking-tight tabular-nums">
+                  <span className="text-4xl font-bold text-muted-foreground tracking-tight tabular-nums">
                     {totalLoggedThisWeek}h
                   </span>
                   <span className="text-xs text-[#737373]">
@@ -195,7 +195,7 @@ const CapacityModal = ({
                               <li key={t.id} className="flex items-start gap-3">
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-[11px] font-mono text-[#E0B954] tabular-nums shrink-0">
+                                    <span className="text-[11px] font-mono text-muted-foreground tabular-nums shrink-0">
                                       {t.key}
                                     </span>
                                     <span

@@ -179,11 +179,11 @@ export default function HoursDebugPanel({ projectId, token }: HoursDebugPanelPro
 
               <div className="flex items-center gap-4 text-sm">
                 <span className="text-[#737373]">Hours from Entries:</span>
-                <span className="text-[#E0B954]">
+                <span className="text-muted-foreground">
                   {debugData.data_summary.total_hours_from_entries}h
                 </span>
                 <span className="text-[#737373]">Hours from Work Items:</span>
-                <span className={hoursMismatch ? 'text-red-400' : 'text-[#E0B954]'}>
+                <span className={hoursMismatch ? 'text-red-400' : 'text-muted-foreground'}>
                   {debugData.data_summary.total_hours_from_work_items}h
                 </span>
               </div>

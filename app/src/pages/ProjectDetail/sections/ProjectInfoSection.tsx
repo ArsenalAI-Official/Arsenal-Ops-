@@ -79,7 +79,7 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
               <Button
                 size="sm"
                 onClick={handleSaveEdit}
-                className="bg-[#E0B954] hover:bg-[#C79E3B] text-white"
+                className="bg-brand hover:bg-[#C79E3B] text-white"
               >
                 <Save className="w-4 h-4 mr-2" />
                 Save
@@ -163,7 +163,7 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
                         month: 'space-y-4',
                         caption_label: 'text-sm font-medium text-white',
                         nav: 'space-x-1 flex items-center',
-                        day: 'p-0 h-8 w-8 rounded bg-transparent text-white text-sm cursor-pointer hover:bg-[rgba(224,185,84,0.1)]',
+                        day: 'p-0 h-8 w-8 rounded bg-transparent text-white text-sm cursor-pointer hover:bg-[rgba(255,255,255,0.12)]',
                       }}
                     />
                   </PopoverContent>
@@ -210,7 +210,7 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
                         month: 'space-y-4',
                         caption_label: 'text-sm font-medium text-white',
                         nav: 'space-x-1 flex items-center',
-                        day: 'p-0 h-8 w-8 rounded bg-transparent text-white text-sm cursor-pointer hover:bg-[rgba(224,185,84,0.1)]',
+                        day: 'p-0 h-8 w-8 rounded bg-transparent text-white text-sm cursor-pointer hover:bg-[rgba(255,255,255,0.12)]',
                       }}
                     />
                   </PopoverContent>
@@ -235,7 +235,7 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
                   href={project.github_repo_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm text-[#E0B954] hover:underline"
+                  className="flex items-center gap-2 text-sm text-info hover:underline"
                 >
                   <Github className="w-4 h-4" />
                   {project.github_repo_url}
@@ -267,8 +267,8 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
       <div className="grid grid-cols-4 gap-3">
         <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-[#E0B954]/10 flex items-center justify-center">
-              <Users className="w-5 h-5 text-[#E0B954]" />
+            <div className="w-10 h-10 rounded-lg bg-[rgba(255,255,255,0.06)] flex items-center justify-center">
+              <Users className="w-5 h-5 text-muted-foreground" />
             </div>
             <div>
               <p className="text-2xl font-bold text-white">{project.developers?.length ?? 0}</p>
@@ -278,8 +278,8 @@ const ProjectInfoSection = ({ project, isCurrentUserAdmin, onSave }: ProjectInfo
         </div>
         <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-[#E0B954]/10 flex items-center justify-center">
-              <Github className="w-5 h-5 text-[#E0B954]" />
+            <div className="w-10 h-10 rounded-lg bg-[rgba(255,255,255,0.06)] flex items-center justify-center">
+              <Github className="w-5 h-5 text-muted-foreground" />
             </div>
             <div>
               <p className="text-2xl font-bold text-white">

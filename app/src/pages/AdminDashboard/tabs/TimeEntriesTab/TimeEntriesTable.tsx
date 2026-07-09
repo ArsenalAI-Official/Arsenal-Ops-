@@ -28,7 +28,7 @@ const TimeEntriesTable: React.FC<TimeEntriesTableProps> = ({
     <div className="rounded-2xl border border-[rgba(255,255,255,0.07)] bg-[rgba(255,255,255,0.02)] overflow-hidden">
       {isLoading ? (
         <div className="flex items-center justify-center h-48">
-          <div className="animate-spin w-6 h-6 border-2 border-[#E0B954] border-t-transparent rounded-full" />
+          <div className="animate-spin w-6 h-6 border-2 border-muted-foreground border-t-transparent rounded-full" />
         </div>
       ) : isError ? (
         <div className="p-8 text-center text-sm text-red-400">Failed to load time entries.</div>
@@ -58,7 +58,7 @@ const TimeEntriesTable: React.FC<TimeEntriesTableProps> = ({
                 return (
                   <tbody key={group.key} className="divide-y divide-[rgba(255,255,255,0.04)]">
                     <tr
-                      className="bg-[rgba(224,185,84,0.06)] border-t border-[#E0B954]/20 cursor-pointer hover:bg-[rgba(224,185,84,0.1)] transition-colors"
+                      className="bg-[rgba(255,255,255,0.04)] border-t border-[rgba(255,255,255,0.12)] cursor-pointer hover:bg-[rgba(255,255,255,0.06)] transition-colors"
                       onClick={() => onToggleGroup(group.key)}
                       // Keyboard a11y — the header row acts as an expand/collapse
                       // toggle, so it needs the role + key handler a <button>
@@ -75,7 +75,7 @@ const TimeEntriesTable: React.FC<TimeEntriesTableProps> = ({
                     >
                       <td
                         colSpan={3}
-                        className="px-4 py-2 text-xs font-semibold text-[#E0B954] uppercase tracking-wider"
+                        className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
                       >
                         <span className="inline-flex items-center gap-1.5">
                           {isExpanded ? (
@@ -90,7 +90,7 @@ const TimeEntriesTable: React.FC<TimeEntriesTableProps> = ({
                           )
                         </span>
                       </td>
-                      <td className="px-4 py-2 text-right text-xs font-bold text-[#E0B954]">
+                      <td className="px-4 py-2 text-right text-xs font-bold text-muted-foreground">
                         {group.totalHours}h
                       </td>
                     </tr>

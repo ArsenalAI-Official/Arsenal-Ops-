@@ -173,16 +173,16 @@ const GanttChart: React.FC<GanttChartProps> = ({
                   const isActive = sprint.status === 'active';
                   const isCompleted = sprint.status === 'completed';
                   const bg = isActive
-                    ? 'rgba(224,185,84,0.06)'
+                    ? 'rgba(166,162,156,0.1)'
                     : isCompleted
                       ? 'rgba(115,115,115,0.04)'
                       : 'rgba(115,115,115,0.06)';
                   const borderCol = isActive
-                    ? 'rgba(224,185,84,0.3)'
+                    ? 'rgba(166,162,156,0.4)'
                     : isCompleted
                       ? 'rgba(115,115,115,0.15)'
                       : 'rgba(115,115,115,0.2)';
-                  const labelCol = isActive ? 'rgba(224,185,84,0.75)' : 'rgba(115,115,115,0.55)';
+                  const labelCol = isActive ? 'rgba(166,162,156,0.9)' : 'rgba(115,115,115,0.55)';
                   return (
                     <div
                       key={sprint.id}
@@ -230,8 +230,8 @@ const GanttChart: React.FC<GanttChartProps> = ({
                     top: 0,
                     width: cw,
                     height: chartHeight,
-                    backgroundColor: 'rgba(224,185,84,0.08)',
-                    borderLeft: '2px solid rgba(224,185,84,0.6)',
+                    backgroundColor: 'rgba(138,138,138,0.1)',
+                    borderLeft: '2px solid rgba(138,138,138,0.6)',
                     pointerEvents: 'none',
                   }}
                 />
@@ -350,8 +350,8 @@ const GanttChart: React.FC<GanttChartProps> = ({
           <div
             className="w-3 h-3 rounded border-l-2"
             style={{
-              backgroundColor: 'rgba(224,185,84,0.06)',
-              borderColor: 'rgba(224,185,84,0.3)',
+              backgroundColor: 'rgba(166,162,156,0.1)',
+              borderColor: 'rgba(166,162,156,0.4)',
             }}
           />
           <span className="text-[#737373]">Sprint</span>

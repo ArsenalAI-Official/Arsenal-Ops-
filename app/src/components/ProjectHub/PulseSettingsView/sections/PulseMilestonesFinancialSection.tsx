@@ -1,5 +1,6 @@
 import { Trash2 } from 'lucide-react';
 import React from 'react';
+import { fmtPulseDate } from '../../ProjectPulseView/lib/format';
 import { PulseMilestone } from '../../pulseData';
 import { Field, NumberInput, Section } from '../inputs';
 
@@ -80,7 +81,7 @@ const PulseMilestonesFinancialSection: React.FC<PulseMilestonesFinancialSectionP
                 </label>
                 <div className="text-sm text-white">{m.phase}</div>
                 <div className="text-xs text-[#737373] mt-0.5">
-                  {m.date} · {m.status}
+                  {fmtPulseDate(m.date)} · {m.status}
                 </div>
               </div>
               <Field label="Budget" className="col-span-2">

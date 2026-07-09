@@ -37,7 +37,7 @@ const PersonalTasksList = ({
   if (filteredTasks.length === 0) {
     return (
       <div className="text-center py-20">
-        <CheckCircle2 className="w-12 h-12 text-[#E0B954]/30 mx-auto mb-3" />
+        <CheckCircle2 className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
         <p className="text-[#737373]">
           {tasks.length === 0
             ? 'No tasks yet. Create one to get started!'
@@ -52,7 +52,7 @@ const PersonalTasksList = ({
       {filteredTasks.map((task) => (
         <div
           key={task.id}
-          className={`group relative bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl p-4 transition-all duration-300 hover:border-[rgba(224,185,84,0.2)] hover:bg-[rgba(255,255,255,0.035)] ${
+          className={`group relative bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl p-4 transition-all duration-300 hover:border-[rgba(255,255,255,0.12)] hover:bg-[rgba(255,255,255,0.035)] ${
             task.status === 'done' ? 'opacity-60' : ''
           }`}
         >
@@ -60,7 +60,7 @@ const PersonalTasksList = ({
             {/* Checkbox */}
             <button
               onClick={() => onToggleComplete(task)}
-              className="flex-shrink-0 mt-1 text-[#737373] hover:text-[#E0B954] transition-colors"
+              className="flex-shrink-0 mt-1 text-[#737373] hover:text-white transition-colors"
               title={task.status === 'done' ? 'Mark as pending' : 'Mark as complete'}
             >
               {task.status === 'done' ? (
@@ -126,7 +126,7 @@ const PersonalTasksList = ({
                 {canAssignToProject && (
                   <button
                     onClick={() => onConvert(task)}
-                    className="p-2 rounded-lg hover:bg-[rgba(224,185,84,0.1)] text-[#737373] hover:text-[#E0B954] transition-colors"
+                    className="p-2 rounded-lg hover:bg-[rgba(255,255,255,0.06)] text-[#737373] hover:text-white transition-colors"
                     title="Tag to project"
                   >
                     <Tag className="w-4 h-4" />
@@ -134,7 +134,7 @@ const PersonalTasksList = ({
                 )}
                 <button
                   onClick={() => onEdit(task)}
-                  className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.08)] text-[#737373] hover:text-[#E0B954] transition-colors"
+                  className="p-2 rounded-lg hover:bg-[rgba(244,246,255,0.08)] text-[#737373] hover:text-white transition-colors"
                 >
                   <Edit2 className="w-4 h-4" />
                 </button>

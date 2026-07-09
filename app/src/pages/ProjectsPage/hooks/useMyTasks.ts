@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { isPastDue } from '@/components/ProjectsPage';
 import type { MyTask } from '@/components/ProjectsPage';
+import type { MyTaskTab } from '@/components/ProjectsPage/MyTasksBox/lib';
 import { apiFetch, ApiError } from '@/lib/api';
 import { invalidateAdminWorkItemImpact } from '@/lib/invalidations';
 
@@ -13,9 +14,7 @@ import { invalidateAdminWorkItemImpact } from '@/lib/invalidations';
 export const useMyTasks = () => {
   const queryClient = useQueryClient();
 
-  const [myTaskTab, setMyTaskTab] = useState<'upcoming' | 'overdue' | 'completed' | 'personal'>(
-    'upcoming',
-  );
+  const [myTaskTab, setMyTaskTab] = useState<MyTaskTab>('focus');
   const [showAllTasks, setShowAllTasks] = useState(false);
   const [selectedTask, setSelectedTask] = useState<MyTask | null>(null);
 

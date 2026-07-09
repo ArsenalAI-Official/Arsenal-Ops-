@@ -66,7 +66,9 @@ const BlockedItemCard: React.FC<BlockedItemCardProps> = ({
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-            <span className="text-xs font-mono font-semibold text-[#E0B954]">{item.key}</span>
+            <span className="text-xs font-mono font-semibold text-muted-foreground">
+              {item.key}
+            </span>
             <span
               className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-[rgba(239,68,68,0.15)] text-[#EF4444] border border-[rgba(239,68,68,0.3)]"
               title="This ticket has unresolved blocker comments"
@@ -143,7 +145,7 @@ const BlockedItemCard: React.FC<BlockedItemCardProps> = ({
           per-comment Resolve pill is rendered automatically for unresolved
           blocker comments when `onResolveComment` is provided. */}
       <div className="pt-2.5 border-t border-[rgba(255,255,255,0.05)]">
-        <div className="flex items-center gap-2 mb-2.5 text-xs font-semibold uppercase tracking-wider text-[#8A8A8A]">
+        <div className="flex items-center gap-2 mb-2.5 text-xs font-semibold uppercase tracking-wider text-progress">
           <MessageSquare className="w-3.5 h-3.5" />
           Comments
           <span className="text-[#525252] normal-case tracking-normal font-normal">

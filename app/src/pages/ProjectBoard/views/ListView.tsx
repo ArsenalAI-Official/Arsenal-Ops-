@@ -167,7 +167,7 @@ const ListView = ({
             role="radio"
             aria-checked={listGroupBy === 'sprint'}
             onClick={() => setListGroupBy('sprint')}
-            className={`px-2.5 h-6 text-[11px] rounded-md transition-colors ${listGroupBy === 'sprint' ? 'bg-[#E0B954] text-[#080808] font-medium' : 'text-[#737373] hover:text-white'}`}
+            className={`px-2.5 h-6 text-[11px] rounded-md transition-colors ${listGroupBy === 'sprint' ? 'bg-brand text-[#080808] font-medium' : 'text-[#737373] hover:text-white'}`}
           >
             By Sprint
           </button>
@@ -176,7 +176,7 @@ const ListView = ({
             role="radio"
             aria-checked={listGroupBy === 'week'}
             onClick={() => setListGroupBy('week')}
-            className={`px-2.5 h-6 text-[11px] rounded-md transition-colors ${listGroupBy === 'week' ? 'bg-[#E0B954] text-[#080808] font-medium' : 'text-[#737373] hover:text-white'}`}
+            className={`px-2.5 h-6 text-[11px] rounded-md transition-colors ${listGroupBy === 'week' ? 'bg-brand text-[#080808] font-medium' : 'text-[#737373] hover:text-white'}`}
           >
             By Week
           </button>
@@ -223,7 +223,7 @@ const ListView = ({
                       </span>
                     )}
                     {group.isCurrent && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[rgba(224,185,84,0.12)] text-[#E0B954]">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.12)] text-muted-foreground">
                         Current
                       </span>
                     )}
@@ -308,7 +308,7 @@ const ListView = ({
                           e.stopPropagation();
                           onCompleteSprint(parseInt(group.key));
                         }}
-                        className="p-1.5 rounded-md hover:bg-[rgba(224,185,84,0.1)] text-[#737373] hover:text-[#E0B954] transition-colors"
+                        className="p-1.5 rounded-md hover:bg-[rgba(255,255,255,0.12)] text-[#737373] hover:text-muted-foreground transition-colors"
                         title="Complete sprint"
                       >
                         <CheckCircle2 className="w-4 h-4" />

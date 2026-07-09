@@ -57,7 +57,7 @@ const UploadStep = ({
           onClick={() => setUploadMode('prd')}
           className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${
             uploadMode === 'prd'
-              ? 'bg-[#E0B954] text-black'
+              ? 'bg-brand text-black'
               : 'bg-[rgba(255,255,255,0.08)] text-[#a3a3a3] hover:bg-[rgba(255,255,255,0.12)]'
           }`}
         >
@@ -67,7 +67,7 @@ const UploadStep = ({
           onClick={() => setUploadMode('roadmap')}
           className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${
             uploadMode === 'roadmap'
-              ? 'bg-[#E0B954] text-black'
+              ? 'bg-brand text-black'
               : 'bg-[rgba(255,255,255,0.08)] text-[#a3a3a3] hover:bg-[rgba(255,255,255,0.12)]'
           }`}
         >

@@ -27,7 +27,7 @@ const ListSortHeader = ({ label, sortKey, activeKey, sortDir, onSort }: ListSort
       type="button"
       onClick={() => onSort(sortKey)}
       className={`flex items-center gap-1 text-left uppercase tracking-wider hover:text-white transition-colors ${
-        active ? 'text-[#E0B954]' : ''
+        active ? 'text-brand' : ''
       }`}
       aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
     >

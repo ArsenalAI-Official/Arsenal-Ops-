@@ -77,7 +77,7 @@ const ProjectCardsView: React.FC<ProjectCardsViewProps> = ({
         .map((project) => (
           <div
             key={project.id}
-            className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.05)] rounded-xl p-5 hover:border-[rgba(224,185,84,0.3)] transition-colors"
+            className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.05)] rounded-xl p-5 hover:border-[rgba(255,255,255,0.12)] transition-colors"
           >
             <div className="flex items-start justify-between mb-3">
               <div
@@ -125,7 +125,7 @@ const ProjectCardsView: React.FC<ProjectCardsViewProps> = ({
                     className={
                       'h-7 px-2.5 text-[11px] gap-1.5 rounded-full border w-auto inline-flex ' +
                       (project.category_name
-                        ? 'bg-[rgba(224,185,84,0.1)] text-[#E0B954] border-[rgba(224,185,84,0.2)] hover:bg-[rgba(224,185,84,0.18)]'
+                        ? 'bg-[rgba(255,255,255,0.06)] text-muted-foreground border-[rgba(255,255,255,0.12)] hover:bg-[rgba(255,255,255,0.1)]'
                         : 'bg-[rgba(255,255,255,0.03)] text-[#737373] border-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.06)] hover:text-white')
                     }
                   >
@@ -148,7 +148,7 @@ const ProjectCardsView: React.FC<ProjectCardsViewProps> = ({
                   className={
                     'h-7 px-2.5 text-[11px] gap-1.5 rounded-full border inline-flex items-center ' +
                     (project.category_name
-                      ? 'bg-[rgba(224,185,84,0.1)] text-[#E0B954] border-[rgba(224,185,84,0.2)]'
+                      ? 'bg-[rgba(255,255,255,0.06)] text-muted-foreground border-[rgba(255,255,255,0.12)]'
                       : 'bg-[rgba(255,255,255,0.03)] text-[#737373] border-[rgba(255,255,255,0.05)]')
                   }
                   title="Read-only — requires projects write to change"
@@ -168,14 +168,14 @@ const ProjectCardsView: React.FC<ProjectCardsViewProps> = ({
                     href={project.github_repo_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-[#E0B954] hover:underline flex items-center gap-1"
+                    className="text-xs text-muted-foreground hover:underline flex items-center gap-1"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {project.github_repo_name || project.github_repo_url}
                     <ExternalLink className="w-3 h-3" />
                   </a>
                   {project.has_github_token && (
-                    <span className="ml-auto text-[10px] text-[#E0B954] flex items-center gap-1">
+                    <span className="ml-auto text-[10px] text-muted-foreground flex items-center gap-1">
                       <CheckCircle2 className="w-3 h-3" />
                       Token
                     </span>
@@ -212,7 +212,7 @@ const ProjectCardsView: React.FC<ProjectCardsViewProps> = ({
             <div className="flex items-center gap-4 mt-4 text-xs text-[#737373]">
               <button
                 onClick={(e) => onOpenProjectMembers(project, e)}
-                className="flex items-center gap-1 hover:text-[#E0B954] transition-colors cursor-pointer rounded px-1 -mx-1 hover:bg-[rgba(224,185,84,0.08)]"
+                className="flex items-center gap-1 hover:text-muted-foreground transition-colors cursor-pointer rounded px-1 -mx-1 hover:bg-[rgba(255,255,255,0.06)]"
                 title="View and manage project members"
               >
                 <Users className="w-3.5 h-3.5" />
@@ -232,7 +232,7 @@ const ProjectCardsView: React.FC<ProjectCardsViewProps> = ({
               </div>
               <div className="h-1.5 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-[#E0B954] to-[#B8872A] rounded-full"
+                  className="h-full bg-progress rounded-full"
                   style={{ width: `${project.completion_pct}%` }}
                 />
               </div>
@@ -244,7 +244,7 @@ const ProjectCardsView: React.FC<ProjectCardsViewProps> = ({
                 e.stopPropagation();
                 navigate(`/project/${project.id}?tab=pulse_settings`);
               }}
-              className="w-full mt-3 h-8 text-[11px] bg-[rgba(224,185,84,0.1)] hover:bg-[rgba(224,185,84,0.18)] border border-[rgba(224,185,84,0.3)] text-[#E0B954] rounded-lg font-semibold"
+              className="w-full mt-3 h-8 text-[11px] bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.1)] border border-[rgba(255,255,255,0.12)] text-muted-foreground rounded-lg font-semibold"
             >
               <TrendingUp className="w-3.5 h-3.5 mr-1.5" />
               Edit Pulse values

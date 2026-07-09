@@ -22,10 +22,11 @@ const TimelineView: React.FC<TimelineViewProps> = ({
   const [selectedItem, setSelectedItem] = useState<WorkItem | null>(null);
   const [zoom, setZoom] = useState<ZoomLevel>('week');
   const [viewStart, setViewStart] = useState<Date>(() => {
-    // Start view at today minus 2 columns so there's context
-    const d = new Date();
-    d.setDate(d.getDate() - colDays('week') * 2);
-    return d;
+    // Anchor the initial view on today (audit #6) so the Gantt opens on the
+    // current date, matching the Calendar view below it — previously it started
+    // two columns (~2 weeks) in the past, so it opened looking at old dates.
+    // Earlier items stay reachable by scrolling left.
+    return new Date();
   });
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -58,7 +59,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({
           label: `🎯 ${m.title}`,
           start: due,
           end: due,
-          color: m.completed_at ? '#E0B954' : '#EC4899',
+          color: m.completed_at ? '#40BE86' : '#EC4899',
           type: 'milestone' as const,
           progress: m.completed_at ? 100 : 0,
         };
@@ -73,7 +74,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({
           label: `⭐ ${g.title}`,
           start: due,
           end: due,
-          color: g.status === 'completed' ? '#E0B954' : '#F59E0B',
+          color: g.status === 'completed' ? '#40BE86' : '#F59E0B',
           type: 'goal' as const,
           progress: g.status === 'completed' ? 100 : g.progress || 0,
         };

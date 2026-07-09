@@ -239,13 +239,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                             background-color: #0A0A14;
                         }
                         .rbc-today {
-                            background-color: rgba(224, 185, 84, 0.2) !important;
+                            background-color: rgba(255, 255, 255, 0.06) !important;
                         }
                         .rbc-button-link {
                             color: white;
                         }
                         .rbc-show-more {
-                            color: #E0B954;
+                            color: var(--text-mid);
                             background: transparent;
                         }
                         .rbc-date-cell {

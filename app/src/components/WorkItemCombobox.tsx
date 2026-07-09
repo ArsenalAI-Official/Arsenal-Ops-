@@ -123,15 +123,15 @@ export function WorkItemCombobox({
                       onChange(Number(opt.id), opt.key ?? null);
                       setOpen(false);
                     }}
-                    className="text-[#F4F6FF] data-[selected=true]:bg-[rgba(224,185,84,0.12)] data-[selected=true]:text-[#E0B954]"
+                    className="text-[#F4F6FF] data-[selected=true]:bg-[rgba(255,255,255,0.12)] data-[selected=true]:text-white"
                   >
                     <Check
                       className={cn(
                         'mr-2 h-3.5 w-3.5',
-                        isSelected ? 'opacity-100 text-[#E0B954]' : 'opacity-0',
+                        isSelected ? 'opacity-100 text-muted-foreground' : 'opacity-0',
                       )}
                     />
-                    <span className="text-[10px] font-mono text-[#E0B954] mr-2 shrink-0">
+                    <span className="text-[10px] font-mono text-muted-foreground mr-2 shrink-0">
                       {opt.key}
                     </span>
                     <span className="truncate">{opt.title}</span>

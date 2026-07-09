@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import {
@@ -20,6 +21,22 @@ const ProjectsPage = () => {
   const navigate = useNavigate();
   const { user, token, logout } = useAuth();
   const { confirm, confirmDialog } = useConfirm();
+
+  // Time-of-day greeting + long date for the dashboard header. `new Date()` is
+  // impure, so it's memoized once per mount (react-hooks/purity).
+  const { greeting, dateStr } = useMemo(() => {
+    const now = new Date();
+    const hour = now.getHours();
+    return {
+      greeting: hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening',
+      dateStr: now.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+      }),
+    };
+  }, []);
+  const firstName = user?.name?.split(' ')[0] || user?.name || 'there';
 
   const {
     searchQuery,
@@ -44,6 +61,7 @@ const ProjectsPage = () => {
     handleCreateProject,
     isCreating,
     handleDeleteProject,
+    toggleFavorite,
     myTaskTab,
     setMyTaskTab,
     showAllTasks,
@@ -102,30 +120,24 @@ const ProjectsPage = () => {
 
       <AppHeader user={user} onAdminClick={() => navigate('/admin')} onLogout={logout} />
 
-      <div className="flex-1 min-h-0 flex flex-col max-w-[1400px] mx-auto px-8 py-8 w-full">
+      <div className="flex-1 min-h-0 flex flex-col max-w-[1360px] mx-auto px-8 pt-6 pb-7 w-full">
+        <div className="flex items-baseline gap-3 mb-4 flex-shrink-0">
+          <h1 className="text-[23px] font-bold tracking-[-0.02em] text-white m-0">
+            {greeting}, {firstName}
+          </h1>
+          <span className="text-sm text-muted-foreground">{dateStr}</span>
+        </div>
+
         <div className="flex-shrink-0">
           <DashboardStats
-            userName={user?.name}
             myTasks={myTasks}
             myTasksLoading={myTasksLoading}
             onTabChange={setMyTaskTab}
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-5 flex-1 min-h-0">
-          <div className="md:col-span-2 min-h-0 h-full">
-            <ProjectsBox
-              projects={projects}
-              isLoading={isLoading}
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              onCreateProjectClick={() => setShowCreateModal(true)}
-              onProjectClick={(projectId) => navigate(`/project/${projectId}`)}
-              onDeleteProject={handleDeleteProject}
-            />
-          </div>
-
-          <div className="md:col-span-3 min-h-0 h-full">
+        <div className="grid grid-cols-1 md:grid-cols-[1.7fr_1fr] gap-5 flex-1 min-h-0">
+          <div className="min-h-0 h-full">
             <MyTasksBox
               myTasks={myTasks}
               personalTasks={personalTasks}
@@ -146,6 +158,19 @@ const ProjectsPage = () => {
               onNavigateToPersonalTasks={() => navigate('/personal-tasks')}
               onChangeTaskStatus={handleChangeMyTaskStatus}
               onQuickDueDateChange={handleQuickDueDateChange}
+            />
+          </div>
+
+          <div className="min-h-0 h-full">
+            <ProjectsBox
+              projects={projects}
+              isLoading={isLoading}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              onCreateProjectClick={() => setShowCreateModal(true)}
+              onProjectClick={(projectId) => navigate(`/project/${projectId}`)}
+              onDeleteProject={handleDeleteProject}
+              onToggleFavorite={toggleFavorite}
             />
           </div>
         </div>
@@ -223,7 +248,6 @@ const ProjectsPage = () => {
         projects={projects}
         projectMembers={projectMembers}
         convertProjectId={convertProjectId}
-        setConvertProjectId={setConvertProjectId}
         convertAssigneeId={convertAssigneeId}
         setConvertAssigneeId={setConvertAssigneeId}
         convertEstimatedHours={convertEstimatedHours}
@@ -233,7 +257,7 @@ const ProjectsPage = () => {
           setConvertAssigneeId('');
           setMemberLookupProjectId(projectId || '');
         }}
-        converting={convertingTicket}
+        isConverting={convertingTicket}
         onConvert={convertToTicket}
       />
 

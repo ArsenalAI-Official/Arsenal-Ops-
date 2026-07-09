@@ -102,7 +102,7 @@ const EditSprintModal = ({
                 <PopoverContent
                   side="bottom"
                   align="start"
-                  className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(224,185,84,0.2)]"
+                  className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(255,255,255,0.12)]"
                 >
                   <CalendarIcon
                     mode="single"
@@ -142,7 +142,7 @@ const EditSprintModal = ({
                 <PopoverContent
                   side="bottom"
                   align="start"
-                  className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(224,185,84,0.2)]"
+                  className="w-auto p-3 bg-[#0d0d0d] border border-[rgba(255,255,255,0.12)]"
                 >
                   <CalendarIcon
                     mode="single"
@@ -215,8 +215,8 @@ export const CompleteSprintConfirm = ({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-xl bg-[rgba(224,185,84,0.1)] flex items-center justify-center shrink-0">
-            <CheckCircle2 className="w-5 h-5 text-[#E0B954]" />
+          <div className="w-10 h-10 rounded-xl bg-[rgba(64,190,134,0.1)] flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-5 h-5 text-status-done" />
           </div>
           <div>
             <h3 className="text-base font-semibold text-white">Complete Sprint</h3>
@@ -224,8 +224,8 @@ export const CompleteSprintConfirm = ({
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 mb-5">
-          <div className="bg-[rgba(224,185,84,0.05)] border border-[rgba(224,185,84,0.15)] rounded-xl p-3 text-center">
-            <p className="text-2xl font-bold text-[#E0B954]">{doneCount}</p>
+          <div className="bg-[rgba(64,190,134,0.08)] border border-[rgba(64,190,134,0.2)] rounded-xl p-3 text-center">
+            <p className="text-2xl font-bold text-status-done">{doneCount}</p>
             <p className="text-xs text-[#737373] mt-0.5">Completed</p>
           </div>
           <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl p-3 text-center">
