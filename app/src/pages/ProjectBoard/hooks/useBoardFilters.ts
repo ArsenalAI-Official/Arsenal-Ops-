@@ -47,13 +47,15 @@ export function useBoardFilters(
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showFilterMenu, showSprintMenu]);
 
-  // Derived: unique tags computed from cached workItems — no useEffect needed
+  // Derived: unique tags computed from cached workItems — no useEffect needed.
+  // Collected from EVERY item type: the tag FILTER below matches any item's
+  // tags, so restricting the dropdown to task-only tags (as this once did)
+  // made story/bug-only tags impossible to select.
   const existingTags = useMemo(
     () =>
       Array.from(
         new Set(
           workItems
-            .filter((item) => item.type === 'task')
             .flatMap((item) => (item.tags ?? []).map((t: string) => String(t).trim().toLowerCase()))
             .filter(Boolean),
         ),
@@ -119,6 +121,17 @@ export function useBoardFilters(
       const bucket = buckets[item.status];
       if (bucket) bucket.push(item);
     }
+    // Done reads newest → oldest. The board payload arrives in insertion
+    // order while loaded archive pages arrive completed_at DESC — sorting the
+    // merged bucket keeps the column consistent and interleaves archive pages
+    // into place. ISO timestamps compare lexicographically; legacy rows
+    // without completed_at sink to the bottom. Other columns keep their
+    // existing (insertion) order.
+    buckets.done!.sort((a, b) => {
+      if (!a.completed_at) return b.completed_at ? 1 : 0;
+      if (!b.completed_at) return -1;
+      return b.completed_at.localeCompare(a.completed_at);
+    });
     return buckets;
   }, [filteredItems]);
 

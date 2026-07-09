@@ -1,9 +1,9 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, LayoutGrid, List, Target } from 'lucide-react';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast, Toaster } from 'sonner';
-import type { SprintResponse, ProjectArchitectureResponse } from '@/client';
+import type { SprintResponse, ProjectArchitectureResponse, WorkItemDetailResponse } from '@/client';
 import { Button } from '@/components/ui/button';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,6 +15,7 @@ import {
   STATUS_CONFIG,
   PRIORITY_STYLE as PRIORITY_COLORS,
 } from '@/lib/workItemConfig';
+import { detailToWorkItem } from '@/types/workItemMappers';
 import type { WorkItem } from '@/types/workItems';
 import BoardFilterMenu from './components/BoardFilterMenu';
 import BoardHeader from './components/BoardHeader';
@@ -31,6 +32,7 @@ import { useBoardDnd } from './hooks/useBoardDnd';
 import { useBoardFilters } from './hooks/useBoardFilters';
 import { useBoardInvalidations } from './hooks/useBoardInvalidations';
 import { useCommentMutation } from './hooks/useCommentMutation';
+import { useDoneArchive } from './hooks/useDoneArchive';
 import { useListGrouping } from './hooks/useListGrouping';
 import { useListSort } from './hooks/useListSort';
 import { useSprintMutations } from './hooks/useSprintMutations';
@@ -143,14 +145,62 @@ const ProjectBoard = () => {
     project,
     isLoading,
     workItems,
+    workItemsLoaded,
     sprints,
     allDevelopers,
     workItemFilters,
     prefetchComments,
   } = useBoardData(id);
 
-  // Selected ticket — derived from URL param + workItems cache (no extra fetch)
-  const selectedItem = ticketId ? (workItems.find((item) => item.id === ticketId) ?? null) : null;
+  // Done-column archive: the board payload excludes done items completed >30
+  // days ago (server-side cutoff). This owns the aggregates probe + the lazy
+  // paged loads behind the Done column's "Show older" footer.
+  const {
+    archivedRemaining,
+    archivedTotal,
+    archivedTotalPoints,
+    archivedItems,
+    isLoadingArchive,
+    loadOlder,
+  } = useDoneArchive(id, workItemFilters);
+
+  // Board items = live board payload + any explicitly-loaded archived done
+  // items. Merged HERE (render-time), never written into the board cache — the
+  // optimistic mutation hooks assume that cache holds exactly the server's
+  // board payload. The id-guard dedupes the cutoff boundary: an item fetched
+  // as "visible" can land in an archive page fetched minutes later once its
+  // completed_at slips past the 30-day line.
+  const boardItems = useMemo(() => {
+    if (archivedItems.length === 0) return workItems;
+    const liveIds = new Set(workItems.map((wi) => wi.id));
+    return [...workItems, ...archivedItems.filter((wi) => !liveIds.has(wi.id))];
+  }, [workItems, archivedItems]);
+
+  // Deep-link fallback: a /board/:ticketId URL can point at an archived done
+  // item the board payload excludes (>30-day cutoff) — old links from emails/
+  // comments must still open. Only meaningful once the board payload has
+  // arrived ("not in boardItems" is unknowable before then). Keyed with a
+  // 'board-fallback' suffix, NOT the panel's ['workItem', id, 'detail'] key —
+  // that cache holds the RAW detail response; this one holds the normalized
+  // view-model.
+  const missingTicketId =
+    workItemsLoaded && ticketId && !boardItems.some((item) => item.id === ticketId)
+      ? ticketId
+      : undefined;
+  const fallbackTicketQuery = useQuery<WorkItem>({
+    queryKey: ['workItem', missingTicketId, 'board-fallback'],
+    queryFn: async () =>
+      detailToWorkItem(await apiFetch<WorkItemDetailResponse>(`/api/workitems/${missingTicketId}`)),
+    enabled: !!missingTicketId,
+  });
+
+  // Selected ticket — derived from URL param + board items (no extra fetch).
+  // Reads the merged list so a loaded archived ticket can open in the drawer;
+  // falls back to the direct fetch above for archived tickets not yet loaded.
+  const selectedItem = ticketId
+    ? (boardItems.find((item) => item.id === ticketId) ??
+      (fallbackTicketQuery.data?.id === ticketId ? fallbackTicketQuery.data : null))
+    : null;
 
   // commentsQuery moved to ItemDetailDrawer (PR 9). Documented exception to
   // CONVENTIONS rule "queries stay at parent": this query is keyed on the
@@ -190,7 +240,7 @@ const ProjectBoard = () => {
     hasActiveFilters,
     clearAllFilters,
     toggleArrayFilter,
-  } = useBoardFilters(workItems, selectedSprintId);
+  } = useBoardFilters(boardItems, selectedSprintId);
 
   // List-view grouping: the `listGroupBy` toggle (localStorage-persisted), the
   // per-group collapse set, the today memos, and the sprint/epic/week group
@@ -207,7 +257,7 @@ const ProjectBoard = () => {
     listViewWeekGroups,
   } = useListGrouping({
     filteredItems,
-    workItems,
+    workItems: boardItems,
     sprints,
     id,
     showCompletedSprints,
@@ -305,8 +355,22 @@ const ProjectBoard = () => {
 
   // Drag-and-drop state + handlers live in useBoardDnd, which owns both the
   // state and the handlers together so handleDrop never reads a stale
-  // draggedItem (R3). onMove is wired to the work-item move mutation — the
-  // same call handleDrop made inline before. handleDrop only changes STATUS.
+  // draggedItem (R3). onMove wraps the move mutation with a same-status guard:
+  // dropping a card back onto its own column must be a no-op, not a real PUT
+  // (+ optimistic write + full invalidation cascade + server-side "Moved to X"
+  // auto-comment). handleDrop only changes STATUS.
+  // Destructured so the useCallback dep is the stable `mutate` fn itself, not
+  // a `moveMutation.mutate` member expression (React Compiler can't preserve
+  // the manual memo otherwise).
+  const { mutate: mutateMove } = moveMutation;
+  const handleMove = useCallback(
+    ({ itemId, newStatus }: { itemId: string; newStatus: string }) => {
+      const current = boardItems.find((wi) => wi.id === itemId);
+      if (current?.status === newStatus) return;
+      mutateMove({ itemId, newStatus });
+    },
+    [boardItems, mutateMove],
+  );
   const {
     draggedItem,
     dragOverColumn,
@@ -314,7 +378,7 @@ const ProjectBoard = () => {
     onDragOver: handleDragOver,
     onDragLeave: handleDragLeave,
     onDrop: handleDrop,
-  } = useBoardDnd({ onMove: moveMutation.mutate });
+  } = useBoardDnd({ onMove: handleMove });
 
   // Get next sprint
   const getNextSprint = (currentSprintId: number | null): number | null =>
@@ -373,14 +437,14 @@ const ProjectBoard = () => {
   const openItemByNumericId = useCallback(
     (numericId: number | null | undefined) => {
       if (numericId == null) return;
-      const target = workItems.find((wi) => wi.id === String(numericId));
+      const target = boardItems.find((wi) => wi.id === String(numericId));
       if (!target) {
         toast.error('Referenced item not found');
         return;
       }
       navigate(`/project/${id}/board/${target.id}`);
     },
-    [workItems, navigate, id],
+    [boardItems, navigate, id],
   );
 
   // Stable callback used by BoardColumn to route card clicks. Extracted from
@@ -445,9 +509,12 @@ const ProjectBoard = () => {
     );
   }
 
-  // Stats
-  const totalPoints = workItems.reduce((sum, i) => sum + i.story_points, 0);
-  const completedCount = workItems.filter((i) => i.status === 'done').length;
+  // Stats — computed from the LIVE board payload (which excludes done items
+  // past the 30-day cutoff) plus the archive aggregates, so the header stays
+  // accurate without loading archived rows. Deliberately NOT from boardItems:
+  // loading archive pages must not change these numbers.
+  const totalPoints = workItems.reduce((sum, i) => sum + i.story_points, 0) + archivedTotalPoints;
+  const completedCount = workItems.filter((i) => i.status === 'done').length + archivedTotal;
 
   return (
     <div className="min-h-screen bg-[#080808] text-[#F4F6FF] flex flex-col">
@@ -469,7 +536,7 @@ const ProjectBoard = () => {
         />
 
         <BoardToolbar
-          itemCount={workItems.length}
+          itemCount={workItems.length + archivedTotal}
           totalPoints={totalPoints}
           completedCount={completedCount}
           sprints={sprints}
@@ -530,9 +597,12 @@ const ProjectBoard = () => {
           /* KANBAN BOARD VIEW */
           <BoardView
             columnItemsByStatus={columnItemsByStatus}
-            workItems={workItems}
+            workItems={boardItems}
             statusConfig={STATUS_CONFIG}
             token={token || ''}
+            doneArchiveRemaining={archivedRemaining}
+            doneArchiveLoading={isLoadingArchive}
+            onLoadOlderDone={loadOlder}
             draggedItem={draggedItem}
             dragOverColumn={dragOverColumn}
             onDragStart={handleDragStart}
@@ -592,7 +662,7 @@ const ProjectBoard = () => {
 
       <BoardModals
         project={project}
-        workItems={workItems}
+        workItems={boardItems}
         sprints={sprints}
         allDevelopers={allDevelopers}
         id={id}
@@ -659,7 +729,7 @@ const ProjectBoard = () => {
       {/* Floating (popped-out) ticket windows — non-modal, movable, board only. */}
       <FloatingTickets
         entries={floatingTickets}
-        workItems={workItems}
+        workItems={boardItems}
         sprints={sprints}
         project={project}
         allDevelopers={allDevelopers}

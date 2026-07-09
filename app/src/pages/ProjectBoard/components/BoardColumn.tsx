@@ -17,6 +17,13 @@ export interface BoardColumnProps {
   isDropTarget: boolean;
   draggedItem: string | null;
   token: string;
+  // ── Done-column archive footer (only wired for status === 'done') ────────
+  /** Archived done items not yet loaded; > 0 renders the "Show older" footer. */
+  archiveRemaining?: number;
+  /** True while an archive page is in flight — disables the footer button. */
+  archiveLoading?: boolean;
+  /** Loads the next archive page (useDoneArchive.loadOlder). */
+  onLoadOlder?: () => void;
   onDragOver: (e: React.DragEvent, status: string) => void;
   onDragLeave: () => void;
   onDrop: (e: React.DragEvent, status: string) => void;
@@ -34,6 +41,9 @@ const BoardColumn = ({
   isDropTarget,
   draggedItem,
   token,
+  archiveRemaining = 0,
+  archiveLoading = false,
+  onLoadOlder,
   onDragOver,
   onDragLeave,
   onDrop,
@@ -87,14 +97,30 @@ const BoardColumn = ({
           />
         ))}
 
-        {/* Empty state */}
-        {items.length === 0 && (
+        {/* Empty state — suppressed when archived items exist, so the Done
+            column shows the "Show older" footer instead of a lying "No items". */}
+        {items.length === 0 && archiveRemaining === 0 && !archiveLoading && (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <div className="w-10 h-10 rounded-xl bg-[rgba(255,255,255,0.03)] flex items-center justify-center mb-2">
               <config.icon className="w-5 h-5 text-[#334155]" />
             </div>
             <p className="text-xs text-[#334155]">No items</p>
           </div>
+        )}
+
+        {/* Archive footer — done items completed >30 days ago are excluded
+            from the board payload; this loads them a page at a time. */}
+        {(archiveRemaining > 0 || archiveLoading) && (
+          <button
+            type="button"
+            onClick={onLoadOlder}
+            disabled={archiveLoading}
+            className="w-full py-2 rounded-xl border border-dashed border-[rgba(255,255,255,0.08)] text-xs font-medium text-[#737373] hover:text-white hover:border-[rgba(255,255,255,0.2)] transition-colors disabled:opacity-60 disabled:cursor-wait"
+          >
+            {archiveLoading
+              ? 'Loading older items…'
+              : `Show ${archiveRemaining} older item${archiveRemaining === 1 ? '' : 's'}`}
+          </button>
         )}
       </div>
     </div>
@@ -111,6 +137,9 @@ const areEqual = (prev: BoardColumnProps, next: BoardColumnProps) =>
   prev.draggedItem === next.draggedItem &&
   prev.token === next.token &&
   prev.config === next.config &&
+  prev.archiveRemaining === next.archiveRemaining &&
+  prev.archiveLoading === next.archiveLoading &&
+  prev.onLoadOlder === next.onLoadOlder &&
   prev.onDragOver === next.onDragOver &&
   prev.onDragLeave === next.onDragLeave &&
   prev.onDrop === next.onDrop &&

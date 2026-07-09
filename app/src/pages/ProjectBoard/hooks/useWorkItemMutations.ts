@@ -355,7 +355,10 @@ export function useWorkItemMutations(
 
   // Quick status change (status-dot menu) — reuses moveMutation with a
   // status-specific toast fallback; the optimistic cache path is identical.
+  // Re-selecting the current status is a no-op (mirrors the DnD same-column
+  // guard in the orchestrator): no PUT, no invalidation, no auto-comment.
   const handleStatusChange = (item: WorkItem, newStatus: string) => {
+    if (item.status === newStatus) return;
     moveMutation.mutate({ itemId: item.id, newStatus, errorFallback: 'Failed to update status' });
   };
 

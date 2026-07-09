@@ -103,3 +103,44 @@ export function applyWorkItemDetail(base: WorkItem, data: WorkItemDetailResponse
     tags: data.tags ?? [],
   };
 }
+
+/**
+ * Detail row → canonical WorkItem, with NO pre-existing base.
+ *
+ * Backs the board's deep-link fallback: a `/board/:ticketId` URL can point at
+ * an archived done item that the slim board payload excludes, so there is no
+ * slim-derived base to overlay via `applyWorkItemDetail`. The detail response
+ * carries everything the drawer needs except the display names the slim shape
+ * derives elsewhere — `assignee` maps from `assignee_name`; `sprint`/`epic`/
+ * `parent_key`/`epic_key`/`is_blocked` fall back to blanks, matching how the
+ * board treats fields the current view never fetched.
+ */
+export function detailToWorkItem(data: WorkItemDetailResponse): WorkItem {
+  return {
+    id: String(data.id),
+    key: data.key,
+    type: narrowType(data.type),
+    title: data.title,
+    description: data.description ?? '',
+    status: narrowStatus(data.status),
+    assigned_hours: data.estimated_hours ?? 0,
+    remaining_hours: data.remaining_hours ?? 0,
+    logged_hours: data.logged_hours ?? 0,
+    story_points: data.story_points ?? 0,
+    priority: narrowPriority(data.priority),
+    assignee: data.assignee_name ?? '',
+    assignee_id: data.assignee_id ?? null,
+    sprint: '',
+    sprint_id: data.sprint_id ?? null,
+    product_id: '',
+    tags: data.tags ?? [],
+    epic: '',
+    parent_id: data.parent_id ?? null,
+    epic_id: data.epic_id ?? null,
+    parent_key: null,
+    epic_key: null,
+    due_date: data.due_date ?? null,
+    completed_at: data.completed_at ?? null,
+    is_blocked: false,
+  };
+}

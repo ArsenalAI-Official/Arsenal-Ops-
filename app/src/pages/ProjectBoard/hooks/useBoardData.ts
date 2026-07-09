@@ -69,6 +69,10 @@ export function useBoardData(id: string | undefined) {
   });
   // Stabilize ref so downstream useMemos (parentExcludeIds, existingTags) don't bust on every render.
   const workItems = useMemo(() => workItemsQuery.data ?? [], [workItemsQuery.data]);
+  // False only during the FIRST board fetch (no cached data yet). Gates the
+  // deep-link fallback in the orchestrator: "ticket not in workItems" is only
+  // meaningful once the board payload has actually arrived.
+  const workItemsLoaded = !workItemsQuery.isPending;
 
   const sprintsQuery = useQuery<SprintResponse[]>({
     queryKey: ['sprints', id],
@@ -102,6 +106,7 @@ export function useBoardData(id: string | undefined) {
     project,
     isLoading,
     workItems,
+    workItemsLoaded,
     sprints,
     allDevelopers,
     workItemFilters,
