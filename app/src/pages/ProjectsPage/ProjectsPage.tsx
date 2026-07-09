@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { LegalFooter } from '@/components/LegalFooter';
 import {
   AppHeader,
   DashboardStats,
@@ -150,6 +151,8 @@ const ProjectsPage = () => {
           </div>
         </div>
       </div>
+
+      <LegalFooter className="flex-shrink-0 border-t border-[rgba(255,255,255,0.06)]" />
 
       <QuickNotesPanel
         notepadOpen={notepadOpen}
