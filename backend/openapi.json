@@ -919,6 +919,33 @@
         "title": "DevelopmentCost",
         "type": "object"
       },
+      "DoneArchiveResponse": {
+        "description": "Page of archived done items + aggregates for the board header stats.\n\n``total``/``total_points`` cover ALL archived done items for the project\n(not just this page) so the frontend can show accurate counts without\nloading everything: call with ``limit=0`` for a count-only probe.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SlimWorkItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "total_points": {
+            "title": "Total Points",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "total_points"
+        ],
+        "title": "DoneArchiveResponse",
+        "type": "object"
+      },
       "EmployeeCreate": {
         "properties": {
           "avatar_url": {
@@ -11058,7 +11085,7 @@
     },
     "/api/workitems/board": {
       "get": {
-        "description": "Slim variant of ``GET /api/workitems/`` used by the Kanban board.\n\nSkips the description/acceptance_criteria/date columns the board never\nrenders. The parent/epic key batch lookup mirrors ``list_work_items`` so\ncallers still see human-readable identifiers without per-row joins.",
+        "description": "Slim variant of ``GET /api/workitems/`` used by the Kanban board.\n\nSkips the description/acceptance_criteria/date columns the board never\nrenders. The parent/epic key batch lookup mirrors ``list_work_items`` so\ncallers still see human-readable identifiers without per-row joins.\n\nDone items completed more than ``BOARD_DONE_MAX_AGE_DAYS`` days ago are\nexcluded \u2014 the Done column would otherwise grow unbounded. They stay\nreachable via ``GET /board/done-archive`` (the frontend's \"Show older\"\nfooter). Done items with a NULL ``completed_at`` (legacy rows) are kept\nvisible rather than silently vanishing.",
         "operationId": "list_board_items_api_workitems_board_get",
         "parameters": [
           {
@@ -11123,6 +11150,99 @@
           }
         ],
         "summary": "List Board Items",
+        "tags": [
+          "Work Items"
+        ]
+      }
+    },
+    "/api/workitems/board/done-archive": {
+      "get": {
+        "description": "Done items older than the board's visibility cutoff, newest first.\n\nBacks the Done column's \"Show older\" footer. Ordered by ``completed_at``\nDESC with limit/offset paging; ``total`` is computed before paging.",
+        "operationId": "list_done_archive_api_workitems_board_done_archive_get",
+        "parameters": [
+          {
+            "description": "Required: project to fetch archived items for",
+            "in": "query",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "description": "Required: project to fetch archived items for",
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Optional: filter to a single sprint",
+            "in": "query",
+            "name": "sprint_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional: filter to a single sprint",
+              "title": "Sprint Id"
+            }
+          },
+          {
+            "description": "Page size; 0 = aggregates only",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "description": "Page size; 0 = aggregates only",
+              "maximum": 100,
+              "minimum": 0,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DoneArchiveResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Done Archive",
         "tags": [
           "Work Items"
         ]
