@@ -466,6 +466,19 @@
         "title": "CommitArchitectureRequest",
         "type": "object"
       },
+      "ConnectResponse": {
+        "properties": {
+          "authorize_url": {
+            "title": "Authorize Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorize_url"
+        ],
+        "title": "ConnectResponse",
+        "type": "object"
+      },
       "ConvertToTicketRequest": {
         "properties": {
           "assignee_developer_id": {
@@ -1551,12 +1564,53 @@
           "hours": {
             "title": "Hours",
             "type": "integer"
+          },
+          "logged_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logged At"
           }
         },
         "required": [
           "hours"
         ],
         "title": "LogHoursRequest",
+        "type": "object"
+      },
+      "ManualSyncResponse": {
+        "description": "Returned immediately from POST /sync.\n\nThe actual sync work happens in a FastAPI BackgroundTask after the\nresponse is sent; the admin gets a result email when it finishes.\nNo counts here on purpose \u2014 they wouldn't be known yet, and a busy\nweek's worth of entries can take long enough that holding the\nrequest open is bad UX.\n\nTwo states:\n  - ``started``         \u2192 the background task has been scheduled;\n                          an email will follow when it finishes.\n  - ``already_running`` \u2192 another sync is currently in progress\n                          (Saturday cron, or a prior click of the\n                          admin's that's still working). No new\n                          task scheduled, no email \u2014 the\n                          already-running sync will email its own\n                          trigger when it completes.",
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "notify_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notify Email"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "message"
+        ],
+        "title": "ManualSyncResponse",
         "type": "object"
       },
       "MilestoneCreate": {
@@ -1903,6 +1957,50 @@
           "assignee"
         ],
         "title": "MyTaskResponse",
+        "type": "object"
+      },
+      "MyTimesheetResponse": {
+        "properties": {
+          "clients": {
+            "items": {
+              "$ref": "#/components/schemas/TimesheetClientResponse"
+            },
+            "title": "Clients",
+            "type": "array"
+          },
+          "syncable_unsubmitted_count": {
+            "title": "Syncable Unsubmitted Count",
+            "type": "integer"
+          },
+          "total_hours": {
+            "title": "Total Hours",
+            "type": "integer"
+          },
+          "unlinked_projects": {
+            "items": {
+              "$ref": "#/components/schemas/TimesheetProjectResponse"
+            },
+            "title": "Unlinked Projects",
+            "type": "array"
+          },
+          "week_end": {
+            "title": "Week End",
+            "type": "string"
+          },
+          "week_start": {
+            "title": "Week Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "week_start",
+          "week_end",
+          "total_hours",
+          "syncable_unsubmitted_count",
+          "clients",
+          "unlinked_projects"
+        ],
+        "title": "MyTimesheetResponse",
         "type": "object"
       },
       "PRDAnalysisResponse": {
@@ -2877,6 +2975,34 @@
         "title": "ProjectLinkCreate",
         "type": "object"
       },
+      "ProjectLinkRequest": {
+        "properties": {
+          "workforce_client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workforce Client Id"
+          },
+          "workforce_client_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workforce Client Name"
+          }
+        },
+        "title": "ProjectLinkRequest",
+        "type": "object"
+      },
       "ProjectLinkResponse": {
         "properties": {
           "created_at": {
@@ -3004,6 +3130,28 @@
           "total_items": {
             "title": "Total Items",
             "type": "integer"
+          },
+          "workforce_client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workforce Client Id"
+          },
+          "workforce_client_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workforce Client Name"
           }
         },
         "required": [
@@ -3933,6 +4081,102 @@
         "title": "SprintVelocityPoint",
         "type": "object"
       },
+      "StatusResponse": {
+        "properties": {
+          "connected": {
+            "title": "Connected",
+            "type": "boolean"
+          },
+          "integration": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Integration"
+          }
+        },
+        "required": [
+          "connected"
+        ],
+        "title": "StatusResponse",
+        "type": "object"
+      },
+      "SubmitTimesheetFailure": {
+        "properties": {
+          "entry_id": {
+            "title": "Entry Id",
+            "type": "integer"
+          },
+          "error": {
+            "title": "Error",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entry_id",
+          "error"
+        ],
+        "title": "SubmitTimesheetFailure",
+        "type": "object"
+      },
+      "SubmitTimesheetResponse": {
+        "description": "Outcome of POST /me/timesheet/submit.\n\n`status` mirrors the admin sync vocabulary so logs are coherent:\n  - \"ok\"      \u2192 every picked entry landed in QB\n  - \"partial\" \u2192 some entries failed (see `failed[]`); successes\n                are already committed",
+        "properties": {
+          "failed": {
+            "items": {
+              "$ref": "#/components/schemas/SubmitTimesheetFailure"
+            },
+            "title": "Failed",
+            "type": "array"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "submitted_count": {
+            "title": "Submitted Count",
+            "type": "integer"
+          },
+          "synced_count": {
+            "title": "Synced Count",
+            "type": "integer"
+          },
+          "week_end": {
+            "title": "Week End",
+            "type": "string"
+          },
+          "week_start": {
+            "title": "Week Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "submitted_count",
+          "synced_count",
+          "failed",
+          "week_start",
+          "week_end"
+        ],
+        "title": "SubmitTimesheetResponse",
+        "type": "object"
+      },
       "TeamPerformanceEntry": {
         "description": "Per-assignee rollup for the analytics team-performance section.",
         "properties": {
@@ -4064,6 +4308,17 @@
               }
             ],
             "title": "Avatar Url"
+          },
+          "client_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Name"
           },
           "description": {
             "anyOf": [
@@ -4200,12 +4455,216 @@
           "work_item_type",
           "project_id",
           "project_name",
+          "client_name",
           "developer_id",
           "developer_name",
           "developer_email",
           "avatar_url"
         ],
         "title": "TimeEntryRow",
+        "type": "object"
+      },
+      "TimesheetBillableRequest": {
+        "description": "Set the billable flag for a (client, day) group.\n\nThe Review & Submit modal exposes one \"Billable\" checkbox per client\nper day; toggling it sends this body. The backend flips `billable`\non every one of the caller's *draft* entries logged on `logged_at`\nwhose project bills to `qb_customer_id`. Synced/submitted entries are\nleft untouched (they're already in QuickBooks).",
+        "properties": {
+          "billable": {
+            "title": "Billable",
+            "type": "boolean"
+          },
+          "logged_at": {
+            "title": "Logged At",
+            "type": "string"
+          },
+          "qb_customer_id": {
+            "title": "Qb Customer Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "qb_customer_id",
+          "logged_at",
+          "billable"
+        ],
+        "title": "TimesheetBillableRequest",
+        "type": "object"
+      },
+      "TimesheetClientResponse": {
+        "properties": {
+          "client_name": {
+            "title": "Client Name",
+            "type": "string"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/TimesheetProjectResponse"
+            },
+            "title": "Projects",
+            "type": "array"
+          },
+          "qb_customer_id": {
+            "title": "Qb Customer Id",
+            "type": "string"
+          },
+          "subtotal_hours": {
+            "title": "Subtotal Hours",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "qb_customer_id",
+          "client_name",
+          "subtotal_hours",
+          "projects"
+        ],
+        "title": "TimesheetClientResponse",
+        "type": "object"
+      },
+      "TimesheetEntryEditRequest": {
+        "description": "Patch body for editing a draft time entry.\n\nAll fields optional; client sends only what's changing. `hours` is\nbounded the same way as `log-hours` (>0, \u226424) so dev typo'd 220h\nentries can't slip through here either.",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours"
+          }
+        },
+        "title": "TimesheetEntryEditRequest",
+        "type": "object"
+      },
+      "TimesheetEntryResponse": {
+        "properties": {
+          "billable": {
+            "title": "Billable",
+            "type": "boolean"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "hours": {
+            "title": "Hours",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "logged_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logged At"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
+          "synced": {
+            "title": "Synced",
+            "type": "boolean"
+          },
+          "work_item_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Item Title"
+          }
+        },
+        "required": [
+          "id",
+          "logged_at",
+          "hours",
+          "description",
+          "work_item_title",
+          "submitted_at",
+          "synced",
+          "billable"
+        ],
+        "title": "TimesheetEntryResponse",
+        "type": "object"
+      },
+      "TimesheetProjectResponse": {
+        "properties": {
+          "category_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Name"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/TimesheetEntryResponse"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "project_name": {
+            "title": "Project Name",
+            "type": "string"
+          },
+          "subtotal_hours": {
+            "title": "Subtotal Hours",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "project_id",
+          "project_name",
+          "category_name",
+          "subtotal_hours",
+          "entries"
+        ],
+        "title": "TimesheetProjectResponse",
         "type": "object"
       },
       "Token": {
@@ -4454,6 +4913,10 @@
             "title": "Id",
             "type": "integer"
           },
+          "is_external": {
+            "title": "Is External",
+            "type": "boolean"
+          },
           "is_first_login": {
             "title": "Is First Login",
             "type": "boolean"
@@ -4472,7 +4935,8 @@
           "email",
           "name",
           "role",
-          "is_first_login"
+          "is_first_login",
+          "is_external"
         ],
         "title": "UserResponse",
         "type": "object"
@@ -5439,6 +5903,63 @@
         },
         "title": "WorkItemUpdate",
         "type": "object"
+      },
+      "WorkforceClient": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "WorkforceClient",
+        "type": "object"
+      },
+      "WorkforceClientsRefreshResult": {
+        "properties": {
+          "added": {
+            "title": "Added",
+            "type": "integer"
+          },
+          "deactivated": {
+            "title": "Deactivated",
+            "type": "integer"
+          },
+          "last_refreshed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Refreshed At"
+          },
+          "total_active": {
+            "title": "Total Active",
+            "type": "integer"
+          },
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "added",
+          "updated",
+          "deactivated",
+          "total_active"
+        ],
+        "title": "WorkforceClientsRefreshResult",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -6230,7 +6751,7 @@
     },
     "/api/admin/time-entries": {
       "get": {
-        "description": "List time entries for the admin Time Entries tab.\n\nFilters (all optional, combined with AND):\n  - project_id:  restrict to one project (joined via WorkItem.project_id)\n  - developer_id: restrict to one employee\n  - date_from / date_to: inclusive ISO date strings (YYYY-MM-DD). The\n    upper bound is treated as end-of-day, so `date_to=2026-06-08` keeps\n    entries logged at 23:59:59 that day.\n\nReturns at most TIME_ENTRIES_MAX_ROWS rows ordered by logged_at DESC.",
+        "description": "List time entries for the admin Time Entries tab.\n\nFilters (all optional, combined with AND):\n  - project_id:  restrict to one project (joined via WorkItem.project_id)\n  - developer_id: restrict to one employee\n  - client_name: restrict to one QuickBooks client (the customer cached on\n    the Project row), i.e. all projects billing to that client\n  - date_from / date_to: inclusive ISO date strings (YYYY-MM-DD). The\n    upper bound is treated as end-of-day, so `date_to=2026-06-08` keeps\n    entries logged at 23:59:59 that day.\n\nReturns at most TIME_ENTRIES_MAX_ROWS rows ordered by logged_at DESC.",
         "operationId": "list_time_entries_api_admin_time_entries_get",
         "parameters": [
           {
@@ -6263,6 +6784,22 @@
                 }
               ],
               "title": "Developer Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "client_name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Name"
             }
           },
           {
@@ -6328,6 +6865,226 @@
         "summary": "List Time Entries",
         "tags": [
           "admin"
+        ]
+      }
+    },
+    "/api/admin/workforce/clients": {
+      "get": {
+        "description": "Return the cached QB Customer list for the project-link picker.\n\nReads from the local `workforce_clients` table (populated by the\nSaturday cron, the OAuth callback, and the manual Refresh button).\nNo Intuit round-trip \u2014 opening the picker is free.\n\n503 if the integration isn't connected \u2014 distinguishes \"we have no\ncache because we haven't connected\" from \"QB has zero customers\".",
+        "operationId": "list_clients_api_admin_workforce_clients_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkforceClient"
+                  },
+                  "title": "Response List Clients Api Admin Workforce Clients Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Clients",
+        "tags": [
+          "workforce"
+        ]
+      }
+    },
+    "/api/admin/workforce/clients/refresh": {
+      "post": {
+        "description": "Pull the full QB Customer list and reconcile the local cache.\n\nReturns the deltas (added / updated / deactivated) so the admin can\nsee what changed at a glance. The cache is the source of truth for\nthe picker, so the picker won't reflect any QB-side changes until\nthis endpoint (or the Saturday cron) runs.",
+        "operationId": "refresh_clients_endpoint_api_admin_workforce_clients_refresh_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkforceClientsRefreshResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Refresh Clients Endpoint",
+        "tags": [
+          "workforce"
+        ]
+      }
+    },
+    "/api/admin/workforce/connect": {
+      "post": {
+        "description": "Begin the OAuth handshake \u2014 returns the Intuit authorize URL.\n\nTwo safety checks before issuing the URL:\n\n1. **Crypto must be configured.** If `WORKFORCE_TOKEN_ENCRYPTION_KEY`\n   is missing we'd successfully OAuth and then crash trying to\n   persist the tokens. Failing fast here lets the admin fix the env\n   var before clicking through to Intuit.\n2. **Intuit env vars must be configured.** Same reasoning \u2014\n   `build_authorize_url` raises a typed error we surface as 503.\n\nWe DO NOT block a re-connect when an integration row already exists.\nThe callback will overwrite the row (one-singleton design). This\nlets the admin re-authorize without first hitting Disconnect, which\nmatches Intuit's recommendation for re-consent flows.",
+        "operationId": "start_connect_api_admin_workforce_connect_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Start Connect",
+        "tags": [
+          "workforce"
+        ]
+      }
+    },
+    "/api/admin/workforce/disconnect": {
+      "post": {
+        "description": "Revoke tokens at Intuit and delete the integration row.\n\nBest-effort revoke: if the network call to Intuit fails the local\nrow is still deleted. The refresh token will age out at Intuit\nwithin ~100 days regardless. Project-level `workforce_client_id`\ntags are LEFT IN PLACE so a later reconnect restores the per-\nproject mapping without manual re-tagging.",
+        "operationId": "disconnect_api_admin_workforce_disconnect_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Disconnect",
+        "tags": [
+          "workforce"
+        ]
+      }
+    },
+    "/api/admin/workforce/projects/{project_id}/client": {
+      "put": {
+        "description": "Link or unlink a project to a QB Customer.\n\nPass `{workforce_client_id: \"12\", workforce_client_name: \"Acme\"}`\nto link, or `{workforce_client_id: null, workforce_client_name:\nnull}` to unlink. We cache the display name on the project row so\nthe project card can render the link without a QB API roundtrip on\nevery page load.\n\nTagging a project does NOT retroactively sync its existing time\nentries \u2014 only entries logged from this point forward are eligible.\nThis is intentional: bulk-backfilling old entries to a newly-tagged\nclient is rarely what an admin actually wants and risks duplicating\nhours that were already invoiced via another path.",
+        "operationId": "link_project_to_client_api_admin_workforce_projects__project_id__client_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectLinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Link Project To Client",
+        "tags": [
+          "workforce"
+        ]
+      }
+    },
+    "/api/admin/workforce/status": {
+      "get": {
+        "description": "Is the integration connected? If yes, return safe metadata only.\n\nToken ciphertext is REDACTED by `to_safe_dict()` \u2014 this endpoint\nnever reveals encrypted tokens to the client.",
+        "operationId": "get_status_api_admin_workforce_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Status",
+        "tags": [
+          "workforce"
+        ]
+      }
+    },
+    "/api/admin/workforce/sync": {
+      "post": {
+        "description": "Kick off a manual sync in the background; return immediately.\n\nThe sync runs as a FastAPI BackgroundTask in the same worker process\nafter the response is sent. The clicker receives an email with the\nresult (Healthy / Partial / Error + per-status counts) using the\nsame template as the Saturday cron, so the two emails read as a\ncoherent series.\n\nWhy background rather than inline: a busy week can have hundreds of\neligible entries; pushing each one to QuickBooks plus the per-entry\ncommit can take minutes. Holding the HTTP request open that long is\npoor UX (browser spinner, ALB/proxy timeouts, no progress signal)\nand the result is far more useful in an inbox than a transient\ntoast that disappears in 6 seconds.\n\nDuplicate-click handling: if a sync is already in progress when the\nadmin clicks (their own earlier click is still running, or the\nSaturday cron is mid-run), the endpoint peeks at the advisory lock\nvia ``is_sync_in_progress`` and returns ``status=\"already_running\"``\nWITHOUT scheduling a second background task or sending an email.\nThe running sync will email its own trigger when it finishes; the\nre-clicker just gets a UI toast.\n\nThe peek is best-effort \u2014 there's a sub-second race window where\na different process could grab the lock between the peek and the\nbackground task starting. The background task's own lock-acquire\nattempt is the authoritative gate, and the \"locked\" result there\nsuppresses the email for that one status (see\n`_run_manual_sync_and_email`).",
+        "operationId": "manual_sync_api_admin_workforce_sync_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManualSyncResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Manual Sync",
+        "tags": [
+          "workforce"
         ]
       }
     },
@@ -7299,7 +8056,7 @@
     },
     "/api/auth/me": {
       "get": {
-        "description": "Get current user info",
+        "description": "Get current user info, including the `is_external` flag from the\nlinked Developer row. External (or no-Developer) users get `True`\nhere so the frontend can hide internal-only UI (e.g. the home\ncapacity card) at render time without an extra round-trip.",
         "operationId": "get_current_user_info_api_auth_me_get",
         "responses": {
           "200": {
@@ -7346,6 +8103,118 @@
         "summary": "Get My Capabilities",
         "tags": [
           "Authentication"
+        ]
+      }
+    },
+    "/api/auth/workforce/callback": {
+      "get": {
+        "description": "Receive the OAuth callback from Intuit and persist tokens.\n\nFlow:\n1. Intuit appends `?code=...&state=...&realmId=...` to our redirect URI.\n2. We verify the state token came from us and identifies a real user.\n3. We trade the code for tokens via the token endpoint.\n4. We upsert the singleton WorkforceIntegration row with encrypted tokens.\n5. We redirect the admin's browser back to the Integrations tab.\n\nIf the user denied access, Intuit instead sends `?error=access_denied`\nand we redirect with a friendly notice \u2014 no DB write.\n\nErrors anywhere in steps 2-4 still redirect with an error parameter\nrather than returning JSON, because the admin is sitting in a\nbrowser tab; a JSON 500 would dead-end them.",
+        "operationId": "oauth_callback_api_auth_workforce_callback_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "realmId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Realmid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "error",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error"
+            }
+          },
+          {
+            "in": "query",
+            "name": "error_description",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error Description"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Oauth Callback",
+        "tags": [
+          "workforce"
         ]
       }
     },
@@ -7736,7 +8605,7 @@
     },
     "/api/developers/me/capacity": {
       "get": {
-        "description": "Weekly capacity for the currently-logged-in developer (cross-project,\nSaturday \u2192 Friday UTC). Same shape as a single row from\n/api/admin/developers/capacity. Returns 404 if the user has no Developer\nrecord yet (e.g., admin-only user).",
+        "description": "Weekly capacity for the currently-logged-in developer (cross-project,\nSaturday \u2192 Friday UTC). Same shape as a single row from\n/api/admin/developers/capacity. Returns 404 if the caller isn't an\ninternal employee (no Developer row, or `is_external == True` \u2014 see\n`_get_internal_developer_or_404`). The home card silently hides on\n404 so external contractors never see it.",
         "operationId": "get_my_capacity_api_developers_me_capacity_get",
         "responses": {
           "200": {
@@ -7754,6 +8623,195 @@
           }
         ],
         "summary": "Get My Capacity",
+        "tags": [
+          "Developers"
+        ]
+      }
+    },
+    "/api/developers/me/timesheet": {
+      "get": {
+        "description": "Current Mon\u2013Fri timesheet for the logged-in developer.\n\nRead-only data shape for the Review-and-Submit modal: hours grouped\nby QB Customer \u2192 Project, plus a separate `unlinked_projects`\nbucket for hours on projects without a QuickBooks customer link.\nReturns 404 if the user has no Developer record (admin-only user).",
+        "operationId": "get_my_timesheet_api_developers_me_timesheet_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyTimesheetResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get My Timesheet",
+        "tags": [
+          "Developers"
+        ]
+      }
+    },
+    "/api/developers/me/timesheet/billable": {
+      "patch": {
+        "description": "Set the billable flag for one (client, day) group of the caller's\nown time entries \u2014 the Review modal's per-client \"Billable\" checkbox.\n\nOnly DRAFT entries (``submitted_at IS NULL AND workforce_entry_id IS\nNULL``) logged on ``logged_at`` whose project bills to\n``qb_customer_id`` are flipped; submitted/synced entries are already in\nthe QB pipeline and left untouched. Scoped to the current Mon-Fri\nwindow the modal operates on. No work-item rollup needed \u2014 billable\ndoesn't affect ``logged_hours``.",
+        "operationId": "set_my_timesheet_billable_api_developers_me_timesheet_billable_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimesheetBillableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Set My Timesheet Billable",
+        "tags": [
+          "Developers"
+        ]
+      }
+    },
+    "/api/developers/me/timesheet/entries/{entry_id}": {
+      "delete": {
+        "description": "Delete a draft TimeEntry the caller logged.\n\nSame lock rules as the PATCH route \u2014 only entries that haven't\nbeen submitted to QuickBooks (and haven't synced) can be deleted.\nThe work item's hours are recomputed after the delete so the\nboard/capacity card/work-item detail panel all reflect the new\ntotal immediately.",
+        "operationId": "delete_my_timesheet_entry_api_developers_me_timesheet_entries__entry_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Delete My Timesheet Entry",
+        "tags": [
+          "Developers"
+        ]
+      },
+      "patch": {
+        "description": "Edit hours and/or description on the caller's own draft TimeEntry.\n\nLocked when ``submitted_at IS NOT NULL`` or ``workforce_entry_id IS\nNOT NULL`` (see :func:`_resolve_editable_entry`). After applying the\nchange, the work item's ``logged_hours``/``remaining_hours`` are\nrecomputed and the rollup propagates to the parent (subtasks) and\nepic, keeping every view that reads these columns in sync.",
+        "operationId": "edit_my_timesheet_entry_api_developers_me_timesheet_entries__entry_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimesheetEntryEditRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Edit My Timesheet Entry",
+        "tags": [
+          "Developers"
+        ]
+      }
+    },
+    "/api/developers/me/timesheet/submit": {
+      "post": {
+        "description": "Submit this week's hours and sync them to QuickBooks inline.\n\nNo request body \u2014 the server picks the eligible entries\n(developer, Mon\u2013Fri current week, QB-linked project, not yet synced)\nand POSTs each one to QuickBooks. Per-entry failures are returned\nin the `failed` list rather than as a 5xx; the dev clicks Submit\nagain to retry just the failures.\n\nHTTP status codes:\n  200 \u2192 \"ok\" or \"partial\" result (see `failed[]`)\n  404 \u2192 no Developer profile for this user\n  409 \u2192 another sync is in flight (admin force-sync or a different\n        dev's concurrent submit). Retry shortly.\n  503 \u2192 QuickBooks isn't connected yet\n  500 \u2192 integration-level error (OAuth expired, service item\n        missing). Reason includes humanized next step.",
+        "operationId": "submit_my_timesheet_api_developers_me_timesheet_submit_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmitTimesheetResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Submit My Timesheet",
         "tags": [
           "Developers"
         ]

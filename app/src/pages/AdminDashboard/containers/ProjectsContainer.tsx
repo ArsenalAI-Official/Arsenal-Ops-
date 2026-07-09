@@ -1,15 +1,20 @@
 // Thin container for the Projects admin tab: owns data, mutations, and modal
 // state via useProjectsAdmin (plus the employees list for the add-member
 // dropdown), then renders the tab and its three modals.
+import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { apiFetch } from '@/lib/api';
 import { AdminSpinner } from '../components/AdminSpinner';
 import { useEmployeesList } from '../hooks/useEmployeesList';
 import { useProjectsAdmin } from '../hooks/useProjectsAdmin';
+import { useSetProjectWorkforceClient, useWorkforceClients } from '../hooks/useWorkforceAdmin';
 import CategoryManagerModal from '../modals/CategoryManagerModal';
 import GitHubModal from '../modals/GitHubModal';
 import ProjectMembersModal from '../modals/ProjectMembersModal';
 import ProjectsTab from '../tabs/ProjectsTab';
+import type { WorkforceStatus } from '../types';
 
 export default function ProjectsContainer() {
   const { confirm, confirmDialog } = useConfirm();
@@ -53,6 +58,27 @@ export default function ProjectsContainer() {
   const { employees } = useEmployeesList();
   const { can } = useAuth();
 
+  // Workforce integration surface for the per-project QB client picker.
+  // The status query is cheap and shared with the Integrations tab via
+  // react-query cache, so loading it here doesn't double-fetch on tab
+  // switches. The clients list is fetched only when connected — the
+  // picker's chip is hidden otherwise, so the list would be unused.
+  const canWriteProjects = can('admin.projects_write');
+  const workforceStatusQuery = useQuery<WorkforceStatus>({
+    queryKey: ['admin', 'workforceStatus'],
+    queryFn: () => apiFetch<WorkforceStatus>('/api/admin/workforce/status'),
+  });
+  const workforceConnected = workforceStatusQuery.data?.connected ?? false;
+  const workforceClientsQuery = useWorkforceClients(workforceConnected && canWriteProjects);
+  // `data ?? []` creates a fresh empty array each render, which busts
+  // any downstream useMemo/useEffect that depends on this prop. See
+  // app/CLAUDE.md → "Stabilize empty-default arrays".
+  const workforceClients = useMemo(
+    () => workforceClientsQuery.data ?? [],
+    [workforceClientsQuery.data],
+  );
+  const setProjectWorkforceClient = useSetProjectWorkforceClient();
+
   if (isLoading) return <AdminSpinner />;
 
   return (
@@ -72,7 +98,13 @@ export default function ProjectsContainer() {
         onEditGitHubSettings={handleEditGitHubSettings}
         onSendGitHubInvites={handleSendGitHubInvites}
         onOpenProjectMembers={handleOpenProjectMembers}
-        canWriteProjects={can('admin.projects_write')}
+        canWriteProjects={canWriteProjects}
+        workforceConnected={workforceConnected}
+        workforceClients={workforceClients}
+        workforceClientsLoading={workforceClientsQuery.isLoading}
+        onSetProjectWorkforceClient={(projectId, clientId, clientName) =>
+          setProjectWorkforceClient.mutate({ projectId, clientId, clientName })
+        }
       />
 
       <GitHubModal

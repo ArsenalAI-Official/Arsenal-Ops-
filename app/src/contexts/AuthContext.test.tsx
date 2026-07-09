@@ -308,6 +308,7 @@ describe('AuthContext (real provider)', () => {
         email: 'first@arsenalai.com',
         role: 'admin',
         is_first_login: true,
+        is_external: false,
       });
       const { result } = renderAuth();
       await waitFor(() => expect(result.current.isLoading).toBe(false));

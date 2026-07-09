@@ -62,6 +62,13 @@ CAPABILITIES: dict[str, str] = {
     "admin.roles": "View roles and their capability grants",
     "admin.roles_write": "Create, edit, delete roles and modify their capabilities",
     "admin.time_entries": "View all time entries across projects",
+    # Connects/disconnects external integrations (currently QuickBooks
+    # Time / Workforce) and triggers manual syncs. Distinct from
+    # `admin.projects_write` because the latter only grants per-project
+    # metadata edits (e.g. linking a project to a QB Customer) — this cap
+    # gates the org-wide OAuth credentials. Defaults to the `admin`
+    # system role only via `*`.
+    "admin.workforce_connect": "Connect, disconnect, and sync QuickBooks integration",
 }
 
 

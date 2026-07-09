@@ -1,4 +1,13 @@
-import { Users, FolderKanban, ArrowLeft, BarChart3, Shield, KeyRound, Clock } from 'lucide-react';
+import {
+  Users,
+  FolderKanban,
+  ArrowLeft,
+  BarChart3,
+  Shield,
+  KeyRound,
+  Clock,
+  Plug,
+} from 'lucide-react';
 import { lazy, Suspense, useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Toaster } from 'sonner';
@@ -20,6 +29,7 @@ const ProjectsContainer = lazy(() => import('./containers/ProjectsContainer'));
 const TimeEntriesContainer = lazy(() => import('./containers/TimeEntriesContainer'));
 const UsersContainer = lazy(() => import('./containers/UsersContainer'));
 const RolesContainer = lazy(() => import('./containers/RolesContainer'));
+const IntegrationsContainer = lazy(() => import('./containers/IntegrationsContainer'));
 
 /**
  * Tab order + the capability that gates each. Order drives both the tab-strip
@@ -33,6 +43,7 @@ const ADMIN_TAB_CAPS: ReadonlyArray<{ id: AdminTab; cap: string }> = [
   { id: 'time_entries', cap: 'admin.time_entries' },
   { id: 'users', cap: 'admin.users' },
   { id: 'roles', cap: 'admin.roles' },
+  { id: 'integrations', cap: 'admin.workforce_connect' },
 ];
 
 /**
@@ -75,6 +86,7 @@ const AdminDashboard = () => {
   const canSeeTimeEntries = can('admin.time_entries');
   const canSeeUsers = can('admin.users');
   const canSeeRoles = can('admin.roles');
+  const canSeeIntegrations = can('admin.workforce_connect');
 
   // Lazy initializer so we read `can` exactly once on mount: if the URL points
   // at a tab the user can see → use it; otherwise fall back to the first tab
@@ -164,6 +176,9 @@ const AdminDashboard = () => {
                 : []),
               ...(canSeeUsers ? [{ id: 'users', label: 'Users', icon: Shield }] : []),
               ...(canSeeRoles ? [{ id: 'roles', label: 'Roles', icon: KeyRound }] : []),
+              ...(canSeeIntegrations
+                ? [{ id: 'integrations', label: 'Integrations', icon: Plug }]
+                : []),
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -194,6 +209,8 @@ const AdminDashboard = () => {
             (canSeeTimeEntries ? <TimeEntriesContainer /> : restricted)}
           {activeTab === 'users' && (canSeeUsers ? <UsersContainer /> : restricted)}
           {activeTab === 'roles' && (canSeeRoles ? <RolesContainer /> : restricted)}
+          {activeTab === 'integrations' &&
+            (canSeeIntegrations ? <IntegrationsContainer /> : restricted)}
         </Suspense>
       </div>
     </div>

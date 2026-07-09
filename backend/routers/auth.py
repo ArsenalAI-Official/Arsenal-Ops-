@@ -43,26 +43,52 @@ def _is_internal_email(email: str | None) -> bool:
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
-# Security configuration
-#
-# SECRET_KEY is the symmetric HS256 key the app both signs and verifies JWTs
-# with. It MUST come from the environment: because HS256 is symmetric, anyone
-# who knows the key can forge a token for any user id (full auth bypass). The
-# historical hardcoded default is public in source/history, so we refuse to
-# start on an unset key or that legacy literal — fail closed.
-_LEGACY_DEFAULT_SECRET_KEY = "your-secret-key-change-in-production"
-_secret_key = os.getenv("SECRET_KEY")
-if not _secret_key or _secret_key == _LEGACY_DEFAULT_SECRET_KEY:
-    raise RuntimeError(
-        "SECRET_KEY must be set in the environment to a non-default value. "
-        "The app refuses to start on the legacy hardcoded default to avoid "
-        "trivial JWT forgery. Set SECRET_KEY in .env (local) or the Render "
-        "dashboard (prod). Note: changing it invalidates all live sessions."
-    )
-# Narrowed to `str` by the guard above so jwt.encode/decode get a concrete key.
-SECRET_KEY: str = _secret_key
+# ── Security configuration ───────────────────────────────────────────────
+
+# The committed placeholder. Rejected explicitly so a misconfigured prod
+# deploy can't fall back to a value that's already in the public repo.
+_PLACEHOLDER_SECRET_KEY = "your-secret-key-change-in-production"
+
+
+def _load_secret_key() -> str:
+    """Load SECRET_KEY from the environment. Hard fail on absent or placeholder.
+
+    This secret signs both session JWTs (gating the entire admin API
+    surface) AND the OAuth state token on the public
+    /api/auth/workforce/callback. A leaked or guessable value breaks both
+    authentication (session forgery) AND the workforce-OAuth CSRF defense.
+
+    No escape hatch — the env var is REQUIRED everywhere: production
+    deploys, local dev, and CI. Tests set it in ``tests/conftest.py``
+    before any backend module imports. Generate a real value with::
+
+        python -c "import secrets; print(secrets.token_urlsafe(48))"
+    """
+    raw = os.getenv("SECRET_KEY", "").strip()
+    if not raw:
+        raise RuntimeError(
+            "SECRET_KEY env var is not set. Generate one with "
+            '`python -c "import secrets; print(secrets.token_urlsafe(48))"` '
+            "and set it on the backend process before booting."
+        )
+    if raw == _PLACEHOLDER_SECRET_KEY:
+        raise RuntimeError(
+            "SECRET_KEY is set to the committed placeholder value, which is "
+            "in the public repo. Rotate to a real value (see _load_secret_key "
+            "docstring) before continuing."
+        )
+    return raw
+
+
+SECRET_KEY: str = _load_secret_key()
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
+
+# JWT purpose claims. Every minted token carries `purpose`; consumers
+# reject any token whose purpose doesn't match what they expect. Stops a
+# state token (10-min TTL, leaks via URL bar + Referer) from being reused
+# as a session bearer credential.
+SESSION_TOKEN_PURPOSE = "auth"
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
@@ -100,6 +126,28 @@ class UserResponse(BaseModel):
     name: str
     role: str
     is_first_login: bool
+    # Mirrors `Developer.is_external` for the linked Developer row, or
+    # `True` if no Developer profile exists. Lets the frontend gate
+    # internal-employee-only UI (e.g. the home capacity card) at render
+    # time, without a round-trip that 404s. Source of truth is still
+    # `ALLOWED_EMAIL_DOMAINS` + `reconcile_internal_developers()`.
+    is_external: bool
+
+
+def _resolve_is_external(user: User, db: Session) -> bool:
+    """Look up the linked Developer row and return its `is_external`
+    flag. Defaults to `True` when no Developer exists — admin-only users
+    and unknown emails are treated as external for visibility purposes
+    (they shouldn't see internal-employee-only UI).
+
+    Used everywhere `UserResponse` is built (login, change-password,
+    /me, the Google + dev login flows) so the field is populated
+    consistently across all auth endpoints.
+    """
+    from models.developer import Developer
+
+    dev = db.query(Developer).filter(Developer.email == user.email).first()
+    return True if dev is None else bool(dev.is_external)
 
 
 class UserListItemResponse(BaseModel):
@@ -163,9 +211,17 @@ def get_password_hash(password):
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
+    """Mint a session JWT.
+
+    Every token carries ``purpose: "auth"`` so ``get_current_user`` can
+    reject narrow-scope tokens (e.g. the OAuth state token) being reused
+    as a session bearer credential. Callers must not override the purpose
+    via ``data``.
+    """
     to_encode = data.copy()
     expire = utcnow() + (expires_delta if expires_delta else timedelta(minutes=15))
-    to_encode.update({"exp": expire})
+    to_encode["exp"] = expire
+    to_encode["purpose"] = SESSION_TOKEN_PURPOSE
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
@@ -178,11 +234,25 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str | None = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
     except JWTError:
         raise credentials_exception from None
+    # Pin required claims explicitly — `exp` is verified by jose; `sub`
+    # and `purpose` we check ourselves so a malformed token can't slip
+    # through with missing fields.
+    purpose = payload.get("purpose")
+    # Grandfather window: session tokens minted before the `purpose` claim
+    # existed carry no purpose at all. Accept them (purpose is None) for one
+    # release so this deploy doesn't 401 every mid-session user at once (the
+    # 24h token lifetime means essentially the whole logged-in population).
+    # State / email-link tokens carry a NON-None, non-"auth" purpose, so they
+    # are still rejected as sessions — the token-reuse protection holds.
+    # TODO(auth): drop the `is not None` grandfather ~24h after deploy, once
+    # every pre-cutover token has expired.
+    if purpose is not None and purpose != SESSION_TOKEN_PURPOSE:
+        raise credentials_exception
+    user_id: str | None = payload.get("sub")
+    if user_id is None:
+        raise credentials_exception
 
     user = (
         db.query(User)
@@ -274,6 +344,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             "name": user.name,
             "role": user.role,
             "is_first_login": user.is_first_login,
+            "is_external": _resolve_is_external(user, db),
         },
     }
 
@@ -596,14 +667,25 @@ def delete_user(
 
 
 @router.get("/me", response_model=UserResponse)
-def get_current_user_info(current_user: User = Depends(get_current_user)):
-    """Get current user info"""
+def get_current_user_info(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get current user info, including the `is_external` flag from the
+    linked Developer row. External (or no-Developer) users get `True`
+    here so the frontend can hide internal-only UI (e.g. the home
+    capacity card) at render time without an extra round-trip."""
+    from models.developer import Developer
+
+    dev = db.query(Developer).filter(Developer.email == current_user.email).first()
+    is_external = True if dev is None else bool(dev.is_external)
     return {
         "id": current_user.id,
         "email": current_user.email,
         "name": current_user.name,
         "role": current_user.role,
         "is_first_login": current_user.is_first_login,
+        "is_external": is_external,
     }
 
 
@@ -721,6 +803,7 @@ def google_login(request: GoogleLoginRequest, db: Session = Depends(get_db)):
             "name": user.name,
             "role": user.role,
             "is_first_login": user.is_first_login,
+            "is_external": _resolve_is_external(user, db),
         },
     }
 
@@ -792,6 +875,7 @@ def dev_login(db: Session = Depends(get_db)):
             "name": user.name,
             "role": user.role,
             "is_first_login": user.is_first_login,
+            "is_external": _resolve_is_external(user, db),
         },
     }
 

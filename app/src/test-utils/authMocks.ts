@@ -30,6 +30,7 @@ const DEFAULT_USER: UserResponse = {
   email: 'test@arsenalai.com',
   role: 'admin',
   is_first_login: false,
+  is_external: false,
 };
 
 function defaultState(): MockAuthState {

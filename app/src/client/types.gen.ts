@@ -296,6 +296,16 @@ export type CommitArchitectureRequest = {
 };
 
 /**
+ * ConnectResponse
+ */
+export type ConnectResponse = {
+  /**
+   * Authorize Url
+   */
+  authorize_url: string;
+};
+
+/**
  * ConvertToTicketRequest
  */
 export type ConvertToTicketRequest = {
@@ -878,6 +888,46 @@ export type LogHoursRequest = {
    * Hours
    */
   hours: number;
+  /**
+   * Logged At
+   */
+  logged_at?: string | null;
+};
+
+/**
+ * ManualSyncResponse
+ *
+ * Returned immediately from POST /sync.
+ *
+ * The actual sync work happens in a FastAPI BackgroundTask after the
+ * response is sent; the admin gets a result email when it finishes.
+ * No counts here on purpose — they wouldn't be known yet, and a busy
+ * week's worth of entries can take long enough that holding the
+ * request open is bad UX.
+ *
+ * Two states:
+ * - ``started``         → the background task has been scheduled;
+ * an email will follow when it finishes.
+ * - ``already_running`` → another sync is currently in progress
+ * (Saturday cron, or a prior click of the
+ * admin's that's still working). No new
+ * task scheduled, no email — the
+ * already-running sync will email its own
+ * trigger when it completes.
+ */
+export type ManualSyncResponse = {
+  /**
+   * Message
+   */
+  message: string;
+  /**
+   * Notify Email
+   */
+  notify_email?: string | null;
+  /**
+   * Status
+   */
+  status: string;
 };
 
 /**
@@ -1073,6 +1123,36 @@ export type MyTaskResponse = {
    * Type
    */
   type: string;
+};
+
+/**
+ * MyTimesheetResponse
+ */
+export type MyTimesheetResponse = {
+  /**
+   * Clients
+   */
+  clients: Array<TimesheetClientResponse>;
+  /**
+   * Syncable Unsubmitted Count
+   */
+  syncable_unsubmitted_count: number;
+  /**
+   * Total Hours
+   */
+  total_hours: number;
+  /**
+   * Unlinked Projects
+   */
+  unlinked_projects: Array<TimesheetProjectResponse>;
+  /**
+   * Week End
+   */
+  week_end: string;
+  /**
+   * Week Start
+   */
+  week_start: string;
 };
 
 /**
@@ -1609,6 +1689,20 @@ export type ProjectLinkCreate = {
 };
 
 /**
+ * ProjectLinkRequest
+ */
+export type ProjectLinkRequest = {
+  /**
+   * Workforce Client Id
+   */
+  workforce_client_id?: string | null;
+  /**
+   * Workforce Client Name
+   */
+  workforce_client_name?: string | null;
+};
+
+/**
  * ProjectLinkResponse
  */
 export type ProjectLinkResponse = {
@@ -1690,6 +1784,14 @@ export type ProjectResponse = {
    * Total Items
    */
   total_items: number;
+  /**
+   * Workforce Client Id
+   */
+  workforce_client_id?: string | null;
+  /**
+   * Workforce Client Name
+   */
+  workforce_client_name?: string | null;
 };
 
 /**
@@ -2224,6 +2326,77 @@ export type SprintVelocityPoint = {
 };
 
 /**
+ * StatusResponse
+ */
+export type StatusResponse = {
+  /**
+   * Connected
+   */
+  connected: boolean;
+  /**
+   * Integration
+   */
+  integration?: {
+    [key: string]: unknown;
+  } | null;
+};
+
+/**
+ * SubmitTimesheetFailure
+ */
+export type SubmitTimesheetFailure = {
+  /**
+   * Entry Id
+   */
+  entry_id: number;
+  /**
+   * Error
+   */
+  error: string;
+};
+
+/**
+ * SubmitTimesheetResponse
+ *
+ * Outcome of POST /me/timesheet/submit.
+ *
+ * `status` mirrors the admin sync vocabulary so logs are coherent:
+ * - "ok"      → every picked entry landed in QB
+ * - "partial" → some entries failed (see `failed[]`); successes
+ * are already committed
+ */
+export type SubmitTimesheetResponse = {
+  /**
+   * Failed
+   */
+  failed: Array<SubmitTimesheetFailure>;
+  /**
+   * Reason
+   */
+  reason?: string | null;
+  /**
+   * Status
+   */
+  status: string;
+  /**
+   * Submitted Count
+   */
+  submitted_count: number;
+  /**
+   * Synced Count
+   */
+  synced_count: number;
+  /**
+   * Week End
+   */
+  week_end: string;
+  /**
+   * Week Start
+   */
+  week_start: string;
+};
+
+/**
  * TeamPerformanceEntry
  *
  * Per-assignee rollup for the analytics team-performance section.
@@ -2314,6 +2487,10 @@ export type TimeEntryRow = {
    */
   avatar_url: string | null;
   /**
+   * Client Name
+   */
+  client_name: string | null;
+  /**
    * Description
    */
   description: string | null;
@@ -2365,6 +2542,138 @@ export type TimeEntryRow = {
    * Work Item Type
    */
   work_item_type: string | null;
+};
+
+/**
+ * TimesheetBillableRequest
+ *
+ * Set the billable flag for a (client, day) group.
+ *
+ * The Review & Submit modal exposes one "Billable" checkbox per client
+ * per day; toggling it sends this body. The backend flips `billable`
+ * on every one of the caller's *draft* entries logged on `logged_at`
+ * whose project bills to `qb_customer_id`. Synced/submitted entries are
+ * left untouched (they're already in QuickBooks).
+ */
+export type TimesheetBillableRequest = {
+  /**
+   * Billable
+   */
+  billable: boolean;
+  /**
+   * Logged At
+   */
+  logged_at: string;
+  /**
+   * Qb Customer Id
+   */
+  qb_customer_id: string;
+};
+
+/**
+ * TimesheetClientResponse
+ */
+export type TimesheetClientResponse = {
+  /**
+   * Client Name
+   */
+  client_name: string;
+  /**
+   * Projects
+   */
+  projects: Array<TimesheetProjectResponse>;
+  /**
+   * Qb Customer Id
+   */
+  qb_customer_id: string;
+  /**
+   * Subtotal Hours
+   */
+  subtotal_hours: number;
+};
+
+/**
+ * TimesheetEntryEditRequest
+ *
+ * Patch body for editing a draft time entry.
+ *
+ * All fields optional; client sends only what's changing. `hours` is
+ * bounded the same way as `log-hours` (>0, ≤24) so dev typo'd 220h
+ * entries can't slip through here either.
+ */
+export type TimesheetEntryEditRequest = {
+  /**
+   * Description
+   */
+  description?: string | null;
+  /**
+   * Hours
+   */
+  hours?: number | null;
+};
+
+/**
+ * TimesheetEntryResponse
+ */
+export type TimesheetEntryResponse = {
+  /**
+   * Billable
+   */
+  billable: boolean;
+  /**
+   * Description
+   */
+  description: string | null;
+  /**
+   * Hours
+   */
+  hours: number;
+  /**
+   * Id
+   */
+  id: number;
+  /**
+   * Logged At
+   */
+  logged_at: string | null;
+  /**
+   * Submitted At
+   */
+  submitted_at: string | null;
+  /**
+   * Synced
+   */
+  synced: boolean;
+  /**
+   * Work Item Title
+   */
+  work_item_title: string | null;
+};
+
+/**
+ * TimesheetProjectResponse
+ */
+export type TimesheetProjectResponse = {
+  /**
+   * Category Name
+   */
+  category_name: string | null;
+  /**
+   * Entries
+   */
+  entries: Array<TimesheetEntryResponse>;
+  /**
+   * Project Id
+   */
+  project_id: number;
+  /**
+   * Project Name
+   */
+  project_name: string;
+  /**
+   * Subtotal Hours
+   */
+  subtotal_hours: number;
 };
 
 /**
@@ -2511,6 +2820,10 @@ export type UserResponse = {
    * Id
    */
   id: number;
+  /**
+   * Is External
+   */
+  is_external: boolean;
   /**
    * Is First Login
    */
@@ -3015,6 +3328,46 @@ export type WorkItemUpdate = {
   type?: string | null;
 };
 
+/**
+ * WorkforceClient
+ */
+export type WorkforceClient = {
+  /**
+   * Id
+   */
+  id: string;
+  /**
+   * Name
+   */
+  name: string;
+};
+
+/**
+ * WorkforceClientsRefreshResult
+ */
+export type WorkforceClientsRefreshResult = {
+  /**
+   * Added
+   */
+  added: number;
+  /**
+   * Deactivated
+   */
+  deactivated: number;
+  /**
+   * Last Refreshed At
+   */
+  last_refreshed_at?: string | null;
+  /**
+   * Total Active
+   */
+  total_active: number;
+  /**
+   * Updated
+   */
+  updated: number;
+};
+
 export type RootGetData = {
   body?: never;
   path?: never;
@@ -3507,6 +3860,10 @@ export type ListTimeEntriesApiAdminTimeEntriesGetData = {
      */
     developer_id?: number | null;
     /**
+     * Client Name
+     */
+    client_name?: string | null;
+    /**
      * Date From
      */
     date_from?: string | null;
@@ -3537,6 +3894,136 @@ export type ListTimeEntriesApiAdminTimeEntriesGetResponses = {
 
 export type ListTimeEntriesApiAdminTimeEntriesGetResponse =
   ListTimeEntriesApiAdminTimeEntriesGetResponses[keyof ListTimeEntriesApiAdminTimeEntriesGetResponses];
+
+export type ListClientsApiAdminWorkforceClientsGetData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/admin/workforce/clients';
+};
+
+export type ListClientsApiAdminWorkforceClientsGetResponses = {
+  /**
+   * Response List Clients Api Admin Workforce Clients Get
+   *
+   * Successful Response
+   */
+  200: Array<WorkforceClient>;
+};
+
+export type ListClientsApiAdminWorkforceClientsGetResponse =
+  ListClientsApiAdminWorkforceClientsGetResponses[keyof ListClientsApiAdminWorkforceClientsGetResponses];
+
+export type RefreshClientsEndpointApiAdminWorkforceClientsRefreshPostData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/admin/workforce/clients/refresh';
+};
+
+export type RefreshClientsEndpointApiAdminWorkforceClientsRefreshPostResponses = {
+  /**
+   * Successful Response
+   */
+  200: WorkforceClientsRefreshResult;
+};
+
+export type RefreshClientsEndpointApiAdminWorkforceClientsRefreshPostResponse =
+  RefreshClientsEndpointApiAdminWorkforceClientsRefreshPostResponses[keyof RefreshClientsEndpointApiAdminWorkforceClientsRefreshPostResponses];
+
+export type StartConnectApiAdminWorkforceConnectPostData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/admin/workforce/connect';
+};
+
+export type StartConnectApiAdminWorkforceConnectPostResponses = {
+  /**
+   * Successful Response
+   */
+  200: ConnectResponse;
+};
+
+export type StartConnectApiAdminWorkforceConnectPostResponse =
+  StartConnectApiAdminWorkforceConnectPostResponses[keyof StartConnectApiAdminWorkforceConnectPostResponses];
+
+export type DisconnectApiAdminWorkforceDisconnectPostData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/admin/workforce/disconnect';
+};
+
+export type DisconnectApiAdminWorkforceDisconnectPostResponses = {
+  /**
+   * Successful Response
+   */
+  200: unknown;
+};
+
+export type LinkProjectToClientApiAdminWorkforceProjectsProjectIdClientPutData = {
+  body: ProjectLinkRequest;
+  path: {
+    /**
+     * Project Id
+     */
+    project_id: number;
+  };
+  query?: never;
+  url: '/api/admin/workforce/projects/{project_id}/client';
+};
+
+export type LinkProjectToClientApiAdminWorkforceProjectsProjectIdClientPutErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type LinkProjectToClientApiAdminWorkforceProjectsProjectIdClientPutError =
+  LinkProjectToClientApiAdminWorkforceProjectsProjectIdClientPutErrors[keyof LinkProjectToClientApiAdminWorkforceProjectsProjectIdClientPutErrors];
+
+export type LinkProjectToClientApiAdminWorkforceProjectsProjectIdClientPutResponses = {
+  /**
+   * Successful Response
+   */
+  200: unknown;
+};
+
+export type GetStatusApiAdminWorkforceStatusGetData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/admin/workforce/status';
+};
+
+export type GetStatusApiAdminWorkforceStatusGetResponses = {
+  /**
+   * Successful Response
+   */
+  200: StatusResponse;
+};
+
+export type GetStatusApiAdminWorkforceStatusGetResponse =
+  GetStatusApiAdminWorkforceStatusGetResponses[keyof GetStatusApiAdminWorkforceStatusGetResponses];
+
+export type ManualSyncApiAdminWorkforceSyncPostData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/admin/workforce/sync';
+};
+
+export type ManualSyncApiAdminWorkforceSyncPostResponses = {
+  /**
+   * Successful Response
+   */
+  200: ManualSyncResponse;
+};
+
+export type ManualSyncApiAdminWorkforceSyncPostResponse =
+  ManualSyncApiAdminWorkforceSyncPostResponses[keyof ManualSyncApiAdminWorkforceSyncPostResponses];
 
 export type CreateUserApiAuthAdminCreateUserPostData = {
   body: UserCreate;
@@ -4156,6 +4643,51 @@ export type GetMyCapabilitiesApiAuthMeCapabilitiesGetResponses = {
   200: unknown;
 };
 
+export type OauthCallbackApiAuthWorkforceCallbackGetData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Code
+     */
+    code?: string | null;
+    /**
+     * State
+     */
+    state?: string | null;
+    /**
+     * Realmid
+     */
+    realmId?: string | null;
+    /**
+     * Error
+     */
+    error?: string | null;
+    /**
+     * Error Description
+     */
+    error_description?: string | null;
+  };
+  url: '/api/auth/workforce/callback';
+};
+
+export type OauthCallbackApiAuthWorkforceCallbackGetErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type OauthCallbackApiAuthWorkforceCallbackGetError =
+  OauthCallbackApiAuthWorkforceCallbackGetErrors[keyof OauthCallbackApiAuthWorkforceCallbackGetErrors];
+
+export type OauthCallbackApiAuthWorkforceCallbackGetResponses = {
+  /**
+   * Successful Response
+   */
+  200: unknown;
+};
+
 export type CreateCommentApiCommentsPostData = {
   body: CommentCreate;
   path?: never;
@@ -4407,6 +4939,128 @@ export type GetMyCapacityApiDevelopersMeCapacityGetResponses = {
    */
   200: unknown;
 };
+
+export type GetMyTimesheetApiDevelopersMeTimesheetGetData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/developers/me/timesheet';
+};
+
+export type GetMyTimesheetApiDevelopersMeTimesheetGetResponses = {
+  /**
+   * Successful Response
+   */
+  200: MyTimesheetResponse;
+};
+
+export type GetMyTimesheetApiDevelopersMeTimesheetGetResponse =
+  GetMyTimesheetApiDevelopersMeTimesheetGetResponses[keyof GetMyTimesheetApiDevelopersMeTimesheetGetResponses];
+
+export type SetMyTimesheetBillableApiDevelopersMeTimesheetBillablePatchData = {
+  body: TimesheetBillableRequest;
+  path?: never;
+  query?: never;
+  url: '/api/developers/me/timesheet/billable';
+};
+
+export type SetMyTimesheetBillableApiDevelopersMeTimesheetBillablePatchErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type SetMyTimesheetBillableApiDevelopersMeTimesheetBillablePatchError =
+  SetMyTimesheetBillableApiDevelopersMeTimesheetBillablePatchErrors[keyof SetMyTimesheetBillableApiDevelopersMeTimesheetBillablePatchErrors];
+
+export type SetMyTimesheetBillableApiDevelopersMeTimesheetBillablePatchResponses = {
+  /**
+   * Successful Response
+   */
+  204: void;
+};
+
+export type SetMyTimesheetBillableApiDevelopersMeTimesheetBillablePatchResponse =
+  SetMyTimesheetBillableApiDevelopersMeTimesheetBillablePatchResponses[keyof SetMyTimesheetBillableApiDevelopersMeTimesheetBillablePatchResponses];
+
+export type DeleteMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdDeleteData = {
+  body?: never;
+  path: {
+    /**
+     * Entry Id
+     */
+    entry_id: number;
+  };
+  query?: never;
+  url: '/api/developers/me/timesheet/entries/{entry_id}';
+};
+
+export type DeleteMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdDeleteErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type DeleteMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdDeleteError =
+  DeleteMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdDeleteErrors[keyof DeleteMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdDeleteErrors];
+
+export type DeleteMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdDeleteResponses = {
+  /**
+   * Successful Response
+   */
+  204: void;
+};
+
+export type DeleteMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdDeleteResponse =
+  DeleteMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdDeleteResponses[keyof DeleteMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdDeleteResponses];
+
+export type EditMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdPatchData = {
+  body: TimesheetEntryEditRequest;
+  path: {
+    /**
+     * Entry Id
+     */
+    entry_id: number;
+  };
+  query?: never;
+  url: '/api/developers/me/timesheet/entries/{entry_id}';
+};
+
+export type EditMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdPatchErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type EditMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdPatchError =
+  EditMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdPatchErrors[keyof EditMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdPatchErrors];
+
+export type EditMyTimesheetEntryApiDevelopersMeTimesheetEntriesEntryIdPatchResponses = {
+  /**
+   * Successful Response
+   */
+  200: unknown;
+};
+
+export type SubmitMyTimesheetApiDevelopersMeTimesheetSubmitPostData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/developers/me/timesheet/submit';
+};
+
+export type SubmitMyTimesheetApiDevelopersMeTimesheetSubmitPostResponses = {
+  /**
+   * Successful Response
+   */
+  200: SubmitTimesheetResponse;
+};
+
+export type SubmitMyTimesheetApiDevelopersMeTimesheetSubmitPostResponse =
+  SubmitMyTimesheetApiDevelopersMeTimesheetSubmitPostResponses[keyof SubmitMyTimesheetApiDevelopersMeTimesheetSubmitPostResponses];
 
 export type DeleteDeveloperApiDevelopersDeveloperIdDeleteData = {
   body?: never;

@@ -7,6 +7,7 @@ import ProjectsViewToggle from './ProjectsViewToggle';
 import { formatWeekRange } from './types';
 import type { ProjectsView } from './types';
 import type { ProjectCategory } from '../../modals/CategoryManagerModal';
+import type { WorkforceClient } from '../../types';
 
 interface ProjectsTabProps {
   /** Already filtered list — parent applies the category filter before
@@ -32,6 +33,16 @@ interface ProjectsTabProps {
    *  Edit GitHub Settings, Send GitHub Invites. The filter dropdown and
    *  read-only project list stay visible for read-only admins. */
   canWriteProjects: boolean;
+  // QuickBooks integration — drives the per-card client picker. The picker
+  // chip is hidden entirely when `workforceConnected === false`.
+  workforceConnected: boolean;
+  workforceClients: WorkforceClient[];
+  workforceClientsLoading: boolean;
+  onSetProjectWorkforceClient: (
+    projectId: number,
+    clientId: string | null,
+    clientName: string | null,
+  ) => void;
 }
 
 const ProjectsTab = ({
@@ -48,6 +59,10 @@ const ProjectsTab = ({
   onSendGitHubInvites,
   onOpenProjectMembers,
   canWriteProjects,
+  workforceConnected,
+  workforceClients,
+  workforceClientsLoading,
+  onSetProjectWorkforceClient,
 }: ProjectsTabProps) => {
   // Sub-view toggle inside the tab. 'cards' (default) shows the existing
   // project-card grid. 'reports' shows the per-project weekly table with
@@ -167,6 +182,10 @@ const ProjectsTab = ({
           onSendGitHubInvites={onSendGitHubInvites}
           onOpenProjectMembers={onOpenProjectMembers}
           canWriteProjects={canWriteProjects}
+          workforceConnected={workforceConnected}
+          workforceClients={workforceClients}
+          workforceClientsLoading={workforceClientsLoading}
+          onSetProjectWorkforceClient={onSetProjectWorkforceClient}
         />
       )}
     </div>

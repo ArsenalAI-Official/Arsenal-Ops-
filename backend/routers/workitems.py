@@ -1531,6 +1531,13 @@ class LogHoursRequest(BaseModel):
     hours: int
     description: str | None = None
     developer_id: int | None = None  # Optional: specify who did the work (defaults to current user)
+    # Optional ISO date ("YYYY-MM-DD") to back-date the log to a specific
+    # weekday in the current Mon-Fri review window. Omit (or None) for
+    # the historical default of `now()`. Used by the dev Review-and-
+    # Submit modal's "+ Add entry" affordance to drop an entry on, say,
+    # Tuesday from a Friday afternoon catch-up session. Cannot target
+    # past weeks, cannot future-date — both are enforced in the handler.
+    logged_at: str | None = None
 
 
 @router.post("/{item_id}/unblock")
@@ -1653,6 +1660,63 @@ def log_hours(
             detail=f"Hours per log ({request.hours}) exceeds the 24h sanity cap. Split into multiple log entries.",
         )
 
+    # Resolve `logged_at`. None → defaults to NOW (the historical behavior
+    # used by every existing caller). Set → must be an ISO date that falls
+    # in the current Mon-Fri review window AND can't be in the future.
+    # This is the bridge between the dev Review-and-Submit modal's "+ Add
+    # entry" affordance and the underlying log-hours endpoint: the modal
+    # passes a weekday like "2026-06-30", and the entry shows up on that
+    # day's card immediately on refetch.
+    resolved_logged_at: datetime | None = None
+    if request.logged_at is not None:
+        from datetime import date as _date
+
+        from services.workforce_sync import current_work_week_window
+
+        try:
+            requested_date = _date.fromisoformat(request.logged_at)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Invalid logged_at {request.logged_at!r}. Expected an ISO date (YYYY-MM-DD)."
+                ),
+            ) from None
+        today = _date.today()
+        if requested_date > today:
+            raise HTTPException(
+                status_code=400,
+                detail="logged_at can't be in the future.",
+            )
+        window_start, window_end = current_work_week_window(today)
+        if not (window_start <= requested_date <= window_end):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"logged_at must fall within the current week "
+                    f"({window_start.isoformat()} to {window_end.isoformat()})."
+                ),
+            )
+        # Stored as a naive UTC datetime — matches the column's existing
+        # convention (see TimeEntry.logged_at default = datetime.utcnow).
+        # Time-of-day is set to NOW so multiple same-day adds have a
+        # natural ordering and don't all collapse to midnight.
+        now = datetime.utcnow()
+        resolved_logged_at = datetime.combine(requested_date, now.time())
+    else:
+        # Interim guard: block logging on Sat/Sun via the default (no-date)
+        # path. The explicit-date branch above already restricts to the current
+        # Mon–Fri window; without this, clicking "Log Hours" on a weekend would
+        # create a Sat/Sun entry (stamped with the current time). Uses UTC (via
+        # time_utils.utcnow) to match how logged_at is stamped and how the
+        # backend buckets weeks; a timezone-aware version is part of the
+        # deferred week-boundary work.
+        if utcnow().weekday() >= 5:  # 5 = Saturday, 6 = Sunday
+            raise HTTPException(
+                status_code=400,
+                detail="Hours can only be logged Monday to Friday.",
+            )
+
     # Determine who to attribute the hours to
     developer = None
 
@@ -1696,13 +1760,18 @@ def log_hours(
                 detail="Duplicate log-hours request detected. Please wait a moment before logging again.",
             )
 
-    # Create time entry
-    time_entry = TimeEntry(
-        work_item_id=item_id,
-        developer_id=developer.id if developer else item.assignee_id,  # Fallback to assignee_id
-        hours=request.hours,
-        description=request.description,
-    )
+    # Create time entry. When `logged_at` was passed in the request, use
+    # the resolved (validated) value so the entry lands on the chosen
+    # day; otherwise the column default (`datetime.utcnow`) applies.
+    te_kwargs: dict[str, Any] = {
+        "work_item_id": item_id,
+        "developer_id": developer.id if developer else item.assignee_id,
+        "hours": request.hours,
+        "description": request.description,
+    }
+    if resolved_logged_at is not None:
+        te_kwargs["logged_at"] = resolved_logged_at
+    time_entry = TimeEntry(**te_kwargs)
     db.add(time_entry)
     db.flush()  # ensure the new TimeEntry is visible to the sum query below
 
@@ -1711,13 +1780,26 @@ def log_hours(
     # users see a single chronological audit trail in the side panel.
     from models.comment import Comment as _LogComment
 
-    db.add(
-        _LogComment(
-            work_item_id=item_id,
-            author_id=developer.id if developer else None,
-            content=f"Logged {request.hours}h",
-        )
-    )
+    log_comment_kwargs: dict[str, Any] = {
+        "work_item_id": item_id,
+        "author_id": developer.id if developer else None,
+        "content": f"Logged {request.hours}h",
+        # Link the auto-comment to its TimeEntry so the dev's edit/
+        # delete actions in the Review-and-Submit modal can keep it
+        # in sync. CASCADE on the FK auto-removes the comment when
+        # the entry is deleted; the edit endpoint mutates `content`
+        # directly. See `routers/developers.py`.
+        "time_entry_id": time_entry.id,
+    }
+    # When the entry is back-dated via `logged_at` (the modal's "+ Add
+    # entry" affordance), stamp the auto-comment with the same date so
+    # the ticket's comment feed shows the day the hours were logged for,
+    # not the day the row happened to be created. Default path (no
+    # `logged_at`) leaves Comment.created_at = NOW().
+    if resolved_logged_at is not None:
+        log_comment_kwargs["created_at"] = resolved_logged_at
+
+    db.add(_LogComment(**log_comment_kwargs))
 
     # Recompute logged_hours from the live TimeEntry sum instead of `+=`.
     # The naive accumulator drifts whenever ANYTHING else has touched the column

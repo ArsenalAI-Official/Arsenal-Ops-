@@ -33,6 +33,8 @@ from routers.project_categories import router as project_categories_router  # no
 from routers.projects import router as projects_router  # noqa: E402
 from routers.pulse import router as pulse_router  # noqa: E402
 from routers.roadmap import router as roadmap_router  # noqa: E402
+from routers.workforce import callback_router as workforce_callback_router  # noqa: E402
+from routers.workforce import router as workforce_router  # noqa: E402
 from routers.workitems import router as workitems_router  # noqa: E402
 
 
@@ -153,6 +155,8 @@ app.include_router(personal_tasks_router)
 app.include_router(overview_router)
 app.include_router(pulse_router)
 app.include_router(project_categories_router)
+app.include_router(workforce_router)
+app.include_router(workforce_callback_router)
 
 
 # Database init + idempotent migrations + admin seeding, invoked from `lifespan`.

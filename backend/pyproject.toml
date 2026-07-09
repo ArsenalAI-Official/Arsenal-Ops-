@@ -64,7 +64,18 @@ exclude = ['(^|/)migrate_[^/]*\.py$', '(^|/)\.venv(/|$)']
 # Third-party modules that genuinely ship no type stubs — scoped per-module,
 # never globally. Everything else must type-check for real.
 [[tool.mypy.overrides]]
-module = ["openpyxl", "openpyxl.*", "googleapiclient", "googleapiclient.*"]
+module = [
+    "openpyxl",
+    "openpyxl.*",
+    "googleapiclient",
+    "googleapiclient.*",
+    # `hypothesis` is imported by property-based tests but isn't in
+    # requirements.txt — those tests are skipped when it's absent.
+    # Without this override, mypy fails on the unconditional import even
+    # though the runtime is fine.
+    "hypothesis",
+    "hypothesis.*",
+]
 ignore_missing_imports = true
 
 # `conftest` is imported by name from a sibling test module; pytest puts it on

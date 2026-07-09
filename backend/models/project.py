@@ -85,6 +85,16 @@ class Project(Base):
         index=True,
     )
 
+    # QuickBooks Time Customer this project's hours should bill to.
+    # Set by an admin via the per-project picker once the org's Workforce
+    # integration is connected. Null = project is not synced. Indexed
+    # because the sync worker filters on `IS NOT NULL`.
+    workforce_client_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    # Cached display name — shown in pickers so we don't refetch the QB
+    # customer list to render the project card. Refreshed when the admin
+    # changes the link (we read the name back from the picker selection).
+    workforce_client_name: Mapped[str | None] = mapped_column(String(255))
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=True)
     end_date: Mapped[datetime | None] = mapped_column(DateTime)  # Project end date

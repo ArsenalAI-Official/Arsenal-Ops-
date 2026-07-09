@@ -15,6 +15,7 @@ export const ADMIN_CAPABILITIES = [
   'admin.time_entries',
   'admin.users',
   'admin.roles',
+  'admin.workforce_connect',
 ] as const;
 
 /**

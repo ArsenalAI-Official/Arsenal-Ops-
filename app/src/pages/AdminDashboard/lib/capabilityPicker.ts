@@ -351,6 +351,12 @@ export function buildPickerCatalog(
           readGrant: 'admin.roles',
           writeGrant: 'admin.roles_write',
         },
+        {
+          label: 'Integrations',
+          description:
+            'Connect / disconnect external integrations (QuickBooks Time) and trigger manual syncs',
+          readGrant: 'admin.workforce_connect',
+        },
       ],
     },
   ];

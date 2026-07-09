@@ -813,6 +813,164 @@ def run_migrations():
         except Exception as e:
             print(f"[MIGRATION ERROR] developers.is_external: {e}")
 
+        # ── Workforce / QuickBooks Time integration columns ───────────────
+        # Adds the additive sync-state columns: two on projects (which QB
+        # Customer to bill to + cached display name) and one on time_entries
+        # (the QB TimeActivity id, used for idempotency on resync). The
+        # workforce_integration table itself is created by
+        # `Base.metadata.create_all` once the new model is imported (see
+        # models/workforce_integration.py) — no DDL needed for it here.
+        for table, column, ddl in [
+            ("projects", "workforce_client_id", "VARCHAR(64)"),
+            ("projects", "workforce_client_name", "VARCHAR(255)"),
+            ("time_entries", "workforce_entry_id", "VARCHAR(64)"),
+            # Per-entry billable flag, set per (client, day) in the Review &
+            # Submit modal. Defaults FALSE so existing + new entries are
+            # non-billable until a dev explicitly checks the client's box.
+            ("time_entries", "billable", "BOOLEAN NOT NULL DEFAULT FALSE"),
+            ("workforce_integration", "company_name", "VARCHAR(255)"),
+        ]:
+            try:
+                exists = conn.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_name = :t AND column_name = :c"
+                    ),
+                    {"t": table, "c": column},
+                ).fetchone()
+                if not exists:
+                    print(f"[MIGRATION] Adding {table}.{column}...")
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+                    conn.commit()
+            except Exception as e:
+                print(f"[MIGRATION ERROR] {table}.{column}: {e}")
+
+        # `time_entries.submitted_at` for the dev Review-and-Submit flow.
+        # Tracks when a developer clicked "Submit & Sync" in the modal (or
+        # when admin force-sync ran). The eligibility query for the dev
+        # endpoint joins this with `workforce_entry_id` — see
+        # `services/timesheet_service.py` and the column's docstring in
+        # `models/time_entry.py` for the state machine.
+        try:
+            exists = conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = :t AND column_name = :c"
+                ),
+                {"t": "time_entries", "c": "submitted_at"},
+            ).fetchone()
+            if not exists:
+                print("[MIGRATION] Adding time_entries.submitted_at...")
+                conn.execute(
+                    text("ALTER TABLE time_entries ADD COLUMN submitted_at TIMESTAMP NULL")
+                )
+                conn.commit()
+                # Backfill: already-synced rows are de-facto submitted —
+                # backfill them so they don't show up as "unsubmitted" in
+                # the new Review modal. Pre-existing un-synced rows stay
+                # NULL so devs submit them through the new flow.
+                conn.execute(
+                    text(
+                        "UPDATE time_entries SET submitted_at = CURRENT_TIMESTAMP "
+                        "WHERE workforce_entry_id IS NOT NULL AND submitted_at IS NULL"
+                    )
+                )
+                conn.commit()
+                print("[MIGRATION] Backfilled submitted_at for already-synced time_entries")
+        except Exception as e:
+            print(f"[MIGRATION ERROR] time_entries.submitted_at: {e}")
+
+        # `comments.time_entry_id` for keeping the auto-generated
+        # "Logged Xh" comment in sync with the TimeEntry it describes.
+        # See `models/comment.py` docstring and the dev Review-and-Submit
+        # edit/delete endpoints in `routers/developers.py`. CASCADE on
+        # delete means removing a TimeEntry also removes the linked
+        # comment — no orphaned "Logged Xh" rows in the side panel.
+        try:
+            exists = conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = :t AND column_name = :c"
+                ),
+                {"t": "comments", "c": "time_entry_id"},
+            ).fetchone()
+            if not exists:
+                print("[MIGRATION] Adding comments.time_entry_id...")
+                conn.execute(
+                    text(
+                        "ALTER TABLE comments ADD COLUMN time_entry_id INTEGER NULL "
+                        "REFERENCES time_entries(id) ON DELETE CASCADE"
+                    )
+                )
+                conn.commit()
+        except Exception as e:
+            print(f"[MIGRATION ERROR] comments.time_entry_id: {e}")
+
+        # Indexes for the sync worker's queue queries — match the SQLAlchemy
+        # `index=True` on these columns. Skipped silently on SQLite (the
+        # CREATE INDEX IF NOT EXISTS is Postgres syntax) since dev tooling
+        # falls back to SQLite where these indexes are negligible.
+        for idx_name, table, column in [
+            ("idx_projects_workforce_client_id", "projects", "workforce_client_id"),
+            ("idx_time_entries_workforce_entry_id", "time_entries", "workforce_entry_id"),
+            ("idx_time_entries_submitted_at", "time_entries", "submitted_at"),
+            ("idx_comments_time_entry_id", "comments", "time_entry_id"),
+        ]:
+            try:
+                conn.execute(text(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table} ({column})"))
+                conn.commit()
+            except Exception as e:
+                print(f"[MIGRATION ERROR] {idx_name}: {e}")
+
+        # workforce_clients composite PK upgrade. The model now declares
+        # PK = (qb_customer_id, realm_id) so a same-id customer in two
+        # realms can coexist. Fresh installs get this from create_all;
+        # an early-iteration deploy that landed the single-column PK
+        # needs to migrate. Postgres only — sqlite is dropped/recreated
+        # in tests so it never sees the old shape.
+        try:
+            table_exists = conn.execute(
+                text(
+                    "SELECT 1 FROM information_schema.tables WHERE table_name = 'workforce_clients'"
+                )
+            ).fetchone()
+            if table_exists:
+                # Count columns in the primary key. 1 = old single-col
+                # PK on qb_customer_id, 2 = already composite.
+                pk_cols = conn.execute(
+                    text(
+                        "SELECT a.attname "
+                        "FROM pg_index i "
+                        "JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) "
+                        "WHERE i.indrelid = 'workforce_clients'::regclass AND i.indisprimary"
+                    )
+                ).fetchall()
+                pk_names = {r[0] for r in pk_cols}
+                if pk_names == {"qb_customer_id"}:
+                    print(
+                        "[MIGRATION] Upgrading workforce_clients PK to "
+                        "(qb_customer_id, realm_id)..."
+                    )
+                    # Drop the old PK and add the composite. Safe because
+                    # the single-column PK already implied unique
+                    # qb_customer_id values, so no duplicates exist that
+                    # the composite would block.
+                    conn.execute(
+                        text("ALTER TABLE workforce_clients DROP CONSTRAINT workforce_clients_pkey")
+                    )
+                    conn.execute(
+                        text(
+                            "ALTER TABLE workforce_clients ADD PRIMARY KEY (qb_customer_id, realm_id)"
+                        )
+                    )
+                    conn.commit()
+        except Exception as e:
+            # Non-fatal: sqlite raises here (no information_schema), as
+            # do brand-new Postgres installs before workforce_clients
+            # has been created by create_all. Either way the model's
+            # composite PK applies to fresh creates.
+            print(f"[MIGRATION INFO] workforce_clients PK check skipped: {e}")
+
 
 SYSTEM_ROLES: list[tuple[str, str, list[str]]] = [
     ("admin", "Full system access", ["*"]),
@@ -1148,13 +1306,49 @@ def reconcile_internal_developers():
 
     db = SessionLocal()
     try:
-        # Pass 1: flip internal-domain Developers that were mis-flagged external.
-        flipped = 0
-        externals = db.query(Developer).filter(Developer.is_external.is_(True)).all()
-        for dev in externals:
-            if is_internal(dev.email):
-                dev.is_external = False
-                flipped += 1
+        # Pass 1: reconcile every Developer's `is_external` flag against its
+        # email domain — in BOTH directions:
+        #   • internal domain but flagged external  → flip to internal (promote)
+        #   • non-internal domain but flagged internal → flip to external (demote)
+        # The demote direction is essential: `is_external` defaults to FALSE
+        # (the column default), so a developer whose domain is NOT in
+        # ALLOWED_EMAIL_DOMAINS would otherwise stay "internal" and wrongly
+        # appear in the Employees tab (which filters `is_external == False`).
+        all_devs = db.query(Developer).all()
+        promotions: list[Developer] = []  # external → internal
+        demotions: list[Developer] = []  # internal → external
+        for dev in all_devs:
+            should_be_external = not is_internal(dev.email)
+            if bool(dev.is_external) == should_be_external:
+                continue
+            (demotions if should_be_external else promotions).append(dev)
+
+        # Misconfig guard for the DANGEROUS (demote) direction. A wrong-but-
+        # nonempty ALLOWED_EMAIL_DOMAINS (typo, partial list, domain rename)
+        # makes is_internal() return False for real employees, so Pass 1 would
+        # demote them en masse — and _get_internal_developer_or_404 then hides
+        # the timesheet/capacity feature for everyone, silently. The empty-var
+        # early-return above only covers the *unset* case, not this one.
+        # Promotions are always safe to apply; only demotions can disable the
+        # feature. If demotions would flip a MAJORITY of the currently-internal
+        # population, assume misconfiguration: skip demotions this boot (still
+        # applying promotions) and log loudly so it's diagnosable.
+        currently_internal = sum(1 for d in all_devs if not bool(d.is_external))
+        if demotions and currently_internal and len(demotions) > currently_internal / 2:
+            print(
+                f"[RECONCILE] SKIPPING {len(demotions)} developer demotion(s) to "
+                f"external — that would flip a majority of the {currently_internal} "
+                f"currently-internal developer(s), which almost always means "
+                f"ALLOWED_EMAIL_DOMAINS is misconfigured (parsed: {sorted(allowed)}). "
+                f"Fix the domain list and reboot. Promotions were still applied."
+            )
+            demotions = []
+
+        for dev in promotions:
+            dev.is_external = False
+        for dev in demotions:
+            dev.is_external = True
+        flipped = len(promotions) + len(demotions)
 
         # Pass 2: insert missing Developer rows for internal-domain Users.
         # One query for existing Developer emails (set membership beats N selects).
@@ -1178,8 +1372,8 @@ def reconcile_internal_developers():
             db.commit()
             if flipped:
                 print(
-                    f"[RECONCILE] Flipped {flipped} internal-domain developer(s) "
-                    "from external to internal"
+                    f"[RECONCILE] Reconciled {flipped} developer(s)' is_external flag "
+                    "to match their email domain"
                 )
             if inserted:
                 print(

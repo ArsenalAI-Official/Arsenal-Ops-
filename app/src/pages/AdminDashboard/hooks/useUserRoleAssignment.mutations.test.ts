@@ -48,7 +48,14 @@ describe('useUserRoleAssignment — assign/remove requests', () => {
     // Current user id 999 ≠ the targeted user id, so the self-cap-refresh path
     // stays out of these two request-shape tests.
     setMockAuthState({
-      user: { id: 999, name: 'Me', email: 'me@b.com', role: 'admin', is_first_login: false },
+      user: {
+        id: 999,
+        name: 'Me',
+        email: 'me@b.com',
+        role: 'admin',
+        is_first_login: false,
+        is_external: false,
+      },
     });
   });
 
@@ -102,7 +109,14 @@ describe('useUserRoleAssignment — assign/remove requests', () => {
   it('refreshes the current user capabilities when they edit their OWN roles', async () => {
     // Current user id matches the toggle target → self-refresh path fires.
     setMockAuthState({
-      user: { id: 7, name: 'Me', email: 'me@b.com', role: 'admin', is_first_login: false },
+      user: {
+        id: 7,
+        name: 'Me',
+        email: 'me@b.com',
+        role: 'admin',
+        is_first_login: false,
+        is_external: false,
+      },
     });
     server.use(
       http.post(

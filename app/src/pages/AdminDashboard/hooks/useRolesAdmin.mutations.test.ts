@@ -50,7 +50,14 @@ describe('useRolesAdmin — role write payloads', () => {
     // A user id that never matches an edited role's holders, keeping the
     // self-cap-refresh timer path incidental (it's a mocked no-op regardless).
     setMockAuthState({
-      user: { id: 999, name: 'Other', email: 'o@b.com', role: 'admin', is_first_login: false },
+      user: {
+        id: 999,
+        name: 'Other',
+        email: 'o@b.com',
+        role: 'admin',
+        is_first_login: false,
+        is_external: false,
+      },
     });
   });
 

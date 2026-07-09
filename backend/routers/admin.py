@@ -603,6 +603,10 @@ class ProjectResponse(BaseModel):
     # filter without a second round trip.
     category_id: int | None = None
     category_name: str | None = None
+    # QuickBooks customer link — flat fields for the same reason. Null
+    # when the project isn't synced.
+    workforce_client_id: str | None = None
+    workforce_client_name: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -647,6 +651,8 @@ def list_all_projects(db: Session = Depends(get_db)):
                 has_github_token=bool(project.github_token),
                 category_id=project.category_id,
                 category_name=project.category.name if project.category else None,
+                workforce_client_id=project.workforce_client_id,
+                workforce_client_name=project.workforce_client_name,
             )
         )
 
@@ -1002,6 +1008,9 @@ class TimeEntryRow(BaseModel):
 
     project_id: int | None
     project_name: str | None
+    # QB customer the project's hours bill to (cached on the Project row).
+    # NULL when the project isn't linked to a QuickBooks customer.
+    client_name: str | None
 
     developer_id: int | None
     developer_name: str | None
@@ -1035,6 +1044,7 @@ TIME_ENTRIES_MAX_ROWS = 2000
 def list_time_entries(
     project_id: int | None = None,
     developer_id: int | None = None,
+    client_name: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
     db: Session = Depends(get_db),
@@ -1044,6 +1054,8 @@ def list_time_entries(
     Filters (all optional, combined with AND):
       - project_id:  restrict to one project (joined via WorkItem.project_id)
       - developer_id: restrict to one employee
+      - client_name: restrict to one QuickBooks client (the customer cached on
+        the Project row), i.e. all projects billing to that client
       - date_from / date_to: inclusive ISO date strings (YYYY-MM-DD). The
         upper bound is treated as end-of-day, so `date_to=2026-06-08` keeps
         entries logged at 23:59:59 that day.
@@ -1081,12 +1093,19 @@ def list_time_entries(
     if developer_id is not None:
         query = query.filter(TimeEntry.developer_id == developer_id)
 
-    if project_id is not None:
-        # Join WorkItem so we can filter by its project_id without
-        # round-tripping through the in-memory join load.
-        query = query.join(WorkItem, TimeEntry.work_item_id == WorkItem.id).filter(
-            WorkItem.project_id == project_id
-        )
+    if project_id is not None or client_name:
+        # Join WorkItem once (a second .join(WorkItem) would raise) so we can
+        # filter by the item's project without round-tripping through the
+        # in-memory join load.
+        query = query.join(WorkItem, TimeEntry.work_item_id == WorkItem.id)
+        if project_id is not None:
+            query = query.filter(WorkItem.project_id == project_id)
+        if client_name:
+            # client is the QuickBooks customer cached on the Project row;
+            # filtering by it spans every project billing to that client.
+            query = query.join(Project, WorkItem.project_id == Project.id).filter(
+                Project.workforce_client_name == client_name
+            )
 
     if df is not None:
         query = query.filter(TimeEntry.logged_at >= datetime.combine(df, time.min))
@@ -1120,6 +1139,7 @@ def list_time_entries(
                 work_item_type=wi.type if wi else None,
                 project_id=proj.id if proj else None,
                 project_name=proj.name if proj else None,
+                client_name=proj.workforce_client_name if proj else None,
                 developer_id=dev.id if dev else None,
                 developer_name=dev.name if dev else None,
                 developer_email=dev.email if dev else None,
