@@ -25,6 +25,12 @@ function createdItem(id: string): SlimWorkItem {
 export const workItemHandlers = [
   // ── reads ──
   http.get(`${API_BASE}/workitems/board`, () => HttpResponse.json(workItemStore.board())),
+  // Done-archive aggregates probe + pages (fires with every board render via
+  // useDoneArchive). Empty by default — tests exercising the "Show older"
+  // footer override with server.use(...).
+  http.get(`${API_BASE}/workitems/board/done-archive`, () =>
+    HttpResponse.json({ items: [], total: 0, total_points: 0 }),
+  ),
 
   // ── sprints (specific prefix; before /workitems/:id) ──
   http.get(`${API_BASE}/workitems/projects/:projectId/sprints`, () => HttpResponse.json([])),
@@ -43,6 +49,23 @@ export const workItemHandlers = [
   ),
 
   // ── work-item CRUD ──
+  // GET detail (WorkItemDetailResponse shape). Registered AFTER /board and
+  // /board/done-archive so `:id` can't shadow them. Backs the board's
+  // deep-link fallback for archived tickets; tests needing a specific item
+  // override with server.use(...).
+  http.get(`${API_BASE}/workitems/:id`, ({ params }) =>
+    HttpResponse.json({
+      id: Number(params.id),
+      key: `TP-${String(params.id)}`,
+      title: 'Detail item',
+      type: 'task',
+      status: 'done',
+      priority: 'medium',
+      project_id: 7,
+      created_at: '2026-01-01T00:00:00',
+      updated_at: '2026-01-01T00:00:00',
+    }),
+  ),
   http.post(`${API_BASE}/workitems/`, () => HttpResponse.json(createdItem('w99'))),
   http.put(`${API_BASE}/workitems/:id`, () => HttpResponse.json({})),
   http.delete(`${API_BASE}/workitems/:id`, () => new HttpResponse(null, { status: 204 })),

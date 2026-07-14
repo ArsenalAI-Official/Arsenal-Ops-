@@ -533,6 +533,30 @@ export type DevelopmentCost = {
 };
 
 /**
+ * DoneArchiveResponse
+ *
+ * Page of archived done items + aggregates for the board header stats.
+ *
+ * ``total``/``total_points`` cover ALL archived done items for the project
+ * (not just this page) so the frontend can show accurate counts without
+ * loading everything: call with ``limit=0`` for a count-only probe.
+ */
+export type DoneArchiveResponse = {
+  /**
+   * Items
+   */
+  items: Array<SlimWorkItem>;
+  /**
+   * Total
+   */
+  total: number;
+  /**
+   * Total Points
+   */
+  total_points: number;
+};
+
+/**
  * EmployeeCreate
  */
 export type EmployeeCreate = {
@@ -6380,6 +6404,56 @@ export type ListBoardItemsApiWorkitemsBoardGetResponses = {
 
 export type ListBoardItemsApiWorkitemsBoardGetResponse =
   ListBoardItemsApiWorkitemsBoardGetResponses[keyof ListBoardItemsApiWorkitemsBoardGetResponses];
+
+export type ListDoneArchiveApiWorkitemsBoardDoneArchiveGetData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * Project Id
+     *
+     * Required: project to fetch archived items for
+     */
+    project_id: number;
+    /**
+     * Sprint Id
+     *
+     * Optional: filter to a single sprint
+     */
+    sprint_id?: number | null;
+    /**
+     * Limit
+     *
+     * Page size; 0 = aggregates only
+     */
+    limit?: number;
+    /**
+     * Offset
+     */
+    offset?: number;
+  };
+  url: '/api/workitems/board/done-archive';
+};
+
+export type ListDoneArchiveApiWorkitemsBoardDoneArchiveGetErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type ListDoneArchiveApiWorkitemsBoardDoneArchiveGetError =
+  ListDoneArchiveApiWorkitemsBoardDoneArchiveGetErrors[keyof ListDoneArchiveApiWorkitemsBoardDoneArchiveGetErrors];
+
+export type ListDoneArchiveApiWorkitemsBoardDoneArchiveGetResponses = {
+  /**
+   * Successful Response
+   */
+  200: DoneArchiveResponse;
+};
+
+export type ListDoneArchiveApiWorkitemsBoardDoneArchiveGetResponse =
+  ListDoneArchiveApiWorkitemsBoardDoneArchiveGetResponses[keyof ListDoneArchiveApiWorkitemsBoardDoneArchiveGetResponses];
 
 export type GenerateWorkItemsApiWorkitemsGeneratePostData = {
   body: GenerateStoriesRequest;

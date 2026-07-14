@@ -4,12 +4,12 @@ Production-ready database storage
 """
 
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
-from sqlalchemy import case, func, text
+from sqlalchemy import case, func, or_, text
 from sqlalchemy.orm import Session, selectinload
 
 from time_utils import utcnow
@@ -604,29 +604,24 @@ class SlimWorkItem(BaseModel):
     is_blocked: bool = False
 
 
-@router.get("/board", response_model=list[SlimWorkItem])
-def list_board_items(
-    project_id: int = Query(..., description="Required: project to fetch board items for"),
-    sprint_id: int | None = Query(None, description="Optional: filter to a single sprint"),
-    db: Session = Depends(get_db),
-    # Gated on `project.board` so the role editor's "Project Board · Read"
-    # toggle actually enforces — without this, hiding the Open Board button
-    # in the UI would be cosmetic only.
-    current_user: User = Depends(require_capability("project.board")),
-):
-    """Slim variant of ``GET /api/workitems/`` used by the Kanban board.
+# Done items completed more than this many days ago are excluded from the
+# board payload (and DOM) — long-running projects accumulate hundreds of done
+# tickets that would otherwise render forever. Older ones are served on demand
+# by GET /board/done-archive; keep the frontend's Done-column footer in step.
+BOARD_DONE_MAX_AGE_DAYS = 30
 
-    Skips the description/acceptance_criteria/date columns the board never
-    renders. The parent/epic key batch lookup mirrors ``list_work_items`` so
-    callers still see human-readable identifiers without per-row joins.
+
+def _board_done_cutoff() -> datetime:
+    return utcnow() - timedelta(days=BOARD_DONE_MAX_AGE_DAYS)
+
+
+def _to_slim_items(db: Session, items: list[WorkItem]) -> list[SlimWorkItem]:
+    """Serialize WorkItem rows to the board's slim wire shape.
+
+    Shared by ``list_board_items`` and ``list_done_archive``. Batch-fetches
+    parent/epic keys and unresolved-blocker flags in one IN(...) query each so
+    the cost stays two extra round-trips regardless of item count.
     """
-    query = db.query(WorkItem).options(selectinload(WorkItem.assignee))
-    query = query.filter(WorkItem.project_id == project_id)
-    if sprint_id is not None:
-        query = query.filter(WorkItem.sprint_id == sprint_id)
-
-    items = query.all()
-
     # Batch-fetch parent/epic keys in a single IN(...) query.
     all_lookup_ids = list(
         {
@@ -686,6 +681,101 @@ def list_board_items(
         )
         for item in items
     ]
+
+
+@router.get("/board", response_model=list[SlimWorkItem])
+def list_board_items(
+    project_id: int = Query(..., description="Required: project to fetch board items for"),
+    sprint_id: int | None = Query(None, description="Optional: filter to a single sprint"),
+    db: Session = Depends(get_db),
+    # Gated on `project.board` so the role editor's "Project Board · Read"
+    # toggle actually enforces — without this, hiding the Open Board button
+    # in the UI would be cosmetic only.
+    current_user: User = Depends(require_capability("project.board")),
+):
+    """Slim variant of ``GET /api/workitems/`` used by the Kanban board.
+
+    Skips the description/acceptance_criteria/date columns the board never
+    renders. The parent/epic key batch lookup mirrors ``list_work_items`` so
+    callers still see human-readable identifiers without per-row joins.
+
+    Done items completed more than ``BOARD_DONE_MAX_AGE_DAYS`` days ago are
+    excluded — the Done column would otherwise grow unbounded. They stay
+    reachable via ``GET /board/done-archive`` (the frontend's "Show older"
+    footer). Done items with a NULL ``completed_at`` (legacy rows) are kept
+    visible rather than silently vanishing.
+    """
+    query = db.query(WorkItem).options(selectinload(WorkItem.assignee))
+    query = query.filter(WorkItem.project_id == project_id)
+    if sprint_id is not None:
+        query = query.filter(WorkItem.sprint_id == sprint_id)
+    query = query.filter(
+        or_(
+            WorkItem.status != WorkItemStatus.DONE.value,
+            WorkItem.completed_at.is_(None),
+            WorkItem.completed_at >= _board_done_cutoff(),
+        )
+    )
+
+    items = query.all()
+    return _to_slim_items(db, items)
+
+
+class DoneArchiveResponse(BaseModel):
+    """Page of archived done items + aggregates for the board header stats.
+
+    ``total``/``total_points`` cover ALL archived done items for the project
+    (not just this page) so the frontend can show accurate counts without
+    loading everything: call with ``limit=0`` for a count-only probe.
+    """
+
+    items: list[SlimWorkItem]
+    total: int
+    total_points: int
+
+
+@router.get("/board/done-archive", response_model=DoneArchiveResponse)
+def list_done_archive(
+    project_id: int = Query(..., description="Required: project to fetch archived items for"),
+    sprint_id: int | None = Query(None, description="Optional: filter to a single sprint"),
+    limit: int = Query(25, ge=0, le=100, description="Page size; 0 = aggregates only"),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    # Same capability as the board itself — the archive is just the board's
+    # Done column past the visibility cutoff.
+    current_user: User = Depends(require_capability("project.board")),
+):
+    """Done items older than the board's visibility cutoff, newest first.
+
+    Backs the Done column's "Show older" footer. Ordered by ``completed_at``
+    DESC with limit/offset paging; ``total`` is computed before paging.
+    """
+    query = db.query(WorkItem).filter(
+        WorkItem.project_id == project_id,
+        WorkItem.status == WorkItemStatus.DONE.value,
+        WorkItem.completed_at.isnot(None),
+        WorkItem.completed_at < _board_done_cutoff(),
+    )
+    if sprint_id is not None:
+        query = query.filter(WorkItem.sprint_id == sprint_id)
+
+    total, total_points = query.with_entities(
+        func.count(WorkItem.id), func.coalesce(func.sum(WorkItem.story_points), 0)
+    ).one()
+
+    items: list[WorkItem] = []
+    if limit > 0:
+        items = (
+            query.options(selectinload(WorkItem.assignee))
+            .order_by(WorkItem.completed_at.desc())
+            .limit(limit)
+            .offset(offset)
+            .all()
+        )
+
+    return DoneArchiveResponse(
+        items=_to_slim_items(db, items), total=total, total_points=total_points
+    )
 
 
 class MyTaskResponse(BaseModel):

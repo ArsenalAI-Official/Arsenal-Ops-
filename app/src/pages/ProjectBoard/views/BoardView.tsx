@@ -12,6 +12,13 @@ export interface BoardViewProps {
   statusConfig: Record<string, BoardColumnStatusConfig>;
   /** Auth token forwarded to cards (legacy child components). */
   token: string;
+  // ── Done-column archive footer (from useDoneArchive) ────────────────────
+  /** Archived done items not yet loaded; > 0 shows the footer on Done. */
+  doneArchiveRemaining: number;
+  /** True while an archive page is in flight. */
+  doneArchiveLoading: boolean;
+  /** Loads the next archive page. */
+  onLoadOlderDone: () => void;
   // ── DnD bag (from useBoardDnd) ──────────────────────────────────────────
   draggedItem: string | null;
   dragOverColumn: string | null;
@@ -38,6 +45,9 @@ const BoardView = ({
   workItems,
   statusConfig,
   token,
+  doneArchiveRemaining,
+  doneArchiveLoading,
+  onLoadOlderDone,
   draggedItem,
   dragOverColumn,
   onDragStart,
@@ -60,6 +70,8 @@ const BoardView = ({
         const config = statusConfig[status]!;
         const columnItems = columnItemsByStatus[status] ?? [];
         const isDropTarget = dragOverColumn === status;
+        // Only the Done column has a server-side visibility cutoff / archive.
+        const isDone = status === 'done';
 
         return (
           <BoardColumn
@@ -71,6 +83,9 @@ const BoardView = ({
             isDropTarget={isDropTarget}
             draggedItem={draggedItem}
             token={token}
+            archiveRemaining={isDone ? doneArchiveRemaining : 0}
+            archiveLoading={isDone ? doneArchiveLoading : false}
+            onLoadOlder={isDone ? onLoadOlderDone : undefined}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onDrop={onDrop}
