@@ -60,3 +60,6 @@ verification-*.png
 # Playwright generated output
 app/playwright-report/
 app/test-results/
+
+# Local simplify-audit analysis reports (not part of any PR)
+.simplify-audit/

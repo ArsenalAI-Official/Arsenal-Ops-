@@ -11,7 +11,7 @@ Provides:
 
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -22,6 +22,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+
+from time_utils import utcnow
 
 load_dotenv(Path(__file__).parent.parent / ".env.test")
 
@@ -248,10 +250,18 @@ def seed_project(db, name: str = "Test Project", num_developers: int = 2) -> Pro
         description=f"Description for {name}",
         status="active",
         github_repo_urls=[],
-        created_at=datetime.utcnow(),
+        created_at=utcnow(),
     )
     db.add(project)
     db.flush()  # Ensure project.id is set before adding developers
+
+    # Unique key_prefix per seeded project. Tests routinely seed several
+    # projects in one DB, so the projects.key_prefix UNIQUE constraint (audit
+    # #25) would reject the shared default. The flushed id makes it distinct.
+    from services.project_keys import normalize_prefix
+
+    project.key_prefix = f"{normalize_prefix(name, 6) or 'P'}{project.id}"
+    db.flush()
 
     developers = []
     # Ensure at least one developer even if num_developers is 0

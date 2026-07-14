@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING
 from sqlalchemy import DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from time_utils import utcnow
+
 sys.path.append("..")
 from database import Base
 
@@ -62,9 +64,9 @@ class User(Base):
     )  # Must change password on first login
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
     )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
     password_changed_at: Mapped[datetime | None] = mapped_column(DateTime)

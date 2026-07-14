@@ -1,9 +1,10 @@
 import { Clock } from 'lucide-react';
 import { parseLocalDate } from '@/components/ProjectsPage/utils';
 import { Button } from '@/components/ui/button';
+import { Markdown } from '@/components/ui/Markdown';
 import { NumberInput } from '@/components/ui/number-input';
 import { STATUS_CONFIG, PRIORITY_COLOR } from '../constants';
-import { avatarColor, renderTextWithNewlines } from '../lib/renderContent';
+import { avatarColor } from '../lib/renderContent';
 import type { WorkItem } from '../types';
 
 export interface WorkItemViewModeProps {
@@ -78,13 +79,13 @@ export const WorkItemViewMode = ({
             </button>
           )}
         </div>
-        <p className="text-sm leading-relaxed whitespace-pre-wrap">
-          {itemDetail.description ? (
-            <span className="text-[#a3a3a3]">{renderTextWithNewlines(itemDetail.description)}</span>
-          ) : (
+        {itemDetail.description ? (
+          <Markdown>{itemDetail.description}</Markdown>
+        ) : (
+          <p className="text-sm leading-relaxed">
             <span className="text-[#555] italic">No description — click Edit to add one.</span>
-          )}
-        </p>
+          </p>
+        )}
       </div>
 
       {/* Status buttons */}

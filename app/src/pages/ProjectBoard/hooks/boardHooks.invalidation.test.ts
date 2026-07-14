@@ -254,25 +254,10 @@ describe('board optimistic status cache (R2)', () => {
       (t) => t.id === itemId,
     )?.status;
 
-  it('move: optimistic write flips the item at the exact board key', async () => {
-    const { queryClient, wrapper } = makeHarness();
-    seed(queryClient);
-    // PUT never settles → the optimistic write stays in place.
-    server.use(http.put(`${API_BASE}/workitems/:id`, () => new Promise(() => {})));
-    const { result } = renderHook(
-      () => useWorkItemMutations(ID, { ...workItemArgs(queryClient), workItemFilters: FILTERS }),
-      { wrapper },
-    );
-
-    await act(async () => {
-      result.current.moveMutation.mutate({ itemId: 'w1', newStatus: 'done' });
-    });
-
-    // If onMutate targeted a different key shape, w1 would still read 'todo'.
-    await waitFor(() => expect(statusOf(queryClient, 'w1')).toBe('done'));
-    expect(statusOf(queryClient, 'w2')).toBe('in_progress'); // untouched
-  });
-
+  // NOTE: the plain move optimistic-flip (onMutate flips the exact board key +
+  // the ['workItems'] prefix-cancel asymmetry) is OWNED by
+  // useWorkItemMutations.cacheWrites.test.ts. This file owns move ROLLBACK +
+  // invalidation only — see that file for the flip/prefix-cancel coverage.
   it('move: rejected PUT rolls the exact board key back + toasts the error', async () => {
     const { queryClient, wrapper } = makeHarness();
     seed(queryClient);

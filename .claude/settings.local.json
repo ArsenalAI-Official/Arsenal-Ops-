@@ -1,23 +1,28 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx tsc *)",
-      "Bash(echo \"EXIT=$?\")",
-      "Bash(npx vite *)",
-      "Bash(./venv/bin/python migrate_add_last_assigned_at.py)",
-      "Bash(./venv/bin/python -m pytest test_capacity.py -v --tb=short)",
-      "Bash(./venv/bin/pip install *)",
-      "Bash(./venv/bin/python -m ensurepip --upgrade)",
-      "Bash(./venv/bin/python -m pip install pytest)",
-      "Bash(./venv/bin/python -c ' *)",
-      "Bash(./venv/bin/python -m pytest test_capacity.py -q --tb=short)",
-      "Bash(./venv/bin/python -m pytest test_capacity.py::TestCapacityServiceHelper -v --tb=short)",
-      "Bash(./venv/bin/python -c \"from routers import admin, projects, workitems; print\\('OK'\\)\")",
-      "Bash(./venv/bin/python -c \"from services.capacity_service import week_boundaries, compute_capacity_breakdown, classify_ticket; ws, we = week_boundaries\\(\\); print\\(f'week_start={ws} weekday={ws.weekday\\(\\)}'\\); print\\(f'week_end  ={we} weekday={we.weekday\\(\\)}'\\)\")",
-      "Bash(./venv/bin/python -m pytest test_capacity.py -q)",
-      "Bash(npm run *)",
-      "Bash(grep -n \"activeTab.*'projects'\\\\|projects.map\\\\|setEditingProject\\\\|/project/\\\\${\\\\|navigate.*project\" \"/Users/manikyarathna/Desktop/MS Project/Kimi_Agent_ProductMind AI Not Working/app/src/pages/AdminDashboard.tsx\")",
-      "Bash(grep -n \"^const BurnTable\\\\|^const ForecastVsActualsChart\\\\|^const SpendingViewCard\\\\|^};$\" \"/Users/manikyarathna/Desktop/MS Project/Kimi_Agent_ProductMind AI Not Working/app/src/components/ProjectHub/ProjectPulseView.tsx\")"
+      "Bash(python -m ruff check services/capacity_service.py)",
+      "Bash(python -m ruff format --check services/capacity_service.py)",
+      "Bash(python3 *)",
+      "Bash(npx eslint *)",
+      "Bash(grep *)",
+      "Bash(/opt/anaconda3/bin/python *)",
+      "Bash(npx vitest *)",
+      "Skill(code-review)",
+      "Bash(git diff *)",
+      "Read(//tmp/**)",
+      "Bash(pytest tests/test_workforce_sync.py tests/test_workforce_clients.py tests/test_workforce_sync_notify.py -q)",
+      "Bash(docker compose *)",
+      "Bash(docker run *)",
+      "Bash(git fetch *)",
+      "Bash(npm install *)",
+      "Bash(gh api *)",
+      "Bash(git stash *)",
+      "Bash(git checkout *)",
+      "Bash(awk '{print $1}')",
+      "Bash(awk -F'-->' '{print $2}')",
+      "Bash(git reset *)",
+      "Bash(git merge *)"
     ]
   }
 }

@@ -1,7 +1,10 @@
-import { Activity } from 'lucide-react';
+import { Activity, ClipboardCheck } from 'lucide-react';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { MyCapacityResponse, ProjectGroup } from '../types';
 import { WEEKLY_CAPACITY, projectColor, statusBadgeColor } from '../types';
+import ReviewSubmitView from './ReviewSubmitView';
 
 interface CapacityModalProps {
   open: boolean;
@@ -14,6 +17,8 @@ interface CapacityModalProps {
   projectsByHours: ProjectGroup[];
 }
 
+type ModalView = 'summary' | 'review';
+
 const CapacityModal = ({
   open,
   onOpenChange,
@@ -24,43 +29,112 @@ const CapacityModal = ({
   totalLoggedThisWeek,
   projectsByHours,
 }: CapacityModalProps) => {
+  // View switcher: Summary (current capacity overview) ↔ Review (the new
+  // dev Submit & Sync flow). Reset to summary on close so a stale review
+  // view doesn't surface from the previous open — done in the open
+  // change handler (not a setState-in-effect, which the React 19 hooks
+  // rules disallow).
+  const [view, setView] = useState<ModalView>('summary');
+  // Lifted from ReviewSubmitView so we can lock the dialog while the
+  // QuickBooks submit/sync is mid-flight. Closing mid-sync risks the
+  // dev not seeing the success/partial-failure banner, and (worse) a
+  // partial failure becoming invisible to them.
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleOpenChange = (next: boolean) => {
+    // Block close while the submit/sync mutation is running. The
+    // Syncing… spinner on the Submit button is the user's signal that
+    // something's in flight; they get the dialog back automatically
+    // when the mutation resolves.
+    if (!next && isSyncing) return;
+    if (!next) setView('summary');
+    onOpenChange(next);
+  };
+
+  // Mon-Fri of the current calendar week, derived locally so the
+  // Review view's header matches what the dev sees in the day cards
+  // below. The Summary view continues to display the backend's
+  // Sat→Fri capacity window (`data.week_start`/`week_end`) because
+  // capacity rolls up across the full Sat-Fri pulse week.
+  const reviewWeek = (() => {
+    const today = new Date();
+    const dow = today.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+    const daysBackToMonday = (dow + 6) % 7;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - daysBackToMonday);
+    const friday = new Date(monday);
+    friday.setDate(monday.getDate() + 4);
+    return { monday, friday };
+  })();
+  const fmtMd = (d: Date) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const fmtMdy = (d: Date) =>
+    d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-[#0d0d0d] border-[rgba(255,255,255,0.07)] max-w-[95vw] max-h-[88vh] overflow-y-auto">
-        <DialogHeader className="pb-2">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="bg-[#0d0d0d] border-[rgba(255,255,255,0.07)] w-[92vw] max-w-[900px] sm:max-w-[900px] h-[90vh] max-h-[90vh] flex flex-col overflow-hidden"
+        // Hide the close X while syncing AND block the Radix-default
+        // outside-click + Escape paths so the user can't dismiss the
+        // dialog mid-sync no matter how they try.
+        showCloseButton={!isSyncing}
+        onPointerDownOutside={(e) => {
+          if (isSyncing) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isSyncing) e.preventDefault();
+        }}
+      >
+        <DialogHeader className="pb-2 shrink-0">
           <DialogTitle className="text-white flex items-center gap-2.5 text-lg">
             <Activity className="w-5 h-5 text-[#E0B954]" />
-            My Capacity This Week
+            {view === 'review' ? 'Review & Submit Hours' : 'My Capacity This Week'}
           </DialogTitle>
-          {data && (
+          {view === 'review' ? (
             <p className="text-xs text-[#737373] font-normal mt-1.5 flex items-center gap-2 flex-wrap">
               <span className="font-mono text-[#a3a3a3]">
-                {new Date(data.week_start).toLocaleDateString(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                })}
+                {fmtMd(reviewWeek.monday)}
                 {' → '}
-                {new Date(data.week_end).toLocaleDateString(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                })}
+                {fmtMdy(reviewWeek.friday)}
               </span>
               <span className="text-[rgba(255,255,255,0.15)]">·</span>
-              <span>Sat → Fri, UTC</span>
+              <span>Mon → Fri</span>
             </p>
+          ) : (
+            data && (
+              <p className="text-xs text-[#737373] font-normal mt-1.5 flex items-center gap-2 flex-wrap">
+                <span className="font-mono text-[#a3a3a3]">
+                  {new Date(data.week_start).toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                  {' → '}
+                  {new Date(data.week_end).toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                </span>
+                <span className="text-[rgba(255,255,255,0.15)]">·</span>
+                <span>Sat → Fri, UTC</span>
+              </p>
+            )
           )}
         </DialogHeader>
 
-        {data && (
-          <div className="space-y-6 mt-4">
+        {view === 'review' && (
+          <ReviewSubmitView onBack={() => setView('summary')} onSyncingChange={setIsSyncing} />
+        )}
+
+        {view === 'summary' && data && (
+          <div className="flex flex-col flex-1 min-h-0 gap-6 mt-4">
             {/* Hero — two tiles side by side. Capacity tile owns the
                 stacked-bar + project legend so the chips visually anchor
                 to the bar they describe. Logged tile is a single big
                 number for the at-a-glance "did I clock anything this
                 week" read. */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 shrink-0">
               {/* Capacity used */}
               <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-3">
@@ -143,16 +217,15 @@ const CapacityModal = ({
             </div>
 
             {/* Breakdown — one card per project, stacked vertically so
-                each card owns the full dialog width. Wide cards mean
-                ticket rows can show key + status, title, and metadata
-                without truncation; the counted-hours stamp pins to the
-                right edge and stays visually anchored. */}
+                each card owns the full dialog width. The hero tiles and
+                footer button stay pinned; only this list scrolls when
+                the project count exceeds the dialog height. */}
             {projectsByHours.length > 0 ? (
-              <div>
-                <h3 className="text-[10px] uppercase tracking-wider text-[#737373] font-semibold mb-3">
+              <div className="flex flex-col flex-1 min-h-0">
+                <h3 className="text-[10px] uppercase tracking-wider text-[#737373] font-semibold mb-3 shrink-0">
                   Breakdown by Project
                 </h3>
-                <div className="space-y-4">
+                <div className="space-y-4 flex-1 min-h-0 overflow-y-auto pr-1">
                   {projectsByHours.map((p) => {
                     const color = projectColor(p.projectId);
                     const sortedTickets = [...p.tickets].sort(
@@ -256,6 +329,21 @@ const CapacityModal = ({
                 </p>
               </div>
             )}
+
+            {/* Footer — gateway to the Review & Submit view. Pinned at
+                the bottom of the dialog (shrink-0) so it stays visible
+                as the project list scrolls above it. */}
+            <div className="flex justify-end pt-2 border-t border-[rgba(255,255,255,0.05)] shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setView('review')}
+                className="bg-[rgba(224,185,84,0.08)] border-[rgba(224,185,84,0.3)] text-[#E0B954] hover:bg-[rgba(224,185,84,0.16)] hover:text-[#E0B954]"
+              >
+                <ClipboardCheck className="w-4 h-4 mr-2" />
+                Review &amp; Submit Hours
+              </Button>
+            </div>
           </div>
         )}
       </DialogContent>

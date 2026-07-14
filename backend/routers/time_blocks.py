@@ -106,6 +106,11 @@ def _hours_between(start: datetime, end: datetime) -> int:
     return round((end - start).total_seconds() / 3600.0)
 
 
+# Tolerance for float/second jitter when checking a duration is a whole number
+# of hours (e.g. 3599s vs 3600s). ~1 second.
+_WHOLE_HOUR_EPSILON = 1.0 / 3600.0
+
+
 def _naive_utc(dt: datetime) -> datetime:
     """Normalize an inbound datetime to naive-UTC.
 
@@ -152,6 +157,15 @@ def _authorize_block_on_item(item: WorkItem, caller_dev: Developer) -> None:
 def _validate_interval(start: datetime, end: datetime) -> int:
     if end <= start:
         raise HTTPException(status_code=400, detail="end_time must be after start_time")
+    # Whole-hours-only for v1: reject sub-hour/fractional durations instead of
+    # silently rounding (a 1.5h block would otherwise bill 2h in QuickBooks).
+    # Fractional support lands with feat/week-calendar-minutes.
+    raw_hours = (end - start).total_seconds() / 3600.0
+    if abs(raw_hours - round(raw_hours)) > _WHOLE_HOUR_EPSILON:
+        raise HTTPException(
+            status_code=400,
+            detail="Blocks must be a whole number of hours. Snap to the hour grid.",
+        )
     hours = _hours_between(start, end)
     if hours <= 0:
         raise HTTPException(status_code=400, detail="Block must be at least 1 hour")

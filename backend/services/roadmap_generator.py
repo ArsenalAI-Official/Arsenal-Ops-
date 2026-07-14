@@ -19,6 +19,7 @@ import asyncio
 import datetime
 import io
 import json
+import math
 import os
 from typing import Any
 
@@ -306,7 +307,11 @@ Return ONLY this JSON object — no prose, no markdown fences:
                         hrs_f = float(hrs)
                     except (TypeError, ValueError):
                         continue
-                    if hrs_f > 0:
+                    # Guard against non-finite values: float("inf")/float("nan")
+                    # don't raise, and the AI blob is untrusted. A non-finite
+                    # hour would poison the stored estimate and can't be JSON-
+                    # serialized by Starlette's encoder (allow_nan=False).
+                    if math.isfinite(hrs_f) and hrs_f > 0:
                         week_hours[wk] = hrs_f
 
             # Reconcile effort_hrs with the sum of week_hours so the parser's
@@ -316,6 +321,8 @@ Return ONLY this JSON object — no prose, no markdown fences:
                 effort_raw = t.get("effort_hrs")
                 effort_hrs = float(effort_raw) if effort_raw is not None else 0.0
             except (TypeError, ValueError):
+                effort_hrs = 0.0
+            if not math.isfinite(effort_hrs):
                 effort_hrs = 0.0
 
             if week_hours:
@@ -432,8 +439,15 @@ Return ONLY this JSON object — no prose, no markdown fences:
                 milestone_name: str = m_name,
                 milestone_weeks: list[str] = m_weeks,
             ) -> None:
+                # Leaf rows may be typed "TASK" or "STORY" — parser.py treats
+                # them identically. Honor whatever the suggestion carries so the
+                # scaffold can showcase both; default to TASK, and fall back to
+                # TASK for any unrecognized value.
+                row_type = str(t.get("row_type") or "TASK").strip().upper()
+                if row_type not in ("TASK", "STORY"):
+                    row_type = "TASK"
                 row = [
-                    "TASK",
+                    row_type,
                     t["name"],
                     t.get("description", ""),
                     milestone_name,

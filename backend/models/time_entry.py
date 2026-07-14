@@ -4,8 +4,10 @@ import sys
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Index, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from time_utils import utcnow
 
 sys.path.append("..")
 from database import Base
@@ -40,8 +42,37 @@ class TimeEntry(Base):
     end_time: Mapped[datetime | None] = mapped_column(DateTime)
 
     # Timestamp this entry was recorded (audit), distinct from start_time (when
-    # the work happened).
-    logged_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    # the work happened). The QuickBooks sync and the timesheet review key on
+    # COALESCE(start_time, logged_at) so positioned blocks bill on the day worked.
+    logged_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+
+    # ── QuickBooks sync state ────────────────────────────────────────────
+    # Once successfully pushed to QB, holds the returned TimeActivity Id.
+    # Indexed because the sync worker filters on `IS NULL`; presence of
+    # this column on a row also blocks re-syncing (idempotency).
+    workforce_entry_id: Mapped[str | None] = mapped_column(String(64), index=True)
+
+    # When the dev clicked "Submit & Sync" in the Review modal (or the
+    # admin force-sync ran). NULL = draft (not yet reviewed by the dev).
+    # Combined with `workforce_entry_id`:
+    #   (NULL, NULL)         draft — editable, picked up by Submit
+    #   (SET,  NULL)         submitted, sync failed — retried on next Submit
+    #   (SET,  SET)          synced — locked terminal state
+    # The (NULL, SET) combo is impossible post-migration: the backfill
+    # backfills `submitted_at = NOW()` for any pre-existing synced row,
+    # and every write path (dev submit, admin force-sync) sets both
+    # together going forward.
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+
+    # Whether this entry's hours are billable to the client. Controlled in
+    # the Review & Submit modal at the (client, day) level — toggling a
+    # client's "Billable" checkbox for a day sets this on every one of that
+    # client's entries logged that day. Drives `BillableStatus` on the
+    # QuickBooks push (Billable / NotBillable). Defaults to NOT billable so
+    # nothing is billed to a client without an explicit opt-in.
+    billable: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
 
     # Relationships
     work_item: Mapped["WorkItem"] = relationship("WorkItem", back_populates="time_entries")
@@ -63,4 +94,7 @@ class TimeEntry(Base):
             "start_time": self.start_time.isoformat() if self.start_time else None,
             "end_time": self.end_time.isoformat() if self.end_time else None,
             "logged_at": self.logged_at.isoformat() if self.logged_at else None,
+            "workforce_entry_id": self.workforce_entry_id,
+            "submitted_at": self.submitted_at.isoformat() if self.submitted_at else None,
+            "billable": self.billable,
         }

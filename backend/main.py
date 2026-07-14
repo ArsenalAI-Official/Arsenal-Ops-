@@ -7,13 +7,14 @@ import logging
 import os
 
 # Load environment variables
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse, ORJSONResponse
+from fastapi.responses import JSONResponse
 
 load_dotenv()
 load_dotenv(Path(__file__).parent.parent / ".env")
@@ -33,7 +34,19 @@ from routers.projects import router as projects_router  # noqa: E402
 from routers.pulse import router as pulse_router  # noqa: E402
 from routers.roadmap import router as roadmap_router  # noqa: E402
 from routers.time_blocks import router as time_blocks_router  # noqa: E402
+from routers.workforce import callback_router as workforce_callback_router  # noqa: E402
+from routers.workforce import router as workforce_router  # noqa: E402
 from routers.workitems import router as workitems_router  # noqa: E402
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan: run DB init + idempotent migrations + admin
+    seeding on startup. Replaces the deprecated ``@app.on_event("startup")``.
+    """
+    await _startup()
+    yield
+
 
 # Create FastAPI app
 app = FastAPI(
@@ -48,7 +61,7 @@ app = FastAPI(
     - **Sprint Management**: Organize work into sprints
     """,
     version="1.0.0",
-    default_response_class=ORJSONResponse,
+    lifespan=lifespan,
 )
 
 # CORS middleware - MUST be added before other middleware/routes
@@ -144,11 +157,12 @@ app.include_router(personal_tasks_router)
 app.include_router(overview_router)
 app.include_router(pulse_router)
 app.include_router(project_categories_router)
+app.include_router(workforce_router)
+app.include_router(workforce_callback_router)
 
 
-# Startup event for database initialization
-@app.on_event("startup")
-async def startup_event():
+# Database init + idempotent migrations + admin seeding, invoked from `lifespan`.
+async def _startup():
     """Initialize database on startup"""
     try:
         from database import SessionLocal, engine, init_db

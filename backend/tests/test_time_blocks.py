@@ -200,6 +200,23 @@ def test_create_rejects_inverted_interval(db, seed):
     assert exc.value.status_code == 400
 
 
+def test_create_rejects_fractional_hours(db, seed):
+    """Whole-hours-only for v1: a 90-minute block is rejected rather than
+    silently rounded (which would bill 2h in QuickBooks). See
+    time_blocks._validate_interval."""
+    item = seed["item"]
+    with pytest.raises(HTTPException) as exc:
+        create_time_block(
+            request=CreateTimeBlockRequest(
+                work_item_id=item.id, start_time=_at(0), end_time=_at(1.5)
+            ),
+            db=db,
+            current_user=seed["user"],
+        )
+    assert exc.value.status_code == 400
+    assert "whole number of hours" in exc.value.detail.lower()
+
+
 def test_resize_recomputes_hours(db, seed):
     item = seed["item"]
     block = create_time_block(

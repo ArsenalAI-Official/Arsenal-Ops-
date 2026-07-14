@@ -32,6 +32,8 @@ from datetime import datetime
 from sqlalchemy import DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
 
+from time_utils import utcnow
+
 sys.path.append("..")
 from database import Base
 
@@ -44,7 +46,7 @@ class AppliedMigration(Base):
     name: Mapped[str] = mapped_column(String(255), primary_key=True)
     # When the migration was first applied. Not used by the gate logic but
     # invaluable for forensic "when did this DB get backfilled?" questions.
-    applied_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    applied_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     def __repr__(self) -> str:
         return f"<AppliedMigration name={self.name!r} applied_at={self.applied_at}>"

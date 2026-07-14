@@ -392,6 +392,131 @@ def run_migrations():
         except Exception as e:
             print(f"[MIGRATION ERROR] {e}")
 
+        # DISABLED: Backfill of existing project key_prefixes (audit #25).
+        #
+        # This one-shot data migration re-keyed *existing* projects/work items
+        # onto unique prefixes and added the `uq_projects_key_prefix` index.
+        # It has been commented out intentionally: this branch only fixes the
+        # issue going forward — new projects get a unique prefix from
+        # `create_project` -> `_generate_unique_prefix` (routers/projects.py),
+        # which enforces uniqueness at the application level via a DB query and
+        # does not depend on this block. The CREATE UNIQUE INDEX is part of the
+        # same unit and can only run after the backfill dedups existing rows,
+        # so the whole block is disabled together rather than piecemeal. The
+        # code is retained here so the full backfill can be re-enabled later.
+        #
+        # Historically create_project wrote the prefix into the `status` column
+        # and left `key_prefix` at its 'PROJ' default, so every project shared
+        # the PROJ prefix and work-item ids (PROJ-505) weren't unique across
+        # projects. This backfill:
+        #   1. Keeps any existing distinct, non-default prefix.
+        #   2. Derives a unique prefix from the name for every other project.
+        #   3. Re-keys that project's existing work items onto the new prefix
+        #      (PROJ-42 -> ASSE-42; the trailing number was globally unique, so
+        #      it stays collision-free within the project).
+        #   4. Repairs `status` values clobbered with a non-enum string.
+        #   5. Adds a UNIQUE index so the invariant holds going forward.
+        # Guarded on the unique index existing, so it runs exactly once. The
+        # whole block is a SINGLE transaction (one commit at the end): the
+        # UPDATEs and the CREATE UNIQUE INDEX succeed or roll back together, so
+        # there is never a committed-but-unindexed state that would re-run the
+        # full sweep on every boot. A xact-scoped advisory lock serializes
+        # concurrently-booting Gunicorn workers, and we double-check the index
+        # inside the lock (a peer worker may have just finished).
+        #
+        # try:
+        #     # This backfill is Postgres-only: it relies on `pg_indexes`,
+        #     # `regexp_replace`, and advisory locks. Non-Postgres engines (the
+        #     # SQLite test/local DBs) get the uniqueness invariant directly from
+        #     # `Project.key_prefix`'s `unique=True` via `create_all`, so there is
+        #     # nothing to backfill and running the block would just raise
+        #     # `no such table: pg_indexes` on every boot.
+        #     if conn.dialect.name == "postgresql":
+        #         # Arbitrary constant namespacing this one migration's lock.
+        #         conn.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": 840251001})
+        #         idx = conn.execute(
+        #             text("""
+        #             SELECT 1 FROM pg_indexes
+        #             WHERE tablename = 'projects' AND indexname = 'uq_projects_key_prefix'
+        #         """)
+        #         ).fetchone()
+        #
+        #         if not idx:
+        #             from services.project_keys import derive_prefix_base
+        #
+        #             print("[MIGRATION] Backfilling unique project key_prefixes...")
+        #             # Mirrors models.project.ProjectStatus; hardcoded to avoid an
+        #             # import cycle (models import database.Base).
+        #             valid_statuses = {
+        #                 "ideation",
+        #                 "planning",
+        #                 "development",
+        #                 "testing",
+        #                 "launched",
+        #                 "archived",
+        #             }
+        #             rows = conn.execute(
+        #                 text("SELECT id, name, key_prefix, status FROM projects ORDER BY id")
+        #             ).fetchall()
+        #
+        #             taken: set[str] = set()
+        #             keep: dict[int, str] = {}
+        #             # Pass 1: preserve existing distinct, non-default prefixes.
+        #             for r in rows:
+        #                 kp = (r.key_prefix or "").strip().upper()
+        #                 if kp and kp != "PROJ" and kp not in taken:
+        #                     keep[r.id] = kp
+        #                     taken.add(kp)
+        #             # Pass 2: derive + dedup a prefix for everything else.
+        #             assign: dict[int, str] = {}
+        #             for r in rows:
+        #                 if r.id in keep:
+        #                     continue
+        #                 base = derive_prefix_base(r.name)
+        #                 cand, n = base, 2
+        #                 while cand in taken:
+        #                     suffix = str(n)
+        #                     cand = base[: 10 - len(suffix)] + suffix
+        #                     n += 1
+        #                 taken.add(cand)
+        #                 assign[r.id] = cand
+        #
+        #             for r in rows:
+        #                 new_kp = keep.get(r.id) or assign[r.id]
+        #                 new_status = r.status if r.status in valid_statuses else "ideation"
+        #                 conn.execute(
+        #                     text(
+        #                         "UPDATE projects SET key_prefix = :kp, status = :st WHERE id = :id"
+        #                     ),
+        #                     {"kp": new_kp, "st": new_status, "id": r.id},
+        #                 )
+        #                 # Only re-key when the prefix actually changed.
+        #                 if r.id in assign:
+        #                     conn.execute(
+        #                         text("""
+        #                         UPDATE work_items
+        #                         SET key = :kp || '-' || regexp_replace(key, '^.*-', '')
+        #                         WHERE project_id = :pid AND key LIKE '%-%'
+        #                     """),
+        #                         {"kp": new_kp, "pid": r.id},
+        #                     )
+        #
+        #             conn.execute(
+        #                 text("CREATE UNIQUE INDEX uq_projects_key_prefix ON projects(key_prefix)")
+        #             )
+        #             # Single atomic commit for the UPDATEs + the index (and it
+        #             # releases the advisory lock). If CREATE INDEX had failed, the
+        #             # except below rolls the UPDATEs back too, so the next boot
+        #             # retries from clean data instead of looping on committed rows.
+        #             conn.commit()
+        #             print(
+        #                 f"[MIGRATION] key_prefix backfill complete "
+        #                 f"({len(keep)} kept, {len(assign)} regenerated)."
+        #             )
+        # except Exception as e:
+        #     print(f"[MIGRATION ERROR] key_prefix backfill: {e}")
+        #     conn.rollback()
+
         # Migration: Add is_resolved column to comments
         try:
             result = conn.execute(
@@ -724,6 +849,164 @@ def run_migrations():
                 )
         except Exception as e:
             print(f"[MIGRATION ERROR] developers.is_external: {e}")
+
+        # ── Workforce / QuickBooks Time integration columns ───────────────
+        # Adds the additive sync-state columns: two on projects (which QB
+        # Customer to bill to + cached display name) and one on time_entries
+        # (the QB TimeActivity id, used for idempotency on resync). The
+        # workforce_integration table itself is created by
+        # `Base.metadata.create_all` once the new model is imported (see
+        # models/workforce_integration.py) — no DDL needed for it here.
+        for table, column, ddl in [
+            ("projects", "workforce_client_id", "VARCHAR(64)"),
+            ("projects", "workforce_client_name", "VARCHAR(255)"),
+            ("time_entries", "workforce_entry_id", "VARCHAR(64)"),
+            # Per-entry billable flag, set per (client, day) in the Review &
+            # Submit modal. Defaults FALSE so existing + new entries are
+            # non-billable until a dev explicitly checks the client's box.
+            ("time_entries", "billable", "BOOLEAN NOT NULL DEFAULT FALSE"),
+            ("workforce_integration", "company_name", "VARCHAR(255)"),
+        ]:
+            try:
+                exists = conn.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_name = :t AND column_name = :c"
+                    ),
+                    {"t": table, "c": column},
+                ).fetchone()
+                if not exists:
+                    print(f"[MIGRATION] Adding {table}.{column}...")
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+                    conn.commit()
+            except Exception as e:
+                print(f"[MIGRATION ERROR] {table}.{column}: {e}")
+
+        # `time_entries.submitted_at` for the dev Review-and-Submit flow.
+        # Tracks when a developer clicked "Submit & Sync" in the modal (or
+        # when admin force-sync ran). The eligibility query for the dev
+        # endpoint joins this with `workforce_entry_id` — see
+        # `services/timesheet_service.py` and the column's docstring in
+        # `models/time_entry.py` for the state machine.
+        try:
+            exists = conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = :t AND column_name = :c"
+                ),
+                {"t": "time_entries", "c": "submitted_at"},
+            ).fetchone()
+            if not exists:
+                print("[MIGRATION] Adding time_entries.submitted_at...")
+                conn.execute(
+                    text("ALTER TABLE time_entries ADD COLUMN submitted_at TIMESTAMP NULL")
+                )
+                conn.commit()
+                # Backfill: already-synced rows are de-facto submitted —
+                # backfill them so they don't show up as "unsubmitted" in
+                # the new Review modal. Pre-existing un-synced rows stay
+                # NULL so devs submit them through the new flow.
+                conn.execute(
+                    text(
+                        "UPDATE time_entries SET submitted_at = CURRENT_TIMESTAMP "
+                        "WHERE workforce_entry_id IS NOT NULL AND submitted_at IS NULL"
+                    )
+                )
+                conn.commit()
+                print("[MIGRATION] Backfilled submitted_at for already-synced time_entries")
+        except Exception as e:
+            print(f"[MIGRATION ERROR] time_entries.submitted_at: {e}")
+
+        # `comments.time_entry_id` for keeping the auto-generated
+        # "Logged Xh" comment in sync with the TimeEntry it describes.
+        # See `models/comment.py` docstring and the dev Review-and-Submit
+        # edit/delete endpoints in `routers/developers.py`. CASCADE on
+        # delete means removing a TimeEntry also removes the linked
+        # comment — no orphaned "Logged Xh" rows in the side panel.
+        try:
+            exists = conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = :t AND column_name = :c"
+                ),
+                {"t": "comments", "c": "time_entry_id"},
+            ).fetchone()
+            if not exists:
+                print("[MIGRATION] Adding comments.time_entry_id...")
+                conn.execute(
+                    text(
+                        "ALTER TABLE comments ADD COLUMN time_entry_id INTEGER NULL "
+                        "REFERENCES time_entries(id) ON DELETE CASCADE"
+                    )
+                )
+                conn.commit()
+        except Exception as e:
+            print(f"[MIGRATION ERROR] comments.time_entry_id: {e}")
+
+        # Indexes for the sync worker's queue queries — match the SQLAlchemy
+        # `index=True` on these columns. Skipped silently on SQLite (the
+        # CREATE INDEX IF NOT EXISTS is Postgres syntax) since dev tooling
+        # falls back to SQLite where these indexes are negligible.
+        for idx_name, table, column in [
+            ("idx_projects_workforce_client_id", "projects", "workforce_client_id"),
+            ("idx_time_entries_workforce_entry_id", "time_entries", "workforce_entry_id"),
+            ("idx_time_entries_submitted_at", "time_entries", "submitted_at"),
+            ("idx_comments_time_entry_id", "comments", "time_entry_id"),
+        ]:
+            try:
+                conn.execute(text(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table} ({column})"))
+                conn.commit()
+            except Exception as e:
+                print(f"[MIGRATION ERROR] {idx_name}: {e}")
+
+        # workforce_clients composite PK upgrade. The model now declares
+        # PK = (qb_customer_id, realm_id) so a same-id customer in two
+        # realms can coexist. Fresh installs get this from create_all;
+        # an early-iteration deploy that landed the single-column PK
+        # needs to migrate. Postgres only — sqlite is dropped/recreated
+        # in tests so it never sees the old shape.
+        try:
+            table_exists = conn.execute(
+                text(
+                    "SELECT 1 FROM information_schema.tables WHERE table_name = 'workforce_clients'"
+                )
+            ).fetchone()
+            if table_exists:
+                # Count columns in the primary key. 1 = old single-col
+                # PK on qb_customer_id, 2 = already composite.
+                pk_cols = conn.execute(
+                    text(
+                        "SELECT a.attname "
+                        "FROM pg_index i "
+                        "JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) "
+                        "WHERE i.indrelid = 'workforce_clients'::regclass AND i.indisprimary"
+                    )
+                ).fetchall()
+                pk_names = {r[0] for r in pk_cols}
+                if pk_names == {"qb_customer_id"}:
+                    print(
+                        "[MIGRATION] Upgrading workforce_clients PK to "
+                        "(qb_customer_id, realm_id)..."
+                    )
+                    # Drop the old PK and add the composite. Safe because
+                    # the single-column PK already implied unique
+                    # qb_customer_id values, so no duplicates exist that
+                    # the composite would block.
+                    conn.execute(
+                        text("ALTER TABLE workforce_clients DROP CONSTRAINT workforce_clients_pkey")
+                    )
+                    conn.execute(
+                        text(
+                            "ALTER TABLE workforce_clients ADD PRIMARY KEY (qb_customer_id, realm_id)"
+                        )
+                    )
+                    conn.commit()
+        except Exception as e:
+            # Non-fatal: sqlite raises here (no information_schema), as
+            # do brand-new Postgres installs before workforce_clients
+            # has been created by create_all. Either way the model's
+            # composite PK applies to fresh creates.
+            print(f"[MIGRATION INFO] workforce_clients PK check skipped: {e}")
 
 
 SYSTEM_ROLES: list[tuple[str, str, list[str]]] = [
@@ -1060,13 +1343,49 @@ def reconcile_internal_developers():
 
     db = SessionLocal()
     try:
-        # Pass 1: flip internal-domain Developers that were mis-flagged external.
-        flipped = 0
-        externals = db.query(Developer).filter(Developer.is_external.is_(True)).all()
-        for dev in externals:
-            if is_internal(dev.email):
-                dev.is_external = False
-                flipped += 1
+        # Pass 1: reconcile every Developer's `is_external` flag against its
+        # email domain — in BOTH directions:
+        #   • internal domain but flagged external  → flip to internal (promote)
+        #   • non-internal domain but flagged internal → flip to external (demote)
+        # The demote direction is essential: `is_external` defaults to FALSE
+        # (the column default), so a developer whose domain is NOT in
+        # ALLOWED_EMAIL_DOMAINS would otherwise stay "internal" and wrongly
+        # appear in the Employees tab (which filters `is_external == False`).
+        all_devs = db.query(Developer).all()
+        promotions: list[Developer] = []  # external → internal
+        demotions: list[Developer] = []  # internal → external
+        for dev in all_devs:
+            should_be_external = not is_internal(dev.email)
+            if bool(dev.is_external) == should_be_external:
+                continue
+            (demotions if should_be_external else promotions).append(dev)
+
+        # Misconfig guard for the DANGEROUS (demote) direction. A wrong-but-
+        # nonempty ALLOWED_EMAIL_DOMAINS (typo, partial list, domain rename)
+        # makes is_internal() return False for real employees, so Pass 1 would
+        # demote them en masse — and _get_internal_developer_or_404 then hides
+        # the timesheet/capacity feature for everyone, silently. The empty-var
+        # early-return above only covers the *unset* case, not this one.
+        # Promotions are always safe to apply; only demotions can disable the
+        # feature. If demotions would flip a MAJORITY of the currently-internal
+        # population, assume misconfiguration: skip demotions this boot (still
+        # applying promotions) and log loudly so it's diagnosable.
+        currently_internal = sum(1 for d in all_devs if not bool(d.is_external))
+        if demotions and currently_internal and len(demotions) > currently_internal / 2:
+            print(
+                f"[RECONCILE] SKIPPING {len(demotions)} developer demotion(s) to "
+                f"external — that would flip a majority of the {currently_internal} "
+                f"currently-internal developer(s), which almost always means "
+                f"ALLOWED_EMAIL_DOMAINS is misconfigured (parsed: {sorted(allowed)}). "
+                f"Fix the domain list and reboot. Promotions were still applied."
+            )
+            demotions = []
+
+        for dev in promotions:
+            dev.is_external = False
+        for dev in demotions:
+            dev.is_external = True
+        flipped = len(promotions) + len(demotions)
 
         # Pass 2: insert missing Developer rows for internal-domain Users.
         # One query for existing Developer emails (set membership beats N selects).
@@ -1090,8 +1409,8 @@ def reconcile_internal_developers():
             db.commit()
             if flipped:
                 print(
-                    f"[RECONCILE] Flipped {flipped} internal-domain developer(s) "
-                    "from external to internal"
+                    f"[RECONCILE] Reconciled {flipped} developer(s)' is_external flag "
+                    "to match their email domain"
                 )
             if inserted:
                 print(

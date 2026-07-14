@@ -3,12 +3,25 @@
 //
 // Order matters: extend assertions → mock auth at the module boundary →
 // polyfill jsdom gaps → install the MSW lifecycle + per-test reset chain.
+import { URLSearchParams as NodeURLSearchParams } from 'node:url';
+
 import { cleanup } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 
 import { resetMockServerState, server } from '@/mocks/node';
 import { authModuleMock, resetMockAuthState } from '@/test-utils/authMocks';
+
+// ── URLSearchParams realm fix ───────────────────────────────────────────────
+// jsdom installs its OWN URLSearchParams on the global (a different realm than
+// Node's). MSW is backed by Node's undici fetch, whose Request constructor
+// brand-checks the request body against Node's URLSearchParams — and under
+// Node 20 (CI) it rejects jsdom's cross-realm instance with
+// "Expected init.body to be an instance of URLSearchParams". Node 24 (local) is
+// lenient, so this only surfaces in CI. App code legitimately posts a
+// URLSearchParams body (AuthContext.login, OAuth2 password flow), so point the
+// global back at Node's implementation to keep the realms aligned everywhere.
+globalThis.URLSearchParams = NodeURLSearchParams as unknown as typeof globalThis.URLSearchParams;
 
 // ── Auth: replace the real provider at the module boundary ──────────────────
 // The real AuthContext talks to the backend and runs idle-timeout effects.

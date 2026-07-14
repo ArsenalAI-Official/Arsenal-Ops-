@@ -67,14 +67,6 @@ export interface ProjectTabLike {
   };
 }
 
-/** Convert a snake_case role/key to PascalCase for display. */
-export function toPascalCase(str: string): string {
-  return str
-    .split('_')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join('');
-}
-
 /** Does wildcard `grant` cover `key`? (`*` covers all; `x.*` covers `x` and `x.…`) */
 export function wildcardCovers(grant: string, key: string): boolean {
   if (grant === '*') return true;
@@ -358,6 +350,12 @@ export function buildPickerCatalog(
           description: 'View, create, edit, delete roles and capability grants',
           readGrant: 'admin.roles',
           writeGrant: 'admin.roles_write',
+        },
+        {
+          label: 'Integrations',
+          description:
+            'Connect / disconnect external integrations (QuickBooks Time) and trigger manual syncs',
+          readGrant: 'admin.workforce_connect',
         },
       ],
     },

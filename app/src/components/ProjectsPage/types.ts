@@ -36,6 +36,10 @@ export interface CreateProjectForm {
   name: string;
   description: string;
   github_repo_url: string;
+  /** Optional work-item key prefix (e.g. `ASSE` → `ASSE-42`). Blank means the
+   *  backend derives a unique one from the name. Normalized to uppercase
+   *  alphanumerics as the user types. */
+  key_prefix: string;
   /** Category to assign on create. `null` (or omitted) means uncategorized.
    *  Backend POST /api/projects/ already accepts this field. */
   category_id: number | null;

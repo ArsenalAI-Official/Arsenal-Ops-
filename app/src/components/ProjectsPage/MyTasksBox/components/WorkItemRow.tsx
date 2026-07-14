@@ -127,28 +127,11 @@ const WorkItemRow = ({
                   classNames={{
                     months: 'flex flex-col',
                     month: 'space-y-3',
-                    caption: 'flex justify-between items-center px-0 pb-3 relative h-7 mb-2',
                     caption_label: 'text-sm font-semibold text-white',
                     nav: 'space-x-1 flex items-center',
-                    nav_button:
-                      'text-[#a3a3a3] hover:text-[#E0B954] hover:bg-[rgba(224,185,84,0.1)] rounded-md p-1 transition-colors',
-                    nav_button_previous: 'absolute left-0',
-                    nav_button_next: 'absolute right-0',
-                    table: 'w-full border-collapse',
-                    head_row: 'flex',
-                    head_cell:
-                      'text-[10px] uppercase tracking-wider font-semibold text-[#737373] w-9 h-7 flex items-center justify-center',
-                    row: 'flex w-full gap-0.5 mt-1',
-                    cell: 'relative p-0 text-center text-sm focus-within:relative focus-within:z-20',
                     day: 'h-9 w-9 p-0 font-normal',
                     day_button:
                       'text-white hover:bg-[rgba(224,185,84,0.15)] hover:text-[#E0B954] rounded-lg h-9 w-9 transition-all',
-                    day_selected:
-                      'bg-gradient-to-br from-[#E0B954] to-[#C79E3B] text-[#0d0d0d] hover:from-[#E0B954] hover:to-[#C79E3B] hover:text-[#0d0d0d] font-bold shadow-lg shadow-[#E0B954]/30',
-                    day_today: 'ring-1 ring-[#E0B954]/40 text-[#E0B954] font-semibold',
-                    day_outside: 'text-[#3a3a3a]',
-                    day_disabled: 'text-[#2a2a2a] opacity-40 cursor-not-allowed',
-                    day_hidden: 'invisible',
                   }}
                 />
               </div>
