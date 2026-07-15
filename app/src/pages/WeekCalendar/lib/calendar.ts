@@ -199,13 +199,16 @@ export function intervalToBlock(
     startDate.getUTCMonth(),
     startDate.getUTCDate(),
   );
+  const endDay = Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate());
   const weekStartDay = Date.UTC(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate());
   const dayIdx = Math.round((startDay - weekStartDay) / 86_400_000);
   const toDecimal = (d: Date): number => d.getUTCHours() + d.getUTCMinutes() / 60;
   const start = toDecimal(startDate);
-  let end = toDecimal(endDate);
-  // A block ending exactly at midnight decodes to 0 (next-day 00:00Z); treat it
-  // as 24:00 of the same day so height and per-day totals stay positive.
-  if (end <= start) end += 24;
+  // Offset the end by however many whole days it lands after the start, so a
+  // block ending at midnight (next-day 00:00Z) reads as 24:00 and a block that
+  // spans past midnight keeps a positive height — without inflating a genuinely
+  // zero-length interval (same instant → +0 days → unchanged).
+  const endDayOffset = Math.round((endDay - startDay) / 86_400_000);
+  const end = toDecimal(endDate) + endDayOffset * 24;
   return { dayIdx, start, end };
 }

@@ -381,7 +381,9 @@ def list_week_blocks(
             TimeEntry.submitted_at.is_(None),
             TimeEntry.workforce_entry_id.is_(None),
         )
-        .order_by(TimeEntry.logged_at.desc())
+        # id tiebreaker so the newest-N cap is deterministic at the boundary
+        # (entries sharing a logged_at can't flicker in/out across loads).
+        .order_by(TimeEntry.logged_at.desc(), TimeEntry.id.desc())
         .limit(UNPLACED_TRAY_LIMIT)
         .all()
     )

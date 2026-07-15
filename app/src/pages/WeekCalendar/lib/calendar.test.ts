@@ -122,6 +122,14 @@ describe('block <-> interval conversion round-trips', () => {
     expect(back.start).toBe(22);
     expect(back.end).toBe(24); // not 0 — height and day totals stay positive
   });
+
+  it('does not inflate a zero-length interval to 24h', () => {
+    const weekStart = startOfWeekMonday(new Date(2026, 5, 24));
+    const { startISO, endISO } = blockToInterval(weekStart, 0, 9, 9);
+    const back = intervalToBlock(weekStart, startISO, endISO);
+    expect(back.start).toBe(9);
+    expect(back.end).toBe(9); // same-day, same instant → not offset by a day
+  });
 });
 
 describe('placementInterval (tray entry keeps its logged duration)', () => {
