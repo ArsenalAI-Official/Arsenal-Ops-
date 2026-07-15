@@ -364,6 +364,23 @@ def run_migrations():
                             "ON time_entries(start_time)"
                         )
                     )
+                # Expression index for the QuickBooks pipeline's worked-day key:
+                # the sync/timesheet queries filter and order on
+                # COALESCE(start_time, logged_at) (see services.workforce_sync /
+                # timesheet_service.effective_date_expr). A plain column index
+                # can't serve a COALESCE() predicate, so the admin sync (which has
+                # no developer prefix to fall back on) would scan. Partial on the
+                # sync's hot path (unsynced rows). Both PG and SQLite support
+                # expression + partial indexes; guarded so a dialect quirk can't
+                # block boot.
+                if "idx_time_entry_effective_date" not in idx_names:
+                    conn.execute(
+                        text(
+                            "CREATE INDEX IF NOT EXISTS idx_time_entry_effective_date "
+                            "ON time_entries(COALESCE(start_time, logged_at)) "
+                            "WHERE workforce_entry_id IS NULL"
+                        )
+                    )
             conn.commit()
         except Exception as e:
             conn.rollback()

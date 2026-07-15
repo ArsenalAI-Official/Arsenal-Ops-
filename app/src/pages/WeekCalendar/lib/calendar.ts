@@ -125,27 +125,49 @@ export function weekDays(weekStart: Date, dayCount: number = DAY_COUNT): WeekDay
 
 // --- block <-> absolute-interval conversion ------------------------------
 
-/** UI block position → absolute UTC ISO interval for the API. Building the
- *  Date via setHours respects the local DST offset for that calendar day. */
+/** UI block position → ISO interval for the API, using a **wall-clock-as-UTC**
+ *  convention: the drawn day+time is serialized as the same clock time in UTC
+ *  (Mon 9am → ``...T09:00:00Z``) regardless of the viewer's timezone. The backend
+ *  stores these naive-UTC and bills a positioned block on ``start_time.date()``,
+ *  so anchoring to UTC here keeps the billing/grouping day equal to the day the
+ *  block sits on. (A local-offset Date via ``setHours`` would push a late-evening
+ *  block onto the next calendar day — and out of the Mon–Fri window at week
+ *  edges — for any non-UTC user. See `weekStartToISO`, which anchors the request
+ *  window the same way.) The calendar is timezone-independent by design: a block
+ *  is "Monday 9am", not an absolute instant. */
 export function blockToInterval(
   weekStart: Date,
   dayIdx: number,
   start: number,
   end: number,
 ): { startISO: string; endISO: string } {
+  const base = addDays(weekStart, dayIdx);
   const mk = (decimal: number): string => {
-    const d = addDays(weekStart, dayIdx);
     const h = Math.floor(decimal);
     const m = Math.round((decimal - h) * 60);
-    d.setHours(h, m, 0, 0);
+    const d = new Date(Date.UTC(base.getFullYear(), base.getMonth(), base.getDate(), h, m, 0, 0));
     return d.toISOString();
   };
   return { startISO: mk(start), endISO: mk(end) };
 }
 
+/** The request window's start, serialized to match `blockToInterval`'s
+ *  wall-clock-as-UTC convention: the UTC instant at the Monday's calendar
+ *  midnight. Keeps the backend's ``[week_start, week_start + 5d)`` window aligned
+ *  with the stored block days for every viewer timezone (otherwise a
+ *  ``weekStart.toISOString()`` from a non-UTC user shifts the window and drops
+ *  Friday-afternoon blocks). */
+export function weekStartToISO(weekStart: Date): string {
+  return new Date(
+    Date.UTC(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate(), 0, 0, 0, 0),
+  ).toISOString();
+}
+
 /** Interval for PLACING an unplaced (already-logged) tray entry onto the grid.
- *  Placing only sets WHEN — the entry keeps its logged `durationHours` rather
- *  than collapsing to the drop default — clamped to the end of the day. */
+ *  Placing only sets WHEN — the entry keeps its full logged `durationHours`. If
+ *  it wouldn't fit before the end of the day at this start, shift the start
+ *  earlier rather than truncating the hours (which would silently lose logged
+ *  time). The backend also preserves hours on placement as a backstop. */
 export function placementInterval(
   weekStart: Date,
   dayIdx: number,
@@ -153,12 +175,15 @@ export function placementInterval(
   durationHours: number,
   cfg: GridConfig,
 ): { startISO: string; endISO: string } {
-  const end = Math.min(cfg.endHour, start + durationHours);
-  return blockToInterval(weekStart, dayIdx, start, end);
+  const maxStart = Math.max(cfg.startHour, cfg.endHour - durationHours);
+  const clampedStart = Math.min(start, maxStart);
+  const end = clampedStart + durationHours;
+  return blockToInterval(weekStart, dayIdx, clampedStart, end);
 }
 
-/** Absolute UTC ISO timestamps → UI block coords relative to `weekStart`.
- *  `dayIdx` may fall outside 0..4 when the block isn't in the rendered week. */
+/** ISO timestamps → UI block coords relative to `weekStart`, inverting
+ *  `blockToInterval` (reads the wall-clock via UTC accessors). `dayIdx` may fall
+ *  outside 0..4 when the block isn't in the rendered week. */
 export function intervalToBlock(
   weekStart: Date,
   startISO: string,
@@ -166,9 +191,21 @@ export function intervalToBlock(
 ): { dayIdx: number; start: number; end: number } {
   const startDate = new Date(startISO);
   const endDate = new Date(endISO);
-  const midnight = new Date(startDate);
-  midnight.setHours(0, 0, 0, 0);
-  const dayIdx = Math.round((midnight.getTime() - weekStart.getTime()) / 86_400_000);
-  const toDecimal = (d: Date): number => d.getHours() + d.getMinutes() / 60;
-  return { dayIdx, start: toDecimal(startDate), end: toDecimal(endDate) };
+  // Pure calendar-day arithmetic (both sides via Date.UTC of the day components)
+  // — no tz/DST skew. weekStart is a local Monday-midnight Date; its calendar
+  // date is the intended Monday.
+  const startDay = Date.UTC(
+    startDate.getUTCFullYear(),
+    startDate.getUTCMonth(),
+    startDate.getUTCDate(),
+  );
+  const weekStartDay = Date.UTC(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate());
+  const dayIdx = Math.round((startDay - weekStartDay) / 86_400_000);
+  const toDecimal = (d: Date): number => d.getUTCHours() + d.getUTCMinutes() / 60;
+  const start = toDecimal(startDate);
+  let end = toDecimal(endDate);
+  // A block ending exactly at midnight decodes to 0 (next-day 00:00Z); treat it
+  // as 24:00 of the same day so height and per-day totals stay positive.
+  if (end <= start) end += 24;
+  return { dayIdx, start, end };
 }

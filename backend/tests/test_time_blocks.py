@@ -235,6 +235,119 @@ def test_resize_recomputes_hours(db, seed):
     assert item.logged_hours == 3
 
 
+def test_update_rejects_fractional_hours(db, seed):
+    """Whole-hour rule is enforced on resize too, not just create."""
+    item = seed["item"]
+    block = create_time_block(
+        request=CreateTimeBlockRequest(work_item_id=item.id, start_time=_at(0), end_time=_at(2)),
+        db=db,
+        current_user=seed["user"],
+    )
+    with pytest.raises(HTTPException) as exc:
+        update_time_block(
+            entry_id=block.id,
+            request=UpdateTimeBlockRequest(end_time=_at(1.5)),
+            db=db,
+            current_user=seed["user"],
+        )
+    assert exc.value.status_code == 400
+    assert "whole number of hours" in exc.value.detail.lower()
+
+
+def test_create_rejects_over_max_block_hours(db, seed):
+    """A block longer than the 24h sanity cap is rejected."""
+    item = seed["item"]
+    with pytest.raises(HTTPException) as exc:
+        create_time_block(
+            request=CreateTimeBlockRequest(work_item_id=item.id, start_time=_at(0), end_time=_at(25)),
+            db=db,
+            current_user=seed["user"],
+        )
+    assert exc.value.status_code == 400
+
+
+def test_submitted_block_cannot_be_updated(db, seed):
+    """Once an entry is submitted to the QB pipeline the calendar is locked too —
+    moving/resizing it here would diverge from what QuickBooks will hold."""
+    item = seed["item"]
+    block = create_time_block(
+        request=CreateTimeBlockRequest(work_item_id=item.id, start_time=_at(0), end_time=_at(1)),
+        db=db,
+        current_user=seed["user"],
+    )
+    entry = db.query(TimeEntry).filter(TimeEntry.id == block.id).first()
+    entry.submitted_at = datetime(2026, 6, 22, 12, 0)
+    db.commit()
+    with pytest.raises(HTTPException) as exc:
+        update_time_block(
+            entry_id=block.id,
+            request=UpdateTimeBlockRequest(end_time=_at(2)),
+            db=db,
+            current_user=seed["user"],
+        )
+    assert exc.value.status_code == 403
+    assert "submitted" in exc.value.detail.lower()
+
+
+def test_synced_block_cannot_be_deleted(db, seed):
+    """A block already synced to QuickBooks (workforce_entry_id set) can't be
+    deleted from the calendar — it would orphan the TimeActivity in QB."""
+    item = seed["item"]
+    block = create_time_block(
+        request=CreateTimeBlockRequest(work_item_id=item.id, start_time=_at(0), end_time=_at(1)),
+        db=db,
+        current_user=seed["user"],
+    )
+    entry = db.query(TimeEntry).filter(TimeEntry.id == block.id).first()
+    entry.workforce_entry_id = "QB-TA-1"
+    db.commit()
+    with pytest.raises(HTTPException) as exc:
+        delete_time_block(entry_id=block.id, db=db, current_user=seed["user"])
+    assert exc.value.status_code == 403
+    assert "quickbooks" in exc.value.detail.lower()
+
+
+def test_placing_unplaced_preserves_logged_hours(db, seed):
+    """Placing a tray entry keeps its logged hours even if the drop interval
+    disagrees (e.g. clamped near end of day) — the backend derives end from
+    start + hours rather than truncating."""
+    item = seed["item"]
+    entry = TimeEntry(work_item_id=item.id, developer_id=seed["dev"].id, hours=3)
+    db.add(entry)
+    db.commit()
+    # Send a deliberately-short 1h interval; hours must stay 3.
+    update_time_block(
+        entry_id=entry.id,
+        request=UpdateTimeBlockRequest(start_time=_at(22), end_time=_at(23)),
+        db=db,
+        current_user=seed["user"],
+    )
+    db.refresh(entry)
+    assert entry.hours == 3
+    assert (entry.end_time - entry.start_time).total_seconds() == 3 * 3600
+
+
+def test_submitted_unplaced_entries_excluded_from_tray(db, seed):
+    """The unplaced tray only offers draft entries — submitted/synced ones are
+    locked and must not be draggable onto the grid."""
+    item = seed["item"]
+    db.add(TimeEntry(work_item_id=item.id, developer_id=seed["dev"].id, hours=2, description="draft"))
+    db.add(
+        TimeEntry(
+            work_item_id=item.id,
+            developer_id=seed["dev"].id,
+            hours=4,
+            description="submitted",
+            submitted_at=datetime(2026, 6, 22, 12, 0),
+        )
+    )
+    db.commit()
+    resp = list_week_blocks(week_start=_at(0), db=db, current_user=seed["user"], employee_id=None)
+    tray_descriptions = {u.description for u in resp.unplaced}
+    assert "draft" in tray_descriptions
+    assert "submitted" not in tray_descriptions
+
+
 def test_update_rejects_other_users_block(db, seed):
     item = seed["item"]
     block = create_time_block(

@@ -101,7 +101,7 @@ export const WorkItemCompactEditForm = ({
           <NumberInput
             value={editForm.assigned_hours ?? 0}
             onChange={(e) =>
-              setEditForm({ ...editForm, assigned_hours: parseFloat(e.target.value) || 0 })
+              setEditForm({ ...editForm, assigned_hours: parseInt(e.target.value, 10) || 0 })
             }
             className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
           />

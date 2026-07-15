@@ -102,6 +102,26 @@ describe('block <-> interval conversion round-trips', () => {
     const { startISO } = blockToInterval(weekStart, 0, 9, 10);
     expect(startISO).toMatch(/Z$/);
   });
+
+  it('serializes wall-clock as UTC so the billing day matches the drawn day', () => {
+    // A late-evening Friday block must stay on Friday for every viewer timezone
+    // (regression: a local-offset serialization rolled it to Saturday / next day
+    // and out of the Mon–Fri window). This assertion is timezone-independent.
+    const weekStart = startOfWeekMonday(new Date(2026, 5, 24));
+    const { startISO, endISO } = blockToInterval(weekStart, 4, 23, 24);
+    expect(startISO).toMatch(/T23:00:00\.000Z$/);
+    const back = intervalToBlock(weekStart, startISO, endISO);
+    expect(back.dayIdx).toBe(4); // Friday, not rolled to Saturday
+    expect(back.start).toBe(23);
+  });
+
+  it('decodes a block ending at midnight as 24:00, not 0', () => {
+    const weekStart = startOfWeekMonday(new Date(2026, 5, 24));
+    const { startISO, endISO } = blockToInterval(weekStart, 0, 22, 24);
+    const back = intervalToBlock(weekStart, startISO, endISO);
+    expect(back.start).toBe(22);
+    expect(back.end).toBe(24); // not 0 — height and day totals stay positive
+  });
 });
 
 describe('placementInterval (tray entry keeps its logged duration)', () => {
@@ -118,9 +138,10 @@ describe('placementInterval (tray entry keeps its logged duration)', () => {
     expect(hoursApart(startISO, endISO)).toBe(1.5);
   });
 
-  it('clamps the end to the end of the day', () => {
-    // start 22:00, 4h duration, grid ends at 24:00 -> clamped to 2h.
+  it('shifts the start earlier so a long entry keeps its full duration', () => {
+    // start 22:00, 4h duration, grid ends at 24:00 -> start shifts to 20:00,
+    // preserving the full 4h rather than truncating logged time.
     const { startISO, endISO } = placementInterval(weekStart, 2, 22, 4, DEFAULT_GRID);
-    expect(hoursApart(startISO, endISO)).toBe(2);
+    expect(hoursApart(startISO, endISO)).toBe(4);
   });
 });

@@ -342,6 +342,29 @@ def test_edit_description_on_positioned_block_allowed(db):
     assert entry.hours == 2
 
 
+def test_edit_positioned_block_allows_unchanged_hours_echo(db):
+    """A description-only save that echoes the block's unchanged hours must not be
+    rejected — only an actual hours *change* on a positioned block is blocked."""
+    from routers.developers import TimesheetEntryEditRequest, edit_my_timesheet_entry
+
+    dev = _make_dev(db)
+    proj = _make_project(db)
+    wi = _make_wi(db, proj.id, dev.id)
+    start = datetime(2024, 1, 10, 9, 0)
+    entry = _make_te(db, wi, dev.id, hours=2, start_time=start, end_time=start + timedelta(hours=2))
+
+    # hours echoed unchanged (== entry.hours) alongside a description edit → OK.
+    edit_my_timesheet_entry(
+        entry_id=entry.id,
+        body=TimesheetEntryEditRequest(hours=2, description="note"),
+        db=db,
+        current_user=_make_user(),
+    )
+    db.refresh(entry)
+    assert entry.hours == 2
+    assert entry.description == "note"
+
+
 def test_edit_404_when_entry_missing(db):
     from routers.developers import TimesheetEntryEditRequest, edit_my_timesheet_entry
 

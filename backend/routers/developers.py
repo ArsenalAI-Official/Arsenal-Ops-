@@ -411,10 +411,11 @@ def edit_my_timesheet_entry(
 
     if body.hours is not None:
         # Positioned calendar blocks own their hours via (end_time - start_time);
-        # editing hours here would desync the stored value from the block's drawn
-        # duration. Route hours changes for these to the calendar (move/resize).
-        # Description edits and billable/submit still work on positioned blocks.
-        if entry.start_time is not None:
+        # changing hours here would desync the stored value from the block's drawn
+        # duration. Only reject an actual change — a description-only save that
+        # echoes the unchanged hours is fine. Route real hours changes to the
+        # calendar (move/resize).
+        if entry.start_time is not None and body.hours != entry.hours:
             raise HTTPException(
                 status_code=400,
                 detail=(

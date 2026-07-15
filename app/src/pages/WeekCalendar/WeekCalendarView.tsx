@@ -15,7 +15,6 @@ import { useWeekBlocks } from './hooks/useWeekBlocks';
 import {
   DAY_COUNT,
   DEFAULT_GRID,
-  FULL_WEEK_DAY_COUNT,
   addDays,
   blockToInterval,
   formatDuration,
@@ -77,9 +76,10 @@ const WeekCalendarView = ({
   const [createSlot, setCreateSlot] = useState<{ dayIdx: number; start: number } | null>(null);
   // Per-project filter (own calendar only). null = all projects.
   const [projectFilter, setProjectFilter] = useState<number | null>(null);
-  // Show Sat/Sun columns (off by default — most logging is weekdays).
-  const [showWeekend, setShowWeekend] = useState(false);
-  const dayCount = showWeekend ? FULL_WEEK_DAY_COUNT : DAY_COUNT;
+  // Mon–Fri only. The QuickBooks sync window and the backend time-blocks query
+  // are both Mon–Fri, so rendering weekend columns would show days the data
+  // layer never returns; weekend logging is intentionally out of scope.
+  const dayCount = DAY_COUNT;
   const readOnly = viewingEmployeeId != null; // viewing someone else's calendar
 
   const { data: developers = [] } = useAllDevelopers<{ id: number; name: string; email: string }>();
@@ -463,22 +463,6 @@ const WeekCalendarView = ({
       </select>
     ) : null;
 
-  const weekendToggle = (
-    <button
-      type="button"
-      onClick={() => setShowWeekend((s) => !s)}
-      aria-pressed={showWeekend}
-      title={showWeekend ? 'Hide weekend' : 'Show weekend'}
-      className={`h-[30px] px-2.5 rounded-md text-[11px] font-medium border ${
-        showWeekend
-          ? 'bg-[#E0B954]/[0.12] border-[#E0B954]/30 text-[#E0B954]'
-          : 'border-white/[0.12] text-[#a3a3a3] hover:text-white hover:bg-white/5'
-      }`}
-    >
-      Weekend
-    </button>
-  );
-
   // Admin-only employee picker (role-based visibility). Non-admins never see it
   // and are pinned to their own calendar by the backend regardless.
   const adminPicker = isAdmin ? (
@@ -531,7 +515,6 @@ const WeekCalendarView = ({
           <>
             {projectPicker}
             {adminPicker ?? toolbarSlot}
-            {weekendToggle}
           </>
         }
       />
@@ -602,12 +585,24 @@ const WeekCalendarView = ({
             onBlockDoubleClick={handleOpenDetail}
             onSelectBlock={drag.select}
             onResizePointerDown={drag.onResizePointerDown}
-            onReassign={(b, workItemId) => updateBlock({ id: b.id, workItemId })}
+            onReassign={(b, workItemId) => {
+              // Optimistic rows have negative ids and no server row yet — a
+              // PATCH would 404. Skip until the create settles.
+              if (b.id <= 0) return;
+              const t = tickets.find((tk) => tk.workItemId === workItemId);
+              updateBlock({
+                id: b.id,
+                workItemId,
+                display: t
+                  ? { key: t.key, title: t.title, type: t.type, status: t.status }
+                  : undefined,
+              });
+            }}
             onDuplicate={handleDuplicate}
             onRequestDelete={setConfirmDeleteId}
             onCancelDelete={() => setConfirmDeleteId(null)}
             onConfirmDelete={(id) => {
-              deleteBlock(id);
+              if (id > 0) deleteBlock(id); // negative id = unpersisted optimistic row
               setConfirmDeleteId(null);
               drag.clearSelection();
             }}

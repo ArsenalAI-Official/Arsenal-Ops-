@@ -41,6 +41,7 @@ from models.user import User
 from models.work_item import WorkItem, WorkItemStatus, WorkItemType
 from routers.auth import get_current_user
 from routers.workitems import propagate_from_subtask, update_epic_hours
+from time_utils import utcnow
 
 router = APIRouter(prefix="/api/time-blocks", tags=["Time Blocks"])
 
@@ -99,6 +100,11 @@ class UpdateTimeBlockRequest(BaseModel):
 # ---------------------------------------------------------------------------
 MAX_BLOCK_HOURS = 24
 
+# Cap the unplaced-tray payload so navigating weeks never pulls a developer's
+# entire quick-log history. Newest-first; older un-placed entries stay reachable
+# via the per-ticket time-entries view.
+UNPLACED_TRAY_LIMIT = 100
+
 
 def _hours_between(start: datetime, end: datetime) -> int:
     """Block duration in whole hours. Blocks snap to the hour for now; fractional
@@ -151,6 +157,30 @@ def _authorize_block_on_item(item: WorkItem, caller_dev: Developer) -> None:
         raise HTTPException(
             status_code=403,
             detail="Only the ticket's assignee can log time on it.",
+        )
+
+
+def _assert_block_editable(entry: TimeEntry) -> None:
+    """Terminal lock: once an entry is submitted to (or synced with) QuickBooks
+    it is frozen on the calendar too. Mirrors ``developers._resolve_editable_entry``
+    so a block can't be moved/resized/reassigned/deleted here after it's been
+    committed to the QB pipeline — otherwise the calendar would diverge from a
+    TimeActivity QuickBooks already holds."""
+    if entry.workforce_entry_id is not None:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "This block is already synced to QuickBooks and can't be changed "
+                "here. Ask an admin to adjust it in QB if it's wrong."
+            ),
+        )
+    if entry.submitted_at is not None:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "This block was already submitted for sync and is locked. "
+                "Wait for it to finish syncing, then ask an admin to fix it in QuickBooks."
+            ),
         )
 
 
@@ -252,7 +282,7 @@ def _recompute_item_hours(item_id: int, db: Session) -> WorkItem | None:
         .scalar()
     ) or 0
     item.remaining_hours = max(0, (item.estimated_hours or 0) - (item.logged_hours or 0))
-    item.updated_at = datetime.utcnow()
+    item.updated_at = utcnow()
     db.flush()
     if item.type == WorkItemType.SUBTASK.value and item.parent_id:
         propagate_from_subtask(item, db)
@@ -339,15 +369,20 @@ def list_week_blocks(
         .all()
     )
     # Unplaced: ticket-logged hours awaiting placement on the grid. These have no
-    # date, so they aren't week-scoped — surface all of the developer's pending
-    # ones so the calendar always reflects ticket logs (single source of truth).
+    # date, so they aren't week-scoped. Exclude entries already submitted/synced to
+    # QuickBooks — those are locked (can't be positioned) and shouldn't be offered
+    # for drag. Bound the result: only draft entries are placeable, and we cap the
+    # count so a developer's entire quick-log history isn't fetched every load.
     unplaced_entries = (
         db.query(TimeEntry)
         .filter(
             TimeEntry.developer_id == target_dev.id,
             TimeEntry.start_time.is_(None),
+            TimeEntry.submitted_at.is_(None),
+            TimeEntry.workforce_entry_id.is_(None),
         )
         .order_by(TimeEntry.logged_at.desc())
+        .limit(UNPLACED_TRAY_LIMIT)
         .all()
     )
 
@@ -425,6 +460,7 @@ def update_time_block(
         raise HTTPException(status_code=404, detail="Time block not found")
     if entry.developer_id != caller_dev.id:
         raise HTTPException(status_code=403, detail="You can only edit your own time blocks.")
+    _assert_block_editable(entry)
 
     original_item = db.query(WorkItem).filter(WorkItem.id == entry.work_item_id).first()
     if not original_item:
@@ -442,18 +478,33 @@ def update_time_block(
     else:
         _authorize_block_on_item(original_item, caller_dev)
 
+    # Placing an unplaced tray entry (no prior position) only sets WHEN — it must
+    # keep the entry's already-logged hours, not re-derive them from the drop
+    # interval (which the client may have clamped to the end of day). Deriving
+    # the end from start + hours preserves the logged duration exactly.
+    placing_from_tray = entry.start_time is None and request.start_time is not None
+
     # Move / resize. Explicit None checks (not `or`) so a falsy-but-valid value
     # is never mistaken for "omitted"; inbound aware datetimes are normalized.
     new_start = (
         _naive_utc(request.start_time) if request.start_time is not None else entry.start_time
     )
     new_end = _naive_utc(request.end_time) if request.end_time is not None else entry.end_time
-    if new_start is None or new_end is None:
+    if new_start is None:
         raise HTTPException(
             status_code=400,
             detail="This block has no position; provide both start_time and end_time.",
         )
-    entry.hours = _validate_interval(new_start, new_end)
+    if placing_from_tray:
+        # Keep the logged hours; the interval follows from them.
+        new_end = new_start + timedelta(hours=entry.hours)
+    elif new_end is None:
+        raise HTTPException(
+            status_code=400,
+            detail="This block has no position; provide both start_time and end_time.",
+        )
+    else:
+        entry.hours = _validate_interval(new_start, new_end)
     _lock_developer_for_overlap(db, entry.developer_id)
     _assert_no_overlap(db, entry.developer_id, new_start, new_end, exclude_entry_id=entry.id)
     entry.start_time = new_start
@@ -483,6 +534,7 @@ def delete_time_block(
         raise HTTPException(status_code=404, detail="Time block not found")
     if entry.developer_id != caller_dev.id:
         raise HTTPException(status_code=403, detail="You can only delete your own time blocks.")
+    _assert_block_editable(entry)
 
     item_id = entry.work_item_id
     db.delete(entry)

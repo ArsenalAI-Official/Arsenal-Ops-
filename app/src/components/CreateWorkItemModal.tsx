@@ -90,16 +90,23 @@ export function CreateWorkItemModal({ open, onOpenChange, onCreated }: CreateWor
     setEstimate('');
   };
 
+  // Clear stale field values whenever the modal closes (cancel, Esc, backdrop),
+  // so reopening starts fresh — not just on the success path.
+  const handleOpenChange = (next: boolean) => {
+    if (!next) reset();
+    onOpenChange(next);
+  };
+
   const createMutation = useMutation({
     mutationFn: () =>
-      apiFetch<CreatedWorkItem & { id: string }>('/api/workitems/', {
+      apiFetch<CreatedWorkItem>('/api/workitems/', {
         method: 'POST',
         body: JSON.stringify({
           project_id: Number(projectId),
           title: title.trim(),
           type,
           assignee_id: effectiveAssignee ? Number(effectiveAssignee) : null,
-          estimated_hours: estimate ? parseFloat(estimate) : 0,
+          estimated_hours: estimate ? parseInt(estimate, 10) : 0,
         }),
       }),
     onSuccess: (created) => {
@@ -107,7 +114,7 @@ export function CreateWorkItemModal({ open, onOpenChange, onCreated }: CreateWor
       queryClient.invalidateQueries({ queryKey: ['myTasks'] });
       toast.success(`Created ${created.key}`);
       onCreated?.({
-        id: Number(created.id),
+        id: created.id,
         key: created.key,
         title: created.title,
         type: created.type,
@@ -125,7 +132,7 @@ export function CreateWorkItemModal({ open, onOpenChange, onCreated }: CreateWor
   const canSubmit = projectId !== '' && title.trim().length > 0 && !createMutation.isPending;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="bg-[#0f0f0f] border-white/10 text-[#f5f5f5]">
         <DialogHeader>
           <DialogTitle>New ticket</DialogTitle>
@@ -179,7 +186,7 @@ export function CreateWorkItemModal({ open, onOpenChange, onCreated }: CreateWor
                 aria-label="Estimate in hours"
                 type="number"
                 min="0"
-                step="0.25"
+                step="1"
                 value={estimate}
                 onChange={(e) => setEstimate(e.target.value)}
               />
@@ -204,7 +211,7 @@ export function CreateWorkItemModal({ open, onOpenChange, onCreated }: CreateWor
           </div>
         </div>
         <div className="flex justify-end gap-2 mt-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" onClick={() => handleOpenChange(false)}>
             Cancel
           </Button>
           <Button disabled={!canSubmit} onClick={() => createMutation.mutate()}>

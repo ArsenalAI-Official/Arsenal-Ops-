@@ -8,6 +8,7 @@ import type {
   WeekBlocksResponse,
 } from '@/client';
 import { apiFetch, ApiError } from '@/lib/api';
+import { weekStartToISO } from '../lib/calendar';
 
 const hoursBetween = (startISO: string, endISO: string): number =>
   Number(((new Date(endISO).getTime() - new Date(startISO).getTime()) / 3_600_000).toFixed(2));
@@ -25,6 +26,10 @@ export interface UpdateBlockArgs {
   startISO?: string;
   endISO?: string;
   workItemId?: number;
+  /** Target ticket's display fields on a reassign, so the optimistic row shows
+   *  the new ticket's key/title/color immediately instead of the old one's
+   *  until refetch. */
+  display?: { key: string; title: string; type: string; status: string };
 }
 
 /**
@@ -36,7 +41,9 @@ export interface UpdateBlockArgs {
  */
 export function useWeekBlocks(weekStart: Date, employeeId?: number) {
   const queryClient = useQueryClient();
-  const weekStartISO = weekStart.toISOString();
+  // Wall-clock-as-UTC (Monday calendar midnight in UTC) to match blockToInterval,
+  // so the backend's Mon–Fri window lines up with stored block days in any tz.
+  const weekStartISO = weekStartToISO(weekStart);
   // employeeId is part of the key so an admin switching employees refetches.
   const key = useMemo(
     () => ['timeBlocks', weekStartISO, employeeId ?? 'self'] as const,
@@ -139,6 +146,13 @@ export function useWeekBlocks(weekStart: Date, employeeId?: number) {
           end_time,
           work_item_id: vars.workItemId ?? target.work_item_id,
           hours: start_time && end_time ? hoursBetween(start_time, end_time) : target.hours,
+          // On reassign, reflect the target ticket's display fields right away.
+          ...(vars.display && {
+            work_item_key: vars.display.key,
+            work_item_title: vars.display.title,
+            work_item_type: vars.display.type,
+            work_item_status: vars.display.status,
+          }),
         };
         const positioned = Boolean(start_time && end_time);
         return {

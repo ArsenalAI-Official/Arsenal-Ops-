@@ -4,8 +4,9 @@ import { http, HttpResponse } from 'msw';
 import type { CreateTimeBlockRequest, TimeBlockResponse, UpdateTimeBlockRequest } from '@/client';
 import { API_BASE } from './constants';
 
+// Whole hours to match the real API's int contract (blocks snap to the hour).
 const hoursBetween = (startISO: string, endISO: string): number =>
-  Number(((new Date(endISO).getTime() - new Date(startISO).getTime()) / 3_600_000).toFixed(2));
+  Math.round((new Date(endISO).getTime() - new Date(startISO).getTime()) / 3_600_000);
 
 let blocks: TimeBlockResponse[] = [];
 let nextId = 1;

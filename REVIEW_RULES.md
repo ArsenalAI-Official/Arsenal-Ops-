@@ -4,11 +4,15 @@ Domain rules a generic reviewer can't infer. Cite the rule number in findings.
 
 ## Hours & time tracking
 
-1. **Hours are fractional.** `TimeEntry.hours` and `WorkItem.{logged,estimated,remaining}_hours`
-   are `Numeric` (stored) / `float` (Python). Never truncate with `int(...)`,
-   `parseInt(...)`, integer division, or an `int`-typed Pydantic/response field —
-   that silently drops the 15/30-minute (`0.25`/`0.5`) part of calendar blocks.
-   When adding a response model or a hours sum, type it `float`.
+1. **Hours are whole numbers (v1).** `TimeEntry.hours` and
+   `WorkItem.{logged,estimated,remaining}_hours` are `int` (DB + Python), and
+   response/request models type them `int`. Calendar blocks snap to the hour and
+   the API **rejects** sub-hour durations (`time_blocks._validate_interval`) rather
+   than rounding them — so `int`/`parseInt` at the boundaries is correct, not a bug.
+   Fractional (15/30-min) hours are a planned follow-up on `feat/week-calendar-minutes`,
+   which will widen these columns to `Numeric`/`float` and relax the snap; until that
+   lands, do **not** introduce `float`/`parseFloat`/`step="0.25"` on hours fields —
+   they'd send fractional values the `int` backend 422s.
 
 2. **`logged_hours` is a derived rollup, never written directly.** It must always
    equal `SUM(TimeEntry.hours)` for the item. Any code that creates/edits/deletes
@@ -36,7 +40,11 @@ Domain rules a generic reviewer can't infer. Cite the rule number in findings.
 
 ## Contract tests
 
-6. **The contract-golden harness runs on SQLite**, where `Numeric(asdecimal=False)`
-   returns `int` for whole numbers — so it is blind to the int→float wire change.
-   When changing hours-bearing response shapes, regenerate goldens and prefer a
-   fractional fixture value so the harness actually exercises the contract.
+6. **The contract-golden harness runs on SQLite.** When changing hours-bearing
+   response shapes, regenerate the goldens (`backend/tests/contract/`) and commit
+   `backend/openapi.json` + `app/src/client` so the drift check stays green. Hours
+   are whole `int` in v1, so goldens use representative whole-hour values. (When
+   `feat/week-calendar-minutes` widens hours to `Numeric`/`float`, revisit this:
+   SQLite `Numeric(asdecimal=False)` returns `int` for whole numbers and is blind
+   to an int→float wire change, so a fractional fixture value will be needed to
+   actually exercise the contract.)
