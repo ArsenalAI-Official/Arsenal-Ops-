@@ -32,6 +32,10 @@ services:
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      # Google Calendar sync (domain-wide-delegation service account).
+      # Provide ONE of: inline JSON, or a path to the mounted key file.
+      - GOOGLE_CALENDAR_SA_JSON=${GOOGLE_CALENDAR_SA_JSON:-}
+      - GOOGLE_CALENDAR_SA_FILE=${GOOGLE_CALENDAR_SA_FILE:-}
       # Email notifications (Gmail API + OAuth2)
       - MAIL_REFRESH_TOKEN=${MAIL_REFRESH_TOKEN}
       - BOT_EMAIL=${BOT_EMAIL}
