@@ -11769,7 +11769,7 @@
     },
     "/api/workitems/": {
       "get": {
-        "description": "List all work items with optional filters (requires auth).\n\nSupports pagination via ``limit`` (1..1000, default 500) and ``offset``\n(default 0). Total row count is returned in the ``X-Total-Count`` response\nheader so the frontend can render a paginator without a second request.",
+        "description": "List all work items with optional filters (requires auth).\n\n``search`` does a case-insensitive substring match across key / title /\ndescription, so a vague reference (\"the login thing\") can be resolved to\ncandidate tickets without knowing the exact title.\n\nSupports pagination via ``limit`` (1..1000, default 500) and ``offset``\n(default 0). Total row count is returned in the ``X-Total-Count`` response\nheader so the frontend can render a paginator without a second request.",
         "operationId": "list_work_items_api_workitems__get",
         "parameters": [
           {
@@ -11850,6 +11850,22 @@
                 }
               ],
               "title": "Assignee Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
             }
           },
           {

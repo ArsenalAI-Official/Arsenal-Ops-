@@ -6832,6 +6832,10 @@ export type ListWorkItemsApiWorkitemsGetData = {
      */
     assignee_id?: number | null;
     /**
+     * Search
+     */
+    search?: string | null;
+    /**
      * Limit
      */
     limit?: number;

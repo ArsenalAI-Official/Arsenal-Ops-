@@ -102,8 +102,11 @@ def test_oauth_enabled_keeps_jwt_path_open(monkeypatch):
         assert type(mcp_server._auth).__name__ == "MultiAuth"
         # The coarse OAuth-scope gate is intentionally empty...
         assert mcp_server._auth.required_scopes == []
-        # ...while the JWT verifier is still an active token source.
-        assert any(type(v).__name__ == "JWTVerifier" for v in mcp_server._auth.verifiers)
+        # ...while the JWT verifier is still an active token source. (getattr:
+        # `_auth` is typed AuthProvider; `verifiers` is a MultiAuth attribute,
+        # which we've asserted the runtime type is just above.)
+        verifiers = getattr(mcp_server._auth, "verifiers", [])
+        assert any(type(v).__name__ == "JWTVerifier" for v in verifiers)
     finally:
         # Undo the env FIRST (monkeypatch only reverts at teardown, after this
         # block), then reload so the module rebuilds as JWT-only — otherwise a
