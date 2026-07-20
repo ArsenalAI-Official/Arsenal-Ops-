@@ -102,6 +102,7 @@ def test_parse_event_timed_accepted():
         "attendees": [{"email": DEV_EMAIL, "responseStatus": "accepted"}],
     }
     ev = parse_event(raw, DEV_EMAIL)
+    assert ev is not None
     assert ev["google_event_id"] == "evt1"
     assert ev["title"] == "Sprint planning"
     assert ev["response_status"] == "accepted"
@@ -122,6 +123,7 @@ def test_parse_event_normalizes_offset_to_utc():
         "end": {"dateTime": "2026-06-10T15:00:00+05:30"},
     }
     ev = parse_event(raw, DEV_EMAIL)
+    assert ev is not None
     assert ev["start_at"] == datetime(2026, 6, 10, 9, 0, 0)
     assert ev["end_at"] == datetime(2026, 6, 10, 9, 30, 0)
 
@@ -135,6 +137,7 @@ def test_parse_event_private_hides_title():
         "end": {"dateTime": "2026-06-10T10:00:00Z"},
     }
     ev = parse_event(raw, DEV_EMAIL)
+    assert ev is not None
     assert ev["title"] == PRIVATE_EVENT_TITLE
     assert ev["visibility"] == "private"
 
@@ -147,6 +150,7 @@ def test_parse_event_all_day():
         "end": {"date": "2026-06-11"},
     }
     ev = parse_event(raw, DEV_EMAIL)
+    assert ev is not None
     assert ev["is_all_day"] is True
     assert ev["start_at"] == datetime(2026, 6, 10, 0, 0, 0)
 
@@ -160,6 +164,7 @@ def test_parse_event_declined():
         "attendees": [{"email": DEV_EMAIL, "responseStatus": "declined"}],
     }
     ev = parse_event(raw, DEV_EMAIL)
+    assert ev is not None
     assert ev["response_status"] == "declined"
 
 

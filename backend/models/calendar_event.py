@@ -11,21 +11,25 @@ offsets — normalize on write).
 
 import sys
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
-    Column,
     DateTime,
     ForeignKey,
     Index,
-    Integer,
     String,
     UniqueConstraint,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from time_utils import utcnow
 
 sys.path.append("..")
 from database import Base
+
+if TYPE_CHECKING:
+    from models.developer import Developer
 
 # Generic title shown for private events so their real titles never leak into
 # the admin UI (see ticket "Respect event visibility").
@@ -35,32 +39,32 @@ PRIVATE_EVENT_TITLE = "Busy"
 class CalendarEvent(Base):
     __tablename__ = "calendar_events"
 
-    id = Column(Integer, primary_key=True, index=True)
-    developer_id = Column(
-        Integer, ForeignKey("developers.id", ondelete="CASCADE"), nullable=False, index=True
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    developer_id: Mapped[int] = mapped_column(
+        ForeignKey("developers.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
     # Identity on Google's side. Unique per (developer, event) so re-syncing the
     # same week updates rows in place instead of duplicating them.
-    google_event_id = Column(String(1024), nullable=False)
-    organizer_email = Column(String(255))  # organizer / calendar id
+    google_event_id: Mapped[str] = mapped_column(String(1024), nullable=False)
+    organizer_email: Mapped[str | None] = mapped_column(String(255))  # organizer / calendar id
 
     # Title falls back to PRIVATE_EVENT_TITLE for private events.
-    title = Column(String(1024), nullable=False, default=PRIVATE_EVENT_TITLE)
+    title: Mapped[str] = mapped_column(String(1024), nullable=False, default=PRIVATE_EVENT_TITLE)
 
     # Timing — UTC.
-    start_at = Column(DateTime, nullable=False, index=True)
-    end_at = Column(DateTime, nullable=False)
-    is_all_day = Column(Boolean, default=False, nullable=False)
+    start_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    end_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    is_all_day: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # accepted / tentative / declined / needs_action
-    response_status = Column(String(20), default="needs_action", nullable=False)
+    response_status: Mapped[str] = mapped_column(String(20), default="needs_action", nullable=False)
     # default / private
-    visibility = Column(String(20), default="default", nullable=False)
+    visibility: Mapped[str] = mapped_column(String(20), default="default", nullable=False)
 
-    synced_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    synced_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
-    developer = relationship("Developer")
+    developer: Mapped["Developer"] = relationship("Developer")
 
     __table_args__ = (
         UniqueConstraint("developer_id", "google_event_id", name="uq_calendar_event_dev_event"),
