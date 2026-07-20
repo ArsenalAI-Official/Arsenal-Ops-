@@ -1,13 +1,13 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
+import { isPastDue } from '@/components/ProjectsPage/utils';
 import { Card } from '@/components/ui/card';
 import { parseLocalDate } from '@/lib/dateUtils';
-import { isPastDue } from '@/components/ProjectsPage/utils';
 import { getStatusColor } from '@/lib/workItemConfig';
 import { addDays, colDays, colWidth, fmtMonth, BUFFER_COLS, ROW_HEIGHT } from './lib/timelineGrid';
-import type { GanttRow, TimelineViewProps, WorkItem, ZoomLevel } from './types';
-import TimelineToolbar from './sections/TimelineToolbar';
 import GanttChart from './sections/GanttChart';
 import TicketDetailPanel from './sections/TicketDetailPanel';
+import TimelineToolbar from './sections/TimelineToolbar';
+import type { GanttRow, TimelineViewProps, WorkItem, ZoomLevel } from './types';
 
 const TimelineView: React.FC<TimelineViewProps> = ({
   workItems,

@@ -8,8 +8,26 @@ TimeEntry rows. PROJ-333 was the worst case: 11 entries of 2h each = 22h on a
 This script collapses near-simultaneous identical entries:
   group_key = (work_item_id, developer_id, hours)
   Within each group, any rows logged within `--window-seconds` of an earlier
-  row are considered duplicates of it and deleted. The earliest entry in each
-  cluster is kept.
+  row are considered duplicates of it and deleted.
+
+Idempotency contract with the QuickBooks sync
+=============================================
+The workforce sync (`backend/services/workforce_sync.py`) writes a QB
+TimeActivity Id back to ``TimeEntry.workforce_entry_id`` on each push.
+A row with ``workforce_entry_id IS NOT NULL`` has a one-to-one mapping
+to a QuickBooks record; deleting it orphans the QB record, and re-syncing
+its unsynced dup would create a duplicate billable entry in QB.
+
+This script honours that contract:
+
+  - A synced row (``workforce_entry_id IS NOT NULL``) is NEVER deleted.
+  - If a cluster contains exactly one synced row, that row is the keeper
+    (overriding the "earliest is keeper" default); the other unsynced
+    duplicates are deleted.
+  - If a cluster contains MULTIPLE synced rows (an orphan-risk scenario
+    that should never happen if the sync's ``workforce_entry_id IS NULL``
+    gate is honoured), the entire cluster is skipped with a warning —
+    operator must reconcile by hand.
 
 After deletion, `work_items.logged_hours` is recomputed from the surviving
 TimeEntry rows so the rollup column matches the source of truth.
@@ -55,11 +73,18 @@ from models.work_item import WorkItem
 logger = logging.getLogger(__name__)
 
 
-def dedupe(window_seconds: int, dry_run: bool, work_item_id: int | None) -> dict:
-    db = SessionLocal()
+def dedupe(
+    window_seconds: int,
+    dry_run: bool,
+    work_item_id: int | None,
+    session_factory=SessionLocal,
+) -> dict:
+    """Run the dedupe pass. `session_factory` is injectable for tests."""
+    db = session_factory()
     deleted_ids: list[int] = []
     affected_work_items: set[int] = set()
     clusters_collapsed = 0
+    synced_conflicts = 0  # clusters skipped due to multiple synced rows
 
     try:
         entries_q = db.query(TimeEntry).order_by(
@@ -83,27 +108,70 @@ def dedupe(window_seconds: int, dry_run: bool, work_item_id: int | None) -> dict
         for _key, group in groups.items():
             if len(group) < 2:
                 continue
-            # Walk in order. The first entry in each cluster is the keeper;
-            # subsequent entries whose logged_at is within `window` of the
-            # keeper are flagged as duplicates. As soon as we see an entry
-            # outside the window, it starts a new cluster (new keeper).
-            keeper = group[0]
-            cluster_start_count = 1
+            # Split the group into time-clusters: consecutive runs where
+            # each entry is within `window` of the cluster's *first*
+            # entry. Once an entry falls outside the window, it starts a
+            # new cluster.
+            clusters: list[list[TimeEntry]] = []
+            current: list[TimeEntry] = [group[0]]
             for te in group[1:]:
+                anchor = current[0]
                 if (
                     te.logged_at
-                    and keeper.logged_at
-                    and (te.logged_at - keeper.logged_at) <= window
+                    and anchor.logged_at
+                    and (te.logged_at - anchor.logged_at) <= window
                 ):
+                    current.append(te)
+                else:
+                    clusters.append(current)
+                    current = [te]
+            clusters.append(current)
+
+            for cluster in clusters:
+                if len(cluster) < 2:
+                    continue
+
+                # Idempotency-aware keeper selection. A synced row
+                # (workforce_entry_id NOT NULL) maps 1:1 to a QuickBooks
+                # TimeActivity — deleting it orphans QB; deleting its
+                # unsynced dup is fine. Multiple synced rows in one
+                # cluster shouldn't happen; if they do, leave manual
+                # reconciliation.
+                synced = [te for te in cluster if te.workforce_entry_id]
+                if len(synced) > 1:
+                    synced_conflicts += 1
+                    logger.warning(
+                        "Cluster (wi=%s dev=%s hours=%s) has %d synced TimeEntry rows "
+                        "(workforce_entry_id set on multiple); skipping. Manual "
+                        "reconciliation needed for ids=%s",
+                        cluster[0].work_item_id,
+                        cluster[0].developer_id,
+                        cluster[0].hours,
+                        len(synced),
+                        [te.id for te in synced],
+                    )
+                    continue
+
+                keeper = synced[0] if synced else cluster[0]
+                for te in cluster:
+                    if te.id == keeper.id:
+                        continue
+                    # `keeper` may be a later-in-time row when an
+                    # earlier dup was unsynced — that's intentional.
+                    # Safety net: never delete a row with a QB id.
+                    if te.workforce_entry_id:
+                        # Reachable only if there's a bug above; guard
+                        # anyway since the consequence is QB-orphaning.
+                        continue
+                    # Same safety for entries the dev has clicked Submit
+                    # on but that didn't sync to QB yet (failed-sync
+                    # retry state). Dropping these would erase the dev's
+                    # submission audit trail — the next Submit click is
+                    # the recovery path, not silent deletion.
+                    if te.submitted_at:
+                        continue
                     deleted_ids.append(te.id)
                     affected_work_items.add(te.work_item_id)
-                    cluster_start_count += 1
-                else:
-                    if cluster_start_count > 1:
-                        clusters_collapsed += 1
-                    keeper = te
-                    cluster_start_count = 1
-            if cluster_start_count > 1:
                 clusters_collapsed += 1
 
         if deleted_ids:
@@ -181,6 +249,7 @@ def dedupe(window_seconds: int, dry_run: bool, work_item_id: int | None) -> dict
         "duplicates_found": len(deleted_ids),
         "clusters": clusters_collapsed,
         "affected_work_items": len(affected_work_items),
+        "synced_conflicts": synced_conflicts,
         "applied": not dry_run and bool(deleted_ids),
     }
 
@@ -217,7 +286,8 @@ def main() -> int:
     mode = "DRY RUN" if args.dry_run else "APPLIED"
     print(
         f"[{mode}] scanned={summary['scanned']} duplicates_found={summary['duplicates_found']} "
-        f"clusters={summary['clusters']} affected_work_items={summary['affected_work_items']}"
+        f"clusters={summary['clusters']} affected_work_items={summary['affected_work_items']} "
+        f"synced_conflicts={summary['synced_conflicts']}"
     )
     return 0
 

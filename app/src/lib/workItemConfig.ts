@@ -102,5 +102,5 @@ export function getStatusLabel(status: string): string {
 
 /** Priority → display color, falling back to the low/grey colour. */
 export function getPriorityColor(priority: string): string {
-  return PRIORITY_COLOR[priority] ?? PRIORITY_COLOR.low;
+  return PRIORITY_COLOR[priority] ?? PRIORITY_COLOR.low!;
 }

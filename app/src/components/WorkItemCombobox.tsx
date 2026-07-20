@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
 import { Check, ChevronsUpDown, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import {
   Command,
   CommandEmpty,
@@ -9,8 +9,8 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
 import type { HierarchyItem, WorkItemType } from '@/lib/hierarchy/validateReparent';
+import { cn } from '@/lib/utils';
 
 export interface WorkItemComboboxItem extends HierarchyItem {
   key?: string;

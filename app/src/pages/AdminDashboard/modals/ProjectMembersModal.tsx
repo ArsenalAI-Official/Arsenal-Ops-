@@ -1,10 +1,10 @@
-import React from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
+import React from 'react';
+import type { ProjectDeveloperEntry } from '@/client';
 import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/spinner';
 import { Empty, EmptyDescription } from '@/components/ui/empty';
 import { Modal } from '@/components/ui/modal';
-import type { ProjectDeveloperEntry } from '@/client';
+import { Spinner } from '@/components/ui/spinner';
 
 interface ProjectLike {
   id: number;

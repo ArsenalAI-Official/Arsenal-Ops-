@@ -1,8 +1,9 @@
-import React from 'react';
 import { Save } from 'lucide-react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
+import { formatRoleName } from '@/lib/stringUtils';
 
 interface RoleLike {
   id: number;
@@ -81,7 +82,6 @@ interface RoleModalProps {
    *  is held, or every item's every defined side is held. Drives the "Grant
    *  all <Group>" checkbox display. */
   isGroupEffective: (group: CatalogGroup, grants: string[]) => boolean;
-  toPascalCase: (str: string) => string;
   handleSaveRole: () => void;
 }
 
@@ -135,7 +135,6 @@ const RoleModal: React.FC<RoleModalProps> = ({
   isGrantHeld,
   isSideEffective,
   isGroupEffective,
-  toPascalCase,
   handleSaveRole,
 }) => {
   if (!open) return null;
@@ -155,7 +154,7 @@ const RoleModal: React.FC<RoleModalProps> = ({
       title={
         <div>
           <h2 className="text-lg font-bold text-white">
-            {editingRole ? `Edit Role - ${toPascalCase(editingRole.name)}` : 'Add Role'}
+            {editingRole ? `Edit Role - ${formatRoleName(editingRole.name)}` : 'Add Role'}
           </h2>
           {editingRole?.is_system && (
             <p className="text-xs text-[#737373] mt-0.5">

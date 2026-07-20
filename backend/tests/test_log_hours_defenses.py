@@ -201,3 +201,112 @@ def test_log_hours_dedupes_rapid_duplicate(db, seed):
     # Exactly one TimeEntry should exist despite two log attempts.
     count = db.query(TimeEntry).filter(TimeEntry.work_item_id == item.id).count()
     assert count == 1
+
+
+# ============================================================
+# logged_at — optional back-dating for the Review modal's "+ Add entry"
+# ============================================================
+
+
+def _current_window_monday():
+    """Mon of THIS calendar week — matches the helper used by the route."""
+    from datetime import date, timedelta
+
+    today = date.today()
+    return today - timedelta(days=today.weekday())
+
+
+def test_log_hours_accepts_logged_at_within_current_week(db, seed):
+    """An ISO date inside the current Mon-Fri window is honored and the
+    TimeEntry's `logged_at` lands on that day. Default behavior when the
+    field is omitted is unchanged."""
+    from datetime import date, timedelta
+
+    item = seed["item"]
+    today = date.today()
+    monday = _current_window_monday()
+    # Pick a weekday that's already happened this week (Tuesday at latest),
+    # so the "no future-dating" check never bites. If today IS Monday,
+    # fall back to today.
+    target = monday if today == monday else monday + timedelta(days=min((today - monday).days, 4))
+
+    res = log_hours(
+        item_id=item.id,
+        request=LogHoursRequest(hours=2, logged_at=target.isoformat()),
+        db=db,
+        current_user=seed["user"],
+    )
+    entry_id = res["time_entry"]["id"]
+    entry = db.query(TimeEntry).filter(TimeEntry.id == entry_id).one()
+    assert entry.logged_at.date() == target
+
+
+def test_log_hours_rejects_logged_at_in_the_future(db, seed):
+    from datetime import date, timedelta
+
+    item = seed["item"]
+    # 7 days from today — almost certainly future and out of the current week.
+    future = (date.today() + timedelta(days=7)).isoformat()
+
+    with pytest.raises(HTTPException) as exc:
+        log_hours(
+            item_id=item.id,
+            request=LogHoursRequest(hours=2, logged_at=future),
+            db=db,
+            current_user=seed["user"],
+        )
+    # Either the "future" check or the "out of week" check rejects; both
+    # are 400 with a humanized reason, so accept either.
+    assert exc.value.status_code == 400
+
+
+def test_log_hours_rejects_logged_at_in_a_prior_week(db, seed):
+    from datetime import date, timedelta
+
+    item = seed["item"]
+    # 10 days back is solidly in a prior week regardless of today's weekday.
+    prior = (date.today() - timedelta(days=10)).isoformat()
+
+    with pytest.raises(HTTPException) as exc:
+        log_hours(
+            item_id=item.id,
+            request=LogHoursRequest(hours=2, logged_at=prior),
+            db=db,
+            current_user=seed["user"],
+        )
+    assert exc.value.status_code == 400
+    assert "current week" in exc.value.detail.lower()
+
+
+def test_log_hours_rejects_malformed_logged_at(db, seed):
+    item = seed["item"]
+    with pytest.raises(HTTPException) as exc:
+        log_hours(
+            item_id=item.id,
+            request=LogHoursRequest(hours=2, logged_at="not-a-date"),
+            db=db,
+            current_user=seed["user"],
+        )
+    assert exc.value.status_code == 400
+
+
+def test_log_hours_default_logged_at_unchanged_when_field_omitted(db, seed, monkeypatch):
+    """No regression: existing callers (the work-item "Log Hours" button)
+    that don't pass `logged_at` still get the historical `now()` default."""
+    from datetime import date, datetime
+
+    # Pin the guard's clock to a weekday so the Mon–Fri weekend block doesn't
+    # reject the default (no-date) path on weekend CI runs. Only the guard's
+    # clock is patched; the entry still stamps the real column-default now().
+    monkeypatch.setattr("routers.workitems.utcnow", lambda: datetime(2024, 1, 3, 12, 0))
+
+    item = seed["item"]
+    res = log_hours(
+        item_id=item.id,
+        request=LogHoursRequest(hours=2),
+        db=db,
+        current_user=seed["user"],
+    )
+    entry_id = res["time_entry"]["id"]
+    entry = db.query(TimeEntry).filter(TimeEntry.id == entry_id).one()
+    assert entry.logged_at.date() == date.today()

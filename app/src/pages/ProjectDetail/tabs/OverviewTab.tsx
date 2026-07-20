@@ -1,8 +1,3 @@
-import ProjectInfoSection from '../sections/ProjectInfoSection';
-import PRDAnalysisSection from '../sections/PRDAnalysisSection';
-import ArchitectureSection from '../sections/ArchitectureSection';
-import TeamSection from '../sections/TeamSection';
-import LinksSection from '../sections/LinksSection';
 import type {
   DeveloperResponse,
   ProjectLinkResponse,
@@ -10,6 +5,11 @@ import type {
   PrdAnalysisResponse,
   ProjectDetailResponse,
 } from '@/client';
+import ArchitectureSection from '../sections/ArchitectureSection';
+import LinksSection from '../sections/LinksSection';
+import PRDAnalysisSection from '../sections/PRDAnalysisSection';
+import ProjectInfoSection from '../sections/ProjectInfoSection';
+import TeamSection from '../sections/TeamSection';
 
 interface OverviewTabProps {
   /** While true, the full overview skeleton is shown until ALL hub data

@@ -1,3 +1,4 @@
+import { TrendingUp, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   PieChart,
   Pie,
@@ -13,9 +14,8 @@ import {
   LineChart,
   Line,
 } from 'recharts';
-import { TrendingUp, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import type { ProjectAnalyticsResponse, SprintResponse } from '@/client';
+import { Badge } from '@/components/ui/badge';
 
 interface TrackerTabProps {
   hubLoading: boolean;

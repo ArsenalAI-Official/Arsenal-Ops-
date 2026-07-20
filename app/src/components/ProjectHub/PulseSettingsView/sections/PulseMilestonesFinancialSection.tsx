@@ -1,5 +1,5 @@
-import React from 'react';
 import { Trash2 } from 'lucide-react';
+import React from 'react';
 import { PulseMilestone } from '../../pulseData';
 import { Field, NumberInput, Section } from '../inputs';
 

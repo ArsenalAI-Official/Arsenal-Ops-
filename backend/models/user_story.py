@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from time_utils import utcnow
+
 sys.path.append("..")
 from database import Base
 
@@ -42,6 +44,6 @@ class UserStory(Base):
     jira_key: Mapped[str | None] = mapped_column(String(50))
     epic: Mapped[str | None] = mapped_column(String(100))
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=True)
 
     project: Mapped["Project"] = relationship("Project", back_populates="user_stories")

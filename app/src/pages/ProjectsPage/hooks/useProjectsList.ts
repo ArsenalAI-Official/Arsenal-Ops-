@@ -1,16 +1,16 @@
-import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api';
+import { useState } from 'react';
 import { toast } from 'sonner';
-import { invalidateAdminWorkItemImpact } from '@/lib/invalidations';
-import { toastErrorHandler } from '@/lib/mutationToast';
-import type { ConfirmFn } from '@/components/ui/confirm-dialog';
 import type {
   Project,
   Developer,
   CreateProjectForm,
   SelectedDeveloper,
 } from '@/components/ProjectsPage';
+import type { ConfirmFn } from '@/components/ui/confirm-dialog';
+import { apiFetch } from '@/lib/api';
+import { invalidateAdminWorkItemImpact } from '@/lib/invalidations';
+import { toastErrorHandler } from '@/lib/mutationToast';
 
 // The projects column of the home page: the projects list + search, the
 // Create Project modal (form, developer roster builder, category list), and
@@ -26,6 +26,7 @@ export const useProjectsList = (confirm: ConfirmFn) => {
     name: '',
     description: '',
     github_repo_url: '',
+    key_prefix: '',
     category_id: null,
   });
   const [selectedDevelopers, setSelectedDevelopers] = useState<SelectedDeveloper[]>([]);
@@ -95,6 +96,9 @@ export const useProjectsList = (confirm: ConfirmFn) => {
           name: createForm.name,
           description: createForm.description,
           github_repo_url: createForm.github_repo_url || undefined,
+          // Send the prefix only when the user typed one; blank lets the
+          // backend derive a unique prefix from the name.
+          key_prefix: createForm.key_prefix.trim() || undefined,
           // Send category_id only when set — backend treats absent as null,
           // same as null. Sending `undefined` keeps the field out of the
           // JSON payload entirely, which is slightly cleaner.
@@ -104,7 +108,13 @@ export const useProjectsList = (confirm: ConfirmFn) => {
       }),
     onSuccess: () => {
       setShowCreateModal(false);
-      setCreateForm({ name: '', description: '', github_repo_url: '', category_id: null });
+      setCreateForm({
+        name: '',
+        description: '',
+        github_repo_url: '',
+        key_prefix: '',
+        category_id: null,
+      });
       setSelectedDevelopers([]);
       toast.success('Project created successfully!');
     },

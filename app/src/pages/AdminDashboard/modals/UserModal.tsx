@@ -1,8 +1,9 @@
-import React from 'react';
 import { Plus } from 'lucide-react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
+import { formatRoleName } from '@/lib/stringUtils';
 
 interface UserFormState {
   email: string;
@@ -27,15 +28,6 @@ interface UserModalProps {
   /** All assignable roles (system + custom). Sorted: system first, then custom A-Z. */
   roles: RoleOption[];
 }
-
-// snake_case → Title Case so "project_manager" reads as "Project Manager".
-// Custom roles created in the Roles tab usually have human-friendly names
-// already; this is a no-op cleanup for them.
-const formatRoleName = (name: string): string =>
-  name
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
 
 const UserModal: React.FC<UserModalProps> = ({
   open,

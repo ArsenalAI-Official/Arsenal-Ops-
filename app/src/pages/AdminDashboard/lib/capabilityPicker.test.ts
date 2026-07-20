@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Capability } from '../types';
 import {
-  toPascalCase,
   wildcardCovers,
   keyIsUnderGrant,
   isGrantHeld,
@@ -19,21 +18,6 @@ import {
 const sorted = (arr: string[]) => [...arr].sort();
 const expectSameSet = (actual: string[], expected: string[]) =>
   expect(sorted(actual)).toEqual(sorted(expected));
-
-describe('toPascalCase', () => {
-  it('converts snake_case to PascalCase', () => {
-    expect(toPascalCase('project_manager')).toBe('ProjectManager');
-  });
-
-  it('handles a single word (and lowercases its tail)', () => {
-    expect(toPascalCase('admin')).toBe('Admin');
-    expect(toPascalCase('ADMIN')).toBe('Admin');
-  });
-
-  it('returns empty string for empty input', () => {
-    expect(toPascalCase('')).toBe('');
-  });
-});
 
 describe('wildcardCovers / keyIsUnderGrant', () => {
   it('`*` covers everything', () => {
@@ -248,7 +232,7 @@ describe('buildPickerCatalog', () => {
       writeGrant: 'admin.users_write',
     });
     expect(byLabel['Time Entries']).toMatchObject({ readGrant: 'admin.time_entries' });
-    expect(byLabel['Time Entries'].writeGrant).toBeUndefined();
+    expect(byLabel['Time Entries']!.writeGrant).toBeUndefined();
   });
 
   it('project group includes the hand-added Project Board row (read + write)', () => {

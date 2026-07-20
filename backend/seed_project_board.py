@@ -12,6 +12,7 @@ import base64
 import hashlib
 import hmac
 import json
+import os
 import random
 import subprocess
 import sys
@@ -21,7 +22,11 @@ from typing import Any
 import requests
 
 BASE_URL = "http://localhost:8000"
-_SECRET = b"your-secret-key-change-in-production"
+# Must match the backend's SECRET_KEY env var so the forged JWT
+# validates. Falls back to the committed placeholder for the local-dev
+# case where ALLOW_INSECURE_SECRET_KEY=1 is set on the backend (the
+# only environment where the placeholder is acceptable).
+_SECRET = os.getenv("SECRET_KEY", "your-secret-key-change-in-production").encode()
 DOCKER_CONTAINER = "arsenal-ops-db"
 DOCKER_DB = "arsenalops"
 DOCKER_USER = "arsenalops"
@@ -136,14 +141,18 @@ SPRINT_NAMES = ["Sprint 1 — Foundation", "Sprint 2 — Core Features", "Sprint
 
 
 def _mint_token(user_id: int) -> str:
-    """Mint a HS256 JWT using stdlib only — no jose dependency."""
+    """Mint a HS256 JWT using stdlib only — no jose dependency.
+
+    Mirrors the backend's session-token shape: includes the
+    ``purpose: "auth"`` claim that ``get_current_user`` requires.
+    """
 
     def b64url(data: bytes) -> str:
         return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
 
     header = b64url(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
     exp = int((datetime.now(UTC) + timedelta(hours=24)).timestamp())
-    payload = b64url(json.dumps({"sub": str(user_id), "exp": exp}).encode())
+    payload = b64url(json.dumps({"sub": str(user_id), "exp": exp, "purpose": "auth"}).encode())
     signing_input = f"{header}.{payload}".encode()
     sig = b64url(hmac.new(_SECRET, signing_input, hashlib.sha256).digest())
     return f"{header}.{payload}.{sig}"
@@ -189,7 +198,9 @@ def create_project(token: str, name: str) -> dict:
     payload = {
         "name": name,
         "description": "Auto-generated seed project for load testing the project board UI at scale.",
-        "key_prefix": name[:4].upper().replace(" ", ""),
+        # Omit key_prefix: the backend derives a guaranteed-unique prefix from
+        # the name. A hand-rolled name[:4] can collide and 400 against the
+        # projects.key_prefix UNIQUE constraint (audit #25).
     }
     resp = requests.post(f"{BASE_URL}/api/projects/", json=payload, headers=headers(token))
     resp.raise_for_status()

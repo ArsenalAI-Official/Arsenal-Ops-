@@ -1,8 +1,8 @@
-import React from 'react';
 import { BookOpen, ClipboardList, Bug, Target, Clock, Ban } from 'lucide-react';
-import TimeEntriesTable from '@/components/TimeEntriesTable';
+import React from 'react';
 import { EpicChip } from '@/components/board/EpicChip';
 import { ParentChip } from '@/components/board/ParentChip';
+import TimeEntriesTable from '@/components/TimeEntriesTable';
 import type { WorkItem } from '@/types/workItems';
 
 interface StatusConfig {

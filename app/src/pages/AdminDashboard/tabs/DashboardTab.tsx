@@ -1,3 +1,5 @@
+import { Users, FolderKanban, Ticket, Calendar, ChevronRight } from 'lucide-react';
+import type { ElementType } from 'react';
 import {
   BarChart,
   Bar,
@@ -9,9 +11,8 @@ import {
   PieChart,
   Pie,
 } from 'recharts';
-import { Users, FolderKanban, Ticket, Calendar, ChevronRight } from 'lucide-react';
-import { Empty, EmptyDescription } from '@/components/ui/empty';
 import type { DashboardStats } from '@/client';
+import { Empty, EmptyDescription } from '@/components/ui/empty';
 
 type AdminTab = 'dashboard' | 'employees' | 'projects' | 'users' | 'roles';
 
@@ -107,7 +108,7 @@ const DashboardTab = ({ stats, setActiveTab }: DashboardTabProps) => {
       <div className="grid grid-cols-4 gap-4">
         {kpis.map((stat, i) => {
           const clickable = !!stat.tab;
-          const Wrapper: any = clickable ? 'button' : 'div';
+          const Wrapper: ElementType = clickable ? 'button' : 'div';
           return (
             <Wrapper
               key={i}

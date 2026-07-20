@@ -16,12 +16,14 @@ explicitly (same trick the rest of the test suite uses — FastAPI's
 import os
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
+from time_utils import utcnow
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -54,6 +56,7 @@ from routers.pulse import (
     get_pulse_overrides,
     put_pulse_overrides,
 )
+from tests.conftest import assign_system_role
 
 
 @pytest.fixture
@@ -68,7 +71,15 @@ def db():
 
 @pytest.fixture
 def admin_user(db):
-    """A system-admin user — bypasses per-project membership checks."""
+    """A system-admin user — bypasses per-project membership checks.
+
+    Mirrors a real production admin: the legacy ``role="admin"`` string plus
+    the RBAC ``admin`` Role (granting ``*``) that ``seed_rbac`` backfills at
+    startup. ``is_project_admin`` and ``has_project_access`` both read the RBAC
+    capability set, so without ``assign_system_role`` this user would hold zero
+    effective capabilities and be denied — the original cause of the four
+    quarantined failures on ``main``.
+    """
     u = User(
         id=1,
         email="admin@x.com",
@@ -79,6 +90,7 @@ def admin_user(db):
     )
     db.add(u)
     db.commit()
+    assign_system_role(db, u)
     return u
 
 
@@ -95,6 +107,7 @@ def other_admin(db):
     )
     db.add(u)
     db.commit()
+    assign_system_role(db, u)
     return u
 
 
@@ -115,7 +128,7 @@ def outsider_user(db):
 
 
 def _make_project(db) -> Project:
-    now = datetime.utcnow()
+    now = utcnow()
     p = Project(
         id=1,
         name="Pulse Project",
@@ -220,7 +233,7 @@ class TestUpsert:
         assert first["updated_by"]["id"] == admin_user.id
 
         # Sleep just long enough that the isoformat string is guaranteed
-        # to differ (datetime.utcnow has microsecond resolution, but be
+        # to differ (utcnow has microsecond resolution, but be
         # defensive against truncation on some drivers).
         time.sleep(0.01)
 

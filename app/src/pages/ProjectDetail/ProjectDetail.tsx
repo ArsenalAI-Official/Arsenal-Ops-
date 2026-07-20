@@ -1,27 +1,27 @@
+import { ArrowLeft, ShieldAlert } from 'lucide-react';
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ShieldAlert } from 'lucide-react';
-import { Spinner } from '@/components/ui/spinner';
+import { toast, Toaster } from 'sonner';
+import type { ProjectArchitectureResponse } from '@/client';
+import { resetPulseData } from '@/components/ProjectHub/pulseData';
+import { useMergedPulse, usePulseManualData } from '@/components/ProjectHub/usePulseData';
+import { Button } from '@/components/ui/button';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { Spinner } from '@/components/ui/spinner';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   PROJECT_TABS,
   PROJECT_TABS_BY_ID,
   canAccessProjectTab,
   type ProjectTabId,
 } from '@/lib/projectTabs';
-import { Button } from '@/components/ui/button';
-import { resetPulseData } from '@/components/ProjectHub/pulseData';
-import { useMergedPulse, usePulseManualData } from '@/components/ProjectHub/usePulseData';
-import { toast, Toaster } from 'sonner';
-import { useAuth } from '@/contexts/AuthContext';
-import type { TabType } from './types';
-import type { ProjectArchitectureResponse } from '@/client';
+import ProjectDetailSkeleton from './components/ProjectDetailSkeleton';
 import { useProjectDetailData } from './hooks/useProjectDetailData';
 import ProjectDetailHeader from './sections/ProjectDetailHeader';
-import ProjectDetailSkeleton from './components/ProjectDetailSkeleton';
+import OverviewTab from './tabs/OverviewTab';
+import type { TabType } from './types';
 // Overview is the default tab — eager (not lazy) so the landing view doesn't
 // pay a chunk-load on first paint. The other tabs are lazy (behind a click).
-import OverviewTab from './tabs/OverviewTab';
 // ArchitectureEditor (modal) is lazy here at the parent since edit state lives at the parent.
 // MermaidRenderer is lazy-loaded inside ArchitectureSection.
 const ArchitectureEditor = lazy(() => import('@/components/ArchitectureEditor'));

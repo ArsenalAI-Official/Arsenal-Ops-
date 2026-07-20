@@ -1,10 +1,10 @@
 import { Loader2 } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import type { ProjectDeveloperEntry } from '@/client';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarIcon } from '@/components/ui/calendar';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Select,
   SelectContent,
@@ -12,12 +12,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
-import type { Project, NewPersonalTaskForm } from './types';
-import type { ProjectDeveloperEntry } from '@/client';
 import { clampNonNegInt, blockNegativeKey } from '@/lib/inputUtils';
-import { parseLocalDate, formatLocalDate } from './utils';
 import { CALENDAR_CLASS_NAMES } from './constants';
+import type { Project, NewPersonalTaskForm } from './types';
+import { parseLocalDate, formatLocalDate } from './utils';
 
 interface AddPersonalTaskDialogProps {
   open: boolean;

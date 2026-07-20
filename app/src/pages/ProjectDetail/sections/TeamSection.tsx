@@ -1,11 +1,11 @@
-import { useState } from 'react';
 import { Users, Plus, Github, Trash2, Crown } from 'lucide-react';
+import { useState } from 'react';
+import type { ProjectDeveloperEntry, DeveloperResponse } from '@/client';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
-import type { ProjectDeveloperEntry, DeveloperResponse } from '@/client';
+import { Textarea } from '@/components/ui/textarea';
 
 interface NewDeveloperForm {
   developer_id: string;

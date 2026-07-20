@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { SprintResponse } from '@/client';
 import { buildEpicGroups } from '@/lib/hierarchy/buildEpicGroups';
 import type { WorkItem } from '@/types/workItems';
-import type { SprintResponse } from '@/client';
 import { parseLocalDate, getWeekStart, formatWeekRange } from '../lib/listGrouping';
 import {
   isSprintCompleted as isSprintCompletedPure,
@@ -60,7 +60,7 @@ export function useListGrouping(params: {
   // Sprint grouping for list view. `listViewToday` only needs day granularity,
   // so compute it once per mount (also satisfies react-hooks/purity, which
   // forbids a bare new Date() in the render body).
-  const listViewToday = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const listViewToday = useMemo(() => new Date().toISOString().split('T')[0]!, []);
   // Hoisted out of the per-row list map below (was a `new Date()` allocated for
   // every row + a react-hooks/purity violation). Day granularity is enough.
   const todayMidnightMs = useMemo(() => {

@@ -1,14 +1,15 @@
-import React, { useState, useMemo } from 'react';
-import { Calendar, Views, dateFnsLocalizer, Navigate } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { enUS } from 'date-fns/locale';
-import 'react-big-calendar/lib/css/react-big-calendar.css';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { parseLocalDate } from '@/lib/dateUtils';
-import { isPastDue } from '@/components/ProjectsPage/utils';
-import { getStatusColor } from '@/lib/workItemConfig';
+import React, { useState, useMemo } from 'react';
+import { Calendar, Views, dateFnsLocalizer, Navigate } from 'react-big-calendar';
+import type { View, ToolbarProps } from 'react-big-calendar';
+import 'react-big-calendar/lib/css/react-big-calendar.css';
 import type { GoalResponse, MilestoneResponse } from '@/client';
+import { isPastDue } from '@/components/ProjectsPage/utils';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { parseLocalDate } from '@/lib/dateUtils';
+import { getStatusColor } from '@/lib/workItemConfig';
 
 interface WorkItem {
   id: string;
@@ -29,13 +30,20 @@ interface CalendarViewProps {
   onMilestoneClick?: (milestone: MilestoneResponse) => void;
 }
 
+// What each calendar event was built from. Discriminated on `type` so the
+// click + style handlers can narrow: only `task` resources are full WorkItems.
+type CalendarResource =
+  | (WorkItem & { type: 'task' })
+  | (MilestoneResponse & { type: 'milestone' })
+  | (GoalResponse & { type: 'goal' });
+
 interface CalendarEvent {
   id: string;
   title: string;
   start: Date;
   end: Date;
   allDay: boolean;
-  resource: any;
+  resource: CalendarResource;
 }
 
 const locales = {
@@ -57,7 +65,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   onTaskClick,
 }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [view, setView] = useState<(typeof Views)[keyof typeof Views]>(Views.MONTH);
+  const [view, setView] = useState<View>(Views.MONTH);
 
   const events: CalendarEvent[] = useMemo(() => {
     const taskEvents: CalendarEvent[] = workItems
@@ -120,17 +128,20 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   const handleSelectEvent = (event: CalendarEvent) => {
-    if (onTaskClick) {
+    // Only task resources are WorkItems; milestone/goal events don't open a task.
+    if (onTaskClick && event.resource.type === 'task') {
       onTaskClick(event.resource);
     }
   };
 
   const eventStyleGetter = (event: CalendarEvent) => {
     const item = event.resource;
-    let backgroundColor = getStatusColor(item.status);
+    // Only task resources carry a status; milestones/goals fall back to ''.
+    const status = item.type === 'task' ? item.status : '';
+    let backgroundColor = getStatusColor(status);
 
     // Check if overdue (canonical date-only semantics: due-today is not overdue)
-    const isOverdue = isPastDue(item.due_date, item.status);
+    const isOverdue = isPastDue(item.due_date, status);
     if (isOverdue) {
       backgroundColor = '#EF4444';
     }
@@ -152,29 +163,24 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const CustomToolbar = ({
     onNavigate,
     label,
-  }: {
-    onNavigate: (
-      action: typeof Navigate.PREVIOUS | typeof Navigate.NEXT | typeof Navigate.TODAY,
-    ) => void;
-    label: string;
-  }) => (
+  }: Pick<ToolbarProps<CalendarEvent>, 'onNavigate' | 'label'>) => (
     <div className="flex items-center justify-between mb-4">
       <div className="flex items-center gap-2">
         <button
           className="px-3 py-1.5 rounded-md border border-gray-600 text-white bg-transparent hover:bg-gray-700 transition-colors"
-          onClick={() => onNavigate(Navigate.PREVIOUS as any)}
+          onClick={() => onNavigate(Navigate.PREVIOUS)}
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
         <button
           className="px-3 py-1.5 rounded-md border border-gray-600 text-white bg-transparent hover:bg-gray-700 transition-colors"
-          onClick={() => onNavigate(Navigate.TODAY as any)}
+          onClick={() => onNavigate(Navigate.TODAY)}
         >
           Today
         </button>
         <button
           className="px-3 py-1.5 rounded-md border border-gray-600 text-white bg-transparent hover:bg-gray-700 transition-colors"
-          onClick={() => onNavigate(Navigate.NEXT as any)}
+          onClick={() => onNavigate(Navigate.NEXT)}
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -289,13 +295,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             startAccessor="start"
             endAccessor="end"
             view={view}
-            onView={(newView: any) => setView(newView)}
+            onView={(newView: View) => setView(newView)}
             date={currentDate}
             onNavigate={handleNavigate}
             onSelectEvent={handleSelectEvent}
             eventPropGetter={eventStyleGetter}
             components={{
-              toolbar: CustomToolbar as any,
+              toolbar: CustomToolbar as React.ComponentType<ToolbarProps<CalendarEvent>>,
             }}
           />
         </div>

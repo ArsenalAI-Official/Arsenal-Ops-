@@ -1,35 +1,28 @@
-import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Clock } from 'lucide-react';
+import { Clock, RefreshCw } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import type { TimeEntriesResponse } from '@/client';
 import { apiFetch } from '@/lib/api';
-import { formatLocalDate } from '@/components/ProjectsPage/utils';
 import TimeEntriesFilterBar from './TimeEntriesFilterBar';
 import TimeEntriesSummary from './TimeEntriesSummary';
 import TimeEntriesTable from './TimeEntriesTable';
-import { addDays, resolveDateRange, startOfWeek } from './types';
-import type {
-  AggregatedRow,
-  EmployeeOption,
-  EntryGroup,
-  FiltersState,
-  GroupBy,
-  ProjectOption,
-} from './types';
-import type { TimeEntriesResponse } from '@/client';
+import { aggregateEntries, resolveDateRange } from './types';
+import type { EmployeeOption, FiltersState, ProjectOption, ViewMode } from './types';
+import ViewModeToggle from './ViewModeToggle';
+import type { WorkforceStatus } from '../../types';
 
 /**
- * Admin Time Entries tab — workforce-tool-style filterable grid of every
- * TimeEntry across all projects. Mirrors the layout of Toggl/Harvest:
- * compact filter bar on top, totals strip, then a flat sortable table.
+ * Admin Time Entries tab — a CEO-facing breakdown of every logged hour.
+ *
+ * A view switcher groups hours by Employee (default), Client, or Project. Each
+ * view shows ranked totals with a share-of-total bar, expandable to a
+ * context-aware secondary breakdown (employee→projects, client→projects,
+ * project→employees).
  *
  * Three filters compose with AND:
  *   - Date range (preset chips: Today / This week / This month / Last week / Last month / Custom)
  *   - Project (single-select from the admin projects list)
  *   - Employee (single-select from the admin employees list)
- *
- * "Custom" reveals a pair of calendar popovers backed by the same shadcn
- * Calendar component the Personal Tasks due-date picker uses, so the
- * keyboard navigation and visual styling stay consistent across the app.
  *
  * Backend: GET /api/admin/time-entries (capability admin.time_entries).
  */
@@ -37,35 +30,36 @@ import type { TimeEntriesResponse } from '@/client';
 interface TimeEntriesTabProps {
   projects: ProjectOption[];
   employees: EmployeeOption[];
+  /** Distinct QuickBooks client names, pre-sorted, for the Client filter. */
+  clients: string[];
 }
 
-const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ projects, employees }) => {
+const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ projects, employees, clients }) => {
+  const [viewMode, setViewModeState] = useState<ViewMode>('employee');
   const [filters, setFilters] = useState<FiltersState>({
     projectId: null,
     developerId: null,
+    clientName: null,
     preset: 'this_week',
     customFrom: '',
     customTo: '',
-    groupBy: 'none',
   });
 
-  // Collapsible groups start fully collapsed; the user expands the periods they
-  // care about. Cleared on reset / group-by switch so stale keys can't re-open.
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const toggleGroup = (key: string) => {
-    setExpandedGroups((prev) => {
+  // Which group rows are expanded to show their breakdown. Rows start collapsed;
+  // cleared on reset AND on view change (keys differ per view, so stale keys
+  // from another view would silently mis-expand).
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const toggleRow = (key: string) => {
+    setExpandedRows((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
       return next;
     });
   };
-
-  // Switch grouping mode and reset which groups are expanded (every entry into
-  // a grouping mode starts collapsed, per the default-collapsed contract).
-  const handleGroupByChange = (groupBy: GroupBy) => {
-    setFilters((f) => ({ ...f, groupBy }));
-    setExpandedGroups(new Set());
+  const setViewMode = (mode: ViewMode) => {
+    setViewModeState(mode);
+    setExpandedRows(new Set());
   };
 
   // Sorted project + employee lists (alphabetical, locale-aware). Recomputed
@@ -100,14 +94,23 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ projects, employees }) 
     const params = new URLSearchParams();
     if (filters.projectId != null) params.set('project_id', String(filters.projectId));
     if (filters.developerId != null) params.set('developer_id', String(filters.developerId));
+    if (filters.clientName != null) params.set('client_name', filters.clientName);
     if (from) params.set('date_from', from);
     if (to) params.set('date_to', to);
     const s = params.toString();
     return s ? `?${s}` : '';
-  }, [filters.projectId, filters.developerId, from, to]);
+  }, [filters.projectId, filters.developerId, filters.clientName, from, to]);
 
   const entriesQuery = useQuery<TimeEntriesResponse>({
-    queryKey: ['admin', 'time-entries', filters.projectId, filters.developerId, from, to],
+    queryKey: [
+      'admin',
+      'time-entries',
+      filters.projectId,
+      filters.developerId,
+      filters.clientName,
+      from,
+      to,
+    ],
     queryFn: () => apiFetch<TimeEntriesResponse>(`/api/admin/time-entries${queryString}`),
     // Match the cadence other admin tabs use: refetch on focus but no
     // aggressive polling — time entries don't change often enough to warrant it.
@@ -115,181 +118,119 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ projects, employees }) 
     staleTime: 30_000,
   });
 
+  // Workforce / QuickBooks sync status — only used to display the last-sync
+  // timestamp on the header. Shares the cache key with the Integrations tab
+  // so switching tabs is free; we don't care if it's stale (UI just reads
+  // `last_sync_at`). The header hides itself when not connected.
+  const workforceStatusQuery = useQuery<WorkforceStatus>({
+    queryKey: ['admin', 'workforceStatus'],
+    queryFn: () => apiFetch<WorkforceStatus>('/api/admin/workforce/status'),
+    staleTime: 60_000,
+  });
+  const workforce = workforceStatusQuery.data;
+  const lastSyncLabel = useMemo(() => {
+    if (!workforce?.connected || !workforce.integration?.last_sync_at) return null;
+    try {
+      // Render in US Eastern with EST/EDT suffix — matches the Integrations
+      // tab's formatTimestamp so the two screens read the same way.
+      return new Date(workforce.integration.last_sync_at).toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'America/New_York',
+        timeZoneName: 'short',
+      });
+    } catch {
+      return workforce.integration.last_sync_at;
+    }
+  }, [workforce]);
+
   // Stabilize the empty-default reference — `?? []` produces a fresh array
-  // every render, which would otherwise re-trigger `groupedRows` below and
-  // any downstream memos. Per app/CLAUDE.md "Stabilize empty-default arrays".
+  // every render, which would re-trigger the aggregation memos below.
   const rows = useMemo(() => entriesQuery.data?.rows ?? [], [entriesQuery.data?.rows]);
-  const totalHours = entriesQuery.data?.total_hours ?? 0;
-  // Pre-aggregation row count from the server (used for the truncation notice);
-  // the Entries card shows the post-aggregation count below.
+  // Pre-aggregation raw row count from the server (used for the truncation notice).
   const totalRawRows = entriesQuery.data?.total_rows ?? 0;
   const truncated = entriesQuery.data?.truncated ?? false;
 
-  // Collapse raw entries by (employee, project, local-day), summing hours. This
-  // is the row set the table actually renders — both flat and grouped.
-  const aggregatedRows = useMemo<AggregatedRow[]>(() => {
-    const buckets = new Map<string, AggregatedRow>();
-    for (const row of rows) {
-      const d = new Date(row.logged_at);
-      if (Number.isNaN(d.getTime())) continue;
-      const dayKey = formatLocalDate(d);
-      const empPart =
-        row.developer_id != null ? `e${row.developer_id}` : `n${row.developer_name ?? ''}`;
-      const projPart = row.project_id != null ? `p${row.project_id}` : `n${row.project_name ?? ''}`;
-      const key = `${dayKey}|${empPart}|${projPart}`;
-      const existing = buckets.get(key);
-      if (existing) {
-        existing.hours += row.hours || 0;
-        // Keep the latest raw timestamp so the date cell reflects the most
-        // recent action in the bucket (cosmetic near a day boundary).
-        if (new Date(row.logged_at).getTime() > new Date(existing.logged_at).getTime()) {
-          existing.logged_at = row.logged_at;
-        }
-      } else {
-        buckets.set(key, {
-          key,
-          dayKey,
-          logged_at: row.logged_at,
-          hours: row.hours || 0,
-          developer_name: row.developer_name,
-          project_name: row.project_name,
-        });
-      }
-    }
-    return [...buckets.values()].sort((a, b) => {
-      // dayKey is YYYY-MM-DD, so lexicographic comparison is correct.
-      if (a.dayKey !== b.dayKey) return a.dayKey < b.dayKey ? 1 : -1;
-      const ea = (a.developer_name ?? '').toLowerCase();
-      const eb = (b.developer_name ?? '').toLowerCase();
-      if (ea !== eb) return ea < eb ? -1 : 1;
-      const pa = (a.project_name ?? '').toLowerCase();
-      const pb = (b.project_name ?? '').toLowerCase();
-      return pa < pb ? -1 : pa > pb ? 1 : 0;
-    });
-  }, [rows]);
-
-  // When `groupBy !== 'none'`, bucket each entry into the period
-  // (Sat→Fri week or calendar month) containing its logged_at timestamp.
-  // Groups are sorted most-recent period first; entries inside keep the
-  // server's DESC ordering. Returns null when grouping is off so the
-  // render branch can short-circuit to the flat layout.
-  //
-  // Both modes produce the same `EntryGroup` shape so the render code
-  // doesn't branch on the grouping kind — only the label format differs,
-  // and that's pre-computed here.
-  const groupedRows = useMemo<EntryGroup[] | null>(() => {
-    if (filters.groupBy === 'none') return null;
-
-    // `bucketize` returns the bucket start Date + pre-formatted label for
-    // the chosen mode. Computed once and reused per row.
-    const bucketize = (logged: Date): { start: Date; label: string } => {
-      if (filters.groupBy === 'month') {
-        const start = new Date(logged.getFullYear(), logged.getMonth(), 1);
-        const label = start.toLocaleDateString(undefined, {
-          month: 'long',
-          year: 'numeric',
-        });
-        return { start, label };
-      }
-      // week (Sat→Fri)
-      const start = startOfWeek(logged);
-      const end = addDays(start, 6);
-      const startStr = start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-      const endStr = end.toLocaleDateString(undefined, {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      });
-      return { start, label: `${startStr} → ${endStr}` };
-    };
-
-    // Iterate the AGGREGATED rows so each week/month bucket reflects the
-    // (employee, project, day) collapse — group totals are unchanged (sum is
-    // preserved) but the entry list shows collapsed rows, not raw entries.
-    const buckets = new Map<string, EntryGroup>();
-    for (const row of aggregatedRows) {
-      const logged = new Date(row.logged_at);
-      if (Number.isNaN(logged.getTime())) continue;
-      const { start, label } = bucketize(logged);
-      const key = formatLocalDate(start);
-      let bucket = buckets.get(key);
-      if (!bucket) {
-        bucket = { key, label, totalHours: 0, entries: [], sortDate: start };
-        buckets.set(key, bucket);
-      }
-      bucket.totalHours += row.hours || 0;
-      bucket.entries.push(row);
-    }
-    return [...buckets.values()].sort((a, b) => b.sortDate.getTime() - a.sortDate.getTime());
-  }, [filters.groupBy, aggregatedRows]);
+  // Grouped rows for the active view. Recomputed when the rows or the chosen
+  // grouping change.
+  const { groups } = useMemo(() => aggregateEntries(rows, viewMode), [rows, viewMode]);
 
   // Reset button activates when any non-default field is set. Keep this in
-  // lockstep with `resetFilters` below — if you add a field to one, add it
-  // to the other or the button's enable/disable state will drift.
+  // lockstep with `resetFilters` below.
   const hasAnyFilter =
     filters.projectId != null ||
     filters.developerId != null ||
+    filters.clientName != null ||
     filters.preset !== 'this_week' ||
     filters.customFrom !== '' ||
-    filters.customTo !== '' ||
-    filters.groupBy !== 'none';
+    filters.customTo !== '';
 
   const resetFilters = () => {
     setFilters({
       projectId: null,
       developerId: null,
+      clientName: null,
       preset: 'this_week',
       customFrom: '',
       customTo: '',
-      groupBy: 'none',
     });
-    // A full reset returns to the empty collapsed state so stale expanded keys
-    // can't linger and re-open on the next group-by.
-    setExpandedGroups(new Set());
+    setExpandedRows(new Set());
   };
 
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <Clock className="w-5 h-5 text-[#E0B954]" />
             Time Entries
           </h2>
           <p className="text-xs text-[#737373] mt-1">
-            Audit every hour logged across projects. Filter by project, employee, or date range.
+            Where every logged hour went — grouped by employee, client, or project.
           </p>
         </div>
+        {lastSyncLabel && (
+          <div
+            className="inline-flex items-center gap-1.5 text-[11px] text-[#737373] shrink-0"
+            title="Last successful sync of logged hours to QuickBooks. Manage from Admin → Integrations."
+          >
+            <RefreshCw className="w-3 h-3" />
+            Last QuickBooks sync: <span className="text-[#a3a3a3]">{lastSyncLabel}</span>
+          </div>
+        )}
       </div>
+
+      <TimeEntriesSummary totalRawRows={totalRawRows} truncated={truncated} from={from} to={to} />
 
       <TimeEntriesFilterBar
         filters={filters}
         setFilters={setFilters}
         sortedProjects={sortedProjects}
         sortedEmployees={sortedEmployees}
+        clients={clients}
         hasAnyFilter={hasAnyFilter}
         onReset={resetFilters}
       />
 
-      <TimeEntriesSummary
-        totalHours={totalHours}
-        entriesCount={aggregatedRows.length}
-        totalRawRows={totalRawRows}
-        truncated={truncated}
-        from={from}
-        to={to}
-        groupBy={filters.groupBy}
-        onGroupByChange={handleGroupByChange}
-      />
+      {/* View switcher: group hours by employee (default), client, or project. */}
+      <div className="flex items-center justify-between gap-4">
+        <ViewModeToggle value={viewMode} onChange={setViewMode} />
+        <span className="text-xs text-[#737373]">
+          {groups.length} {groups.length === 1 ? 'row' : 'rows'}
+        </span>
+      </div>
 
       <TimeEntriesTable
         isLoading={entriesQuery.isLoading}
         isError={entriesQuery.isError}
-        rows={aggregatedRows}
-        groupedRows={groupedRows}
-        expandedGroups={expandedGroups}
-        onToggleGroup={toggleGroup}
+        viewMode={viewMode}
+        rows={groups}
+        expandedRows={expandedRows}
+        onToggleRow={toggleRow}
       />
     </div>
   );

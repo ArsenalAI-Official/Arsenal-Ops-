@@ -7,7 +7,7 @@ import os
 import secrets
 import string
 import sys
-from datetime import datetime, timedelta
+from datetime import timedelta
 from threading import Lock
 
 from cachetools import TTLCache
@@ -17,6 +17,8 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
+
+from time_utils import utcnow
 
 sys.path.append("..")
 from capabilities import CAPABILITIES, is_valid_grant
@@ -41,10 +43,52 @@ def _is_internal_email(email: str | None) -> bool:
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
-# Security configuration
-SECRET_KEY = "your-secret-key-change-in-production"  # Change this in production!
+# ── Security configuration ───────────────────────────────────────────────
+
+# The committed placeholder. Rejected explicitly so a misconfigured prod
+# deploy can't fall back to a value that's already in the public repo.
+_PLACEHOLDER_SECRET_KEY = "your-secret-key-change-in-production"
+
+
+def _load_secret_key() -> str:
+    """Load SECRET_KEY from the environment. Hard fail on absent or placeholder.
+
+    This secret signs both session JWTs (gating the entire admin API
+    surface) AND the OAuth state token on the public
+    /api/auth/workforce/callback. A leaked or guessable value breaks both
+    authentication (session forgery) AND the workforce-OAuth CSRF defense.
+
+    No escape hatch — the env var is REQUIRED everywhere: production
+    deploys, local dev, and CI. Tests set it in ``tests/conftest.py``
+    before any backend module imports. Generate a real value with::
+
+        python -c "import secrets; print(secrets.token_urlsafe(48))"
+    """
+    raw = os.getenv("SECRET_KEY", "").strip()
+    if not raw:
+        raise RuntimeError(
+            "SECRET_KEY env var is not set. Generate one with "
+            '`python -c "import secrets; print(secrets.token_urlsafe(48))"` '
+            "and set it on the backend process before booting."
+        )
+    if raw == _PLACEHOLDER_SECRET_KEY:
+        raise RuntimeError(
+            "SECRET_KEY is set to the committed placeholder value, which is "
+            "in the public repo. Rotate to a real value (see _load_secret_key "
+            "docstring) before continuing."
+        )
+    return raw
+
+
+SECRET_KEY: str = _load_secret_key()
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
+
+# JWT purpose claims. Every minted token carries `purpose`; consumers
+# reject any token whose purpose doesn't match what they expect. Stops a
+# state token (10-min TTL, leaks via URL bar + Referer) from being reused
+# as a session bearer credential.
+SESSION_TOKEN_PURPOSE = "auth"
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
@@ -82,6 +126,28 @@ class UserResponse(BaseModel):
     name: str
     role: str
     is_first_login: bool
+    # Mirrors `Developer.is_external` for the linked Developer row, or
+    # `True` if no Developer profile exists. Lets the frontend gate
+    # internal-employee-only UI (e.g. the home capacity card) at render
+    # time, without a round-trip that 404s. Source of truth is still
+    # `ALLOWED_EMAIL_DOMAINS` + `reconcile_internal_developers()`.
+    is_external: bool
+
+
+def _resolve_is_external(user: User, db: Session) -> bool:
+    """Look up the linked Developer row and return its `is_external`
+    flag. Defaults to `True` when no Developer exists — admin-only users
+    and unknown emails are treated as external for visibility purposes
+    (they shouldn't see internal-employee-only UI).
+
+    Used everywhere `UserResponse` is built (login, change-password,
+    /me, the Google + dev login flows) so the field is populated
+    consistently across all auth endpoints.
+    """
+    from models.developer import Developer
+
+    dev = db.query(Developer).filter(Developer.email == user.email).first()
+    return True if dev is None else bool(dev.is_external)
 
 
 class UserListItemResponse(BaseModel):
@@ -145,12 +211,17 @@ def get_password_hash(password):
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
+    """Mint a session JWT.
+
+    Every token carries ``purpose: "auth"`` so ``get_current_user`` can
+    reject narrow-scope tokens (e.g. the OAuth state token) being reused
+    as a session bearer credential. Callers must not override the purpose
+    via ``data``.
+    """
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
+    expire = utcnow() + (expires_delta if expires_delta else timedelta(minutes=15))
+    to_encode["exp"] = expire
+    to_encode["purpose"] = SESSION_TOKEN_PURPOSE
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
@@ -163,11 +234,25 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str | None = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
     except JWTError:
         raise credentials_exception from None
+    # Pin required claims explicitly — `exp` is verified by jose; `sub`
+    # and `purpose` we check ourselves so a malformed token can't slip
+    # through with missing fields.
+    purpose = payload.get("purpose")
+    # Grandfather window: session tokens minted before the `purpose` claim
+    # existed carry no purpose at all. Accept them (purpose is None) for one
+    # release so this deploy doesn't 401 every mid-session user at once (the
+    # 24h token lifetime means essentially the whole logged-in population).
+    # State / email-link tokens carry a NON-None, non-"auth" purpose, so they
+    # are still rejected as sessions — the token-reuse protection holds.
+    # TODO(auth): drop the `is not None` grandfather ~24h after deploy, once
+    # every pre-cutover token has expired.
+    if purpose is not None and purpose != SESSION_TOKEN_PURPOSE:
+        raise credentials_exception
+    user_id: str | None = payload.get("sub")
+    if user_id is None:
+        raise credentials_exception
 
     user = (
         db.query(User)
@@ -242,7 +327,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
 
     # Update last login
-    user.last_login_at = datetime.utcnow()
+    user.last_login_at = utcnow()
     db.commit()
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -259,6 +344,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             "name": user.name,
             "role": user.role,
             "is_first_login": user.is_first_login,
+            "is_external": _resolve_is_external(user, db),
         },
     }
 
@@ -279,7 +365,7 @@ def change_password(
     # Update password
     current_user.hashed_password = get_password_hash(password_data.new_password)
     current_user.is_first_login = False
-    current_user.password_changed_at = datetime.utcnow()
+    current_user.password_changed_at = utcnow()
     db.commit()
 
     return {"status": "success", "message": "Password changed successfully"}
@@ -492,11 +578,33 @@ def update_user_role(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
+    # Resolve the requested string to known SYSTEM roles up front. This endpoint
+    # sets a user's system role(s); custom roles are managed via the
+    # assign/remove-role endpoints. Reject unknown names (e.g. a typo like
+    # "superuser") and the empty string with 400 rather than silently writing
+    # them to the legacy column while granting zero capabilities — RBAC reads
+    # `user.roles`, not the string, so a silent no-op would look like success.
+    requested_names = [n.strip() for n in (role_data.role or "").split(",") if n.strip()]
+    resolved = {
+        r.name: r
+        for r in db.query(Role)
+        .filter(Role.is_system.is_(True), Role.name.in_(requested_names))
+        .all()
+    }
+    unknown = [n for n in requested_names if n not in resolved]
+    if not requested_names or unknown:
+        detail = (
+            f"Unknown role(s): {', '.join(sorted(set(unknown)))}"
+            if unknown
+            else "A role is required"
+        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
     # Prevent removing the last admin. Read the many-to-many `user.roles`
-    # relationship rather than the legacy comma-string column so this stays
-    # correct even when the column drifts. The legacy string sync still runs
-    # via _sync_legacy_role_string() but is no longer authoritative.
-    is_demoting_admin = _has_admin_role(user) and "admin" not in role_data.role
+    # relationship rather than the legacy comma-string column, since RBAC is
+    # the source of truth for "is this user an admin". Evaluated against the
+    # CURRENT (pre-change) roles, before the resync below.
+    is_demoting_admin = _has_admin_role(user) and "admin" not in resolved
     if is_demoting_admin:
         all_users = db.query(User).options(selectinload(User.roles)).all()
         admin_count = sum(1 for u in all_users if _has_admin_role(u))
@@ -505,7 +613,13 @@ def update_user_role(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove the last admin"
             )
 
-    user.role = role_data.role
+    # Resync the RBAC m2m to the resolved system roles (preserving any custom,
+    # non-system roles assigned via the RBAC UI), then derive the legacy column
+    # FROM the resolved roles via `_sync_legacy_role_column` so the string can't
+    # drift from the m2m. RBAC is authoritative; the legacy column is a mirror.
+    desired_system_roles = [resolved[n] for n in dict.fromkeys(requested_names)]
+    user.roles = [r for r in user.roles if not r.is_system] + desired_system_roles
+    _sync_legacy_role_column(user)
     db.commit()
     _invalidate_caps_cache()
 
@@ -553,14 +667,25 @@ def delete_user(
 
 
 @router.get("/me", response_model=UserResponse)
-def get_current_user_info(current_user: User = Depends(get_current_user)):
-    """Get current user info"""
+def get_current_user_info(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get current user info, including the `is_external` flag from the
+    linked Developer row. External (or no-Developer) users get `True`
+    here so the frontend can hide internal-only UI (e.g. the home
+    capacity card) at render time without an extra round-trip."""
+    from models.developer import Developer
+
+    dev = db.query(Developer).filter(Developer.email == current_user.email).first()
+    is_external = True if dev is None else bool(dev.is_external)
     return {
         "id": current_user.id,
         "email": current_user.email,
         "name": current_user.name,
         "role": current_user.role,
         "is_first_login": current_user.is_first_login,
+        "is_external": is_external,
     }
 
 
@@ -626,7 +751,7 @@ def google_login(request: GoogleLoginRequest, db: Session = Depends(get_db)):
             role=UserRole.DEVELOPER.value,
             is_active=True,
             is_first_login=False,  # SSO users don't need password change
-            last_login_at=datetime.utcnow(),
+            last_login_at=utcnow(),
         )
         db.add(user)
         # Flush (not commit) so user.id is available for the m2m link below,
@@ -659,7 +784,7 @@ def google_login(request: GoogleLoginRequest, db: Session = Depends(get_db)):
             # Continue anyway - user account was created successfully
 
     # Update last login timestamp
-    user.last_login_at = datetime.utcnow()
+    user.last_login_at = utcnow()
     db.commit()
     db.refresh(user)
 
@@ -678,6 +803,7 @@ def google_login(request: GoogleLoginRequest, db: Session = Depends(get_db)):
             "name": user.name,
             "role": user.role,
             "is_first_login": user.is_first_login,
+            "is_external": _resolve_is_external(user, db),
         },
     }
 
@@ -733,7 +859,7 @@ def dev_login(db: Session = Depends(get_db)):
         db.add(Developer(name=user.name, email=user.email))
         db.commit()
 
-    user.last_login_at = datetime.utcnow()
+    user.last_login_at = utcnow()
     db.commit()
 
     access_token = create_access_token(
@@ -749,6 +875,7 @@ def dev_login(db: Session = Depends(get_db)):
             "name": user.name,
             "role": user.role,
             "is_first_login": user.is_first_login,
+            "is_external": _resolve_is_external(user, db),
         },
     }
 

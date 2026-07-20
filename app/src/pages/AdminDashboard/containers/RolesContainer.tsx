@@ -1,17 +1,12 @@
 // Thin per-tab container for the Roles tab. Owns role-editor state via
 // useRolesAdmin and renders the Roles tab plus the role create/edit modal.
-import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { useAuth } from '@/contexts/AuthContext';
 import { AdminSpinner } from '../components/AdminSpinner';
 import { useRolesAdmin } from '../hooks/useRolesAdmin';
-import {
-  isGrantHeld,
-  isSideEffective,
-  isGroupEffective,
-  toPascalCase,
-} from '../lib/capabilityPicker';
-import RolesTab from '../tabs/RolesTab';
+import { isGrantHeld, isSideEffective, isGroupEffective } from '../lib/capabilityPicker';
 import RoleModal from '../modals/RoleModal';
+import RolesTab from '../tabs/RolesTab';
 
 export default function RolesContainer() {
   const { can } = useAuth();
@@ -67,7 +62,6 @@ export default function RolesContainer() {
         isGrantHeld={isGrantHeld}
         isSideEffective={isSideEffective}
         isGroupEffective={isGroupEffective}
-        toPascalCase={toPascalCase}
         handleSaveRole={handleSaveRole}
       />
       {confirmDialog}

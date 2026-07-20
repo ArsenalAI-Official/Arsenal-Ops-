@@ -130,7 +130,7 @@ export const currentIncludedServices = (data: PulseData): IncludedServicesRow =>
   const list = data.includedServices ?? [];
   const monthMatch = list.find((r) => r.month === data.summary.monthLabel);
   if (monthMatch) return monthMatch;
-  if (list.length > 0) return list[list.length - 1];
+  if (list.length > 0) return list[list.length - 1]!;
   return {
     month: data.summary.monthLabel || '',
     totalHours: 0,

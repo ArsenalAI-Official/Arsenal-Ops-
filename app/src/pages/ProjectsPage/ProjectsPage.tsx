@@ -1,7 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
-import { useAuth } from '@/contexts/AuthContext';
-import { useConfirm } from '@/components/ui/confirm-dialog';
+import { LegalFooter } from '@/components/LegalFooter';
 import {
   AppHeader,
   DashboardStats,
@@ -14,6 +13,8 @@ import {
   EditPersonalTaskDialog,
   CreateProjectDialog,
 } from '@/components/ProjectsPage';
+import { useConfirm } from '@/components/ui/confirm-dialog';
+import { useAuth } from '@/contexts/AuthContext';
 import { useProjectsPageData } from './hooks/useProjectsPageData';
 
 const ProjectsPage = () => {
@@ -150,6 +151,8 @@ const ProjectsPage = () => {
           </div>
         </div>
       </div>
+
+      <LegalFooter className="flex-shrink-0 border-t border-[rgba(255,255,255,0.06)]" />
 
       <QuickNotesPanel
         notepadOpen={notepadOpen}

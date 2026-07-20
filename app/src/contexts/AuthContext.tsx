@@ -8,9 +8,9 @@ import {
   useState,
   ReactNode,
 } from 'react';
+import type { UserResponse } from '@/client';
 import { API_BASE_URL } from '@/config/api';
 import { matchesCapability } from '@/lib/capabilities';
-import type { UserResponse } from '@/client';
 
 // Sourced from the backend's `UserResponse` schema (generated from the FastAPI
 // `/api/auth/*` response_model). `role` is a comma-separated string —

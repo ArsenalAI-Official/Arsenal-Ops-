@@ -81,7 +81,7 @@ for dev.
 
 ### Prerequisites
 - Node.js 20+ and npm
-- Python 3.11+
+- Python 3.12+
 - (Optional) Docker + Docker Compose for the all-in-one path
 
 ### Option 1 — Run frontend + backend natively
@@ -91,6 +91,11 @@ for dev.
 cp .env.example .env
 # Fill in Azure OpenAI credentials at minimum; other keys are optional
 ```
+> **Required: `SECRET_KEY`.** The backend refuses to start unless `SECRET_KEY`
+> is set to a non-default value — it signs and verifies the auth JWTs. Generate
+> one with `python -c "import secrets; print(secrets.token_urlsafe(48))"` and set
+> it in your local `.env` and in Render (prod). Changing it logs out all active
+> users.
 
 **2. Backend**
 ```bash

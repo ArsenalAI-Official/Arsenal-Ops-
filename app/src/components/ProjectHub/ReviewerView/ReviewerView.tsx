@@ -1,7 +1,6 @@
+import { Eye, Inbox } from 'lucide-react';
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Eye, Inbox } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
 import {
   Empty,
   EmptyHeader,
@@ -9,9 +8,10 @@ import {
   EmptyTitle,
   EmptyDescription,
 } from '@/components/ui/empty';
-import type { ReviewerViewProps, WorkItem } from './types';
+import { useAuth } from '@/contexts/AuthContext';
 import { useReviewerActions } from './hooks/useReviewerActions';
 import ReviewItemCard from './sections/ReviewItemCard';
+import type { ReviewerViewProps, WorkItem } from './types';
 
 const ReviewerView: React.FC<ReviewerViewProps> = ({
   workItems,

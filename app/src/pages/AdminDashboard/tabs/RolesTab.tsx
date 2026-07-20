@@ -1,8 +1,8 @@
 import { Plus, Pencil, Trash2, KeyRound } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { toPascalCase } from '@/lib/stringUtils';
-import { Empty, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import type { RoleResponse } from '@/client';
+import { Button } from '@/components/ui/button';
+import { Empty, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
+import { formatRoleName } from '@/lib/stringUtils';
 
 interface RolesTabProps {
   roles: RoleResponse[];
@@ -62,7 +62,7 @@ const RolesTab = ({
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs bg-[#E0B954]/20 text-[#E0B954] font-medium">
                       <KeyRound className="w-3 h-3" />
-                      {toPascalCase(role.name)}
+                      {formatRoleName(role.name)}
                     </span>
                     {role.is_system && (
                       <span className="text-[10px] uppercase tracking-wide text-[#737373] px-1.5 py-0.5 rounded bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)]">

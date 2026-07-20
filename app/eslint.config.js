@@ -2,6 +2,8 @@ import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
+import jsxA11y from 'eslint-plugin-jsx-a11y'
+import importX from 'eslint-plugin-import-x'
 import tseslint from 'typescript-eslint'
 import prettierConfig from 'eslint-config-prettier'
 import { defineConfig, globalIgnores } from 'eslint/config'
@@ -18,19 +20,47 @@ export default defineConfig([
       tseslint.configs.recommended,
       reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
+      // Accessibility linting for JSX. Landed as warnings (see rules below) so
+      // the existing backlog — notably the keyboard-inaccessible Kanban board /
+      // modals (ProjectBoard.tsx) — stays visible without turning CI red.
+      jsxA11y.flatConfigs.recommended,
       // Must come last: disables any ESLint stylistic rules that would
       // conflict with Prettier's formatting.
       prettierConfig,
     ],
+    plugins: {
+      'import-x': importX,
+    },
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
     },
     rules: {
-      // `any` is widely used in this codebase for legacy reasons (API response
-      // shapes, drag handlers, recharts payloads). Downgrade to warn so it
-      // stays visible without blocking CI.
-      '@typescript-eslint/no-explicit-any': 'warn',
+      // Land every jsx-a11y recommended rule as a warning rather than an error.
+      // The codebase has a known a11y backlog (keyboard-inaccessible Kanban
+      // board + modals — see app/CLAUDE.md); we want it visible, not blocking
+      // CI, and remediated in a dedicated follow-up. Computed so new rules added
+      // to the recommended set in future plugin versions stay warn automatically.
+      ...Object.fromEntries(
+        Object.keys(jsxA11y.flatConfigs.recommended.rules).map((rule) => [rule, 'warn']),
+      ),
+      // Import ordering: builtin → external → internal (@/* alias) → relative,
+      // alphabetized. `error` because it is fully autofixable via `eslint --fix`.
+      // `newlines-between` is intentionally left unset: enforcing it conflicts
+      // unfixably with side-effect CSS imports (e.g. `import './App.css'`).
+      'import-x/order': [
+        'error',
+        {
+          groups: ['builtin', 'external', 'internal', ['parent', 'sibling', 'index']],
+          pathGroups: [{ pattern: '@/**', group: 'internal', position: 'before' }],
+          pathGroupsExcludedImportTypes: ['builtin'],
+          alphabetize: { order: 'asc', caseInsensitive: true },
+        },
+      ],
+      // `any` is banned. The legacy backlog (API response shapes, recharts
+      // payloads, drag/calendar event types) was burned down and replaced with
+      // real types / `unknown` + narrowing, so this is an error to keep it gone.
+      '@typescript-eslint/no-explicit-any': 'error',
       // Keep stray debug logging out of production code; console.warn/error are
       // allowed for genuine diagnostics.
       'no-console': ['warn', { allow: ['warn', 'error'] }],
@@ -56,6 +86,17 @@ export default defineConfig([
     ],
     rules: {
       'react-refresh/only-export-components': 'off',
+    },
+  },
+  {
+    // Test files deliberately interleave `vi.mock(...)` calls between import
+    // statements (vitest hoisted-mock pattern): the mock must be declared
+    // before the imports whose modules it intercepts. That ordering is
+    // semantic, not stylistic, so import-x/order can't safely sort it — turn
+    // it off here rather than fight the convention.
+    files: ['**/*.test.{ts,tsx}', 'src/test/**/*.{ts,tsx}'],
+    rules: {
+      'import-x/order': 'off',
     },
   },
 ])

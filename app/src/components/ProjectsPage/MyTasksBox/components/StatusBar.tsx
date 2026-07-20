@@ -1,5 +1,5 @@
-import type { MyTask } from '../../types';
 import { STATUS_BARS } from '../../constants';
+import type { MyTask } from '../../types';
 
 interface StatusBarProps {
   filteredMyTasks: MyTask[];

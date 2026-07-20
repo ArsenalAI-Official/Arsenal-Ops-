@@ -2,13 +2,13 @@
 // employee option lists it filters by; the tab owns its own time-entries query,
 // date-range state, and table rendering. No `enabled` flag — this container only
 // mounts when the Time Entries tab is active, so mounting IS the fetch gate.
-import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api';
+import { useMemo } from 'react';
 import type { ProjectResponse } from '@/client';
+import { apiFetch } from '@/lib/api';
+import { AdminSpinner } from '../components/AdminSpinner';
 import { ADMIN_REFETCH } from '../hooks/adminRefetch';
 import { useEmployeesList } from '../hooks/useEmployeesList';
-import { AdminSpinner } from '../components/AdminSpinner';
 import TimeEntriesTab from '../tabs/TimeEntriesTab';
 
 export default function TimeEntriesContainer() {
@@ -23,7 +23,18 @@ export default function TimeEntriesContainer() {
   });
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
 
+  // Distinct QuickBooks client names across all projects, alphabetized — feeds
+  // the Client filter dropdown. Derived here since the projects query already
+  // carries `workforce_client_name`.
+  const clients = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of projects) {
+      if (p.workforce_client_name) set.add(p.workforce_client_name);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }, [projects]);
+
   if (employeesLoading || projectsQuery.isLoading) return <AdminSpinner />;
 
-  return <TimeEntriesTab projects={projects} employees={employees} />;
+  return <TimeEntriesTab projects={projects} employees={employees} clients={clients} />;
 }

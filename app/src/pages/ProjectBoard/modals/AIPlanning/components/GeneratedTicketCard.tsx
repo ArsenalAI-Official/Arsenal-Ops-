@@ -1,4 +1,5 @@
 import { Users, Target, ClipboardList, BookOpen, Bug } from 'lucide-react';
+import { stripMarkdown } from '@/lib/markdown';
 import type { GeneratedTicket } from '../useAIPlanning';
 
 const TYPE_CONFIG = {
@@ -56,7 +57,7 @@ const GeneratedTicketCard = ({ ticket }: GeneratedTicketCardProps) => {
             </span>
           </div>
           <h4 className="text-sm font-medium text-white mb-1">{ticket.title}</h4>
-          <p className="text-xs text-[#737373] line-clamp-2">{ticket.description}</p>
+          <p className="text-xs text-[#737373] line-clamp-2">{stripMarkdown(ticket.description)}</p>
         </div>
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
           <div className="flex items-center gap-2">

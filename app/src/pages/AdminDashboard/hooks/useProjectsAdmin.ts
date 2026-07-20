@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import type { ProjectResponse, ProjectWeeklyReportResponse, ProjectDetailResponse } from '@/client';
+import type { ConfirmFn } from '@/components/ui/confirm-dialog';
 import { apiFetch } from '@/lib/api';
 import { invalidateProjectScope, invalidateAdminMembershipImpact } from '@/lib/invalidations';
-import type { ConfirmFn } from '@/components/ui/confirm-dialog';
-import type { ProjectResponse, ProjectWeeklyReportResponse, ProjectDetailResponse } from '@/client';
+import { toastErrorHandler } from '@/lib/mutationToast';
 import type { CategoryFormPayload, ProjectCategory } from '../types';
 import { ADMIN_REFETCH } from './adminRefetch';
 
@@ -195,9 +196,9 @@ export function useProjectsAdmin(confirm: ConfirmFn) {
       );
       setInvitingProjectId(null);
     },
-    onError: (err: any) => {
-      toast.error(err?.message || 'Failed to send invitations');
+    onError: (err) => {
       setInvitingProjectId(null);
+      toastErrorHandler('send invitations')(err);
     },
   });
 
@@ -245,7 +246,7 @@ export function useProjectsAdmin(confirm: ConfirmFn) {
       toast.success('Member added');
       setAddMemberForm({ developer_id: '', role: 'developer' });
     },
-    onError: (err: any) => toast.error(err?.message || 'Failed to add member'),
+    onError: toastErrorHandler('add member'),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
@@ -274,7 +275,7 @@ export function useProjectsAdmin(confirm: ConfirmFn) {
     onSuccess: () => {
       toast.success('Member removed');
     },
-    onError: (err: any) => toast.error(err?.message || 'Failed to remove member'),
+    onError: toastErrorHandler('remove member'),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });

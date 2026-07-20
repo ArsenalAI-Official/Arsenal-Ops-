@@ -6,8 +6,8 @@
 // with server.use(...).
 import { http, HttpResponse } from 'msw';
 import type { SlimWorkItem } from '@/client';
-import { workItemStore } from '../data/workitems';
 import { API_BASE } from './constants';
+import { workItemStore } from '../data/workitems';
 
 function createdItem(id: string): SlimWorkItem {
   return {

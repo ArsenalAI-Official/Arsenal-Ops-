@@ -1,12 +1,5 @@
-import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, Check, X } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { useState, useEffect } from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,9 +11,16 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Empty, EmptyDescription } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
-import { Empty, EmptyDescription } from '@/components/ui/empty';
 
 /**
  * Shape returned by `GET /api/admin/project-categories`. Mirrored from
@@ -126,13 +126,19 @@ const CategoryManagerModal = ({
   const handleCreate = async () => {
     const name = newName.trim();
     if (!name) return;
-    await onCreate({
-      name,
-      description: newDescription.trim() || null,
-    });
-    // Clear the form only on success. If the mutation throws (e.g. 409 name
-    // collision) the parent surfaces a toast and the form stays intact so
-    // the admin can adjust the name without retyping the description.
+    try {
+      await onCreate({
+        name,
+        description: newDescription.trim() || null,
+      });
+    } catch {
+      // Clear the form only on success. If the mutation rejects (e.g. 409 name
+      // collision) the parent's onError surfaces a toast; we keep the form
+      // intact so the admin can adjust the name without retyping the
+      // description. Swallow here so the rejection doesn't escape the click
+      // handler as an unhandled rejection.
+      return;
+    }
     setNewName('');
     setNewDescription('');
   };
@@ -267,6 +273,7 @@ const CategoryManagerModal = ({
                               size="sm"
                               onClick={() => startEdit(cat)}
                               disabled={isMutating}
+                              aria-label={`Edit ${cat.name}`}
                               className="text-[#a3a3a3] hover:text-white h-7 w-7 p-0"
                             >
                               <Pencil className="w-3.5 h-3.5" />
@@ -276,6 +283,7 @@ const CategoryManagerModal = ({
                               size="sm"
                               onClick={() => setPendingDeleteId(cat.id)}
                               disabled={isMutating}
+                              aria-label={`Delete ${cat.name}`}
                               className="text-[#FCA5A5] hover:text-[#FCA5A5] hover:bg-[#EF4444]/10 h-7 w-7 p-0"
                             >
                               <Trash2 className="w-3.5 h-3.5" />

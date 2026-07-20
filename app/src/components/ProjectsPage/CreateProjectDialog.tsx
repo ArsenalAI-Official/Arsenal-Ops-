@@ -1,7 +1,7 @@
 import { Plus, X, FolderKanban, User, Trash2, Sparkles, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { Modal } from '@/components/ui/modal';
 import {
   Select,
   SelectContent,
@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Modal } from '@/components/ui/modal';
+import { Textarea } from '@/components/ui/textarea';
 import type { Developer, CreateProjectForm, SelectedDeveloper } from './types';
 
 /** Sentinel used by the shadcn Select to represent "no category". Lifted
@@ -22,6 +22,24 @@ interface ProjectCategoryOption {
   id: number;
   name: string;
 }
+
+/** Uppercase alphanumerics only, capped at the backend's 10-char column limit.
+ *  Applied as the user types so the displayed value matches what's persisted
+ *  (backend `normalize_prefix` does the same). */
+const normalizePrefixInput = (raw: string): string =>
+  raw
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toUpperCase()
+    .slice(0, 10);
+
+/** Preview of the prefix the backend would auto-derive from the name (first 4
+ *  alphanumerics), shown as the placeholder when the field is left blank.
+ *  Mirrors backend `derive_prefix_base`. */
+const derivePrefixPreview = (name: string): string =>
+  name
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toUpperCase()
+    .slice(0, 4) || 'PROJ';
 
 interface CreateProjectDialogProps {
   open: boolean;
@@ -103,6 +121,35 @@ const CreateProjectDialog = ({
             onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
             className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl min-h-[80px] focus:border-[#E0B954]/50 placeholder:text-[#334155] resize-none"
           />
+        </div>
+
+        <div>
+          {/* htmlFor+id association satisfies label-has-associated-control.
+              (The residual label-has-for warning is unavoidable — jsx-a11y
+              doesn't recognize the shadcn <Input> as a native control, which is
+              why every field in this dialog carries it; this one is still more
+              accessible than its siblings, which lack the association.) */}
+          <label
+            htmlFor="project-key-prefix"
+            className="text-sm font-medium text-[#a3a3a3] block mb-2"
+          >
+            Key Prefix
+            <span className="text-[#737373] text-xs ml-2">(Optional)</span>
+          </label>
+          <Input
+            id="project-key-prefix"
+            placeholder={`Auto: ${derivePrefixPreview(form.name)}`}
+            value={form.key_prefix}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, key_prefix: normalizePrefixInput(e.target.value) }))
+            }
+            className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl h-11 focus:border-[rgba(255,255,255,0.12)] placeholder:text-[#334155] font-mono uppercase"
+          />
+          <p className="text-xs text-[#737373] mt-1.5">
+            Leads every work-item id (e.g.{' '}
+            <span className="font-mono">{form.key_prefix || derivePrefixPreview(form.name)}</span>
+            -42). Must be unique across projects — leave blank to auto-generate from the name.
+          </p>
         </div>
 
         <div>
