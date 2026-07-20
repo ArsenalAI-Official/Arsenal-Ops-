@@ -9,6 +9,7 @@ import {
   AlertCircle,
   TrendingUp,
   Tag,
+  Building2,
 } from 'lucide-react';
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -25,6 +26,12 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { UNCATEGORIZED_OPTION } from './types';
 import type { ProjectCategory } from '../../modals/CategoryManagerModal';
+import type { WorkforceClient } from '../../types';
+
+// Sentinel for the "no QuickBooks client" select option. Same pattern as
+// UNCATEGORIZED_OPTION above — Radix Select rejects an empty-string value,
+// so we round-trip through a non-empty sentinel.
+const NO_WORKFORCE_CLIENT_OPTION = '__no_workforce_client__';
 
 interface ProjectCardsViewProps {
   /** Already category- + search-filtered list. */
@@ -38,6 +45,16 @@ interface ProjectCardsViewProps {
   onSendGitHubInvites: (project: ProjectResponse, e: React.MouseEvent) => void;
   onOpenProjectMembers: (project: ProjectResponse, e: React.MouseEvent) => void;
   canWriteProjects: boolean;
+  // Workforce / QuickBooks integration. The picker is only rendered when
+  // the org has connected the integration; otherwise these can be empty.
+  workforceConnected: boolean;
+  workforceClients: WorkforceClient[];
+  workforceClientsLoading: boolean;
+  onSetProjectWorkforceClient: (
+    projectId: number,
+    clientId: string | null,
+    clientName: string | null,
+  ) => void;
 }
 
 /** The original project-card grid. Hidden when Reports is active so the page
@@ -53,6 +70,10 @@ const ProjectCardsView: React.FC<ProjectCardsViewProps> = ({
   onSendGitHubInvites,
   onOpenProjectMembers,
   canWriteProjects,
+  workforceConnected,
+  workforceClients,
+  workforceClientsLoading,
+  onSetProjectWorkforceClient,
 }) => {
   const navigate = useNavigate();
 
@@ -158,6 +179,67 @@ const ProjectCardsView: React.FC<ProjectCardsViewProps> = ({
                 </span>
               )}
             </div>
+
+            {/* QuickBooks client chip. Only shown when the org has the
+            QB integration connected — the picker would be useless
+            otherwise and the chip would be confusing. Same write-gate
+            and read-only fallback as the category chip. */}
+            {workforceConnected && (
+              <div className="mb-3">
+                {canWriteProjects ? (
+                  <Select
+                    value={project.workforce_client_id ?? NO_WORKFORCE_CLIENT_OPTION}
+                    onValueChange={(value) => {
+                      const nextId = value === NO_WORKFORCE_CLIENT_OPTION ? null : value;
+                      if (nextId === (project.workforce_client_id ?? null)) return;
+                      const matched = workforceClients.find((c) => c.id === nextId);
+                      onSetProjectWorkforceClient(project.id, nextId, matched?.name ?? null);
+                    }}
+                  >
+                    <SelectTrigger
+                      onClick={(e) => e.stopPropagation()}
+                      className={
+                        'h-7 px-2.5 text-[11px] gap-1.5 rounded-full border w-auto inline-flex ' +
+                        (project.workforce_client_name
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/15'
+                          : 'bg-[rgba(255,255,255,0.03)] text-[#737373] border-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.06)] hover:text-white')
+                      }
+                    >
+                      <Building2 className="w-3 h-3" />
+                      <SelectValue>{project.workforce_client_name ?? 'No QB client'}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#0d0d0d] border-[rgba(255,255,255,0.08)] max-h-64">
+                      <SelectItem value={NO_WORKFORCE_CLIENT_OPTION} className="text-white">
+                        No QB client
+                      </SelectItem>
+                      {workforceClientsLoading && (
+                        <SelectItem value="__loading__" disabled className="text-[#737373]">
+                          Loading clients…
+                        </SelectItem>
+                      )}
+                      {workforceClients.map((c) => (
+                        <SelectItem key={c.id} value={c.id} className="text-white">
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span
+                    className={
+                      'h-7 px-2.5 text-[11px] gap-1.5 rounded-full border inline-flex items-center ' +
+                      (project.workforce_client_name
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                        : 'bg-[rgba(255,255,255,0.03)] text-[#737373] border-[rgba(255,255,255,0.05)]')
+                    }
+                    title="QuickBooks client — requires projects write to change"
+                  >
+                    <Building2 className="w-3 h-3" />
+                    {project.workforce_client_name ?? 'No QB client'}
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* GitHub Info + Invite */}
             {project.github_repo_url && (

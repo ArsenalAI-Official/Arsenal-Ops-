@@ -159,6 +159,7 @@ def world(mcp_db):
         # Projects
         p1 = Project(
             name="P1",
+            key_prefix="P1",
             description="d",
             status="active",
             github_repo_urls=[],
@@ -166,6 +167,7 @@ def world(mcp_db):
         )
         p2 = Project(
             name="P2",
+            key_prefix="P2",
             description="d",
             status="active",
             github_repo_urls=[],
@@ -427,8 +429,12 @@ def sprint_world(world, mcp_db):
             )
         )
         db.commit()
-        return {**world, "sprint_active": s_active.id, "sprint_future": s_future.id,
-                "login_item": login_item.id}
+        return {
+            **world,
+            "sprint_active": s_active.id,
+            "sprint_future": s_future.id,
+            "login_item": login_item.id,
+        }
     finally:
         db.close()
 

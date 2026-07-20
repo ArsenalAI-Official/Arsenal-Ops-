@@ -5,7 +5,7 @@ PRD Processor Service - Extract text from PDF and Word documents
 import io
 
 from docx import Document
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 
 
 class PRDProcessor:

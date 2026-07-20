@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse, ORJSONResponse
+from fastapi.responses import JSONResponse
 
 load_dotenv()
 load_dotenv(Path(__file__).parent.parent / ".env")
@@ -36,19 +36,20 @@ from routers.project_categories import router as project_categories_router  # no
 from routers.projects import router as projects_router  # noqa: E402
 from routers.pulse import router as pulse_router  # noqa: E402
 from routers.roadmap import router as roadmap_router  # noqa: E402
+from routers.workforce import callback_router as workforce_callback_router  # noqa: E402
+from routers.workforce import router as workforce_router  # noqa: E402
 from routers.workitems import router as workitems_router  # noqa: E402
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """App lifespan: run the existing DB/bootstrap startup, then enter the MCP
-    server's own lifespan so its (stateless) session manager is initialized.
-
-    Composing `mcp_app.lifespan` here is the one non-obvious mounting step —
-    without it the mounted /mcp app raises on the first request. `_run_startup`
-    holds the former `@app.on_event("startup")` body (defined below).
+    """App lifespan: run DB init + idempotent migrations + admin seeding, then
+    enter the MCP server's own lifespan so its (stateless) session manager is
+    initialized. Composing ``mcp_app.lifespan`` is the non-obvious mount step —
+    without it the mounted /mcp app raises on the first request. ``_startup``
+    holds the former ``@app.on_event("startup")`` body (defined below).
     """
-    await _run_startup()
+    await _startup()
     async with mcp_app.lifespan(app):
         yield
 
@@ -67,7 +68,6 @@ app = FastAPI(
     - **Sprint Management**: Organize work into sprints
     """,
     version="1.0.0",
-    default_response_class=ORJSONResponse,
 )
 
 # CORS middleware - MUST be added before other middleware/routes
@@ -162,6 +162,8 @@ app.include_router(personal_tasks_router)
 app.include_router(overview_router)
 app.include_router(pulse_router)
 app.include_router(project_categories_router)
+app.include_router(workforce_router)
+app.include_router(workforce_callback_router)
 
 # Mount the MCP server as a sub-app. With http_app(path="/"), the streamable
 # HTTP endpoint is /mcp/ (clients connect to /mcp). Auth + RBAC are enforced
@@ -177,8 +179,8 @@ for _wk_route in oauth_well_known_routes("/"):
     app.router.routes.append(_wk_route)
 
 
-# Database/bootstrap initialization, invoked from the `lifespan` handler above.
-async def _run_startup():
+# Database init + idempotent migrations + admin seeding, invoked from `lifespan`.
+async def _startup():
     """Initialize database on startup"""
     try:
         from database import SessionLocal, engine, init_db

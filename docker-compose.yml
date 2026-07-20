@@ -27,6 +27,11 @@ services:
     container_name: arsenal-ops-api
     environment:
       - DATABASE_URL=postgresql://arsenalops:arsenal_ops_secret@postgres:5432/arsenalops
+      # SECRET_KEY signs session JWTs AND the OAuth state token.
+      # REQUIRED — _load_secret_key() raises at import if absent. Set in
+      # .env locally (generate with
+      # `python -c "import secrets; print(secrets.token_urlsafe(48))"`).
+      - SECRET_KEY=${SECRET_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
@@ -38,6 +43,17 @@ services:
       - SMTP_FROM_NAME=${SMTP_FROM_NAME}
       - ADMIN_EMAILS=${ADMIN_EMAILS}
       - FRONTEND_URL=${FRONTEND_URL}
+      # QuickBooks / Workforce integration. The first five are required for
+      # Connect + Sync to work; the rest are optional overrides used in
+      # sandbox / testing.
+      - INTUIT_CLIENT_ID=${INTUIT_CLIENT_ID}
+      - INTUIT_CLIENT_SECRET=${INTUIT_CLIENT_SECRET}
+      - INTUIT_REDIRECT_URI=${INTUIT_REDIRECT_URI}
+      - INTUIT_API_BASE_URL=${INTUIT_API_BASE_URL}
+      - WORKFORCE_TOKEN_ENCRYPTION_KEY=${WORKFORCE_TOKEN_ENCRYPTION_KEY}
+      - INTUIT_OAUTH_BASE_URL=${INTUIT_OAUTH_BASE_URL}
+      - INTUIT_TOKEN_URL=${INTUIT_TOKEN_URL}
+      - INTUIT_REVOKE_URL=${INTUIT_REVOKE_URL}
       - PYTHONUNBUFFERED=1
     ports:
       - "8000:8000"

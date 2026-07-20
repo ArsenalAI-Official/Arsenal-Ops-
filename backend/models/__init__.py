@@ -25,6 +25,8 @@ from models.user import User
 from models.user_story import UserStory
 from models.work_item import WorkItem, WorkItemPriority, WorkItemStatus, WorkItemType
 from models.work_item_assignment_history import WorkItemAssignmentHistory
+from models.workforce_client import WorkforceClient
+from models.workforce_integration import WorkforceIntegration
 
 __all__ = [
     "ActivityLog",
@@ -56,6 +58,8 @@ __all__ = [
     "WorkItemPriority",
     "WorkItemStatus",
     "WorkItemType",
+    "WorkforceClient",
+    "WorkforceIntegration",
     "project_developers",
     "user_roles",
 ]

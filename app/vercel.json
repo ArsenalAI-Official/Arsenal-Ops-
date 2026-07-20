@@ -6,7 +6,9 @@
   "rewrites": [
     { "source": "/assets/(.*\\.js)", "destination": "/assets/$1" },
     { "source": "/assets/(.*\\.css)", "destination": "/assets/$1" },
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+    { "source": "/privacy", "destination": "/privacy.html" },
+    { "source": "/eula", "destination": "/eula.html" },
+    { "source": "/((?!assets/|privacy|eula).*)", "destination": "/index.html" }
   ],
   "headers": [
     {

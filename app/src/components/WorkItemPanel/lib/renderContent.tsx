@@ -15,17 +15,6 @@ export function hasCompactHierarchy(item: WorkItem): boolean {
   return !!item.epic_key;
 }
 
-export function renderTextWithNewlines(text: string) {
-  if (!text) return null;
-  return text
-    .split('\n')
-    .flatMap((line, i, arr) => [
-      <span key={`l-${i}`}>{line}</span>,
-      i < arr.length - 1 ? <br key={`b-${i}`} /> : null,
-    ])
-    .filter(Boolean);
-}
-
 // Comment-body rendering (mention pills + inline links) now lives in the shared
 // `@/components/CommentThread`, which owns the single renderer for both the
 // work-item panel and the Reviewer queue.

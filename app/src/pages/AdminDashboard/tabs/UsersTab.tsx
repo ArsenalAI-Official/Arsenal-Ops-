@@ -14,7 +14,7 @@ import type { UserListItemResponse } from '@/client';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
-import { toPascalCase } from '@/lib/stringUtils';
+import { formatRoleName } from '@/lib/stringUtils';
 
 type UsersSortKey = 'created' | 'name' | 'status' | 'last_login';
 
@@ -153,7 +153,7 @@ const UsersTab = ({
           <option value="all">All roles</option>
           {availableUserRoles.map((r) => (
             <option key={r} value={r}>
-              {toPascalCase(r)}
+              {formatRoleName(r)}
             </option>
           ))}
         </select>
@@ -259,7 +259,7 @@ const UsersTab = ({
                           >
                             {role === 'admin' && <Shield className="w-3 h-3" />}
                             {role === 'project_manager' && <UserCog className="w-3 h-3" />}
-                            {toPascalCase(role)}
+                            {formatRoleName(role)}
                           </span>
                         );
                       })}

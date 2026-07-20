@@ -182,10 +182,22 @@ def world(mcp_db):
         )
 
         # --- projects ---
-        p1 = Project(name="P1", description="d", status="active", github_repo_urls=[],
-                     created_at=datetime.utcnow())
-        p2 = Project(name="P2", description="d", status="active", github_repo_urls=[],
-                     created_at=datetime.utcnow())
+        p1 = Project(
+            name="P1",
+            key_prefix="P1",
+            description="d",
+            status="active",
+            github_repo_urls=[],
+            created_at=datetime.utcnow(),
+        )
+        p2 = Project(
+            name="P2",
+            key_prefix="P2",
+            description="d",
+            status="active",
+            github_repo_urls=[],
+            created_at=datetime.utcnow(),
+        )
         db.add_all([p1, p2])
         db.flush()
         for d in (pm_dev, dev_dev, viewer_dev):
@@ -193,21 +205,52 @@ def world(mcp_db):
 
         # --- work items + sprints + a this-week time entry ---
         ws, _we = week_boundaries()
-        sp1 = Sprint(project_id=p1.id, name="P1 S1", status=SprintStatus.ACTIVE.value,
-                     start_date=ws - timedelta(days=2), end_date=ws + timedelta(days=10))
-        sp2 = Sprint(project_id=p2.id, name="P2 S1", status=SprintStatus.ACTIVE.value,
-                     start_date=ws - timedelta(days=2), end_date=ws + timedelta(days=10))
+        sp1 = Sprint(
+            project_id=p1.id,
+            name="P1 S1",
+            status=SprintStatus.ACTIVE.value,
+            start_date=ws - timedelta(days=2),
+            end_date=ws + timedelta(days=10),
+        )
+        sp2 = Sprint(
+            project_id=p2.id,
+            name="P2 S1",
+            status=SprintStatus.ACTIVE.value,
+            start_date=ws - timedelta(days=2),
+            end_date=ws + timedelta(days=10),
+        )
         db.add_all([sp1, sp2])
         db.flush()
-        wi1 = WorkItem(project_id=p1.id, key="P1-1", title="Task one", type="task",
-                       status="in_progress", sprint_id=sp1.id, assignee_id=dev_dev.id,
-                       estimated_hours=8, logged_hours=3)
-        wi2 = WorkItem(project_id=p2.id, key="P2-1", title="Secret task", type="task",
-                       status="todo", sprint_id=sp2.id)
+        wi1 = WorkItem(
+            project_id=p1.id,
+            key="P1-1",
+            title="Task one",
+            type="task",
+            status="in_progress",
+            sprint_id=sp1.id,
+            assignee_id=dev_dev.id,
+            estimated_hours=8,
+            logged_hours=3,
+        )
+        wi2 = WorkItem(
+            project_id=p2.id,
+            key="P2-1",
+            title="Secret task",
+            type="task",
+            status="todo",
+            sprint_id=sp2.id,
+        )
         db.add_all([wi1, wi2])
         db.flush()
-        db.add(TimeEntry(work_item_id=wi1.id, developer_id=dev_dev.id, hours=3,
-                         description="w", logged_at=ws + timedelta(days=1)))
+        db.add(
+            TimeEntry(
+                work_item_id=wi1.id,
+                developer_id=dev_dev.id,
+                hours=3,
+                description="w",
+                logged_at=ws + timedelta(days=1),
+            )
+        )
         db.commit()
 
         return {
@@ -239,25 +282,45 @@ ROLES = ("admin", "pm", "dev", "viewer")
 def test_capability_matrix(world):
     # tool, args(world) -> dict, expected allow per role.
     matrix = [
-        ("workitems_search", lambda w: {"project_id": w["p1"]},
-         {"admin": True, "pm": True, "dev": True, "viewer": False}),
-        ("sprints_list", lambda w: {},
-         {"admin": True, "pm": True, "dev": True, "viewer": False}),
-        ("sprint_get", lambda w: {"sprint_id": w["sp1"]},
-         {"admin": True, "pm": True, "dev": True, "viewer": False}),
-        ("pulse_get", lambda w: {"project_id": w["p1"]},
-         {"admin": True, "pm": True, "dev": True, "viewer": False}),
-        ("developers_list", lambda w: {},
-         {"admin": True, "pm": True, "dev": True, "viewer": False}),
+        (
+            "workitems_search",
+            lambda w: {"project_id": w["p1"]},
+            {"admin": True, "pm": True, "dev": True, "viewer": False},
+        ),
+        ("sprints_list", lambda w: {}, {"admin": True, "pm": True, "dev": True, "viewer": False}),
+        (
+            "sprint_get",
+            lambda w: {"sprint_id": w["sp1"]},
+            {"admin": True, "pm": True, "dev": True, "viewer": False},
+        ),
+        (
+            "pulse_get",
+            lambda w: {"project_id": w["p1"]},
+            {"admin": True, "pm": True, "dev": True, "viewer": False},
+        ),
+        (
+            "developers_list",
+            lambda w: {},
+            {"admin": True, "pm": True, "dev": True, "viewer": False},
+        ),
         # admin.employees — only the admin role holds it.
-        ("developer_capacity", lambda w: {"developer_id": w["dev_dev"]},
-         {"admin": True, "pm": False, "dev": False, "viewer": False}),
+        (
+            "developer_capacity",
+            lambda w: {"developer_id": w["dev_dev"]},
+            {"admin": True, "pm": False, "dev": False, "viewer": False},
+        ),
         # project-scoped weekly report: project.board + access.
-        ("weekly_report", lambda w: {"project_id": w["p1"]},
-         {"admin": True, "pm": True, "dev": True, "viewer": False}),
+        (
+            "weekly_report",
+            lambda w: {"project_id": w["p1"]},
+            {"admin": True, "pm": True, "dev": True, "viewer": False},
+        ),
         # team-wide weekly report: admin.employees — admin only.
-        ("weekly_report", lambda w: {},
-         {"admin": True, "pm": False, "dev": False, "viewer": False}),
+        (
+            "weekly_report",
+            lambda w: {},
+            {"admin": True, "pm": False, "dev": False, "viewer": False},
+        ),
     ]
     failures = []
     for tool, args_fn, expected in matrix:
@@ -275,10 +338,12 @@ def test_capability_matrix(world):
 
 def test_project_create_capability(world):
     # project.create: admin (*), pm (project.*), dev (explicit) — yes; viewer — no.
-    assert allowed(world["admin"], "project_create", {"name": "A"})
-    assert allowed(world["pm"], "project_create", {"name": "B"})
-    assert allowed(world["dev"], "project_create", {"name": "C"})
-    assert not allowed(world["viewer"], "project_create", {"name": "D"})
+    # Distinct key_prefix per project: key_prefix is UNIQUE, and the tool/endpoint
+    # defaults it to "PROJ", so successful creates would otherwise collide.
+    assert allowed(world["admin"], "project_create", {"name": "A", "key_prefix": "AAA"})
+    assert allowed(world["pm"], "project_create", {"name": "B", "key_prefix": "BBB"})
+    assert allowed(world["dev"], "project_create", {"name": "C", "key_prefix": "CCC"})
+    assert not allowed(world["viewer"], "project_create", {"name": "D", "key_prefix": "DDD"})
 
 
 # --------------------------------------------------------------------------- #
@@ -295,7 +360,9 @@ def test_capability_without_access_is_denied(world):
 def test_access_without_capability_is_denied(world):
     """viewer IS a member of P1 (access ok) but lacks project.board / tracker_write."""
     assert not allowed(world["viewer"], "workitems_search", {"project_id": world["p1"]})
-    assert not allowed(world["viewer"], "workitem_create", {"project_id": world["p1"], "title": "x"})
+    assert not allowed(
+        world["viewer"], "workitem_create", {"project_id": world["p1"], "title": "x"}
+    )
 
 
 # --------------------------------------------------------------------------- #

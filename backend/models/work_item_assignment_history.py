@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING
 from sqlalchemy import DateTime, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from time_utils import utcnow
+
 sys.path.append("..")
 from database import Base
 
@@ -28,7 +30,7 @@ class WorkItemAssignmentHistory(Base):
         ForeignKey("developers.id", ondelete="SET NULL"), index=True
     )
 
-    assigned_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    assigned_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     unassigned_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     work_item: Mapped["WorkItem"] = relationship("WorkItem")

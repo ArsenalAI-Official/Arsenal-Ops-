@@ -10,6 +10,8 @@ from unittest.mock import Mock
 
 import pytest
 
+from time_utils import utcnow
+
 sys.path.append("..")
 
 
@@ -18,7 +20,7 @@ class TestHoursCalculation:
 
     def setup_method(self):
         """Setup test fixtures"""
-        self.today = datetime.utcnow()
+        self.today = utcnow()
         # Calculate week boundaries (Sunday to Saturday)
         days_since_sunday = (self.today.weekday() + 1) % 7
         self.week_start = self.today - timedelta(days=days_since_sunday)
@@ -236,8 +238,8 @@ class TestHoursAnalyticsEdgeCases:
     def test_fractional_hours(self):
         """Test handling of fractional hours"""
         entries = [
-            Mock(developer_id=1, hours=2.5, logged_at=datetime.utcnow()),
-            Mock(developer_id=1, hours=1.5, logged_at=datetime.utcnow()),
+            Mock(developer_id=1, hours=2.5, logged_at=utcnow()),
+            Mock(developer_id=1, hours=1.5, logged_at=utcnow()),
         ]
 
         total = sum(te.hours for te in entries)
@@ -262,7 +264,7 @@ class TestDebugEndpointScenarios:
                 work_item_id=1,
                 developer_id=1,
                 hours=4,
-                logged_at=datetime.utcnow(),
+                logged_at=utcnow(),
                 description="Work done",
             ),
             Mock(
@@ -270,7 +272,7 @@ class TestDebugEndpointScenarios:
                 work_item_id=1,
                 developer_id=2,
                 hours=2,  # Different logger
-                logged_at=datetime.utcnow(),
+                logged_at=utcnow(),
                 description="Review",
             ),
             Mock(
@@ -278,7 +280,7 @@ class TestDebugEndpointScenarios:
                 work_item_id=2,
                 developer_id=2,
                 hours=5,
-                logged_at=datetime.utcnow(),
+                logged_at=utcnow(),
                 description="Implementation",
             ),
         ]
@@ -319,7 +321,7 @@ class TestTicketTransferScenarios:
 
         # Time entries when Dev 1 was assignee
         time_entries = [
-            Mock(developer_id=original_assignee_id, hours=5, logged_at=datetime.utcnow()),
+            Mock(developer_id=original_assignee_id, hours=5, logged_at=utcnow()),
         ]
 
         # Ticket is now assigned to Dev 2
@@ -351,10 +353,10 @@ class TestTicketTransferScenarios:
         # 4. Transferred to Dev 3, Dev 3 logs 5h
 
         time_entries = [
-            Mock(developer_id=dev_1_id, hours=3, logged_at=datetime.utcnow() - timedelta(days=5)),
-            Mock(developer_id=dev_2_id, hours=4, logged_at=datetime.utcnow() - timedelta(days=3)),
-            Mock(developer_id=pm_id, hours=2, logged_at=datetime.utcnow() - timedelta(days=2)),
-            Mock(developer_id=dev_3_id, hours=5, logged_at=datetime.utcnow()),
+            Mock(developer_id=dev_1_id, hours=3, logged_at=utcnow() - timedelta(days=5)),
+            Mock(developer_id=dev_2_id, hours=4, logged_at=utcnow() - timedelta(days=3)),
+            Mock(developer_id=pm_id, hours=2, logged_at=utcnow() - timedelta(days=2)),
+            Mock(developer_id=dev_3_id, hours=5, logged_at=utcnow()),
         ]
 
         # Calculate hours per developer
@@ -375,8 +377,8 @@ class TestTicketTransferScenarios:
 
         # Helper logs hours on someone else's ticket
         time_entries = [
-            Mock(developer_id=assignee_id, hours=6, logged_at=datetime.utcnow()),
-            Mock(developer_id=helper_id, hours=3, logged_at=datetime.utcnow()),  # Helper
+            Mock(developer_id=assignee_id, hours=6, logged_at=utcnow()),
+            Mock(developer_id=helper_id, hours=3, logged_at=utcnow()),  # Helper
         ]
 
         # Both should get credit for their hours
@@ -395,7 +397,7 @@ class TestTicketTransferScenarios:
         # Logger (current user) should get the hours
         logger_id = 5
         time_entries = [
-            Mock(developer_id=logger_id, hours=4, logged_at=datetime.utcnow()),
+            Mock(developer_id=logger_id, hours=4, logged_at=utcnow()),
         ]
 
         # Should attribute to the logger since no assignee
@@ -459,7 +461,7 @@ class TestThisWeekFiltering:
 
     def setup_method(self):
         """Setup test fixtures"""
-        self.today = datetime.utcnow()
+        self.today = utcnow()
         days_since_sunday = (self.today.weekday() + 1) % 7
         self.week_start = self.today - timedelta(days=days_since_sunday)
         self.week_start = self.week_start.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -593,7 +595,7 @@ class TestConcurrentLoggingScenarios:
 
     def test_multiple_people_log_same_ticket_same_time(self):
         """Test when multiple people log hours on the same ticket around the same time"""
-        base_time = datetime.utcnow()
+        base_time = utcnow()
 
         # Simulating concurrent logs within same minute
         time_entries = [
@@ -613,7 +615,7 @@ class TestConcurrentLoggingScenarios:
     def test_rapid_successive_logs_same_developer(self):
         """Test when same developer logs hours multiple times rapidly"""
         dev_id = 1
-        base_time = datetime.utcnow()
+        base_time = utcnow()
 
         time_entries = [
             Mock(developer_id=dev_id, hours=1, logged_at=base_time),

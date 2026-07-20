@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
+import { Markdown } from '@/components/ui/Markdown';
 import { TYPE_CONFIG } from '@/lib/workItemConfig';
 import { getPriorityColor } from '../lib/timelineGrid';
 import type { WorkItem } from '../types';
@@ -65,9 +66,9 @@ const TicketDetailPanel: React.FC<TicketDetailPanelProps> = ({ selectedItem, onC
           {selectedItem.description && (
             <div>
               <p className="text-xs font-medium text-[#737373] mb-2">Description</p>
-              <p className="text-sm text-[#f5f5f5] leading-relaxed bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4">
-                {selectedItem.description}
-              </p>
+              <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4">
+                <Markdown>{selectedItem.description}</Markdown>
+              </div>
             </div>
           )}
 
@@ -75,9 +76,9 @@ const TicketDetailPanel: React.FC<TicketDetailPanelProps> = ({ selectedItem, onC
           {selectedItem.acceptance_criteria && (
             <div>
               <p className="text-xs font-medium text-[#737373] mb-2">Acceptance Criteria</p>
-              <p className="text-sm text-[#f5f5f5] leading-relaxed bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4">
-                {selectedItem.acceptance_criteria}
-              </p>
+              <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-4">
+                <Markdown>{selectedItem.acceptance_criteria}</Markdown>
+              </div>
             </div>
           )}
 

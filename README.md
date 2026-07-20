@@ -81,7 +81,7 @@ for dev.
 
 ### Prerequisites
 - Node.js 20+ and npm
-- Python 3.11+
+- Python 3.12+
 - (Optional) Docker + Docker Compose for the all-in-one path
 
 ### Option 1 — Run frontend + backend natively

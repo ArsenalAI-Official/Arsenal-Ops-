@@ -23,7 +23,18 @@ export default function TimeEntriesContainer() {
   });
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
 
+  // Distinct QuickBooks client names across all projects, alphabetized — feeds
+  // the Client filter dropdown. Derived here since the projects query already
+  // carries `workforce_client_name`.
+  const clients = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of projects) {
+      if (p.workforce_client_name) set.add(p.workforce_client_name);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }, [projects]);
+
   if (employeesLoading || projectsQuery.isLoading) return <AdminSpinner />;
 
-  return <TimeEntriesTab projects={projects} employees={employees} />;
+  return <TimeEntriesTab projects={projects} employees={employees} clients={clients} />;
 }

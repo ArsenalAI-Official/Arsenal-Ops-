@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from time_utils import utcnow
+
 sys.path.append("..")
 from database import Base
 
@@ -41,6 +43,6 @@ class Persona(Base):
     bio: Mapped[str | None] = mapped_column(Text)
     quote: Mapped[str | None] = mapped_column(Text)  # Representative quote
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=True)
 
     project: Mapped["Project"] = relationship("Project", back_populates="personas")

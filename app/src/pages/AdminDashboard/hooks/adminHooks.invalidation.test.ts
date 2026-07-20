@@ -44,7 +44,14 @@ describe('admin hook cache invalidation', () => {
     // id ≠ the role-toggle target (id 1) below, so useUserRoleAssignment skips
     // the self-cap-refresh path and we assert only the invalidation set.
     setMockAuthState({
-      user: { id: 999, name: 'Other', email: 'o@b.com', role: 'admin', is_first_login: false },
+      user: {
+        id: 999,
+        name: 'Other',
+        email: 'o@b.com',
+        role: 'admin',
+        is_first_login: false,
+        is_external: false,
+      },
     });
   });
 

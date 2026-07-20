@@ -8,16 +8,19 @@ interface TimeEntriesFilterBarProps {
   setFilters: React.Dispatch<React.SetStateAction<FiltersState>>;
   sortedProjects: ProjectOption[];
   sortedEmployees: EmployeeOption[];
+  /** Distinct client names, pre-sorted. */
+  clients: string[];
   hasAnyFilter: boolean;
   onReset: () => void;
 }
 
-/** Date-preset chips + custom range + project/employee dropdowns + reset. */
+/** Date-preset chips + custom range + project/client/employee dropdowns + reset. */
 const TimeEntriesFilterBar: React.FC<TimeEntriesFilterBarProps> = ({
   filters,
   setFilters,
   sortedProjects,
   sortedEmployees,
+  clients,
   hasAnyFilter,
   onReset,
 }) => {
@@ -57,14 +60,15 @@ const TimeEntriesFilterBar: React.FC<TimeEntriesFilterBarProps> = ({
         )}
       </div>
 
-      {/* Project + Employee dropdowns + Reset */}
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 items-end">
-        <div>
-          <label className="text-[11px] text-[#737373] block mb-1 flex items-center gap-1">
+      {/* Project + Client + Employee dropdowns + Reset */}
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-3 items-end">
+        <label htmlFor="te-filter-project" className="block">
+          <span className="text-[11px] text-[#737373] mb-1 flex items-center gap-1">
             <Filter className="w-3 h-3" />
             Project
-          </label>
+          </span>
           <select
+            id="te-filter-project"
             value={filters.projectId ?? ''}
             onChange={(e) =>
               setFilters((f) => ({
@@ -81,13 +85,38 @@ const TimeEntriesFilterBar: React.FC<TimeEntriesFilterBarProps> = ({
               </option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className="text-[11px] text-[#737373] block mb-1 flex items-center gap-1">
+        </label>
+        <label htmlFor="te-filter-client" className="block">
+          <span className="text-[11px] text-[#737373] mb-1 flex items-center gap-1">
+            <Filter className="w-3 h-3" />
+            Client
+          </span>
+          <select
+            id="te-filter-client"
+            value={filters.clientName ?? ''}
+            onChange={(e) =>
+              setFilters((f) => ({
+                ...f,
+                clientName: e.target.value === '' ? null : e.target.value,
+              }))
+            }
+            className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-[#F4F6FF] rounded-lg h-9 px-2 text-xs"
+          >
+            <option value="">All clients</option>
+            {clients.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label htmlFor="te-filter-employee" className="block">
+          <span className="text-[11px] text-[#737373] mb-1 flex items-center gap-1">
             <Filter className="w-3 h-3" />
             Employee
-          </label>
+          </span>
           <select
+            id="te-filter-employee"
             value={filters.developerId ?? ''}
             onChange={(e) =>
               setFilters((f) => ({
@@ -104,7 +133,7 @@ const TimeEntriesFilterBar: React.FC<TimeEntriesFilterBarProps> = ({
               </option>
             ))}
           </select>
-        </div>
+        </label>
         <button
           onClick={onReset}
           disabled={!hasAnyFilter}

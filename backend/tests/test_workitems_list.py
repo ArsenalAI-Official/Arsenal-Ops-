@@ -73,10 +73,22 @@ def seed(db):
     db.add(user)
 
     p1 = Project(
-        id=1, name="Alpha", description="d1", status="active", github_repo_urls=[], created_at=now
+        id=1,
+        name="Alpha",
+        description="d1",
+        status="active",
+        key_prefix="A",
+        github_repo_urls=[],
+        created_at=now,
     )
     p2 = Project(
-        id=2, name="Beta", description="d2", status="planning", github_repo_urls=[], created_at=now
+        id=2,
+        name="Beta",
+        description="d2",
+        status="planning",
+        key_prefix="B",
+        github_repo_urls=[],
+        created_at=now,
     )
     db.add_all([p1, p2])
     db.commit()
