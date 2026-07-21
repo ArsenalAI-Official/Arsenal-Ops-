@@ -90,6 +90,7 @@ export const WorkItemFullEditForm = ({
           <option value="user_story">Story</option>
           <option value="task">Task</option>
           <option value="bug">Bug</option>
+          <option value="change_order">Change Order</option>
           <option value="epic">Epic</option>
         </select>
       </div>

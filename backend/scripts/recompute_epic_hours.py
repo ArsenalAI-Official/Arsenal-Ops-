@@ -27,15 +27,11 @@ from database import SessionLocal
 from models import activity_log as _activity_log  # noqa: F401
 from models import architecture as _architecture  # noqa: F401
 from models import user as _user  # noqa: F401
-from models.work_item import WorkItem, WorkItemType
+from models.work_item import EPIC_CHILD_TYPES, WorkItem, WorkItemType
 
 logger = logging.getLogger(__name__)
 
-CHILD_TYPES = [
-    WorkItemType.USER_STORY.value,
-    WorkItemType.TASK.value,
-    WorkItemType.BUG.value,
-]
+CHILD_TYPES = list(EPIC_CHILD_TYPES)
 
 
 def recompute() -> int:

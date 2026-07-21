@@ -18,7 +18,14 @@
 // backend WorkItemType / WorkItemStatus / WorkItemPriority enums; `status`
 // includes 'backlog' (the board's BOARD_STATUS_ORDER) since items can
 // legitimately be persisted there.
-export const WORK_ITEM_TYPES = ['user_story', 'task', 'bug', 'epic', 'subtask'] as const;
+export const WORK_ITEM_TYPES = [
+  'user_story',
+  'task',
+  'bug',
+  'epic',
+  'subtask',
+  'change_order',
+] as const;
 export const WORK_ITEM_STATUSES = ['backlog', 'todo', 'in_progress', 'in_review', 'done'] as const;
 export const WORK_ITEM_PRIORITIES = ['high', 'medium', 'low', 'critical'] as const;
 export type WorkItemType = (typeof WORK_ITEM_TYPES)[number];

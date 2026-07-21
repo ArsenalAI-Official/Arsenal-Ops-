@@ -77,7 +77,7 @@ def _add_item(db, *, id_, project_id, type_, parent_id=None, epic_id=None):
 
 @pytest.fixture
 def seed(db):
-    """Two projects, an epic + story + task + bug in P1, an epic in P2."""
+    """Two projects, an epic + story + task + bug + change order in P1, an epic in P2."""
     db.add(
         Project(
             id=1,
@@ -104,6 +104,7 @@ def seed(db):
     _add_item(db, id_=11, project_id=1, type_="user_story")
     _add_item(db, id_=12, project_id=1, type_="task")
     _add_item(db, id_=13, project_id=1, type_="bug")
+    _add_item(db, id_=14, project_id=1, type_="change_order")
     _add_item(db, id_=20, project_id=2, type_="epic")
     db.commit()
 
@@ -129,6 +130,37 @@ def test_create_bug_under_epic_passes(db, seed):
 
 def test_create_epic_standalone_passes(db, seed):
     validate_hierarchy(db, item_type="epic", project_id=1, parent_id=None, epic_id=None)
+
+
+# ---------- Change Order: behaves like Story/Task/Bug (optional epic_id, no parent_id) ----------
+
+
+def test_create_change_order_under_epic_passes(db, seed):
+    validate_hierarchy(db, item_type="change_order", project_id=1, parent_id=None, epic_id=10)
+
+
+def test_create_change_order_standalone_passes(db, seed):
+    validate_hierarchy(db, item_type="change_order", project_id=1, parent_id=None, epic_id=None)
+
+
+def test_change_order_epic_id_must_point_to_epic(db, seed):
+    with pytest.raises(HTTPException) as exc:
+        validate_hierarchy(db, item_type="change_order", project_id=1, parent_id=None, epic_id=11)
+    detail = cast(dict[str, str], exc.value.detail)
+    assert detail["code"] == "parent_type_invalid"
+
+
+def test_change_order_cannot_have_parent_id(db, seed):
+    """Change Order is a sibling of Story/Task/Bug under Epic; parent_id is disabled."""
+    with pytest.raises(HTTPException) as exc:
+        validate_hierarchy(db, item_type="change_order", project_id=1, parent_id=11, epic_id=None)
+    detail = cast(dict[str, str], exc.value.detail)
+    assert detail["code"] == "type_disallowed"
+
+
+def test_subtask_can_nest_under_change_order(db, seed):
+    """A Change Order can parent a Subtask, matching Story/Task/Bug."""
+    validate_hierarchy(db, item_type="subtask", project_id=1, parent_id=14, epic_id=None)
 
 
 # ---------- Type rules: epic_id ----------

@@ -1,4 +1,4 @@
-import { BookOpen, ClipboardList, Bug, Target, Clock, Ban } from 'lucide-react';
+import { BookOpen, ClipboardList, Bug, Target, Clock, Ban, FileEdit } from 'lucide-react';
 import React from 'react';
 import { EpicChip } from '@/components/board/EpicChip';
 import { ParentChip } from '@/components/board/ParentChip';
@@ -19,6 +19,12 @@ const TYPE_CONFIG = {
     color: '#FBBF24',
     label: 'Subtask',
     bg: 'rgba(251,191,36,0.15)',
+  },
+  change_order: {
+    icon: FileEdit,
+    color: '#22D3EE',
+    label: 'Change Order',
+    bg: 'rgba(34,211,238,0.15)',
   },
 };
 

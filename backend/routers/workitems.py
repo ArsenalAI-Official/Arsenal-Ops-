@@ -19,7 +19,7 @@ from database import get_db
 from models.project import Project
 from models.sprint import Sprint, SprintStatus
 from models.user import User
-from models.work_item import WorkItem, WorkItemStatus, WorkItemType
+from models.work_item import EPIC_CHILD_TYPES, WorkItem, WorkItemStatus, WorkItemType
 from routers.auth import get_current_user, require_capability
 from services.email_service import email_service
 from services.hierarchy import validate_hierarchy
@@ -108,9 +108,7 @@ def update_epic_hours(epic_id: int, db: Session):
         db.query(WorkItem.id)
         .filter(
             WorkItem.epic_id == epic_id,
-            WorkItem.type.in_(
-                [WorkItemType.USER_STORY.value, WorkItemType.TASK.value, WorkItemType.BUG.value]
-            ),
+            WorkItem.type.in_(EPIC_CHILD_TYPES),
         )
         .subquery()
     )
@@ -159,11 +157,7 @@ def update_parent_status_from_subtasks(parent_id: int, db: Session):
     parent = db.query(WorkItem).filter(WorkItem.id == parent_id).first()
     if not parent:
         return
-    if parent.type not in (
-        WorkItemType.USER_STORY.value,
-        WorkItemType.TASK.value,
-        WorkItemType.BUG.value,
-    ):
+    if parent.type not in EPIC_CHILD_TYPES:
         return
     if parent.status != WorkItemStatus.DONE.value:
         # Parent isn't done — nothing to reopen.
@@ -257,9 +251,7 @@ def update_epic_status_from_stories(epic_id: int, db: Session):
         db.query(WorkItem)
         .filter(
             WorkItem.epic_id == epic_id,
-            WorkItem.type.in_(
-                [WorkItemType.USER_STORY.value, WorkItemType.TASK.value, WorkItemType.BUG.value]
-            ),
+            WorkItem.type.in_(EPIC_CHILD_TYPES),
         )
         .all()
     )
@@ -1042,13 +1034,7 @@ def update_work_item(
                 db.query(WorkItem.id, WorkItem.key)
                 .filter(
                     WorkItem.epic_id == item.id,
-                    WorkItem.type.in_(
-                        [
-                            WorkItemType.USER_STORY.value,
-                            WorkItemType.TASK.value,
-                            WorkItemType.BUG.value,
-                        ]
-                    ),
+                    WorkItem.type.in_(EPIC_CHILD_TYPES),
                     WorkItem.status != WorkItemStatus.DONE.value,
                 )
                 .first()
@@ -1061,11 +1047,7 @@ def update_work_item(
                         "Complete every story/task/bug under this epic first."
                     ),
                 )
-        elif item.type in (
-            WorkItemType.USER_STORY.value,
-            WorkItemType.TASK.value,
-            WorkItemType.BUG.value,
-        ):
+        elif item.type in EPIC_CHILD_TYPES:
             open_subtask = (
                 db.query(WorkItem.id, WorkItem.key)
                 .filter(
@@ -1410,13 +1392,7 @@ def batch_update_status(
                     db.query(WorkItem.id, WorkItem.key)
                     .filter(
                         WorkItem.epic_id == item.id,
-                        WorkItem.type.in_(
-                            [
-                                WorkItemType.USER_STORY.value,
-                                WorkItemType.TASK.value,
-                                WorkItemType.BUG.value,
-                            ]
-                        ),
+                        WorkItem.type.in_(EPIC_CHILD_TYPES),
                         WorkItem.status != WorkItemStatus.DONE.value,
                         WorkItem.id.notin_(update.item_ids),
                     )
@@ -1429,11 +1405,7 @@ def batch_update_status(
                             f"Can't mark epic {item.key} done — {open_child.key} is still open."
                         ),
                     )
-            elif item.type in (
-                WorkItemType.USER_STORY.value,
-                WorkItemType.TASK.value,
-                WorkItemType.BUG.value,
-            ):
+            elif item.type in EPIC_CHILD_TYPES:
                 open_subtask = (
                     db.query(WorkItem.id, WorkItem.key)
                     .filter(

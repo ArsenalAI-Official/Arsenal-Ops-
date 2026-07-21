@@ -157,6 +157,7 @@ const CreateItemModal = ({
               <option value="user_story">User Story</option>
               <option value="task">Task</option>
               <option value="bug">Bug</option>
+              <option value="change_order">Change Order</option>
             </select>
           </div>
         )}

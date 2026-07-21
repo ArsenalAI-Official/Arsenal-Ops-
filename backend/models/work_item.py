@@ -29,6 +29,20 @@ class WorkItemType(str, enum.Enum):  # noqa: UP042
     TASK = "task"
     BUG = "bug"
     SUBTASK = "subtask"
+    CHANGE_ORDER = "change_order"
+
+
+# Types that sit directly under an Epic as siblings (optional epic_id link) and
+# can themselves parent Subtasks. Change Order behaves exactly like
+# Story/Task/Bug in the hierarchy, epic hour rollups, status rollups, and the
+# "mark done" gate — so it lives in this shared set rather than being repeated
+# inline at each call site.
+EPIC_CHILD_TYPES: tuple[str, ...] = (
+    WorkItemType.USER_STORY.value,
+    WorkItemType.TASK.value,
+    WorkItemType.BUG.value,
+    WorkItemType.CHANGE_ORDER.value,
+)
 
 
 class WorkItemStatus(str, enum.Enum):  # noqa: UP042

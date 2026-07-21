@@ -742,10 +742,14 @@ async def commit_architecture(
     )
 
     for epic in epics:
-        # Sum all work items' estimated_hours that belong to this epic (stories, tasks, bugs)
+        # Sum all work items' estimated_hours that belong to this epic
+        # (stories, tasks, bugs, change orders)
         total_hours = (
             db.query(func.coalesce(func.sum(WorkItem.estimated_hours), 0))
-            .filter(WorkItem.epic_id == epic.id, WorkItem.type.in_(["user_story", "task", "bug"]))
+            .filter(
+                WorkItem.epic_id == epic.id,
+                WorkItem.type.in_(["user_story", "task", "bug", "change_order"]),
+            )
             .scalar()
         )
 
