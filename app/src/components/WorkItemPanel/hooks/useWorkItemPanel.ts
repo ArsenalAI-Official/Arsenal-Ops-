@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, type RefObject } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { CommentResponse, DeveloperResponse, WorkItemDetailResponse } from '@/client';
 import { useAllDevelopers } from '@/hooks/useAllDevelopers';
@@ -45,6 +46,7 @@ export function useWorkItemPanel({
 }: UseWorkItemPanelArgs) {
   const { item, currentUserId } = props;
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   // ─── Queries ───────────────────────────────────────────────────────────────
   const itemDetailQuery = useQuery<WorkItemDetailResponse>({
@@ -192,7 +194,13 @@ export function useWorkItemPanel({
       invalidateWorkItems();
       queryClient.invalidateQueries({ queryKey: ['workItem', item.id, 'detail'] });
       queryClient.invalidateQueries({ queryKey: ['workItem', item.id, 'comments'] });
-      toast.success(`Logged hours!`);
+      // Two-way sync: the log created an unplaced TimeEntry that now sits in the
+      // calendar's "to place" tray. Refresh the calendar cache and offer to jump
+      // there to position the block (single source of truth — same entry).
+      queryClient.invalidateQueries({ queryKey: ['timeBlocks'] });
+      toast.success('Logged hours! Place it on your calendar.', {
+        action: { label: 'My Week', onClick: () => navigate('/week') },
+      });
       if (logHoursRef.current) logHoursRef.current.value = '';
     },
     onError: toastErrorHandler('log hours'),

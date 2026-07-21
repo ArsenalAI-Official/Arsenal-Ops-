@@ -1,4 +1,4 @@
-import { Calendar, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Calendar, AlertCircle, CheckCircle2, CalendarRange, ArrowRight } from 'lucide-react';
 import MyCapacityCard from './MyCapacityCard';
 import type { MyTask } from './types';
 
@@ -7,6 +7,8 @@ interface DashboardStatsProps {
   myTasks: MyTask[];
   myTasksLoading: boolean;
   onTabChange?: (tab: 'upcoming' | 'overdue' | 'completed') => void;
+  /** Open the week calendar (log hours by dragging time blocks). */
+  onOpenWeek?: () => void;
 }
 
 const DashboardStats = ({
@@ -14,6 +16,7 @@ const DashboardStats = ({
   myTasks,
   myTasksLoading,
   onTabChange,
+  onOpenWeek,
 }: DashboardStatsProps) => {
   const now = new Date();
   const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -63,6 +66,22 @@ const DashboardStats = ({
       </div>
 
       <div className="col-span-3 flex gap-4">
+        {onOpenWeek && (
+          <button
+            type="button"
+            onClick={onOpenWeek}
+            aria-label="Open my week calendar to log hours"
+            className="flex-1 text-left bg-[rgba(224,185,84,0.08)] border border-[rgba(224,185,84,0.25)] rounded-2xl px-6 py-5 flex flex-col justify-between cursor-pointer hover:bg-[rgba(224,185,84,0.14)] hover:border-[rgba(224,185,84,0.4)] transition-colors"
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <CalendarRange className="w-4 h-4 text-[#E0B954]" />
+              <ArrowRight className="w-4 h-4 text-[#E0B954]" />
+            </div>
+            <div className="text-xl font-bold text-[#E0B954] tracking-tight">My Week</div>
+            <div className="text-xs text-[#737373] font-medium mt-1">Log hours</div>
+          </button>
+        )}
+
         <div
           className="flex-1 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)] rounded-2xl px-6 py-5 flex flex-col justify-between cursor-pointer hover:border-[rgba(255,255,255,0.12)] hover:bg-[rgba(255,255,255,0.04)] transition-colors"
           onClick={() => onTabChange?.('upcoming')}

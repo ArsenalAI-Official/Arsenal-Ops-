@@ -28,11 +28,22 @@ class TimeEntry(Base):
         ForeignKey("developers.id", ondelete="SET NULL"), index=True
     )
 
-    # Time tracking
+    # Time tracking. Whole-hour blocks for now; fractional (15/30-min) hours are
+    # a stacked follow-up (feat/week-calendar-minutes) pending app-wide review.
     hours: Mapped[int] = mapped_column()  # Hours logged in this entry
     description: Mapped[str | None] = mapped_column(Text)  # Optional description of work done
 
-    # Timestamp
+    # Positioned calendar block (UTC). When present, this entry is a block on the
+    # week calendar and renders at exactly this day + time-of-day; ``hours`` is
+    # derived from (end_time - start_time). Nullable so legacy/quick-log entries
+    # (which only have ``hours`` + ``logged_at``) keep working — those render in
+    # the calendar's "unscheduled" tray rather than at a fabricated position.
+    start_time: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    end_time: Mapped[datetime | None] = mapped_column(DateTime)
+
+    # Timestamp this entry was recorded (audit), distinct from start_time (when
+    # the work happened). The QuickBooks sync and the timesheet review key on
+    # COALESCE(start_time, logged_at) so positioned blocks bill on the day worked.
     logged_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
 
     # ── QuickBooks sync state ────────────────────────────────────────────
@@ -80,6 +91,8 @@ class TimeEntry(Base):
             "developer_id": self.developer_id,
             "hours": self.hours,
             "description": self.description,
+            "start_time": self.start_time.isoformat() if self.start_time else None,
+            "end_time": self.end_time.isoformat() if self.end_time else None,
             "logged_at": self.logged_at.isoformat() if self.logged_at else None,
             "workforce_entry_id": self.workforce_entry_id,
             "submitted_at": self.submitted_at.isoformat() if self.submitted_at else None,

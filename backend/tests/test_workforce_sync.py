@@ -394,6 +394,43 @@ def test_entries_outside_window_are_ignored(db, qb_doubles):
     assert qb_doubles["post_calls"] == []
 
 
+def test_positioned_block_syncs_on_worked_day_not_created_day(db, qb_doubles):
+    """A calendar block is eligible for — and dated by — the day it was
+    *worked* (``start_time``), not the day the row was created (``logged_at``).
+
+    Here the block was worked on Wed 2024-01-10 (inside the Sat-13 run's
+    Mon..Fri window) but created next Monday 2024-01-15 (outside it). Under the
+    old ``logged_at`` keying it would be skipped; under COALESCE(start_time,
+    logged_at) it syncs and the QB TimeActivity is dated to the worked day.
+    """
+    from models.time_entry import TimeEntry
+    from services.workforce_sync import run_workforce_sync
+
+    _make_integration(db)
+    project = _make_project(db)
+    dev = _make_dev(db)
+    wi = _make_wi(db, project.id, dev.id)
+
+    worked = datetime(2024, 1, 10, 9, 0)  # Wed, inside window
+    created = datetime(2024, 1, 15, 8, 0)  # next Mon, outside window
+    entry = TimeEntry(
+        work_item_id=wi.id,
+        developer_id=dev.id,
+        hours=2,
+        logged_at=created,
+        start_time=worked,
+        end_time=worked + timedelta(hours=2),
+    )
+    db.add(entry)
+    db.commit()
+
+    result = run_workforce_sync(db, today=SAT)
+
+    assert result["status"] == "ok"
+    assert len(qb_doubles["post_calls"]) == 1
+    assert qb_doubles["post_calls"][0]["txn_date"] == worked.date()
+
+
 def test_already_synced_entries_are_skipped(db, qb_doubles):
     """workforce_entry_id IS NOT NULL → entry is not re-pushed."""
     from services.workforce_sync import run_workforce_sync

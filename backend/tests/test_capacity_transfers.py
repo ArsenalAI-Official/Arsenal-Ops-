@@ -1180,3 +1180,95 @@ def test_carryover_multi_transfer_this_week(db):
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])
+
+
+# =====================================================================
+# GAP COVERAGE (calendar-logging branch): scenarios the original suite
+# left implicit — new logs by the NEW assignee after transfer, un-assignment
+# after logging, and a multi-transfer with no logs at the intermediate holder.
+# =====================================================================
+def test_new_assignee_logs_after_transfer_are_attributed_to_them(db):
+    """A logs 3h, transfers to B, then B logs 5h this week. A keeps 3h (logged,
+    no remaining); B gets their 5h logged + the remaining commitment."""
+    p = create_project(db)
+    A = create_developer(db, "A", "a@t.com")
+    B = create_developer(db, "B", "b@t.com")
+    ws, _ = _wb()
+    transfer_at = ws + timedelta(days=2)
+    wi = create_work_item(
+        db,
+        p.id,
+        B.id,  # current holder
+        status="in_progress",
+        estimated_hours=15,
+        logged_hours=8,  # 3 (A) + 5 (B)
+        started_at=ws,
+        last_assigned_at=transfer_at,
+    )
+    add_assignment_span(db, wi.id, A.id, assigned_at=ws, unassigned_at=transfer_at)
+    add_assignment_span(db, wi.id, B.id, assigned_at=transfer_at)
+    add_time_entry(db, wi, A.id, 3, logged_at=ws + timedelta(days=1))
+    add_time_entry(db, wi, B.id, 5, logged_at=transfer_at + timedelta(hours=2))
+
+    cap_A = get_capacity(db, A)
+    cap_B = get_capacity(db, B)
+
+    assert cap_A["this_week_in_progress_hours"] == 3  # logged only
+    assert cap_B["this_week_in_progress_hours"] == 12  # 5 logged + 7 remaining
+
+
+def test_unassigned_after_logging_keeps_logged_hours(db):
+    """A logs 4h then the ticket is unassigned (assignee_id NULL). A still sees
+    their 4h this week; no one claims the remaining (no current holder)."""
+    p = create_project(db)
+    A = create_developer(db, "A", "a@t.com")
+    ws, _ = _wb()
+    unassign_at = ws + timedelta(days=2)
+    wi = create_work_item(
+        db,
+        p.id,
+        None,  # unassigned now
+        status="in_progress",
+        estimated_hours=10,
+        logged_hours=4,
+        started_at=ws,
+    )
+    add_assignment_span(db, wi.id, A.id, assigned_at=ws, unassigned_at=unassign_at)
+    add_time_entry(db, wi, A.id, 4, logged_at=ws + timedelta(days=1))
+
+    cap_A = get_capacity(db, A)
+    assert cap_A["this_week_in_progress_hours"] == 4  # logged retained, no remaining
+
+
+def test_three_way_transfer_no_logs_at_intermediate_holder(db):
+    """A (0h) -> B (0h) -> C, C logs 2h. Only C (current holder) is credited
+    (its 2h + remaining); A and B held briefly with no logs and are filtered out."""
+    p = create_project(db)
+    A = create_developer(db, "A", "a@t.com")
+    B = create_developer(db, "B", "b@t.com")
+    C = create_developer(db, "C", "c@t.com")
+    ws, _ = _wb()
+    t1 = ws + timedelta(days=1)
+    t2 = ws + timedelta(days=2)
+    wi = create_work_item(
+        db,
+        p.id,
+        C.id,  # current holder
+        status="in_progress",
+        estimated_hours=10,
+        logged_hours=2,
+        started_at=ws,
+        last_assigned_at=t2,
+    )
+    add_assignment_span(db, wi.id, A.id, assigned_at=ws, unassigned_at=t1)
+    add_assignment_span(db, wi.id, B.id, assigned_at=t1, unassigned_at=t2)
+    add_assignment_span(db, wi.id, C.id, assigned_at=t2)
+    add_time_entry(db, wi, C.id, 2, logged_at=t2 + timedelta(hours=1))
+
+    cap_A = get_capacity(db, A)
+    cap_B = get_capacity(db, B)
+    cap_C = get_capacity(db, C)
+
+    assert cap_A["this_week_capacity_used"] == 0  # held briefly, no logs -> filtered
+    assert cap_B["this_week_capacity_used"] == 0
+    assert cap_C["this_week_in_progress_hours"] == 10  # 2 logged + 8 remaining

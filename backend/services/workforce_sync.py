@@ -56,7 +56,7 @@ import logging
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session, selectinload
 
 from models.developer import Developer
@@ -465,6 +465,13 @@ def _run_inside_lock(
     #    so what gets pushed matches what an admin sees there.
     window_start_dt = datetime.combine(window_start, time.min)
     window_end_dt = datetime.combine(window_end + timedelta(days=1), time.min)
+    # A positioned calendar block belongs to the day it was *worked*
+    # (``start_time``), not the day the row was created (``logged_at``).
+    # Legacy/quick-log entries have no ``start_time`` and fall back to
+    # ``logged_at``. Both the window filter and the QuickBooks TimeActivity
+    # date use this effective date so what the dev reviewed in My Timesheet
+    # is exactly what lands in QuickBooks (see also timesheet_service).
+    effective_date = func.coalesce(TimeEntry.start_time, TimeEntry.logged_at)
     entries: list[TimeEntry] = (
         db.query(TimeEntry)
         .join(WorkItem, TimeEntry.work_item_id == WorkItem.id)
@@ -473,8 +480,8 @@ def _run_inside_lock(
         .filter(
             Project.workforce_client_id.isnot(None),
             TimeEntry.workforce_entry_id.is_(None),
-            TimeEntry.logged_at >= window_start_dt,
-            TimeEntry.logged_at < window_end_dt,
+            effective_date >= window_start_dt,
+            effective_date < window_end_dt,
         )
         .options(
             selectinload(TimeEntry.work_item)
@@ -482,7 +489,7 @@ def _run_inside_lock(
             .selectinload(Project.category),
             selectinload(TimeEntry.developer),
         )
-        .order_by(TimeEntry.logged_at.asc(), TimeEntry.id.asc())
+        .order_by(effective_date.asc(), TimeEntry.id.asc())
         .limit(batch_cap)
         .all()
     )
@@ -538,7 +545,7 @@ def _run_inside_lock(
                 customer_qb_id=customer_qb_id,
                 service_item_id=service_item_id,
                 hours=int(entry.hours),
-                txn_date=entry.logged_at.date(),
+                txn_date=(entry.start_time or entry.logged_at).date(),
                 description=build_description(entry),
                 billable=bool(entry.billable),
                 class_id=class_id,

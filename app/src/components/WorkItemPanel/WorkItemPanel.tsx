@@ -128,7 +128,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
   };
 
   const handleLogHours = () => {
-    const hours = parseInt(logHoursRef.current?.value || '0');
+    const hours = parseInt(logHoursRef.current?.value || '0', 10);
     if (hours <= 0) return;
     if (props.variant === 'full') {
       props.onLogHours(item, hours);

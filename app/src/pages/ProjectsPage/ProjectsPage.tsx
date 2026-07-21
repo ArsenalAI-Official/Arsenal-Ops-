@@ -1,3 +1,5 @@
+import { CalendarRange, ChevronDown, ChevronRight } from 'lucide-react';
+import { lazy, Suspense, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { LegalFooter } from '@/components/LegalFooter';
@@ -17,10 +19,16 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjectsPageData } from './hooks/useProjectsPageData';
 
+// Placement (b) of the week calendar: an inline, collapsible dashboard section.
+// Lazy so the heavy calendar bundle only loads when the section is opened. Same
+// component as the dedicated /week page — the two placements share all behavior.
+const WeekCalendarView = lazy(() => import('../WeekCalendar/WeekCalendarView'));
+
 const ProjectsPage = () => {
   const navigate = useNavigate();
   const { user, token, logout } = useAuth();
   const { confirm, confirmDialog } = useConfirm();
+  const [weekSectionOpen, setWeekSectionOpen] = useState(false);
 
   const {
     searchQuery,
@@ -103,17 +111,26 @@ const ProjectsPage = () => {
 
       <AppHeader user={user} onAdminClick={() => navigate('/admin')} onLogout={logout} />
 
-      <div className="flex-1 min-h-0 flex flex-col max-w-[1400px] mx-auto px-8 py-8 w-full">
+      <div
+        className={`flex-1 min-h-0 flex flex-col max-w-[1400px] mx-auto px-8 py-8 w-full${
+          weekSectionOpen ? ' overflow-y-auto' : ''
+        }`}
+      >
         <div className="flex-shrink-0">
           <DashboardStats
             userName={user?.name}
             myTasks={myTasks}
             myTasksLoading={myTasksLoading}
             onTabChange={setMyTaskTab}
+            onOpenWeek={() => navigate('/week')}
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-5 flex-1 min-h-0">
+        <div
+          className={`grid grid-cols-1 md:grid-cols-5 gap-5 ${
+            weekSectionOpen ? 'flex-shrink-0 h-[60vh]' : 'flex-1 min-h-0'
+          }`}
+        >
           <div className="md:col-span-2 min-h-0 h-full">
             <ProjectsBox
               projects={projects}
@@ -149,6 +166,34 @@ const ProjectsPage = () => {
               onQuickDueDateChange={handleQuickDueDateChange}
             />
           </div>
+        </div>
+
+        {/* Placement (b): inline collapsible week calendar at the bottom of the
+            dashboard — compared against the dedicated /week page (placement a). */}
+        <div className="mt-6">
+          <button
+            type="button"
+            onClick={() => setWeekSectionOpen((o) => !o)}
+            className="flex items-center gap-2 text-[13px] font-semibold text-[#f5f5f5] mb-3 hover:text-white"
+          >
+            {weekSectionOpen ? (
+              <ChevronDown className="w-4 h-4 text-[#737373]" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-[#737373]" />
+            )}
+            <CalendarRange className="w-4 h-4 text-[#E0B954]" />
+            My Week — log hours
+            <span className="text-[11px] font-normal text-[#737373]">inline preview</span>
+          </button>
+          {weekSectionOpen && (
+            <Suspense
+              fallback={
+                <div className="text-[12px] text-[#737373] px-1 py-4">Loading calendar…</div>
+              }
+            >
+              <WeekCalendarView layout="inline" />
+            </Suspense>
+          )}
         </div>
       </div>
 

@@ -33,6 +33,7 @@ import logging
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
 from models.developer import Developer
@@ -58,6 +59,24 @@ from services.workforce_sync import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def effective_date_expr():
+    """SQL ``COALESCE(start_time, logged_at)`` — the day an entry counts toward.
+
+    A positioned calendar block bills on the day it was *worked*
+    (``start_time``); a quick-log entry has no ``start_time`` and falls back
+    to ``logged_at`` (creation day). The review view, the submit push, the
+    billable toggle, and the admin sync (``services.workforce_sync``) all key
+    on this expression so they agree on which week/day an entry belongs to —
+    the dev reviews and approves exactly what lands in QuickBooks.
+    """
+    return func.coalesce(TimeEntry.start_time, TimeEntry.logged_at)
+
+
+def entry_effective_date(entry: TimeEntry):
+    """Python-side twin of :func:`effective_date_expr` for a loaded entry."""
+    return entry.start_time or entry.logged_at
 
 
 # ── GET timesheet ────────────────────────────────────────────────────────
@@ -109,15 +128,15 @@ def get_my_timesheet(
         .join(Project, WorkItem.project_id == Project.id)
         .filter(
             TimeEntry.developer_id == developer.id,
-            TimeEntry.logged_at >= window_start_dt,
-            TimeEntry.logged_at < window_end_dt,
+            effective_date_expr() >= window_start_dt,
+            effective_date_expr() < window_end_dt,
         )
         .options(
             selectinload(TimeEntry.work_item)
             .selectinload(WorkItem.project)
             .selectinload(Project.category),
         )
-        .order_by(TimeEntry.logged_at.asc(), TimeEntry.id.asc())
+        .order_by(effective_date_expr().asc(), TimeEntry.id.asc())
         .all()
     )
 
@@ -146,9 +165,14 @@ def get_my_timesheet(
         # Surface the work-item title alongside the dev-typed description
         # so the modal can fall back to the ticket name when the dev
         # didn't add a free-text note.
+        # ``logged_at`` here is the *effective* day (worked day for positioned
+        # blocks) — the modal groups by it and echoes it back to the billable
+        # toggle, which matches on the same COALESCE expression. Keeping the
+        # field name preserves the API contract.
+        eff = entry_effective_date(entry)
         entry_row = {
             "id": entry.id,
-            "logged_at": entry.logged_at.date().isoformat() if entry.logged_at else None,
+            "logged_at": eff.date().isoformat() if eff else None,
             "hours": hours,
             "description": entry.description,
             "work_item_title": getattr(wi, "title", None) if wi else None,
@@ -421,15 +445,15 @@ def _submit_inside_lock(
             TimeEntry.developer_id == developer.id,
             Project.workforce_client_id.isnot(None),
             TimeEntry.workforce_entry_id.is_(None),
-            TimeEntry.logged_at >= window_start_dt,
-            TimeEntry.logged_at < window_end_dt,
+            effective_date_expr() >= window_start_dt,
+            effective_date_expr() < window_end_dt,
         )
         .options(
             selectinload(TimeEntry.work_item)
             .selectinload(WorkItem.project)
             .selectinload(Project.category),
         )
-        .order_by(TimeEntry.logged_at.asc(), TimeEntry.id.asc())
+        .order_by(effective_date_expr().asc(), TimeEntry.id.asc())
         .all()
     )
 
@@ -509,7 +533,7 @@ def _submit_inside_lock(
                 customer_qb_id=customer_qb_id,
                 service_item_id=service_item_id,
                 hours=int(entry.hours or 0),
-                txn_date=entry.logged_at.date(),
+                txn_date=entry_effective_date(entry).date(),
                 description=build_description(entry),
                 billable=bool(entry.billable),
                 class_id=class_id,

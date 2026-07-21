@@ -389,6 +389,28 @@ export type CreatePersonalTaskRequest = {
 };
 
 /**
+ * CreateTimeBlockRequest
+ */
+export type CreateTimeBlockRequest = {
+  /**
+   * Description
+   */
+  description?: string | null;
+  /**
+   * End Time
+   */
+  end_time: string;
+  /**
+   * Start Time
+   */
+  start_time: string;
+  /**
+   * Work Item Id
+   */
+  work_item_id: number;
+};
+
+/**
  * DashboardStats
  */
 export type DashboardStats = {
@@ -2451,6 +2473,59 @@ export type TextAnalysisRequest = {
 };
 
 /**
+ * TimeBlockResponse
+ *
+ * One positioned calendar block, denormalized with its ticket's display
+ * fields so the calendar can render without a second round-trip.
+ */
+export type TimeBlockResponse = {
+  /**
+   * Description
+   */
+  description?: string | null;
+  /**
+   * Developer Id
+   */
+  developer_id?: number | null;
+  /**
+   * End Time
+   */
+  end_time?: string | null;
+  /**
+   * Hours
+   */
+  hours: number;
+  /**
+   * Id
+   */
+  id: number;
+  /**
+   * Start Time
+   */
+  start_time?: string | null;
+  /**
+   * Work Item Id
+   */
+  work_item_id: number;
+  /**
+   * Work Item Key
+   */
+  work_item_key: string;
+  /**
+   * Work Item Status
+   */
+  work_item_status: string;
+  /**
+   * Work Item Title
+   */
+  work_item_title: string;
+  /**
+   * Work Item Type
+   */
+  work_item_type: string;
+};
+
+/**
  * TimeEntriesResponse
  *
  * Wraps the rows with a totals strip and a truncation flag so the
@@ -2726,6 +2801,30 @@ export type UpdatePersonalTaskRequest = {
 };
 
 /**
+ * UpdateTimeBlockRequest
+ *
+ * Move / resize / reassign. All fields optional — send only what changed.
+ *
+ * ``start_time``/``end_time`` move or resize the block (hours re-derived);
+ * ``work_item_id`` reassigns the block to a different ticket (rolls up hours
+ * on both the old and new ticket).
+ */
+export type UpdateTimeBlockRequest = {
+  /**
+   * End Time
+   */
+  end_time?: string | null;
+  /**
+   * Start Time
+   */
+  start_time?: string | null;
+  /**
+   * Work Item Id
+   */
+  work_item_id?: number | null;
+};
+
+/**
  * UserCreate
  */
 export type UserCreate = {
@@ -2864,6 +2963,28 @@ export type ValidationError = {
    * Error Type
    */
   type: string;
+};
+
+/**
+ * WeekBlocksResponse
+ */
+export type WeekBlocksResponse = {
+  /**
+   * Blocks
+   */
+  blocks: Array<TimeBlockResponse>;
+  /**
+   * Unplaced
+   */
+  unplaced?: Array<TimeBlockResponse>;
+  /**
+   * Week End
+   */
+  week_end: string;
+  /**
+   * Week Start
+   */
+  week_start: string;
 };
 
 /**
@@ -6806,6 +6927,137 @@ export type ParseRoadmapFileApiRoadmapParseFilePostResponses = {
    */
   200: unknown;
 };
+
+export type ListWeekBlocksApiTimeBlocksGetData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * Week Start
+     *
+     * UTC start of the week (inclusive)
+     */
+    week_start: string;
+    /**
+     * Employee Id
+     *
+     * Admin-only: view another developer's calendar.
+     */
+    employee_id?: number | null;
+  };
+  url: '/api/time-blocks';
+};
+
+export type ListWeekBlocksApiTimeBlocksGetErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type ListWeekBlocksApiTimeBlocksGetError =
+  ListWeekBlocksApiTimeBlocksGetErrors[keyof ListWeekBlocksApiTimeBlocksGetErrors];
+
+export type ListWeekBlocksApiTimeBlocksGetResponses = {
+  /**
+   * Successful Response
+   */
+  200: WeekBlocksResponse;
+};
+
+export type ListWeekBlocksApiTimeBlocksGetResponse =
+  ListWeekBlocksApiTimeBlocksGetResponses[keyof ListWeekBlocksApiTimeBlocksGetResponses];
+
+export type CreateTimeBlockApiTimeBlocksPostData = {
+  body: CreateTimeBlockRequest;
+  path?: never;
+  query?: never;
+  url: '/api/time-blocks';
+};
+
+export type CreateTimeBlockApiTimeBlocksPostErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type CreateTimeBlockApiTimeBlocksPostError =
+  CreateTimeBlockApiTimeBlocksPostErrors[keyof CreateTimeBlockApiTimeBlocksPostErrors];
+
+export type CreateTimeBlockApiTimeBlocksPostResponses = {
+  /**
+   * Successful Response
+   */
+  201: TimeBlockResponse;
+};
+
+export type CreateTimeBlockApiTimeBlocksPostResponse =
+  CreateTimeBlockApiTimeBlocksPostResponses[keyof CreateTimeBlockApiTimeBlocksPostResponses];
+
+export type DeleteTimeBlockApiTimeBlocksEntryIdDeleteData = {
+  body?: never;
+  path: {
+    /**
+     * Entry Id
+     */
+    entry_id: number;
+  };
+  query?: never;
+  url: '/api/time-blocks/{entry_id}';
+};
+
+export type DeleteTimeBlockApiTimeBlocksEntryIdDeleteErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type DeleteTimeBlockApiTimeBlocksEntryIdDeleteError =
+  DeleteTimeBlockApiTimeBlocksEntryIdDeleteErrors[keyof DeleteTimeBlockApiTimeBlocksEntryIdDeleteErrors];
+
+export type DeleteTimeBlockApiTimeBlocksEntryIdDeleteResponses = {
+  /**
+   * Successful Response
+   */
+  204: void;
+};
+
+export type DeleteTimeBlockApiTimeBlocksEntryIdDeleteResponse =
+  DeleteTimeBlockApiTimeBlocksEntryIdDeleteResponses[keyof DeleteTimeBlockApiTimeBlocksEntryIdDeleteResponses];
+
+export type UpdateTimeBlockApiTimeBlocksEntryIdPatchData = {
+  body: UpdateTimeBlockRequest;
+  path: {
+    /**
+     * Entry Id
+     */
+    entry_id: number;
+  };
+  query?: never;
+  url: '/api/time-blocks/{entry_id}';
+};
+
+export type UpdateTimeBlockApiTimeBlocksEntryIdPatchErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type UpdateTimeBlockApiTimeBlocksEntryIdPatchError =
+  UpdateTimeBlockApiTimeBlocksEntryIdPatchErrors[keyof UpdateTimeBlockApiTimeBlocksEntryIdPatchErrors];
+
+export type UpdateTimeBlockApiTimeBlocksEntryIdPatchResponses = {
+  /**
+   * Successful Response
+   */
+  200: TimeBlockResponse;
+};
+
+export type UpdateTimeBlockApiTimeBlocksEntryIdPatchResponse =
+  UpdateTimeBlockApiTimeBlocksEntryIdPatchResponses[keyof UpdateTimeBlockApiTimeBlocksEntryIdPatchResponses];
 
 export type ListWorkItemsApiWorkitemsGetData = {
   body?: never;

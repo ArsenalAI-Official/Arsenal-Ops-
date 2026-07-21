@@ -18,6 +18,7 @@ import './App.css';
 // Each chunk loads on demand when the user navigates to that route.
 const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
 const PersonalTasksPage = lazy(() => import('./pages/PersonalTasksPage'));
+const WeekCalendar = lazy(() => import('./pages/WeekCalendar'));
 const ProjectBoard = lazy(() => import('./pages/ProjectBoard'));
 const ProjectDetail = lazy(() => import('./pages/ProjectDetail'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
@@ -188,6 +189,7 @@ function AuthenticatedRoutes() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<ProjectsPage />} />
+          <Route path="/week" element={<WeekCalendar />} />
           <Route path="/personal-tasks" element={<PersonalTasksPage />} />
           <Route path="/project/:id" element={<ProjectDetail />} />
           <Route

@@ -317,6 +317,8 @@ def run_migrations():
                         developer_id INTEGER REFERENCES developers(id) ON DELETE SET NULL,
                         hours INTEGER NOT NULL,
                         description TEXT,
+                        start_time TIMESTAMP,
+                        end_time TIMESTAMP,
                         logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
@@ -327,10 +329,45 @@ def run_migrations():
                 conn.execute(
                     text("CREATE INDEX idx_time_entry_developer ON time_entries(developer_id)")
                 )
+                conn.execute(
+                    text("CREATE INDEX idx_time_entry_start_time ON time_entries(start_time)")
+                )
                 conn.commit()
                 print("[MIGRATION] time_entries table created!")
         except Exception as e:
             print(f"[MIGRATION ERROR] {e}")
+
+        # Migration: positioned calendar blocks.
+        # For EXISTING databases (the create-table block above only fires on a
+        # fresh DB), add the nullable start_time/end_time columns + index so a
+        # TimeEntry can carry a calendar position. Engine-agnostic: existence is
+        # checked via the SQLAlchemy inspector so this also migrates an existing
+        # SQLite dev DB (ADD COLUMN works on both). Idempotent.
+        # NOTE: hours stay INTEGER (whole-hour blocks). Widening to NUMERIC for
+        # fractional 15/30-min hours is a stacked follow-up
+        # (feat/week-calendar-minutes) pending app-wide review.
+        try:
+            from sqlalchemy import inspect as _sa_inspect
+
+            insp = _sa_inspect(conn)
+            if "time_entries" in insp.get_table_names():
+                existing_cols = {c["name"] for c in insp.get_columns("time_entries")}
+                for col in ("start_time", "end_time"):
+                    if col not in existing_cols:
+                        print(f"[MIGRATION] Adding time_entries.{col}...")
+                        conn.execute(text(f"ALTER TABLE time_entries ADD COLUMN {col} TIMESTAMP"))
+                idx_names = {ix["name"] for ix in insp.get_indexes("time_entries")}
+                if "idx_time_entry_start_time" not in idx_names:
+                    conn.execute(
+                        text(
+                            "CREATE INDEX IF NOT EXISTS idx_time_entry_start_time "
+                            "ON time_entries(start_time)"
+                        )
+                    )
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print(f"[MIGRATION ERROR] adding positioned-block columns: {e}")
 
         # Migration: Add key_prefix column to projects
         try:
@@ -921,6 +958,28 @@ def run_migrations():
                 conn.commit()
             except Exception as e:
                 print(f"[MIGRATION ERROR] {idx_name}: {e}")
+
+        # Expression index for the QuickBooks pipeline's worked-day key: the
+        # sync/timesheet queries filter and order on COALESCE(start_time,
+        # logged_at) (services.workforce_sync / timesheet_service.effective_date_expr).
+        # A plain column index can't serve a COALESCE() predicate, so the admin
+        # sync (which has no developer prefix to fall back on) would scan.
+        # Partial on the sync's hot path (unsynced rows). This runs AFTER the
+        # workforce_entry_id column migration above so the partial predicate's
+        # column always exists, and in its own try/commit so a failure here can
+        # never roll back the calendar-column DDL earlier in run_migrations().
+        # Both PG and SQLite support expression + partial indexes.
+        try:
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_time_entry_effective_date "
+                    "ON time_entries(COALESCE(start_time, logged_at)) "
+                    "WHERE workforce_entry_id IS NULL"
+                )
+            )
+            conn.commit()
+        except Exception as e:
+            print(f"[MIGRATION ERROR] idx_time_entry_effective_date: {e}")
 
         # workforce_clients composite PK upgrade. The model now declares
         # PK = (qb_customer_id, realm_id) so a same-id customer in two

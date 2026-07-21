@@ -410,6 +410,19 @@ def edit_my_timesheet_entry(
     entry = _resolve_editable_entry(entry_id, current_user, db)
 
     if body.hours is not None:
+        # Positioned calendar blocks own their hours via (end_time - start_time);
+        # changing hours here would desync the stored value from the block's drawn
+        # duration. Only reject an actual change — a description-only save that
+        # echoes the unchanged hours is fine. Route real hours changes to the
+        # calendar (move/resize).
+        if entry.start_time is not None and body.hours != entry.hours:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "This entry is a calendar block — change its hours by resizing "
+                    "it on the week calendar, not from the timesheet."
+                ),
+            )
         if body.hours <= 0:
             raise HTTPException(status_code=400, detail="Hours must be greater than 0")
         if body.hours > 24:
@@ -504,6 +517,7 @@ def set_my_timesheet_billable(
     from models.project import Project
     from models.time_entry import TimeEntry
     from models.work_item import WorkItem
+    from services.timesheet_service import effective_date_expr
     from services.workforce_sync import current_work_week_window
 
     dev = _get_internal_developer_or_404(current_user, db)
@@ -532,8 +546,11 @@ def set_my_timesheet_billable(
         .join(Project, WorkItem.project_id == Project.id)
         .filter(
             TimeEntry.developer_id == dev.id,
-            TimeEntry.logged_at >= day_start,
-            TimeEntry.logged_at < day_end,
+            # Match on the effective (worked) day so a backdated calendar
+            # block's billable toggle targets the same rows the review view
+            # grouped under that day. See timesheet_service.effective_date_expr.
+            effective_date_expr() >= day_start,
+            effective_date_expr() < day_end,
             TimeEntry.workforce_entry_id.is_(None),
             TimeEntry.submitted_at.is_(None),
             Project.workforce_client_id == body.qb_customer_id,

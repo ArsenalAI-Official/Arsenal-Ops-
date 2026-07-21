@@ -126,7 +126,7 @@ export const WorkItemFullEditForm = ({
           <NumberInput
             defaultValue={item.assigned_hours}
             onChange={(e) =>
-              setEditForm((f) => ({ ...f, assigned_hours: parseInt(e.target.value) || 0 }))
+              setEditForm((f) => ({ ...f, assigned_hours: parseInt(e.target.value, 10) || 0 }))
             }
             className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
           />
@@ -140,7 +140,7 @@ export const WorkItemFullEditForm = ({
           <NumberInput
             defaultValue={item.logged_hours || 0}
             onChange={(e) =>
-              setEditForm((f) => ({ ...f, logged_hours: parseInt(e.target.value) || 0 }))
+              setEditForm((f) => ({ ...f, logged_hours: parseInt(e.target.value, 10) || 0 }))
             }
             className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
           />
@@ -150,7 +150,7 @@ export const WorkItemFullEditForm = ({
           <NumberInput
             defaultValue={item.remaining_hours}
             onChange={(e) =>
-              setEditForm((f) => ({ ...f, remaining_hours: parseInt(e.target.value) || 0 }))
+              setEditForm((f) => ({ ...f, remaining_hours: parseInt(e.target.value, 10) || 0 }))
             }
             className="bg-[rgba(255,255,255,0.025)] border-[rgba(255,255,255,0.07)] text-[#F4F6FF] rounded-xl"
           />

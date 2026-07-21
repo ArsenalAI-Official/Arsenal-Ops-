@@ -286,6 +286,85 @@ def test_edit_rejects_over_24h(db):
     assert exc.value.status_code == 400
 
 
+def test_edit_hours_on_positioned_block_rejected(db):
+    """A calendar block owns its hours via (end_time - start_time); editing
+    hours from the timesheet would desync it from the drawn duration, so the
+    endpoint rejects it and points the dev back to the calendar."""
+    from routers.developers import TimesheetEntryEditRequest, edit_my_timesheet_entry
+
+    dev = _make_dev(db)
+    proj = _make_project(db)
+    wi = _make_wi(db, proj.id, dev.id)
+    start = datetime(2024, 1, 10, 9, 0)
+    entry = _make_te(db, wi, dev.id, hours=2, start_time=start, end_time=start + timedelta(hours=2))
+
+    with pytest.raises(HTTPException) as exc:
+        edit_my_timesheet_entry(
+            entry_id=entry.id,
+            body=TimesheetEntryEditRequest(hours=6),
+            db=db,
+            current_user=_make_user(),
+        )
+    assert exc.value.status_code == 400
+    assert "calendar" in exc.value.detail.lower()
+
+    db.refresh(entry)
+    assert entry.hours == 2  # unchanged
+
+
+def test_edit_description_on_positioned_block_allowed(db):
+    """Hours are calendar-owned, but description edits still work on a block."""
+    from routers.developers import TimesheetEntryEditRequest, edit_my_timesheet_entry
+
+    dev = _make_dev(db)
+    proj = _make_project(db)
+    wi = _make_wi(db, proj.id, dev.id)
+    start = datetime(2024, 1, 10, 9, 0)
+    entry = _make_te(
+        db,
+        wi,
+        dev.id,
+        hours=2,
+        description="old",
+        start_time=start,
+        end_time=start + timedelta(hours=2),
+    )
+
+    edit_my_timesheet_entry(
+        entry_id=entry.id,
+        body=TimesheetEntryEditRequest(description="new note"),
+        db=db,
+        current_user=_make_user(),
+    )
+
+    db.refresh(entry)
+    assert entry.description == "new note"
+    assert entry.hours == 2
+
+
+def test_edit_positioned_block_allows_unchanged_hours_echo(db):
+    """A description-only save that echoes the block's unchanged hours must not be
+    rejected — only an actual hours *change* on a positioned block is blocked."""
+    from routers.developers import TimesheetEntryEditRequest, edit_my_timesheet_entry
+
+    dev = _make_dev(db)
+    proj = _make_project(db)
+    wi = _make_wi(db, proj.id, dev.id)
+    start = datetime(2024, 1, 10, 9, 0)
+    entry = _make_te(db, wi, dev.id, hours=2, start_time=start, end_time=start + timedelta(hours=2))
+
+    # hours echoed unchanged (== entry.hours) alongside a description edit → OK.
+    edit_my_timesheet_entry(
+        entry_id=entry.id,
+        body=TimesheetEntryEditRequest(hours=2, description="note"),
+        db=db,
+        current_user=_make_user(),
+    )
+    db.refresh(entry)
+    assert entry.hours == 2
+    assert entry.description == "note"
+
+
 def test_edit_404_when_entry_missing(db):
     from routers.developers import TimesheetEntryEditRequest, edit_my_timesheet_entry
 

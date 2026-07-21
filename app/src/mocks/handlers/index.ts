@@ -9,6 +9,7 @@ import { authHandlers } from './auth';
 import { commentHandlers } from './comments';
 import { developerHandlers } from './developers';
 import { projectHandlers } from './projects';
+import { timeBlockHandlers, resetTimeBlocks } from './timeBlocks';
 import { workItemHandlers } from './workitems';
 
 export const handlers = [
@@ -18,8 +19,10 @@ export const handlers = [
   ...developerHandlers,
   ...commentHandlers,
   ...adminHandlers,
+  ...timeBlockHandlers,
 ];
 
 export function resetMockStore(): void {
   resetMockData();
+  resetTimeBlocks();
 }
