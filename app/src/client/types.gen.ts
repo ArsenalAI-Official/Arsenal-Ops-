@@ -118,7 +118,7 @@ export type BodyAnalyzePrdFileApiPrdAnalyzeFilePost = {
   /**
    * File
    */
-  file: Blob | File;
+  file: string;
   /**
    * Project Id
    */
@@ -162,7 +162,7 @@ export type BodyParseRoadmapFileApiRoadmapParseFilePost = {
   /**
    * File
    */
-  file: Blob | File;
+  file: string;
   /**
    * Project Id
    */
@@ -180,7 +180,7 @@ export type BodyUploadProjectFileApiProjectsProjectIdFilesPost = {
   /**
    * File
    */
-  file: Blob | File;
+  file: string;
 };
 
 /**
@@ -7029,6 +7029,44 @@ export type GetProjectAnalyticsApiWorkitemsProjectsProjectIdAnalyticsGetResponse
 
 export type GetProjectAnalyticsApiWorkitemsProjectsProjectIdAnalyticsGetResponse =
   GetProjectAnalyticsApiWorkitemsProjectsProjectIdAnalyticsGetResponses[keyof GetProjectAnalyticsApiWorkitemsProjectsProjectIdAnalyticsGetResponses];
+
+export type GetProjectBurndownApiWorkitemsProjectsProjectIdBurndownGetData = {
+  body?: never;
+  path: {
+    /**
+     * Project Id
+     */
+    project_id: number;
+  };
+  query?: {
+    /**
+     * Start
+     */
+    start?: string | null;
+    /**
+     * End
+     */
+    end?: string | null;
+  };
+  url: '/api/workitems/projects/{project_id}/burndown';
+};
+
+export type GetProjectBurndownApiWorkitemsProjectsProjectIdBurndownGetErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type GetProjectBurndownApiWorkitemsProjectsProjectIdBurndownGetError =
+  GetProjectBurndownApiWorkitemsProjectsProjectIdBurndownGetErrors[keyof GetProjectBurndownApiWorkitemsProjectsProjectIdBurndownGetErrors];
+
+export type GetProjectBurndownApiWorkitemsProjectsProjectIdBurndownGetResponses = {
+  /**
+   * Successful Response
+   */
+  200: unknown;
+};
 
 export type GetHoursAnalyticsApiWorkitemsProjectsProjectIdHoursAnalyticsGetData = {
   body?: never;

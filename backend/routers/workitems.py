@@ -3033,20 +3033,24 @@ def get_hours_analytics(
         # sprint's overboard total, and the offending tickets are listed so the
         # PM can see WHICH ones blew their estimate (the sprint totals above use
         # max(0, ...) which hides this).
-        overlogged_items = [
-            {
-                "id": item.id,
-                "key": item.key,
-                "title": item.title,
-                "estimated_hours": item.estimated_hours or 0,
-                "logged_hours": item.logged_hours or 0,
-                "over_hours": (item.logged_hours or 0) - (item.estimated_hours or 0),
-            }
-            for item in sprint_items
-            if (item.estimated_hours or 0) > 0
-            and (item.logged_hours or 0) > (item.estimated_hours or 0)
-        ]
-        overlogged_hours = sum(o["over_hours"] for o in overlogged_items)
+        overlogged_items: list[dict] = []
+        overlogged_hours = 0
+        for item in sprint_items:
+            est = item.estimated_hours or 0
+            item_logged = item.logged_hours or 0
+            if est > 0 and item_logged > est:
+                over = item_logged - est
+                overlogged_hours += over
+                overlogged_items.append(
+                    {
+                        "id": item.id,
+                        "key": item.key,
+                        "title": item.title,
+                        "estimated_hours": est,
+                        "logged_hours": item_logged,
+                        "over_hours": over,
+                    }
+                )
 
         sprint_hours.append(
             {

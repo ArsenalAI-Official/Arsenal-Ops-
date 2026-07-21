@@ -12197,6 +12197,84 @@
         ]
       }
     },
+    "/api/workitems/projects/{project_id}/burndown": {
+      "get": {
+        "description": "Daily burndown series over an explicit [start, end] date range (inclusive).\n\nDates are ISO ``YYYY-MM-DD``; both default to the last 14 days when omitted.\nThe range is capped at 366 days. Powers the Tracker tab's burndown filter\n(this week / this month / last week / last month / custom).",
+        "operationId": "get_project_burndown_api_workitems_projects__project_id__burndown_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Project Burndown",
+        "tags": [
+          "Work Items"
+        ]
+      }
+    },
     "/api/workitems/projects/{project_id}/hours-analytics": {
       "get": {
         "description": "Get hours analytics for project manager view.\nAuthorized for users with the project.pm capability OR project-level admin\nmembership on this specific project (matches frontend canSeePMTab logic).",
