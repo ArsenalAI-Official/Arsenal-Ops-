@@ -9,7 +9,7 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
-from sqlalchemy import case, func, text
+from sqlalchemy import case, func, or_, text
 from sqlalchemy.orm import Session, selectinload
 
 from time_utils import utcnow
@@ -392,12 +392,17 @@ def list_work_items(
     type: str | None = None,
     sprint_id: int | None = None,
     assignee_id: int | None = None,
+    search: str | None = None,
     limit: int = Query(500, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """List all work items with optional filters (requires auth).
+
+    ``search`` does a case-insensitive substring match across key / title /
+    description, so a vague reference ("the login thing") can be resolved to
+    candidate tickets without knowing the exact title.
 
     Supports pagination via ``limit`` (1..1000, default 500) and ``offset``
     (default 0). Total row count is returned in the ``X-Total-Count`` response
@@ -418,6 +423,17 @@ def list_work_items(
         query = query.filter(WorkItem.sprint_id == sprint_id)
     if assignee_id:
         query = query.filter(WorkItem.assignee_id == assignee_id)
+    if search and search.strip():
+        # Escape LIKE wildcards in user input so "50%" / "a_b" match literally.
+        term = search.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        like = f"%{term}%"
+        query = query.filter(
+            or_(
+                WorkItem.key.ilike(like),
+                WorkItem.title.ilike(like),
+                WorkItem.description.ilike(like),
+            )
+        )
 
     # Compute total BEFORE applying limit/offset so the header reflects the
     # full filtered set, not just the current page.

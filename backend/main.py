@@ -21,7 +21,10 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 logger = logging.getLogger(__name__)
 
-# Import routers (after load_dotenv so router-level env reads see the right values)
+# Imports below run after load_dotenv so module-level env reads (router-level
+# config; the MCP server's JWTVerifier reading the required SECRET_KEY) see the
+# right values. mcp_app is mounted at /mcp further down.
+from mcp_server import mcp_app, oauth_well_known_routes  # noqa: E402
 from routers.admin import router as admin_router  # noqa: E402
 from routers.auth import router as auth_router  # noqa: E402
 from routers.comments import router as comments_router  # noqa: E402
@@ -40,15 +43,20 @@ from routers.workitems import router as workitems_router  # noqa: E402
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan: run DB init + idempotent migrations + admin
-    seeding on startup. Replaces the deprecated ``@app.on_event("startup")``.
+    """App lifespan: run DB init + idempotent migrations + admin seeding, then
+    enter the MCP server's own lifespan so its (stateless) session manager is
+    initialized. Composing ``mcp_app.lifespan`` is the non-obvious mount step —
+    without it the mounted /mcp app raises on the first request. ``_startup``
+    holds the former ``@app.on_event("startup")`` body (defined below).
     """
     await _startup()
-    yield
+    async with mcp_app.lifespan(app):
+        yield
 
 
 # Create FastAPI app
 app = FastAPI(
+    lifespan=lifespan,
     title="Arsenal Ops - AI Project Management",
     description="""
     AI-powered project management platform with Jira-like boards.
@@ -60,7 +68,6 @@ app = FastAPI(
     - **Sprint Management**: Organize work into sprints
     """,
     version="1.0.0",
-    lifespan=lifespan,
 )
 
 # CORS middleware - MUST be added before other middleware/routes
@@ -157,6 +164,19 @@ app.include_router(pulse_router)
 app.include_router(project_categories_router)
 app.include_router(workforce_router)
 app.include_router(workforce_callback_router)
+
+# Mount the MCP server as a sub-app. With http_app(path="/"), the streamable
+# HTTP endpoint is /mcp/ (clients connect to /mcp). Auth + RBAC are enforced
+# inside the MCP layer (JWTVerifier + per-tool capability checks), independent
+# of the REST routes above. Its lifespan is composed in `lifespan` above.
+app.mount("/mcp", mcp_app)
+
+# Expose the OAuth discovery (well-known) metadata at the ROOT, where the 401
+# challenge advertises it (RFC 9728). The mounted sub-app serves these under
+# /mcp, so without this the OAuth discovery first hop 404s. No-op when OAuth is
+# disabled. See mcp_server.oauth_well_known_routes.
+for _wk_route in oauth_well_known_routes("/"):
+    app.router.routes.append(_wk_route)
 
 
 # Database init + idempotent migrations + admin seeding, invoked from `lifespan`.

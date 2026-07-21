@@ -55,8 +55,10 @@ def _load_secret_key() -> str:
 
     This secret signs both session JWTs (gating the entire admin API
     surface) AND the OAuth state token on the public
-    /api/auth/workforce/callback. A leaked or guessable value breaks both
-    authentication (session forgery) AND the workforce-OAuth CSRF defense.
+    /api/auth/workforce/callback. It also guards the /mcp surface (fastmcp's
+    JWTVerifier validates Bearer tokens against it). A leaked or guessable
+    value breaks authentication (session forgery), the workforce-OAuth CSRF
+    defense, AND the MCP token gate.
 
     No escape hatch — the env var is REQUIRED everywhere: production
     deploys, local dev, and CI. Tests set it in ``tests/conftest.py``
@@ -226,6 +228,93 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 
+def load_user_from_claims(db: Session, claims: dict) -> User | None:
+    """Rehydrate a User (roles + capabilities eager-loaded) from validated JWT claims.
+
+    The identity half of `get_current_user`, extracted so callers that resolve
+    the token outside FastAPI's dependency system — namely the MCP tools, which
+    read claims from `fastmcp`'s `get_access_token()` — share the exact same
+    user-loading path as the REST API.
+
+    Assumes the token signature has already been verified by the caller
+    (`jwt.decode` here for REST, `JWTVerifier` for /mcp). Returns None when the
+    `sub` claim is missing/non-integer or no matching user row exists, so the
+    caller can map that to its own 401.
+    """
+    user_id = claims.get("sub")
+    if user_id is None:
+        return None
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return None
+    return (
+        db.query(User)
+        .options(selectinload(User.roles).selectinload(Role.capabilities))
+        .filter(User.id == uid)
+        .first()
+    )
+
+
+def load_or_provision_user_by_email(
+    db: Session, email: str, name: str | None = None
+) -> User | None:
+    """Resolve (or provision) an Ops User from a verified Google email.
+
+    The OAuth counterpart to `load_user_from_claims`: the MCP OAuth flow
+    (fastmcp's GoogleProvider, used by Claude Desktop) hands us a verified Google
+    identity (email) rather than an Ops user id, so we map it to a `User` by
+    email, applying the SAME policy as `google_login`:
+
+      - existing active user      -> returned (Developer row ensured)
+      - existing inactive user    -> None (rejected)
+      - unknown internal-domain   -> auto-provisioned (User + developer role + Developer)
+      - unknown external-domain   -> None (rejected; an admin must pre-register them)
+
+    Returns the user with roles + capabilities eager-loaded (so RBAC checks work),
+    or None for the caller to map to a 401/403. Assumes the email was already
+    verified by the OAuth provider.
+    """
+    from models.developer import Developer
+
+    is_internal = _is_internal_email(email)
+    user = db.query(User).filter(User.email == email).first()
+
+    if user is None:
+        if not is_internal:
+            return None  # external + not pre-registered -> rejected, like google_login
+        # Provision an internal-domain user (mirrors google_login's new-user branch).
+        user = User(
+            email=email,
+            name=name or email.split("@")[0],
+            hashed_password="",
+            role=UserRole.DEVELOPER.value,
+            is_active=True,
+            is_first_login=False,
+            last_login_at=utcnow(),
+        )
+        db.add(user)
+        db.flush()  # populate user.id for the role m2m link
+        _link_roles_from_string(user, UserRole.DEVELOPER.value, db)
+        db.commit()
+    elif not user.is_active:
+        return None  # disabled account -> rejected
+
+    # Ensure a Developer row exists (matches google_login; needed for capacity /
+    # assignment features and for per-project membership lookups).
+    if not db.query(Developer).filter(Developer.email == email).first():
+        db.add(Developer(name=user.name, email=email, is_external=not is_internal))
+        db.commit()
+
+    # Re-load with roles + capabilities eager-loaded, exactly like load_user_from_claims.
+    return (
+        db.query(User)
+        .options(selectinload(User.roles).selectinload(Role.capabilities))
+        .filter(User.id == user.id)
+        .first()
+    )
+
+
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -254,12 +343,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user_id is None:
         raise credentials_exception
 
-    user = (
-        db.query(User)
-        .options(selectinload(User.roles).selectinload(Role.capabilities))
-        .filter(User.id == int(user_id))
-        .first()
-    )
+    user = load_user_from_claims(db, payload)
     if user is None:
         raise credentials_exception
     return user
@@ -275,6 +359,21 @@ def _has_admin_role(user: User) -> bool:
     capabilities, not role names.
     """
     return any(r.name == "admin" for r in user.roles)
+
+
+def assert_capability(user: User, cap: str) -> None:
+    """Raise 403 unless `user`'s effective capabilities cover `cap`.
+
+    The permission-check half of `require_capability`, extracted so the MCP
+    tools (which hold a resolved User rather than a FastAPI dependency) enforce
+    the identical RBAC gate as the REST routes — an agent never exceeds its
+    user's UI permissions.
+    """
+    if not user.has_capability(cap):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Do not have permission",
+        )
 
 
 def require_capability(cap: str):
@@ -295,11 +394,7 @@ def require_capability(cap: str):
     """
 
     def _check(current_user: User = Depends(get_current_user)) -> User:
-        if not current_user.has_capability(cap):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Do not have permission",
-            )
+        assert_capability(current_user, cap)
         return current_user
 
     return _check

@@ -74,6 +74,88 @@ def _hours_per_developer(db: Session, week_start: datetime, week_end: datetime) 
     return out
 
 
+def weekly_hours_report(
+    db: Session,
+    *,
+    project_id: int | None = None,
+    generated_at: datetime | None = None,
+) -> dict:
+    """Structured weekly logged-hours report (the machine-readable sibling of
+    ``build_weekly_report_html``).
+
+    Sums ``TimeEntry.hours`` logged within the week (Sat->Fri UTC), optionally
+    scoped to a single project. Returns per-developer and per-project rollups
+    plus the team total — the data an agent needs to answer "give a weekly
+    report of the project" without scraping HTML.
+    """
+    generated_at = generated_at or datetime.utcnow()
+    week_start, week_end = week_boundaries(generated_at)
+
+    q = (
+        db.query(
+            TimeEntry.developer_id,
+            Developer.name,
+            Developer.is_external,
+            TimeEntry.hours,
+            Project.id,
+            Project.name,
+        )
+        .join(WorkItem, TimeEntry.work_item_id == WorkItem.id)
+        .join(Project, WorkItem.project_id == Project.id)
+        .join(Developer, TimeEntry.developer_id == Developer.id)
+        .filter(
+            TimeEntry.developer_id.isnot(None),
+            Developer.is_external.is_(False),
+            TimeEntry.logged_at >= week_start,
+            TimeEntry.logged_at <= week_end,
+        )
+    )
+    if project_id is not None:
+        q = q.filter(Project.id == project_id)
+
+    per_dev: dict[int, dict] = {}
+    per_project: dict[int, dict] = {}
+    team_total = 0
+    for dev_id, dev_name, _ext, hours, proj_id, proj_name in q.all():
+        h = hours or 0
+        team_total += h
+        d = per_dev.setdefault(
+            dev_id, {"developer_id": dev_id, "developer_name": dev_name, "hours": 0, "projects": {}}
+        )
+        d["hours"] += h
+        d["projects"][proj_id] = {
+            "name": proj_name,
+            "hours": d["projects"].get(proj_id, {}).get("hours", 0) + h,
+        }
+        p = per_project.setdefault(proj_id, {"project_id": proj_id, "name": proj_name, "hours": 0})
+        p["hours"] += h
+
+    by_developer = sorted(
+        (
+            {
+                "developer_id": d["developer_id"],
+                "developer_name": d["developer_name"],
+                "total_hours": d["hours"],
+                "projects": sorted(
+                    d["projects"].values(), key=lambda x: (-x["hours"], x["name"].lower())
+                ),
+            }
+            for d in per_dev.values()
+        ),
+        key=lambda r: (-r["total_hours"], r["developer_name"].lower()),
+    )
+    by_project = sorted(per_project.values(), key=lambda p: (-p["hours"], p["name"].lower()))
+
+    return {
+        "week_start": week_start.isoformat(),
+        "week_end": week_end.isoformat(),
+        "project_id": project_id,
+        "team_total_hours": team_total,
+        "by_developer": by_developer,
+        "by_project": by_project,
+    }
+
+
 def build_weekly_report_html(db: Session, generated_at: datetime | None = None) -> str:
     """Render the team weekly logged-hours report as a self-contained HTML string."""
     generated_at = generated_at or utcnow()

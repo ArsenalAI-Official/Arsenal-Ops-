@@ -92,10 +92,10 @@ cp .env.example .env
 # Fill in Azure OpenAI credentials at minimum; other keys are optional
 ```
 > **Required: `SECRET_KEY`.** The backend refuses to start unless `SECRET_KEY`
-> is set to a non-default value — it signs and verifies the auth JWTs. Generate
-> one with `python -c "import secrets; print(secrets.token_urlsafe(48))"` and set
-> it in your local `.env` and in Render (prod). Changing it logs out all active
-> users.
+> is set in the environment to a non-default value — it signs/verifies auth
+> JWTs and guards the authenticated `/mcp` endpoint. Generate one with
+> `python -c "import secrets; print(secrets.token_urlsafe(48))"`. Set it in
+> Render (prod) and your local `.env`. Changing it logs out all active users.
 
 **2. Backend**
 ```bash
