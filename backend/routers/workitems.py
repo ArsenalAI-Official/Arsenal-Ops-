@@ -82,6 +82,99 @@ def _creator_dev_id(db: Session, current_user: User) -> int | None:
     return dev.id if dev else None
 
 
+# ── Edit audit trail ────────────────────────────────────────────────────────
+# Every user-facing work-item field edit is recorded so a ticket has a complete
+# history in BOTH its comment feed (side panel) and the project activity log.
+# `status` and `assignee_id` keep their own dedicated entries in
+# update_work_item; the general field-diff capture below covers everything else
+# (title, description, priority, story points, hours, dates, epic/parent/sprint,
+# type, tags, ...) for ALL work-item types, present and future.
+_STATUS_LABELS = {
+    WorkItemStatus.BACKLOG.value: "Backlog",
+    WorkItemStatus.TODO.value: "To Do",
+    WorkItemStatus.IN_PROGRESS.value: "In Progress",
+    WorkItemStatus.IN_REVIEW.value: "In Review",
+    WorkItemStatus.DONE.value: "Done",
+}
+
+# Handled by dedicated audit entries (status/assignee) or never applied
+# (logged/remaining hours are derived) — excluded from the general field diff.
+_AUDIT_EXCLUDED_FIELDS = {"status", "assignee_id", "logged_hours", "remaining_hours"}
+
+_AUDIT_FIELD_LABELS = {
+    "title": "Title",
+    "description": "Description",
+    "priority": "Priority",
+    "story_points": "Story points",
+    "estimated_hours": "Estimated hours",
+    "type": "Type",
+    "tags": "Tags",
+    "acceptance_criteria": "Acceptance criteria",
+    "attachments": "Attachments",
+    "start_date": "Start date",
+    "due_date": "Due date",
+    "epic_id": "Epic",
+    "parent_id": "Parent",
+    "sprint_id": "Sprint",
+    "goal_id": "Goal",
+    "reporter_id": "Reporter",
+}
+
+# Values too large/opaque to inline — we note THAT they changed, not old→new.
+_AUDIT_OPAQUE_FIELDS = {"description", "tags", "acceptance_criteria", "attachments"}
+
+
+def _status_label(status: str) -> str:
+    return _STATUS_LABELS.get(status, status.replace("_", " ").title())
+
+
+def _audit_label(field: str) -> str:
+    return _AUDIT_FIELD_LABELS.get(field, field.replace("_", " ").capitalize())
+
+
+def _audit_display_value(db: Session, field: str, value) -> str:
+    """Human-readable rendering of a single field value for the edit summary."""
+    if value is None or value == "" or value == []:
+        return "—"
+    if field in ("start_date", "due_date"):
+        return value.date().isoformat() if isinstance(value, datetime) else str(value)
+    if field in ("epic_id", "parent_id"):
+        ref = db.query(WorkItem.key).filter(WorkItem.id == value).first()
+        return ref.key if ref else f"#{value}"
+    if field == "sprint_id":
+        row = db.query(Sprint.name).filter(Sprint.id == value).first()
+        return row.name if row else f"#{value}"
+    if field == "type":
+        return str(value).replace("_", " ").title()
+    return str(value)
+
+
+def _json_safe(value):
+    """Coerce a field value to something JSON-serializable for ActivityLog.details."""
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, list):
+        return [_json_safe(v) for v in value]
+    if value is None or isinstance(value, str | int | float | bool):
+        return value
+    return str(value)
+
+
+def _build_edit_summary(db: Session, changed: dict) -> str:
+    """One-line human summary of a set of {field: (old, new)} changes."""
+    parts = []
+    for field, (old, new) in changed.items():
+        label = _audit_label(field)
+        if field in _AUDIT_OPAQUE_FIELDS:
+            parts.append(f"{label} updated")
+        else:
+            parts.append(
+                f"{label}: {_audit_display_value(db, field, old)} → "
+                f"{_audit_display_value(db, field, new)}"
+            )
+    return "; ".join(parts)
+
+
 def update_epic_hours(epic_id: int, db: Session):
     """
     Roll up estimated_hours, logged_hours, and remaining_hours into the epic
@@ -1119,6 +1212,12 @@ def update_work_item(
         elif new_status == WorkItemStatus.DONE.value and not item.completed_at:
             item.completed_at = utcnow()
 
+    # Snapshot old values BEFORE applying, for the general edit-audit trail.
+    # (status/assignee have their own dedicated entries below.)
+    audit_old_values = {
+        k: getattr(item, k, None) for k in update_data if k not in _AUDIT_EXCLUDED_FIELDS
+    }
+
     for key, value in update_data.items():
         # Allow null for certain fields, skip only for others
         if (
@@ -1234,15 +1333,8 @@ def update_work_item(
         from models.comment import Comment as _StatusComment
         from models.developer import Developer as _AuthorDev
 
-        STATUS_LABELS = {
-            WorkItemStatus.BACKLOG.value: "Backlog",
-            WorkItemStatus.TODO.value: "To Do",
-            WorkItemStatus.IN_PROGRESS.value: "In Progress",
-            WorkItemStatus.IN_REVIEW.value: "In Review",
-            WorkItemStatus.DONE.value: "Done",
-        }
         new_status = update_data["status"]
-        new_label = STATUS_LABELS.get(new_status, new_status.replace("_", " ").title())
+        new_label = _status_label(new_status)
 
         author = db.query(_AuthorDev).filter(_AuthorDev.email == current_user.email).first()
         author_id = author.id if author else None
@@ -1252,6 +1344,48 @@ def update_work_item(
                 work_item_id=item.id,
                 author_id=author_id,
                 content=f"Moved to {new_label}",
+            )
+        )
+
+    # General edit audit — every OTHER changed field (title, description,
+    # priority, story points, hours, dates, epic/parent/sprint, type, tags, ...)
+    # is recorded as one activity entry + one comment so nothing a user edits
+    # goes unrecorded. status/assignee are handled by their dedicated entries
+    # above and excluded from `audit_old_values`.
+    audit_changes = {
+        k: (old, getattr(item, k, None))
+        for k, old in audit_old_values.items()
+        if old != getattr(item, k, None)
+    }
+    if audit_changes:
+        from models.activity_log import ActivityLog as _EditActivity
+        from models.comment import Comment as _EditComment
+        from models.developer import Developer as _EditAuthorDev
+
+        _editor = (
+            db.query(_EditAuthorDev).filter(_EditAuthorDev.email == current_user.email).first()
+        )
+        db.add(
+            _EditComment(
+                work_item_id=item.id,
+                author_id=_editor.id if _editor else None,
+                content=f"Edited — {_build_edit_summary(db, audit_changes)}",
+            )
+        )
+        db.add(
+            _EditActivity(
+                project_id=item.project_id,
+                user_id=current_user.id,
+                action="updated",
+                entity_type="work_item",
+                entity_id=item.id,
+                title=f"Updated {item.key}: " + ", ".join(_audit_label(f) for f in audit_changes),
+                details={
+                    "changes": [
+                        {"field": f, "old_value": _json_safe(o), "new_value": _json_safe(n)}
+                        for f, (o, n) in audit_changes.items()
+                    ]
+                },
             )
         )
 
@@ -1467,13 +1601,47 @@ def batch_update_status(
     # Collect epics that need updating
     epics_to_update = set()
 
+    # Audit author (the Developer row for the acting user), resolved once.
+    from models.activity_log import ActivityLog as _BatchActivity
+    from models.comment import Comment as _BatchComment
+    from models.developer import Developer as _BatchAuthorDev
+
+    _batch_author = (
+        db.query(_BatchAuthorDev).filter(_BatchAuthorDev.email == current_user.email).first()
+    )
+    _batch_author_id = _batch_author.id if _batch_author else None
+
     for item in items:
+        old_status = item.status
         item.status = update.status
         if update.status == WorkItemStatus.IN_PROGRESS.value and not item.started_at:
             item.started_at = utcnow()
         elif update.status == WorkItemStatus.DONE.value and not item.completed_at:
             item.completed_at = utcnow()
         item.updated_at = utcnow()
+
+        # Capture the status change in the audit trail (activity + comment),
+        # matching the single-item update path — bulk edits were previously
+        # silent.
+        if old_status != update.status:
+            action = "completed" if update.status == WorkItemStatus.DONE.value else "updated"
+            db.add(
+                _BatchActivity(
+                    project_id=item.project_id,
+                    user_id=current_user.id,
+                    action=action,
+                    entity_type="work_item",
+                    entity_id=item.id,
+                    title=f"{action.capitalize()} {item.key}: {item.title}",
+                )
+            )
+            db.add(
+                _BatchComment(
+                    work_item_id=item.id,
+                    author_id=_batch_author_id,
+                    content=f"Moved to {_status_label(update.status)}",
+                )
+            )
 
         # Track epics that need status updates
         if item.epic_id:
