@@ -25,6 +25,7 @@ export const WORK_ITEM_TYPES = [
   'epic',
   'subtask',
   'change_order',
+  'test_case',
 ] as const;
 export const WORK_ITEM_STATUSES = ['backlog', 'todo', 'in_progress', 'in_review', 'done'] as const;
 export const WORK_ITEM_PRIORITIES = ['high', 'medium', 'low', 'critical'] as const;

@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   Inbox,
   FileEdit,
+  FlaskConical,
 } from 'lucide-react';
 
 export const TYPE_CONFIG = {
@@ -27,6 +28,12 @@ export const TYPE_CONFIG = {
     color: '#22D3EE',
     label: 'Change Order',
     bg: 'rgba(34,211,238,0.15)',
+  },
+  test_case: {
+    icon: FlaskConical,
+    color: '#F472B6',
+    label: 'Test Case',
+    bg: 'rgba(244,114,182,0.15)',
   },
 } as const;
 

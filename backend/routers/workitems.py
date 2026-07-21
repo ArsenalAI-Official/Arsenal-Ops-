@@ -1065,6 +1065,25 @@ def update_work_item(
                         "is still open. Complete every subtask first."
                     ),
                 )
+            # A User Story can't be closed until all its test cases are done.
+            # (Only stories carry test cases, so this is a no-op for other types.)
+            open_test_case = (
+                db.query(WorkItem.id, WorkItem.key)
+                .filter(
+                    WorkItem.parent_id == item.id,
+                    WorkItem.type == WorkItemType.TEST_CASE.value,
+                    WorkItem.status != WorkItemStatus.DONE.value,
+                )
+                .first()
+            )
+            if open_test_case is not None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Can't mark {item.key} done — test case {open_test_case.key} "
+                        "is still open. Complete every test case first."
+                    ),
+                )
 
     # Handle frontend compatibility: assigned_hours -> estimated_hours
     if "assigned_hours" in update_data:
@@ -1421,6 +1440,26 @@ def batch_update_status(
                         status_code=400,
                         detail=(
                             f"Can't mark {item.key} done — subtask {open_subtask.key} "
+                            "is still open."
+                        ),
+                    )
+                # A User Story can't be closed until all its test cases are done
+                # (unless they're being marked done in this same batch).
+                open_test_case = (
+                    db.query(WorkItem.id, WorkItem.key)
+                    .filter(
+                        WorkItem.parent_id == item.id,
+                        WorkItem.type == WorkItemType.TEST_CASE.value,
+                        WorkItem.status != WorkItemStatus.DONE.value,
+                        WorkItem.id.notin_(update.item_ids),
+                    )
+                    .first()
+                )
+                if open_test_case is not None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            f"Can't mark {item.key} done — test case {open_test_case.key} "
                             "is still open."
                         ),
                     )

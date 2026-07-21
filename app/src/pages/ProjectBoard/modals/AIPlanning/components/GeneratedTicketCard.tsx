@@ -1,4 +1,4 @@
-import { Users, Target, ClipboardList, BookOpen, Bug, FileEdit } from 'lucide-react';
+import { Users, Target, ClipboardList, BookOpen, Bug, FileEdit, FlaskConical } from 'lucide-react';
 import { stripMarkdown } from '@/lib/markdown';
 import type { GeneratedTicket } from '../useAIPlanning';
 
@@ -13,6 +13,12 @@ const TYPE_CONFIG = {
     color: '#22D3EE',
     label: 'Change Order',
     bg: 'rgba(34,211,238,0.15)',
+  },
+  test_case: {
+    icon: FlaskConical,
+    color: '#F472B6',
+    label: 'Test Case',
+    bg: 'rgba(244,114,182,0.15)',
   },
 };
 

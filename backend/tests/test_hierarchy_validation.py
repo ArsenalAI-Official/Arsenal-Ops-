@@ -163,6 +163,37 @@ def test_subtask_can_nest_under_change_order(db, seed):
     validate_hierarchy(db, item_type="subtask", project_id=1, parent_id=14, epic_id=None)
 
 
+# ---------- Test Case: restricted child, nests ONLY under a User Story ----------
+
+
+def test_create_test_case_under_story_passes(db, seed):
+    validate_hierarchy(db, item_type="test_case", project_id=1, parent_id=11, epic_id=None)
+
+
+def test_test_case_cannot_have_epic_id(db, seed):
+    with pytest.raises(HTTPException) as exc:
+        validate_hierarchy(db, item_type="test_case", project_id=1, parent_id=None, epic_id=10)
+    detail = cast(dict[str, str], exc.value.detail)
+    assert detail["field"] == "epic_id"
+    assert detail["code"] == "type_disallowed"
+
+
+def test_test_case_parent_must_be_a_story(db, seed):
+    """A test case under a Task (12) is rejected — only User Story is allowed."""
+    with pytest.raises(HTTPException) as exc:
+        validate_hierarchy(db, item_type="test_case", project_id=1, parent_id=12, epic_id=None)
+    detail = cast(dict[str, str], exc.value.detail)
+    assert detail["code"] == "parent_type_invalid"
+
+
+def test_test_case_rejected_under_change_order(db, seed):
+    """Change Order (14) is not a valid parent for a test case."""
+    with pytest.raises(HTTPException) as exc:
+        validate_hierarchy(db, item_type="test_case", project_id=1, parent_id=14, epic_id=None)
+    detail = cast(dict[str, str], exc.value.detail)
+    assert detail["code"] == "parent_type_invalid"
+
+
 # ---------- Type rules: epic_id ----------
 
 

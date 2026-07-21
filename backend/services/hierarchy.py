@@ -14,6 +14,7 @@ sits one level below them):
     Bug             epic_id -> Epic (optional), no parent_id
     Change Order    epic_id -> Epic (optional), no parent_id
     Subtask         no epic_id, parent_id -> Story/Task/Bug/Change Order (required)
+    Test Case       no epic_id, parent_id -> User Story (required)
 
 Subtasks reach their epic transitively via their parent (story/task/bug).
 They do not carry their own epic_id link — that keeps the relationship as a
@@ -47,6 +48,8 @@ ALLOWED_PARENT_TYPES: dict[str, dict[str, tuple[str, ...]]] = {
         # Subtasks reach their epic indirectly through their parent
         # (story/task/bug/change_order). They do not carry their own epic_id link.
         WorkItemType.SUBTASK.value: (),
+        # Test cases sit under a User Story via parent_id — never a direct epic link.
+        WorkItemType.TEST_CASE.value: (),
     },
     "parent_id": {
         WorkItemType.TASK.value: (),
@@ -60,6 +63,8 @@ ALLOWED_PARENT_TYPES: dict[str, dict[str, tuple[str, ...]]] = {
             WorkItemType.BUG.value,
             WorkItemType.CHANGE_ORDER.value,
         ),
+        # Test cases nest ONLY under a User Story.
+        WorkItemType.TEST_CASE.value: (WorkItemType.USER_STORY.value,),
     },
 }
 

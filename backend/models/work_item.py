@@ -30,6 +30,7 @@ class WorkItemType(str, enum.Enum):  # noqa: UP042
     BUG = "bug"
     SUBTASK = "subtask"
     CHANGE_ORDER = "change_order"
+    TEST_CASE = "test_case"
 
 
 # Types that sit directly under an Epic as siblings (optional epic_id link) and

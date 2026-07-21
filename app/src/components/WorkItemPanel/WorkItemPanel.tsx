@@ -9,6 +9,7 @@ import TicketContributors from '@/components/TicketContributors';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
 import { AddSubtaskModal } from './AddSubtaskModal';
+import { AddTestCaseModal } from './AddTestCaseModal';
 import { WorkItemCompactEditForm } from './components/WorkItemCompactEditForm';
 import { WorkItemCompactHierarchy } from './components/WorkItemCompactHierarchy';
 import { WorkItemFullEditForm } from './components/WorkItemFullEditForm';
@@ -72,6 +73,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
   const [compactEditDevs, setCompactEditDevs] = useState<ProjectDeveloperEntry[]>([]);
 
   const [showAddSubtaskModal, setShowAddSubtaskModal] = useState(false);
+  const [showAddTestCaseModal, setShowAddTestCaseModal] = useState(false);
 
   // Comment input + @mention state is owned by the shared <CommentThread>.
 
@@ -89,10 +91,13 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
     epicExcludeIds,
     selectedItemHasChildren,
     subtasksOfCurrent,
+    testCasesOfCurrent,
     saveEditCompact,
     statusChangeCompact,
     logHoursCompact,
     createSubtask,
+    createTestCase,
+    updateTestCaseStatus,
     submitComment,
   } = useWorkItemPanel({
     props,
@@ -100,6 +105,7 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
     setIsEditing,
     setEditForm,
     setShowAddSubtaskModal,
+    setShowAddTestCaseModal,
     logHoursRef,
   });
 
@@ -244,9 +250,14 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
         item={item}
         fullWorkItems={fullWorkItems}
         subtasksOfCurrent={subtasksOfCurrent}
+        testCasesOfCurrent={testCasesOfCurrent}
         projectId={props.projectId}
         navigate={props.navigate}
         onAddSubtask={() => setShowAddSubtaskModal(true)}
+        onAddTestCase={() => setShowAddTestCaseModal(true)}
+        onTestCaseStatusChange={(testCaseId, status) =>
+          updateTestCaseStatus.mutate({ id: testCaseId, status })
+        }
       />
     ) : hasCompactHierarchy(item) ? (
       <WorkItemCompactHierarchy item={item} onOpenInBoard={props.onOpenInBoard} />
@@ -413,6 +424,14 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
           isPending={createSubtask.isPending}
           onClose={() => setShowAddSubtaskModal(false)}
           onSubmit={(form) => createSubtask.mutate(form)}
+        />
+      )}
+
+      {showAddTestCaseModal && (
+        <AddTestCaseModal
+          isPending={createTestCase.isPending}
+          onClose={() => setShowAddTestCaseModal(false)}
+          onSubmit={(form) => createTestCase.mutate(form)}
         />
       )}
     </>

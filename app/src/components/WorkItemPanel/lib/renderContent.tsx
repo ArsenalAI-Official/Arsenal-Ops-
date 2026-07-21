@@ -11,7 +11,7 @@ import type { WorkItem } from '../types';
  * rendering the component twice.
  */
 export function hasCompactHierarchy(item: WorkItem): boolean {
-  if (item.type === 'subtask') return !!item.parent_key;
+  if (item.type === 'subtask' || item.type === 'test_case') return !!item.parent_key;
   return !!item.epic_key;
 }
 

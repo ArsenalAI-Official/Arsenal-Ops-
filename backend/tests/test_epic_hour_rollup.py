@@ -226,6 +226,37 @@ def test_rollup_includes_change_order_children(db):
     assert epic.remaining_hours == 8, "change order remaining hours must be included"
 
 
+def test_rollup_excludes_test_cases_under_a_story(db):
+    """Test cases carry no hours and must never inflate the epic rollup, even
+    if a row somehow holds a value — they are neither an EPIC_CHILD_TYPE nor a
+    subtask, so the rollup ignores them."""
+    epic = _make_epic_with_children(db, [(10, 4, 6)])  # story PROJ-200
+    db.add(
+        WorkItem(
+            id=500,
+            project_id=1,
+            type="test_case",
+            title="Login works",
+            status="todo",
+            key="PROJ-500",
+            parent_id=200,  # under the story, not the epic
+            epic_id=None,
+            estimated_hours=100,
+            logged_hours=50,
+            remaining_hours=50,
+        )
+    )
+    db.commit()
+
+    update_epic_hours(epic.id, db)
+    db.commit()
+    db.refresh(epic)
+
+    assert epic.estimated_hours == 10, "test case must not be counted"
+    assert epic.logged_hours == 4
+    assert epic.remaining_hours == 6
+
+
 def test_rollup_includes_subtasks_under_change_order(db):
     """3rd-level rollup: a Subtask whose parent is a Change Order must roll up
     into the epic, exactly as subtasks under a Story/Task/Bug do."""

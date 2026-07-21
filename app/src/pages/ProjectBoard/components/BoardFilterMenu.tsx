@@ -111,27 +111,31 @@ const BoardFilterMenu = ({
                 <p className="text-[10px] font-semibold text-[#555] uppercase tracking-wider px-1 mb-1">
                   Type
                 </p>
-                {Object.entries(typeConfig).map(([key, config]) => {
-                  const checked = filterTypes.includes(key);
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => toggleArrayFilter(setFilterTypes, key)}
-                      className="w-full flex items-center gap-2.5 px-1.5 py-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.04)] transition-colors"
-                    >
-                      <div
-                        className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-[#E0B954] border-[#E0B954]' : 'border-[rgba(255,255,255,0.2)]'}`}
+                {/* Test cases never appear on the board/list, so they're not a
+                    filterable type here. */}
+                {Object.entries(typeConfig)
+                  .filter(([key]) => key !== 'test_case')
+                  .map(([key, config]) => {
+                    const checked = filterTypes.includes(key);
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => toggleArrayFilter(setFilterTypes, key)}
+                        className="w-full flex items-center gap-2.5 px-1.5 py-1.5 rounded-lg hover:bg-[rgba(255,255,255,0.04)] transition-colors"
                       >
-                        {checked && <Check className="w-2.5 h-2.5 text-[#080808]" />}
-                      </div>
-                      <config.icon
-                        className="w-3.5 h-3.5 flex-shrink-0"
-                        style={{ color: config.color }}
-                      />
-                      <span className="text-xs text-[#d4d4d4]">{config.label}</span>
-                    </button>
-                  );
-                })}
+                        <div
+                          className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-[#E0B954] border-[#E0B954]' : 'border-[rgba(255,255,255,0.2)]'}`}
+                        >
+                          {checked && <Check className="w-2.5 h-2.5 text-[#080808]" />}
+                        </div>
+                        <config.icon
+                          className="w-3.5 h-3.5 flex-shrink-0"
+                          style={{ color: config.color }}
+                        />
+                        <span className="text-xs text-[#d4d4d4]">{config.label}</span>
+                      </button>
+                    );
+                  })}
               </div>
 
               <div className="h-px bg-[rgba(255,255,255,0.05)] mx-1.5 my-1" />
