@@ -9,6 +9,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 sys.path.append("..")
@@ -122,6 +123,36 @@ def create_work_item(
     return work_item
 
 
+def _ensure_sprints(parsed_result: dict, sprint_weeks: int) -> None:
+    """Populate ``parsed_result['sprints']`` from ticket week data if absent.
+
+    The standard parser already returns a sprint schedule honoring
+    ``sprint_weeks``. The AI-fallback parser only extracts per-ticket
+    ``week_hours``/``active_weeks`` — no schedule — so without this the user's
+    chosen sprint length is silently ignored and ``/commit`` creates NO sprints
+    at all. Derive them the same way the standard parser does. No-op when a
+    schedule is already present.
+    """
+    if parsed_result.get("sprints"):
+        return
+    from parser import calculate_sprints
+
+    tickets = parsed_result.get("tickets", [])
+    # Union of every week that carries data, across all tickets (mirrors the
+    # standard parser's union of milestone weeks).
+    union_weeks = sorted(
+        {
+            wk
+            for t in tickets
+            for wk in list((t.get("week_hours") or {}).keys()) + list(t.get("active_weeks") or [])
+        }
+    )
+    if union_weeks:
+        parsed_result["sprints"] = calculate_sprints(union_weeks, sprint_weeks, tickets).get(
+            "sprints", []
+        )
+
+
 @router.post("/parse-file")
 async def parse_roadmap_file(
     project_id: int = Form(...),
@@ -189,6 +220,11 @@ async def parse_roadmap_file(
         if "meta" not in parsed_result:
             parsed_result["meta"] = {}
         parsed_result["meta"]["parser_used"] = parser_used
+
+        # Ensure a sprint schedule exists that honors the chosen sprint length.
+        # The AI fallback doesn't build one, so without this the user's
+        # "Weeks per Sprint" choice is ignored and no sprints are created.
+        _ensure_sprints(parsed_result, sprint_weeks)
 
         # Clean up temp file
         import os
@@ -466,8 +502,19 @@ def commit_roadmap_tickets(
         )
         for epic in epics:
             update_epic_hours(epic.id, db)
+            # The roadmap file has no epic-level date, so derive the epic's due
+            # date from its children: the epic ends when its last scheduled
+            # child ends (each task's due_date is its sprint's end). Left null
+            # when no child has a due date (nothing scheduled yet).
+            latest_child_due = (
+                db.query(func.max(WorkItem.due_date))
+                .filter(WorkItem.epic_id == epic.id, WorkItem.due_date.isnot(None))
+                .scalar()
+            )
+            if latest_child_due is not None:
+                epic.due_date = latest_child_due
 
-        # Final commit for epic hours
+        # Final commit for epic hours + derived epic due dates
         db.commit()
 
         # Activity log entry — surfaces a single "Imported roadmap: …" event in

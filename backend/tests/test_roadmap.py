@@ -15,6 +15,7 @@ import pytest
 from openpyxl import Workbook
 
 from models.developer import Developer
+from models.work_item import WorkItem
 from tests.conftest import seed_project
 
 # ============= Test Helpers =============
@@ -677,6 +678,48 @@ class TestRoadmapCommit:
         assert response_data["status"] == "success"
         assert response_data["tickets_created"] == 3
         assert response_data["epics_created"] == 1
+
+    def test_commit_sets_epic_due_date_from_latest_child(self, db, test_client, admin_user):
+        """The roadmap has no epic-level date, so the epic's due date is derived
+        from its latest child (the end of the last sprint its tasks land in)."""
+        project, token = self._setup_project_with_dev(db, admin_user)
+
+        parsed_data = {
+            "tickets": [
+                {"name": "Task A", "epic": "Epic One", "priority": "medium", "effort_hrs": 10},
+                {"name": "Task B", "epic": "Epic One", "priority": "medium", "effort_hrs": 20},
+            ],
+            "sprints": [
+                {
+                    "number": 1,
+                    "start_week": "2026-08-03",
+                    "end_week": "2026-08-14",
+                    "tasks": ["Task A"],
+                },
+                {
+                    "number": 2,
+                    "start_week": "2026-08-17",
+                    "end_week": "2026-08-28",
+                    "tasks": ["Task B"],
+                },
+            ],
+        }
+
+        response = test_client.post(
+            "/api/roadmap/commit",
+            json={"project_id": project.id, "parsed_data": parsed_data},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 200
+
+        epic = (
+            db.query(WorkItem)
+            .filter(WorkItem.project_id == project.id, WorkItem.type == "epic")
+            .one()
+        )
+        # Task B is in sprint 2 (ends 2026-08-28) — the latest child.
+        assert epic.due_date is not None
+        assert epic.due_date.date().isoformat() == "2026-08-28"
 
 
 # ============= AI Parser Fallback Tests =============

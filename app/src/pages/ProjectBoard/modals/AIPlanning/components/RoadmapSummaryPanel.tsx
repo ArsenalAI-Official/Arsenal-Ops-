@@ -1,13 +1,31 @@
-import { Target } from 'lucide-react';
+import { Minus, Plus, Target } from 'lucide-react';
 import { formatSprintRange } from '../lib/formatSprintRange';
 import type { RoadmapParsedData, RoadmapSummary } from '../useAIPlanning';
 
 interface RoadmapSummaryPanelProps {
   roadmapSummary: RoadmapSummary;
   roadmapParsedData: RoadmapParsedData | null;
+  /** Change a sprint's length (weeks) before commit so sprints can differ in
+   *  length. Re-partitions the weeks and re-assigns tasks. Omit for read-only. */
+  onSprintWeeksChange?: (sprintNumber: number, newWeeks: number) => void;
 }
 
-const RoadmapSummaryPanel = ({ roadmapSummary, roadmapParsedData }: RoadmapSummaryPanelProps) => {
+const RoadmapSummaryPanel = ({
+  roadmapSummary,
+  roadmapParsedData,
+  onSprintWeeksChange,
+}: RoadmapSummaryPanelProps) => {
+  // Derive the headline stats from the (possibly re-partitioned) sprints so
+  // they stay correct after the user changes sprint lengths — the timeline runs
+  // from the FIRST sprint's start to the LAST sprint's end, and duration is the
+  // total covered weeks. Fall back to the parser summary when no sprints exist.
+  const sprints = roadmapParsedData?.sprints ?? [];
+  const timelineStart = sprints[0]?.start_week ?? roadmapSummary.timeline.start;
+  const timelineEnd = sprints[sprints.length - 1]?.end_week ?? roadmapSummary.timeline.end;
+  const totalWeeks = sprints.length
+    ? sprints.reduce((sum, s) => sum + s.duration_weeks, 0)
+    : roadmapSummary.timeline.duration_weeks;
+
   return (
     <div className="bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.07)] rounded-xl p-5">
       <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
@@ -31,9 +49,7 @@ const RoadmapSummaryPanel = ({ roadmapSummary, roadmapParsedData }: RoadmapSumma
         </div>
         <div className="bg-[rgba(245,158,11,0.1)] rounded-lg p-3">
           <p className="text-xs text-[#737373] mb-1">Duration</p>
-          <p className="text-lg font-bold text-[#F59E0B]">
-            {roadmapSummary.timeline.duration_weeks}w
-          </p>
+          <p className="text-lg font-bold text-[#F59E0B]">{totalWeeks}w</p>
         </div>
       </div>
 
@@ -41,7 +57,7 @@ const RoadmapSummaryPanel = ({ roadmapSummary, roadmapParsedData }: RoadmapSumma
       <div className="mb-4 pb-4 border-b border-[rgba(255,255,255,0.07)]">
         <p className="text-xs font-medium text-[#737373] mb-2">Timeline</p>
         <p className="text-sm text-[#a3a3a3]">
-          {roadmapSummary.timeline.start} → {roadmapSummary.timeline.end}
+          {timelineStart} → {timelineEnd}
         </p>
       </div>
 
@@ -57,34 +73,71 @@ const RoadmapSummaryPanel = ({ roadmapSummary, roadmapParsedData }: RoadmapSumma
             <p className="text-xs font-medium text-[#737373]">
               Sprints ({roadmapParsedData.sprints.length})
             </p>
-            <span className="text-[10px] text-[#525252]">Created on confirm</span>
+            <span className="text-[10px] text-[#525252]">
+              {onSprintWeeksChange
+                ? 'Adjust weeks — later sprints & tasks re-flow'
+                : 'Created on confirm'}
+            </span>
           </div>
           <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
-            {roadmapParsedData.sprints.map((sprint) => (
-              <div
-                key={sprint.number}
-                className="flex items-center justify-between gap-3 text-xs bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] rounded-lg px-3 py-2"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="font-semibold text-[#E0B954] tabular-nums shrink-0">
-                    Sprint {sprint.number}
-                  </span>
-                  <span className="text-[#a3a3a3] truncate">
-                    {formatSprintRange(sprint.start_week, sprint.end_week)}
-                  </span>
+            {roadmapParsedData.sprints.map((sprint) => {
+              const taskCount = sprint.task_count ?? sprint.tasks?.length ?? 0;
+              return (
+                <div
+                  key={sprint.number}
+                  className="flex items-center justify-between gap-3 text-xs bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] rounded-lg px-3 py-2"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="font-semibold text-[#E0B954] tabular-nums shrink-0">
+                      Sprint {sprint.number}
+                    </span>
+                    <span className="text-[#a3a3a3] truncate">
+                      {formatSprintRange(sprint.start_week, sprint.end_week)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-[10px] text-[#737373] shrink-0 tabular-nums">
+                    {/* Weeks stepper — re-partitions the timeline and re-assigns
+                        tasks to the sprint their work-weeks land in. */}
+                    {onSprintWeeksChange ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          aria-label={`Decrease Sprint ${sprint.number} length`}
+                          disabled={sprint.duration_weeks <= 1}
+                          onClick={() =>
+                            onSprintWeeksChange(sprint.number, sprint.duration_weeks - 1)
+                          }
+                          className="w-5 h-5 flex items-center justify-center rounded border border-[rgba(255,255,255,0.1)] text-[#a3a3a3] hover:bg-[rgba(255,255,255,0.06)] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <span className="w-7 text-center text-[#e0b954] font-medium">
+                          {sprint.duration_weeks}w
+                        </span>
+                        <button
+                          type="button"
+                          aria-label={`Increase Sprint ${sprint.number} length`}
+                          onClick={() =>
+                            onSprintWeeksChange(sprint.number, sprint.duration_weeks + 1)
+                          }
+                          className="w-5 h-5 flex items-center justify-center rounded border border-[rgba(255,255,255,0.1)] text-[#a3a3a3] hover:bg-[rgba(255,255,255,0.06)] hover:text-white"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span>{sprint.duration_weeks}w</span>
+                    )}
+                    <span>
+                      {taskCount} task{taskCount === 1 ? '' : 's'}
+                    </span>
+                    {typeof sprint.total_hours === 'number' && sprint.total_hours > 0 && (
+                      <span>{Math.round(sprint.total_hours)}h</span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 text-[10px] text-[#737373] shrink-0 tabular-nums">
-                  <span>{sprint.duration_weeks}w</span>
-                  <span>
-                    {sprint.task_count ?? sprint.tasks?.length ?? 0} task
-                    {(sprint.task_count ?? sprint.tasks?.length ?? 0) === 1 ? '' : 's'}
-                  </span>
-                  {typeof sprint.total_hours === 'number' && sprint.total_hours > 0 && (
-                    <span>{Math.round(sprint.total_hours)}h</span>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           {/* Calendar-gap callout — sprints intentionally don't bridge
               uncovered weeks (would produce calendar-discontinuous

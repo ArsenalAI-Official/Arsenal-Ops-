@@ -26,6 +26,19 @@ const PreviewStep = ({
   roadmapParsedData,
   sprintWeeks,
 }: PreviewStepProps) => {
+  // Derive sprint stats from the (possibly re-partitioned) sprints so the plan
+  // card is correct after the user changed sprint lengths. If lengths vary, the
+  // "N weeks per sprint" claim no longer applies — show the range instead.
+  const sprints = roadmapParsedData?.sprints ?? [];
+  const durations = sprints.map((s) => s.duration_weeks);
+  const sprintCount = sprints.length || roadmapSummary?.total_sprints || 0;
+  const totalWeeks =
+    durations.reduce((a, b) => a + b, 0) || roadmapSummary?.timeline?.duration_weeks || 0;
+  const isUniform = durations.length > 0 && durations.every((d) => d === durations[0]);
+  const uniformWeeks = durations.length === 0 ? sprintWeeks : isUniform ? durations[0]! : null;
+  const minWeeks = durations.length ? Math.min(...durations) : sprintWeeks;
+  const maxWeeks = durations.length ? Math.max(...durations) : sprintWeeks;
+
   return (
     <div className="space-y-6">
       {/* PRD Mode - Summary Stats */}
@@ -66,9 +79,7 @@ const PreviewStep = ({
             </div>
             <div className="bg-[rgba(245,158,11,0.1)] rounded-lg p-3">
               <p className="text-xs text-[#737373] mb-1">Duration</p>
-              <p className="text-lg font-bold text-[#F59E0B]">
-                {roadmapSummary.timeline?.duration_weeks || '?'}w
-              </p>
+              <p className="text-lg font-bold text-[#F59E0B]">{totalWeeks || '?'}w</p>
             </div>
           </div>
 
@@ -81,14 +92,18 @@ const PreviewStep = ({
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-white">Sprint Plan</p>
-                  <p className="text-xs text-[#737373]">{sprintWeeks} weeks per sprint</p>
+                  <p className="text-xs text-[#737373]">
+                    {uniformWeeks != null
+                      ? `${uniformWeeks} weeks per sprint`
+                      : `Custom lengths · ${minWeeks}–${maxWeeks} weeks`}
+                  </p>
                 </div>
               </div>
-              <p className="text-2xl font-bold text-[#E0B954] mb-1">
-                {roadmapSummary.total_sprints} Sprints
-              </p>
+              <p className="text-2xl font-bold text-[#E0B954] mb-1">{sprintCount} Sprints</p>
               <p className="text-xs text-[#a3a3a3]">
-                Will be created with {sprintWeeks}-week cycles
+                {uniformWeeks != null
+                  ? `Will be created with ${uniformWeeks}-week cycles`
+                  : `Will be created with custom lengths (${minWeeks}–${maxWeeks} weeks each)`}
               </p>
             </div>
           )}
