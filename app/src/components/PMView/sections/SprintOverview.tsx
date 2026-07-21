@@ -139,17 +139,6 @@ export default function SprintOverview({
                           </p>
                         )}
                       </div>
-                      <span
-                        className={`text-xs font-bold px-3 py-1 rounded-lg whitespace-nowrap ml-4 flex-shrink-0 ${
-                          isAhead
-                            ? 'bg-[#E0B954]/15 text-[#E0B954]'
-                            : isFar
-                              ? 'bg-[#EF4444]/15 text-[#EF4444]'
-                              : 'bg-[#F59E0B]/15 text-[#F59E0B]'
-                        }`}
-                      >
-                        {isAhead ? '↗' : '↙'} {Math.abs(delta)}%
-                      </span>
                     </div>
 
                     {sprint.goal && (
@@ -213,6 +202,40 @@ export default function SprintOverview({
                           <p className="text-[9px] text-[#737373] mt-1">Not yet logged</p>
                         </div>
                       </div>
+                      {/* Overboard: tickets logged beyond their estimate. The
+                          totals above clamp overruns, so surface them here. */}
+                      {sprintAnalytics && sprintAnalytics.overlogged_hours > 0 && (
+                        <div className="mt-3 rounded-lg border border-[#EF4444]/25 bg-[rgba(239,68,68,0.06)] p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-semibold text-[#EF4444] uppercase tracking-wider">
+                              Overboard · {sprintAnalytics.overlogged_items.length} ticket
+                              {sprintAnalytics.overlogged_items.length !== 1 ? 's' : ''}
+                            </span>
+                            <span className="text-sm font-bold text-[#EF4444] tabular-nums">
+                              +{sprintAnalytics.overlogged_hours}h over estimate
+                            </span>
+                          </div>
+                          <ul className="space-y-1">
+                            {sprintAnalytics.overlogged_items.map((t) => (
+                              <li
+                                key={t.id}
+                                className="flex items-center justify-between gap-2 text-xs"
+                              >
+                                <span className="text-[#a3a3a3] truncate">
+                                  <span className="font-mono text-[#737373]">{t.key}</span>{' '}
+                                  {t.title}
+                                </span>
+                                <span className="whitespace-nowrap tabular-nums text-[#737373]">
+                                  {t.logged_hours}h / {t.estimated_hours}h{' '}
+                                  <span className="font-semibold text-[#EF4444]">
+                                    +{t.over_hours}h
+                                  </span>
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
 
                     {/* Summary Stats */}

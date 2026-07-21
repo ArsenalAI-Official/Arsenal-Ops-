@@ -2770,6 +2770,38 @@ def list_project_sprints(
     return result
 
 
+def _compute_burndown(items: list, start_day, end_day) -> list[dict]:
+    """Daily burndown series over [start_day, end_day] inclusive (date objects).
+
+    Each day is scoped to items that EXISTED on that day (``created_at`` on or
+    before the day), so tickets created later never show as "remaining" on
+    earlier days. ``remaining`` = existing-minus-done-by-that-day; ``completed``
+    = cumulative done-by-that-day.
+    """
+    from datetime import timedelta
+
+    series: list[dict] = []
+    day = start_day
+    while day <= end_day:
+        existing = [it for it in items if it.created_at and it.created_at.date() <= day]
+        done_count = sum(
+            1
+            for it in existing
+            if it.status == WorkItemStatus.DONE.value
+            and it.completed_at
+            and it.completed_at.date() <= day
+        )
+        series.append(
+            {
+                "date": day.strftime("%Y-%m-%d"),
+                "remaining": len(existing) - done_count,
+                "completed": done_count,
+            }
+        )
+        day += timedelta(days=1)
+    return series
+
+
 @router.get(
     "/projects/{project_id}/analytics",
     responses={200: {"model": ProjectAnalyticsResponse}},
@@ -2839,25 +2871,12 @@ def get_project_analytics(
             }
         )
 
-    # Burndown data (last 14 days)
+    # Burndown data (last 14 days by default). The Tracker tab's range filter
+    # uses the dedicated /burndown endpoint for other windows.
     from datetime import timedelta
 
-    burndown_data = []
-    for i in range(14, -1, -1):
-        date = utcnow() - timedelta(days=i)
-        # Count items done by this date
-        done_count = sum(
-            1
-            for item in items
-            if item.status == WorkItemStatus.DONE.value
-            and item.completed_at
-            and item.completed_at.date() <= date.date()
-        )
-        total_count = len(items)
-        remaining = total_count - done_count
-        burndown_data.append(
-            {"date": date.strftime("%Y-%m-%d"), "remaining": remaining, "completed": done_count}
-        )
+    _today = utcnow().date()
+    burndown_data = _compute_burndown(items, _today - timedelta(days=14), _today)
 
     # Team performance (by assignee)
     assignee_stats: dict[int, dict[str, Any]] = {}
@@ -2890,6 +2909,44 @@ def get_project_analytics(
         "burndown_data": burndown_data,
         "team_performance": list(assignee_stats.values()),
     }
+
+
+@router.get("/projects/{project_id}/burndown")
+def get_project_burndown(
+    project_id: int,
+    start: str | None = None,
+    end: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Daily burndown series over an explicit [start, end] date range (inclusive).
+
+    Dates are ISO ``YYYY-MM-DD``; both default to the last 14 days when omitted.
+    The range is capped at 366 days. Powers the Tracker tab's burndown filter
+    (this week / this month / last week / last month / custom).
+    """
+    from datetime import date, timedelta
+
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    today = utcnow().date()
+    try:
+        end_day = date.fromisoformat(end) if end else today
+        start_day = date.fromisoformat(start) if start else end_day - timedelta(days=13)
+    except ValueError:
+        raise HTTPException(
+            status_code=422, detail="start/end must be ISO dates (YYYY-MM-DD)."
+        ) from None
+
+    if start_day > end_day:
+        raise HTTPException(status_code=422, detail="start must be on or before end.")
+    if (end_day - start_day).days > 366:
+        raise HTTPException(status_code=422, detail="Range too large (max 366 days).")
+
+    items = db.query(WorkItem).filter(WorkItem.project_id == project_id).all()
+    return {"burndown_data": _compute_burndown(items, start_day, end_day)}
 
 
 @router.get("/projects/{project_id}/hours-analytics")
@@ -2970,6 +3027,27 @@ def get_hours_analytics(
             if item.status != WorkItemStatus.DONE.value
         )
 
+        # Overlog ("went overboard"): per-ticket hours logged BEYOND that
+        # ticket's own estimate. Only tickets that HAD an estimate (>0) count —
+        # an unestimated ticket has no baseline to exceed. Summed as the
+        # sprint's overboard total, and the offending tickets are listed so the
+        # PM can see WHICH ones blew their estimate (the sprint totals above use
+        # max(0, ...) which hides this).
+        overlogged_items = [
+            {
+                "id": item.id,
+                "key": item.key,
+                "title": item.title,
+                "estimated_hours": item.estimated_hours or 0,
+                "logged_hours": item.logged_hours or 0,
+                "over_hours": (item.logged_hours or 0) - (item.estimated_hours or 0),
+            }
+            for item in sprint_items
+            if (item.estimated_hours or 0) > 0
+            and (item.logged_hours or 0) > (item.estimated_hours or 0)
+        ]
+        overlogged_hours = sum(o["over_hours"] for o in overlogged_items)
+
         sprint_hours.append(
             {
                 "sprint_id": sprint.id,
@@ -2979,6 +3057,8 @@ def get_hours_analytics(
                 "logged_hours": logged,
                 "remaining_hours": remaining,
                 "total_items": len(sprint_items),
+                "overlogged_hours": overlogged_hours,
+                "overlogged_items": overlogged_items,
             }
         )
 

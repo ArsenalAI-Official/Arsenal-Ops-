@@ -16,6 +16,16 @@ export interface HoursAnalytics {
   weekly_hours: WeeklyHours[];
 }
 
+export interface OverloggedItem {
+  id: number;
+  key: string;
+  title: string;
+  estimated_hours: number;
+  logged_hours: number;
+  /** logged − estimated (always > 0 for items in this list). */
+  over_hours: number;
+}
+
 export interface SprintHours {
   sprint_id: number;
   sprint_name: string;
@@ -24,6 +34,10 @@ export interface SprintHours {
   logged_hours: number;
   remaining_hours: number;
   total_items: number;
+  /** Total hours logged beyond ticket estimates across the sprint. */
+  overlogged_hours: number;
+  /** The tickets that blew past their estimate (logged > estimated). */
+  overlogged_items: OverloggedItem[];
 }
 
 export interface TimeEntry {
