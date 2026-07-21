@@ -173,46 +173,49 @@ export const WorkItemViewMode = ({
               </dd>
             </dl>
           </div>
-          {/* Hours card — full width */}
-          {item.type !== 'epic' && (
-            <div className="col-span-3 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.10)] rounded-xl p-3.5">
-              <dl>
-                <dt className="text-[10px] text-[#8A8A8A] font-medium uppercase tracking-wider mb-2">
-                  Hours
-                </dt>
-                <dd>
-                  {(() => {
-                    const allocated = item.assigned_hours || 0;
-                    const logged = item.logged_hours || 0;
-                    const pct =
-                      allocated > 0 ? Math.min(100, Math.round((logged / allocated) * 100)) : 0;
-                    const barColor = pct >= 100 ? '#34D399' : '#E0B954';
-                    return (
-                      <div className="space-y-1.5">
-                        <div className="flex justify-between text-xs text-[#8A8A8A]">
-                          <span>
-                            <span className="text-white font-semibold">{logged}h</span> logged
-                          </span>
-                          <span>
-                            <span className="text-white font-semibold">
-                              {item.remaining_hours}h
-                            </span>{' '}
-                            remaining of {allocated}h
-                          </span>
-                        </div>
-                        <div className="h-1.5 rounded-full bg-[rgba(255,255,255,0.07)] overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{ width: `${pct}%`, backgroundColor: barColor }}
-                          />
-                        </div>
+          {/* Hours card — full width. For an epic these are the roll-up totals
+              across every child item (read-only; epics are never logged
+              directly, so the "Log Work Hours" control below stays hidden). */}
+          <div className="col-span-3 bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.10)] rounded-xl p-3.5">
+            <dl>
+              <dt className="text-[10px] text-[#8A8A8A] font-medium uppercase tracking-wider mb-2">
+                {item.type === 'epic' ? 'Total Hours (rolled up)' : 'Hours'}
+              </dt>
+              <dd>
+                {(() => {
+                  const allocated = item.assigned_hours || 0;
+                  const logged = item.logged_hours || 0;
+                  const pct =
+                    allocated > 0 ? Math.min(100, Math.round((logged / allocated) * 100)) : 0;
+                  const barColor = pct >= 100 ? '#34D399' : '#E0B954';
+                  return (
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs text-[#8A8A8A]">
+                        <span>
+                          <span className="text-white font-semibold">{logged}h</span> logged
+                        </span>
+                        <span>
+                          <span className="text-white font-semibold">{item.remaining_hours}h</span>{' '}
+                          remaining of {allocated}h
+                        </span>
                       </div>
-                    );
-                  })()}
-                </dd>
-              </dl>
-            </div>
-          )}
+                      <div className="h-1.5 rounded-full bg-[rgba(255,255,255,0.07)] overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{ width: `${pct}%`, backgroundColor: barColor }}
+                        />
+                      </div>
+                      {item.type === 'epic' && (
+                        <p className="text-[10px] text-[#737373] pt-0.5">
+                          Summed from every story, task, bug, change order &amp; their subtasks.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
+              </dd>
+            </dl>
+          </div>
         </div>
       )}
 

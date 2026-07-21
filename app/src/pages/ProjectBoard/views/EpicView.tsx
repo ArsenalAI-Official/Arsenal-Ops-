@@ -103,6 +103,15 @@ const EpicView = ({
                   <span className="text-xs text-[#737373] shrink-0">
                     {group.count} item{group.count !== 1 ? 's' : ''}
                   </span>
+                  {/* Rolled-up epic hours: logged / total across all children. */}
+                  {group.epic && (
+                    <span
+                      className="text-xs text-[#737373] shrink-0 tabular-nums"
+                      title="Logged / total hours, rolled up from all child items"
+                    >
+                      {group.epic.logged_hours ?? 0}h / {group.epic.assigned_hours ?? 0}h
+                    </span>
+                  )}
                 </button>
                 {!isUnparented && group.epic && (
                   <button
