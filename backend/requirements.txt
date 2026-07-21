@@ -15,7 +15,7 @@ python-jose[cryptography]>=3.5.0
 passlib==1.7.4
 bcrypt==3.2.2
 google-auth>=2.55.1
-google-api-python-client>=2.0.0
+google-api-python-client>=2.198.0
 cachetools>=5.3
 
 # MCP server. Mounts the Ops backend as an MCP server at /mcp (see
