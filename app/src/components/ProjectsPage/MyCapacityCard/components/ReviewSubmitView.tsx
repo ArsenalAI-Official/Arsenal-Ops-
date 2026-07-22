@@ -32,7 +32,8 @@ import {
   useSubmitTimesheetMutation,
 } from '@/hooks/useMyTimesheet';
 import { ApiError, apiFetch, permissionAwareError } from '@/lib/api';
-import type { MyCapacityResponse } from '../types';
+import { MEETING_COLOR } from '../types';
+import type { CapacityMeeting, MyCapacityResponse } from '../types';
 
 interface ReviewSubmitViewProps {
   onBack: () => void;
@@ -40,12 +41,21 @@ interface ReviewSubmitViewProps {
    *  CapacityModal uses this to lock the dialog (block X, outside-click,
    *  and Escape) while the user is waiting on the QB POST. */
   onSyncingChange?: (syncing: boolean) => void;
+  /** This week's synced calendar meetings (from the capacity payload), shown
+   *  per day alongside logged hours for context. */
+  meetings?: CapacityMeeting[];
 }
 
 // Date-only ISO ("YYYY-MM-DD") parses as UTC; rendering through toLocale*
 // could shift back one local day. Force date-only by appending T00:00 in
 // the user's local zone, matching what the backend's logged_at represents.
 const parseDateOnly = (iso: string): Date => new Date(`${iso}T00:00:00`);
+
+// Format a Date to a local "YYYY-MM-DD" (NOT toISOString, which converts to UTC
+// and can shift the date by one in non-UTC zones). Day-card keys must match the
+// backend's date-only `logged_at`, which has no timezone.
+const toLocalISODate = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 const weekdayName = (iso: string): string =>
   parseDateOnly(iso).toLocaleDateString(undefined, { weekday: 'long' });
@@ -107,7 +117,7 @@ const groupByDay = (data: MyTimesheetResponse): DayGroup[] => {
   for (let i = 0; i < 5; i++) {
     const d = new Date(weekStart);
     d.setDate(weekStart.getDate() + i);
-    const iso = d.toISOString().slice(0, 10);
+    const iso = toLocalISODate(d);
     days.set(iso, { iso, subtotal_hours: 0, clients: [] });
   }
 
@@ -145,10 +155,74 @@ const groupByDay = (data: MyTimesheetResponse): DayGroup[] => {
     }
   }
 
+  // QB-dark: nothing is linked to a QuickBooks customer, so the entries live in
+  // `unlinked_projects`. Fold them into the day cards under a single client-less
+  // sentinel group (rendered without QB chrome) so logged hours still show
+  // per day. When QB is live these stay in their own "won't sync" banner.
+  if (!QUICKBOOKS_SUBMIT_ENABLED) {
+    for (const project of data.unlinked_projects) {
+      for (const entry of project.entries) {
+        if (!entry.logged_at) continue;
+        const day = days.get(entry.logged_at);
+        if (!day) continue;
+
+        day.subtotal_hours += entry.hours;
+        let clientBucket = day.clients.find((c) => c.qb_customer_id === UNLINKED_GROUP_ID);
+        if (!clientBucket) {
+          clientBucket = {
+            qb_customer_id: UNLINKED_GROUP_ID,
+            client_name: '',
+            subtotal_hours: 0,
+            projects: [],
+          };
+          day.clients.push(clientBucket);
+        }
+        clientBucket.subtotal_hours += entry.hours;
+        let projectBucket = clientBucket.projects.find((p) => p.project_id === project.project_id);
+        if (!projectBucket) {
+          projectBucket = {
+            project_id: project.project_id,
+            project_name: project.project_name,
+            category_name: project.category_name,
+            entries: [],
+          };
+          clientBucket.projects.push(projectBucket);
+        }
+        projectBucket.entries.push(entry);
+      }
+    }
+  }
+
   return Array.from(days.values());
 };
 
-const ReviewSubmitView = ({ onBack, onSyncingChange }: ReviewSubmitViewProps) => {
+// QuickBooks submit/sync is hidden until the QB integration is fully live.
+// While disabled, this view is read-only ("Review Hours"). Set
+// VITE_QUICKBOOKS_SUBMIT=true in the frontend build env to re-enable the
+// Submit & Sync button (all the submit plumbing below is kept intact).
+const QUICKBOOKS_SUBMIT_ENABLED = import.meta.env.VITE_QUICKBOOKS_SUBMIT === 'true';
+
+// When QuickBooks is disabled, no project is linked to a QB customer, so every
+// entry arrives in `unlinked_projects`. We fold those into the day cards under
+// this sentinel group so the review view still works as a plain per-day
+// timesheet — rendered WITHOUT the QuickBooks client chrome (see DayBlock).
+const UNLINKED_GROUP_ID = '__no_client__';
+
+const ReviewSubmitView = ({ onBack, onSyncingChange, meetings = [] }: ReviewSubmitViewProps) => {
+  // Bucket this week's meetings by day (keyed on the date part of start_at,
+  // matching the day-card ISO keys) so each DayBlock can show its meetings.
+  const meetingsByDay = useMemo(() => {
+    const map = new Map<string, CapacityMeeting[]>();
+    for (const m of meetings) {
+      const key = m.start_at?.slice(0, 10);
+      if (!key) continue;
+      const arr = map.get(key);
+      if (arr) arr.push(m);
+      else map.set(key, [m]);
+    }
+    return map;
+  }, [meetings]);
+
   const timesheetQuery = useMyTimesheetQuery();
   const submitMutation = useSubmitTimesheetMutation();
   // Bubble the submit mutation's pending flag up to CapacityModal so it
@@ -249,6 +323,17 @@ const ReviewSubmitView = ({ onBack, onSyncingChange }: ReviewSubmitViewProps) =>
     [timesheetQuery.data],
   );
 
+  // Meeting hours that fall on the rendered Mon-Fri days, so the week total
+  // (logged + meetings) equals the sum of the per-day totals below.
+  const weekMeetingHours = useMemo(
+    () =>
+      days.reduce((sum, d) => {
+        const dm = meetingsByDay.get(d.iso) ?? [];
+        return sum + dm.reduce((s, m) => s + m.hours, 0);
+      }, 0),
+    [days, meetingsByDay],
+  );
+
   // Per-client roll-up across the whole week — drives the summary card
   // above the day list. Sorted descending so the biggest client always
   // anchors the start of the row.
@@ -339,15 +424,15 @@ const ReviewSubmitView = ({ onBack, onSyncingChange }: ReviewSubmitViewProps) =>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-baseline gap-3 flex-wrap">
                 <span className="text-2xl font-bold text-white tabular-nums">
-                  {data.total_hours}h
+                  {Math.round((data.total_hours + weekMeetingHours) * 100) / 100}h
                 </span>
                 <span className="text-xs text-[#737373]">total this week</span>
-                {data.syncable_unsubmitted_count > 0 && (
+                {QUICKBOOKS_SUBMIT_ENABLED && data.syncable_unsubmitted_count > 0 && (
                   <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-[rgba(224,185,84,0.12)] text-[#E0B954] font-semibold">
                     Not yet submitted
                   </span>
                 )}
-                {hasUnlinked && (
+                {QUICKBOOKS_SUBMIT_ENABLED && hasUnlinked && (
                   <span
                     className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-[rgba(245,158,11,0.12)] text-[#F59E0B] font-semibold flex items-center gap-1"
                     title="Hours on projects with no QuickBooks customer can't sync. Scroll down for details."
@@ -357,21 +442,23 @@ const ReviewSubmitView = ({ onBack, onSyncingChange }: ReviewSubmitViewProps) =>
                   </span>
                 )}
               </div>
-              <Button
-                type="button"
-                onClick={handleSubmit}
-                disabled={submitDisabled}
-                className="bg-[#E0B954] text-[#0d0d0d] hover:bg-[#d4ab47] disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
-              >
-                {submitMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" />
-                    Syncing…
-                  </>
-                ) : (
-                  'Submit & Sync to QuickBooks'
-                )}
-              </Button>
+              {QUICKBOOKS_SUBMIT_ENABLED && (
+                <Button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={submitDisabled}
+                  className="bg-[#E0B954] text-[#0d0d0d] hover:bg-[#d4ab47] disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                >
+                  {submitMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" />
+                      Syncing…
+                    </>
+                  ) : (
+                    'Submit & Sync to QuickBooks'
+                  )}
+                </Button>
+              )}
             </div>
 
             {weeklyByClient.length > 0 && (
@@ -388,7 +475,7 @@ const ReviewSubmitView = ({ onBack, onSyncingChange }: ReviewSubmitViewProps) =>
           with a busy week can't miss it), then day cards, then empty
           state. Only this scrolls so the submit button never disappears. */}
         <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-4">
-          {hasUnlinked && (
+          {QUICKBOOKS_SUBMIT_ENABLED && hasUnlinked && (
             <div className="bg-[rgba(245,158,11,0.05)] border border-[rgba(245,158,11,0.25)] rounded-2xl p-4">
               <div className="flex items-start gap-2 mb-3 pb-3 border-b border-[rgba(245,158,11,0.15)]">
                 <FileWarning className="w-4 h-4 text-[#F59E0B] shrink-0 mt-0.5" />
@@ -430,6 +517,7 @@ const ReviewSubmitView = ({ onBack, onSyncingChange }: ReviewSubmitViewProps) =>
             <DayBlock
               key={day.iso}
               day={day}
+              meetings={meetingsByDay.get(day.iso) ?? []}
               failedById={failedById}
               assignableTickets={assignableTickets}
               onEdit={handleEditEntry}
@@ -543,6 +631,7 @@ const WeeklyClientSummary = ({ clients, totalHours }: WeeklyClientSummaryProps) 
 
 interface DayBlockProps {
   day: DayGroup;
+  meetings: CapacityMeeting[];
   failedById: Map<number, string>;
   assignableTickets: PickableTicket[];
   onEdit: EditEntryHandler;
@@ -562,6 +651,7 @@ const todayIso = (): string => {
 
 const DayBlock = ({
   day,
+  meetings,
   failedById,
   assignableTickets,
   onEdit,
@@ -570,6 +660,10 @@ const DayBlock = ({
   onSetClientBillable,
 }: DayBlockProps) => {
   const hasEntries = day.clients.length > 0;
+  const hasMeetings = meetings.length > 0;
+  const dayMeetingHours = meetings.reduce((s, m) => s + m.hours, 0);
+  // Day total = logged hours + meeting hours (matches how capacity counts both).
+  const dayTotalHours = Math.round((day.subtotal_hours + dayMeetingHours) * 100) / 100;
   // A day is "Submitted" once every entry logged that day has been submitted
   // (submitted_at set — covers both submitted-pending and synced). A day with
   // any draft entry still reads "Not submitted".
@@ -593,7 +687,7 @@ const DayBlock = ({
   return (
     <div
       className={`rounded-2xl p-4 ${
-        hasEntries
+        hasEntries || hasMeetings
           ? 'bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.06)]'
           : 'bg-[rgba(255,255,255,0.015)] border border-dashed border-[rgba(255,255,255,0.06)]'
       }`}
@@ -607,8 +701,11 @@ const DayBlock = ({
           <div className="flex items-baseline gap-2 min-w-0">
             <span className="text-sm font-semibold text-white">{weekdayName(day.iso)}</span>
             <span className="text-[11px] font-mono text-[#737373]">{dayDateLabel(day.iso)}</span>
-            {/* Per-day submitted status. */}
-            {hasEntries &&
+            {/* Per-day submitted status — QuickBooks-only, hidden while QB is
+                disabled (nothing can be submitted, so it would always read
+                "Not submitted"). */}
+            {QUICKBOOKS_SUBMIT_ENABLED &&
+              hasEntries &&
               (dayAllSubmitted ? (
                 <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-[rgba(52,211,153,0.12)] text-[#34D399] font-semibold">
                   Submitted
@@ -637,10 +734,10 @@ const DayBlock = ({
             )}
             <span
               className={`text-base font-mono font-semibold tabular-nums ${
-                hasEntries ? 'text-[#E0B954]' : 'text-[#525252]'
+                hasEntries || hasMeetings ? 'text-[#E0B954]' : 'text-[#525252]'
               }`}
             >
-              {day.subtotal_hours}h
+              {dayTotalHours}h
             </span>
           </div>
         </div>
@@ -676,7 +773,11 @@ const DayBlock = ({
               // Auto-expand a client whose entries failed to sync so the
               // per-row errors are never hidden behind a collapsed client.
               const clientHasFailure = clientEntries.some((e) => failedById.has(e.id));
-              const isOpen = expandedClients.has(client.qb_customer_id) || clientHasFailure;
+              const isUnlinkedGroup = client.qb_customer_id === UNLINKED_GROUP_ID;
+              // The client-less QB-dark group has no header to toggle, so it's
+              // always open — it renders as a plain project → entries list.
+              const isOpen =
+                isUnlinkedGroup || expandedClients.has(client.qb_customer_id) || clientHasFailure;
               // "Class" = the project category (a QuickBooks tracking
               // dimension). A client can span projects, so show the distinct
               // categories of its projects.
@@ -687,74 +788,86 @@ const DayBlock = ({
               ];
               return (
                 <div key={client.qb_customer_id} className="space-y-2">
-                  {/* Client (level 1) — collapsible. The row shows the client +
-                    its hours; clicking the name toggles the ticket list. The
-                    billable checkbox and hours stay visible while collapsed. */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => toggleClient(client.qb_customer_id)}
-                      aria-expanded={isOpen}
-                      className="flex items-center gap-2 min-w-0 text-left text-white hover:text-[#E0B954] transition-colors"
-                    >
-                      {isOpen ? (
-                        <ChevronDown className="w-3.5 h-3.5 shrink-0 text-[#737373]" />
-                      ) : (
-                        <ChevronRight className="w-3.5 h-3.5 shrink-0 text-[#737373]" />
-                      )}
-                      <span
-                        className="w-2.5 h-2.5 rounded-sm shrink-0"
-                        style={{ backgroundColor: clientColor(client.qb_customer_id) }}
-                      />
-                      <span className="text-sm font-semibold">{client.client_name}</span>
-                      <span className="text-[10px] text-[#737373] font-normal">
-                        (Client in QuickBooks)
-                      </span>
-                    </button>
-                    {/* Class = project category. */}
-                    {clientClasses.length > 0 && (
-                      <span
-                        className="text-[10px] text-[#a3a3a3] bg-[rgba(255,255,255,0.05)] rounded px-1.5 py-0.5"
-                        title="Class (project category)"
+                  {/* Client (level 1) — collapsible header. Hidden for the
+                    client-less QB-dark group, which renders as a bare
+                    project → entries list (no client / billable / QuickBooks UI). */}
+                  {!isUnlinkedGroup && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => toggleClient(client.qb_customer_id)}
+                        aria-expanded={isOpen}
+                        className="flex items-center gap-2 min-w-0 text-left text-white hover:text-[#E0B954] transition-colors"
                       >
-                        Class: {clientClasses.join(', ')}
-                      </span>
-                    )}
-                    {/* Per-(client, day) billable toggle. */}
-                    <label
-                      htmlFor={billableId}
-                      className={`inline-flex items-center gap-1.5 text-[11px] ${
-                        allLocked
-                          ? 'text-[#737373] cursor-not-allowed'
-                          : 'text-[#a3a3a3] cursor-pointer hover:text-white'
-                      }`}
-                      title={
-                        allLocked
-                          ? 'These hours are already submitted/synced to QuickBooks — billable is locked.'
-                          : 'Bill this client for this day’s hours. Sent to QuickBooks as the entry’s billable status on submit.'
-                      }
-                    >
-                      <input
-                        id={billableId}
-                        type="checkbox"
-                        checked={allBillable}
-                        disabled={allLocked}
-                        onChange={(e) =>
-                          void onSetClientBillable(client.qb_customer_id, day.iso, e.target.checked)
+                        {isOpen ? (
+                          <ChevronDown className="w-3.5 h-3.5 shrink-0 text-[#737373]" />
+                        ) : (
+                          <ChevronRight className="w-3.5 h-3.5 shrink-0 text-[#737373]" />
+                        )}
+                        <span
+                          className="w-2.5 h-2.5 rounded-sm shrink-0"
+                          style={{ backgroundColor: clientColor(client.qb_customer_id) }}
+                        />
+                        <span className="text-sm font-semibold">{client.client_name}</span>
+                        <span className="text-[10px] text-[#737373] font-normal">
+                          (Client in QuickBooks)
+                        </span>
+                      </button>
+                      {/* Class = project category. */}
+                      {clientClasses.length > 0 && (
+                        <span
+                          className="text-[10px] text-[#a3a3a3] bg-[rgba(255,255,255,0.05)] rounded px-1.5 py-0.5"
+                          title="Class (project category)"
+                        >
+                          Class: {clientClasses.join(', ')}
+                        </span>
+                      )}
+                      {/* Per-(client, day) billable toggle. */}
+                      <label
+                        htmlFor={billableId}
+                        className={`inline-flex items-center gap-1.5 text-[11px] ${
+                          allLocked
+                            ? 'text-[#737373] cursor-not-allowed'
+                            : 'text-[#a3a3a3] cursor-pointer hover:text-white'
+                        }`}
+                        title={
+                          allLocked
+                            ? 'These hours are already submitted/synced to QuickBooks — billable is locked.'
+                            : 'Bill this client for this day’s hours. Sent to QuickBooks as the entry’s billable status on submit.'
                         }
-                        className="accent-[#E0B954] w-3.5 h-3.5 disabled:opacity-50"
-                      />
-                      Billable
-                    </label>
-                    <span className="ml-auto text-sm font-mono font-semibold tabular-nums text-[#E0B954]">
-                      {client.subtotal_hours}h
-                    </span>
-                  </div>
+                      >
+                        <input
+                          id={billableId}
+                          type="checkbox"
+                          checked={allBillable}
+                          disabled={allLocked}
+                          onChange={(e) =>
+                            void onSetClientBillable(
+                              client.qb_customer_id,
+                              day.iso,
+                              e.target.checked,
+                            )
+                          }
+                          className="accent-[#E0B954] w-3.5 h-3.5 disabled:opacity-50"
+                        />
+                        Billable
+                      </label>
+                      <span className="ml-auto text-sm font-mono font-semibold tabular-nums text-[#E0B954]">
+                        {client.subtotal_hours}h
+                      </span>
+                    </div>
+                  )}
                   {/* Project (level 2) — revealed when the client is expanded.
                     Left border acts as a visual guide line so the eye follows
                     the client → project → entry hierarchy. */}
                   {isOpen && (
-                    <div className="pl-4 border-l border-[rgba(255,255,255,0.08)] ml-1 space-y-2">
+                    <div
+                      className={
+                        isUnlinkedGroup
+                          ? 'space-y-2'
+                          : 'pl-4 border-l border-[rgba(255,255,255,0.08)] ml-1 space-y-2'
+                      }
+                    >
                       {client.projects.map((project) => {
                         const subtotal = project.entries.reduce((s, e) => s + (e.hours || 0), 0);
                         return (
@@ -774,6 +887,49 @@ const DayBlock = ({
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Calendar meetings for this day (from the capacity payload) — shown
+            for context alongside logged hours; read-only. */}
+        {hasMeetings && (
+          <div
+            className={hasEntries ? 'mt-3 pt-3 border-t border-[rgba(255,255,255,0.05)]' : 'mt-3'}
+          >
+            <div className="flex items-center gap-1.5 mb-2">
+              <span
+                className="w-2 h-2 rounded-sm shrink-0"
+                style={{ backgroundColor: MEETING_COLOR }}
+              />
+              <span className="text-[10px] uppercase tracking-wider text-[#737373] font-semibold">
+                Meetings ({meetings.length})
+              </span>
+            </div>
+            <ul className="space-y-1.5">
+              {meetings.map((m, i) => {
+                const s = m.start_at?.slice(11, 16);
+                const e = m.end_at?.slice(11, 16);
+                const timeLabel = s && e && s !== e ? `${s}–${e}` : '';
+                return (
+                  <li key={`${m.start_at ?? 'm'}-${i}`} className="flex items-start gap-2 text-xs">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[#d4d4d4] truncate" title={m.title}>
+                        {m.title}
+                      </div>
+                      {timeLabel && (
+                        <div className="text-[10px] text-[#737373] tabular-nums">{timeLabel}</div>
+                      )}
+                    </div>
+                    <span
+                      className="font-mono tabular-nums shrink-0"
+                      style={{ color: MEETING_COLOR }}
+                    >
+                      {m.hours}h
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         )}
       </div>

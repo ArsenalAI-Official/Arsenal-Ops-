@@ -92,7 +92,7 @@ const CapacityModal = ({
         <DialogHeader className="pb-2 shrink-0">
           <DialogTitle className="text-white flex items-center gap-2.5 text-lg">
             <Activity className="w-5 h-5 text-[#E0B954]" />
-            {view === 'review' ? 'Review & Submit Hours' : 'My Capacity This Week'}
+            {view === 'review' ? 'Review Hours' : 'My Capacity This Week'}
           </DialogTitle>
           {view === 'review' ? (
             <p className="text-xs text-[#737373] font-normal mt-1.5 flex items-center gap-2 flex-wrap">
@@ -128,7 +128,11 @@ const CapacityModal = ({
         </DialogHeader>
 
         {view === 'review' && (
-          <ReviewSubmitView onBack={() => setView('summary')} onSyncingChange={setIsSyncing} />
+          <ReviewSubmitView
+            onBack={() => setView('summary')}
+            onSyncingChange={setIsSyncing}
+            meetings={meetings}
+          />
         )}
 
         {view === 'summary' && data && (
@@ -425,7 +429,7 @@ const CapacityModal = ({
                 className="bg-[rgba(224,185,84,0.08)] border-[rgba(224,185,84,0.3)] text-[#E0B954] hover:bg-[rgba(224,185,84,0.16)] hover:text-[#E0B954]"
               >
                 <ClipboardCheck className="w-4 h-4 mr-2" />
-                Review &amp; Submit Hours
+                Review
               </Button>
             </div>
           </div>
