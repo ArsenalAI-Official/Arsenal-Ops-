@@ -188,6 +188,16 @@ async def _startup():
     except Exception as e:
         logger.exception("migrate_add_perf_indexes failed: %s", e)
 
+    # One-time data cleanup: purge legacy auto-generated comments (status /
+    # transfer / hours / edit rows) now that those live in the ActivityLog /
+    # Time Entries table. Idempotent — a no-op once the rows are gone.
+    try:
+        import migrate_cleanup_legacy_auto_comments
+
+        migrate_cleanup_legacy_auto_comments.migrate()
+    except Exception as e:
+        logger.exception("migrate_cleanup_legacy_auto_comments failed: %s", e)
+
     # Seed every email in ADMIN_EMAILS as an admin on startup. Idempotent:
     # users that already carry the admin role are left untouched; existing
     # non-admin users have "admin" appended to their comma-separated role list

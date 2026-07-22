@@ -100,6 +100,35 @@ def test_deletes_all_four_legacy_categories_keeps_human(db, seed):
     }
 
 
+def test_human_comments_that_resemble_machine_rows_are_preserved(db, seed):
+    """Near-miss human comments must survive — matching is anchored/whole-string,
+    never a loose substring."""
+    item = seed["item"]
+    survivors = [
+        "We moved to a new plan last week",  # contains "moved to", not exact
+        "Moved to Done!",  # trailing punctuation → not the exact status string
+        "moved to done",  # wrong case → not exact
+        "Logged in and reviewed the PR",  # starts with "Logged", not "Logged Nh"
+        "I logged 4h yesterday on this",  # "logged 4h" mid-sentence, not whole-string
+        "Ticket transferred from A to B",  # no trailing period → not the transfer form
+        "Edited the acceptance criteria",  # no em-dash "Edited — " prefix
+        "Edited - fixed a typo",  # ASCII hyphen, not the em-dash the machine used
+    ]
+    for content in survivors:
+        _c(db, item, content)
+    db.commit()
+
+    summary = cleanup(
+        dry_run=False,
+        categories=("hours", "status", "transfer", "edit"),
+        work_item_id=None,
+        session_factory=_factory(db),
+    )
+
+    assert summary["matched"] == 0
+    assert _remaining_contents(db, item) == set(survivors)
+
+
 def test_dry_run_changes_nothing(db, seed):
     item = seed["item"]
     _c(db, item, "Moved to Done")
@@ -145,3 +174,26 @@ def test_idempotent_second_run_noop(db, seed):
     )
     assert summary["matched"] == 0
     assert summary["applied"] is False
+
+
+def test_startup_migration_applies_and_is_idempotent(db, seed):
+    """The startup wrapper (registered in main._startup) purges all categories
+    and re-runs cleanly."""
+    from migrate_cleanup_legacy_auto_comments import migrate
+
+    item = seed["item"]
+    _c(db, item, "Moved to Done")  # status
+    _c(db, item, "Ticket transferred from A to B.")  # transfer
+    _c(db, item, "Logged 2h")  # hours
+    _c(db, item, "Edited — title: A → B")  # edit
+    _c(db, item, "Real human note")  # kept
+    db.commit()
+
+    first = migrate(session_factory=_factory(db))
+    assert first["matched"] == 4
+    assert first["applied"] is True
+    assert _remaining_contents(db, item) == {"Real human note"}
+
+    second = migrate(session_factory=_factory(db))
+    assert second["matched"] == 0
+    assert second["applied"] is False
