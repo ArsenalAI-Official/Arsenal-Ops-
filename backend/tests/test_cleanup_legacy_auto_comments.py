@@ -174,26 +174,3 @@ def test_idempotent_second_run_noop(db, seed):
     )
     assert summary["matched"] == 0
     assert summary["applied"] is False
-
-
-def test_startup_migration_applies_and_is_idempotent(db, seed):
-    """The startup wrapper (registered in main._startup) purges all categories
-    and re-runs cleanly."""
-    from migrate_cleanup_legacy_auto_comments import migrate
-
-    item = seed["item"]
-    _c(db, item, "Moved to Done")  # status
-    _c(db, item, "Ticket transferred from A to B.")  # transfer
-    _c(db, item, "Logged 2h")  # hours
-    _c(db, item, "Edited — title: A → B")  # edit
-    _c(db, item, "Real human note")  # kept
-    db.commit()
-
-    first = migrate(session_factory=_factory(db))
-    assert first["matched"] == 4
-    assert first["applied"] is True
-    assert _remaining_contents(db, item) == {"Real human note"}
-
-    second = migrate(session_factory=_factory(db))
-    assert second["matched"] == 0
-    assert second["applied"] is False

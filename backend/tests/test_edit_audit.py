@@ -153,9 +153,27 @@ def test_description_change_recorded_in_activity(db, seed):
 
 
 def test_status_change_records_activity_not_comment(db, seed):
+    # seed item starts in_progress
     _update(db, seed["item"], seed["user"], status="in_review")
     assert _comments(db, seed["item"]) == []
-    assert any(a.action == "updated" for a in _activities(db, seed["item"]))
+    status_acts = [
+        a
+        for a in _activities(db, seed["item"])
+        if a.details and any(c["field"] == "status" for c in a.details.get("changes", []))
+    ]
+    assert len(status_acts) == 1
+    change = status_acts[0].details["changes"][0]
+    # Transition captured with human-readable labels so the Activity tab shows
+    # "Status: In Progress → In Review" rather than a bare "Updated".
+    assert change["old_value"] == "In Progress"
+    assert change["new_value"] == "In Review"
+
+
+def test_noop_status_write_records_nothing(db, seed):
+    # Writing the same status must not create an empty "Updated" activity row.
+    _update(db, seed["item"], seed["user"], status="in_progress")
+    assert _activities(db, seed["item"]) == []
+    assert _comments(db, seed["item"]) == []
 
 
 def test_transfer_records_activity_not_comment(db, seed):

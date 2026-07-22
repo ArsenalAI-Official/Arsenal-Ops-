@@ -11,6 +11,7 @@ interface WorkItemActivityListProps {
 const FIELD_LABELS: Record<string, string> = {
   title: 'Title',
   description: 'Description',
+  status: 'Status',
   priority: 'Priority',
   story_points: 'Story points',
   estimated_hours: 'Estimated hours',

@@ -119,6 +119,23 @@ def _audit_label(field: str) -> str:
     return _AUDIT_FIELD_LABELS.get(field, field.replace("_", " ").capitalize())
 
 
+# Human-readable status labels for the Activity feed (raw enum values like
+# "in_progress" are unfriendly in the old→new diff line).
+_STATUS_LABELS = {
+    "backlog": "Backlog",
+    "todo": "To Do",
+    "in_progress": "In Progress",
+    "in_review": "In Review",
+    "done": "Done",
+}
+
+
+def _status_label(status: str | None) -> str:
+    if not status:
+        return "—"
+    return _STATUS_LABELS.get(status, status.replace("_", " ").title())
+
+
 def _json_safe(value):
     """Coerce a field value to something JSON-serializable for ActivityLog.details."""
     if isinstance(value, datetime):
@@ -1283,18 +1300,35 @@ def update_work_item(
                         due_date=item.due_date.isoformat() if item.due_date else None,
                     )
 
-    # Log activity for status changes
-    if "status" in update_data:
+    # Log activity for status changes — only when the status actually changed
+    # (a no-op status write shouldn't litter the feed with empty "Updated" rows).
+    # The transition goes into details.changes so the Activity tab shows
+    # "Status: To Do → In Progress" instead of a bare "Updated".
+    if "status" in update_data and update_data["status"] != old_status:
         from models.activity_log import ActivityLog
 
-        action = "completed" if update_data["status"] == "done" else "updated"
+        new_status = update_data["status"]
+        completed = new_status == WorkItemStatus.DONE.value
+        action = "completed" if completed else "updated"
+        title = (
+            f"Completed {item.key}: {item.title}" if completed else f"Updated {item.key}: Status"
+        )
         activity = ActivityLog(
             project_id=item.project_id,
             user_id=current_user.id,
             action=action,
             entity_type="work_item",
             entity_id=item.id,
-            title=f"{action.capitalize()} {item.key}: {item.title}",
+            title=title,
+            details={
+                "changes": [
+                    {
+                        "field": "status",
+                        "old_value": _status_label(old_status),
+                        "new_value": _status_label(new_status),
+                    }
+                ]
+            },
         )
         db.add(activity)
 
@@ -1557,7 +1591,13 @@ def batch_update_status(
         # Record the status change in the Activity feed (bulk edits were
         # previously silent). No comment — the comment thread stays human.
         if old_status != update.status:
-            action = "completed" if update.status == WorkItemStatus.DONE.value else "updated"
+            completed = update.status == WorkItemStatus.DONE.value
+            action = "completed" if completed else "updated"
+            title = (
+                f"Completed {item.key}: {item.title}"
+                if completed
+                else f"Updated {item.key}: Status"
+            )
             db.add(
                 _BatchActivity(
                     project_id=item.project_id,
@@ -1565,7 +1605,16 @@ def batch_update_status(
                     action=action,
                     entity_type="work_item",
                     entity_id=item.id,
-                    title=f"{action.capitalize()} {item.key}: {item.title}",
+                    title=title,
+                    details={
+                        "changes": [
+                            {
+                                "field": "status",
+                                "old_value": _status_label(old_status),
+                                "new_value": _status_label(update.status),
+                            }
+                        ]
+                    },
                 )
             )
 
