@@ -6,7 +6,7 @@
  * fake. Per-test handler overrides script success/partial/empty paths
  * (see docs/frontend-testing-guide.md §3).
  */
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import type { MyTimesheetResponse, SubmitTimesheetResponse } from '@/client';
@@ -58,7 +58,16 @@ const seedCapacity = (
 };
 
 beforeEach(() => {
+  // These tests exercise the QuickBooks submit/sync flow (submit button,
+  // 'Not yet submitted' / unlinked-project UI). That UI is gated behind
+  // VITE_QUICKBOOKS_SUBMIT, which defaults OFF in production while QB isn't
+  // live — enable it here so the flow's coverage is preserved.
+  vi.stubEnv('VITE_QUICKBOOKS_SUBMIT', 'true');
   seedCapacity();
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 const baseTimesheet: MyTimesheetResponse = {

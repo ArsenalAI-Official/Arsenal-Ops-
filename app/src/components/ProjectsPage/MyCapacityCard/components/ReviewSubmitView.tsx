@@ -159,7 +159,7 @@ const groupByDay = (data: MyTimesheetResponse): DayGroup[] => {
   // `unlinked_projects`. Fold them into the day cards under a single client-less
   // sentinel group (rendered without QB chrome) so logged hours still show
   // per day. When QB is live these stay in their own "won't sync" banner.
-  if (!QUICKBOOKS_SUBMIT_ENABLED) {
+  if (!isQuickBooksSubmitEnabled()) {
     for (const project of data.unlinked_projects) {
       for (const entry of project.entries) {
         if (!entry.logged_at) continue;
@@ -200,7 +200,9 @@ const groupByDay = (data: MyTimesheetResponse): DayGroup[] => {
 // While disabled, this view is read-only ("Review Hours"). Set
 // VITE_QUICKBOOKS_SUBMIT=true in the frontend build env to re-enable the
 // Submit & Sync button (all the submit plumbing below is kept intact).
-const QUICKBOOKS_SUBMIT_ENABLED = import.meta.env.VITE_QUICKBOOKS_SUBMIT === 'true';
+// Read at call time (not a module-load const) so tests can toggle it via
+// vi.stubEnv; Vite still statically inlines the value in a production build.
+const isQuickBooksSubmitEnabled = (): boolean => import.meta.env.VITE_QUICKBOOKS_SUBMIT === 'true';
 
 // When QuickBooks is disabled, no project is linked to a QB customer, so every
 // entry arrives in `unlinked_projects`. We fold those into the day cards under
@@ -427,12 +429,12 @@ const ReviewSubmitView = ({ onBack, onSyncingChange, meetings = [] }: ReviewSubm
                   {Math.round((data.total_hours + weekMeetingHours) * 100) / 100}h
                 </span>
                 <span className="text-xs text-[#737373]">total this week</span>
-                {QUICKBOOKS_SUBMIT_ENABLED && data.syncable_unsubmitted_count > 0 && (
+                {isQuickBooksSubmitEnabled() && data.syncable_unsubmitted_count > 0 && (
                   <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-[rgba(224,185,84,0.12)] text-[#E0B954] font-semibold">
                     Not yet submitted
                   </span>
                 )}
-                {QUICKBOOKS_SUBMIT_ENABLED && hasUnlinked && (
+                {isQuickBooksSubmitEnabled() && hasUnlinked && (
                   <span
                     className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-[rgba(245,158,11,0.12)] text-[#F59E0B] font-semibold flex items-center gap-1"
                     title="Hours on projects with no QuickBooks customer can't sync. Scroll down for details."
@@ -442,7 +444,7 @@ const ReviewSubmitView = ({ onBack, onSyncingChange, meetings = [] }: ReviewSubm
                   </span>
                 )}
               </div>
-              {QUICKBOOKS_SUBMIT_ENABLED && (
+              {isQuickBooksSubmitEnabled() && (
                 <Button
                   type="button"
                   onClick={handleSubmit}
@@ -475,7 +477,7 @@ const ReviewSubmitView = ({ onBack, onSyncingChange, meetings = [] }: ReviewSubm
           with a busy week can't miss it), then day cards, then empty
           state. Only this scrolls so the submit button never disappears. */}
         <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-4">
-          {QUICKBOOKS_SUBMIT_ENABLED && hasUnlinked && (
+          {isQuickBooksSubmitEnabled() && hasUnlinked && (
             <div className="bg-[rgba(245,158,11,0.05)] border border-[rgba(245,158,11,0.25)] rounded-2xl p-4">
               <div className="flex items-start gap-2 mb-3 pb-3 border-b border-[rgba(245,158,11,0.15)]">
                 <FileWarning className="w-4 h-4 text-[#F59E0B] shrink-0 mt-0.5" />
@@ -704,7 +706,7 @@ const DayBlock = ({
             {/* Per-day submitted status — QuickBooks-only, hidden while QB is
                 disabled (nothing can be submitted, so it would always read
                 "Not submitted"). */}
-            {QUICKBOOKS_SUBMIT_ENABLED &&
+            {isQuickBooksSubmitEnabled() &&
               hasEntries &&
               (dayAllSubmitted ? (
                 <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-[rgba(52,211,153,0.12)] text-[#34D399] font-semibold">
