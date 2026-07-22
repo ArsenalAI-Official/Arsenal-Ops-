@@ -1276,6 +1276,15 @@ def update_work_item(
                 entity_type="work_item",
                 entity_id=item.id,
                 title=f"Reassigned {item.key} from {old_assignee_name} to {new_assignee_name}",
+                details={
+                    "changes": [
+                        {
+                            "field": "assignee",
+                            "old_value": old_assignee_name,
+                            "new_value": new_assignee_name,
+                        }
+                    ]
+                },
             )
             db.add(activity)
 

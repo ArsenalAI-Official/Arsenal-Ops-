@@ -185,7 +185,13 @@ def test_transfer_records_activity_not_comment(db, seed):
 
     _update(db, seed["item"], seed["user"], assignee_id=dev.id)
     assert _comments(db, seed["item"]) == []
-    assert any(a.action == "reassigned" for a in _activities(db, seed["item"]))
+    reassigns = [a for a in _activities(db, seed["item"]) if a.action == "reassigned"]
+    assert len(reassigns) == 1
+    # Structured old/new names so the Activity tab can show "Transferred from X to Y".
+    change = reassigns[0].details["changes"][0]
+    assert change["field"] == "assignee"
+    assert change["old_value"] == "Unassigned"
+    assert change["new_value"] == "Dev A"
 
 
 def test_batch_status_change_is_audited_without_comment(db, seed):

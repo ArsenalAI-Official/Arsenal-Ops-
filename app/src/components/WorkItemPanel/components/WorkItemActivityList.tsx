@@ -66,6 +66,32 @@ const fmtValue = (v: unknown): string => {
   return String(v);
 };
 
+const UNASSIGNED = new Set(['—', 'Unassigned', '']);
+
+/**
+ * Build a natural-sentence headline for an activity — the way the old comment
+ * thread read ("Moved to Done", "Transferred from X to Y") rather than a raw
+ * field diff. Returns null when there's no special-cased phrasing, so the
+ * caller falls back to the per-field diff lines or the stored title.
+ */
+const headlineFor = (a: ActivityResponse, changes: FieldChange[]): string | null => {
+  const status = changes.find((c) => c.field === 'status');
+  const assignee = changes.find((c) => c.field === 'assignee');
+
+  if (assignee) {
+    const from = fmtValue(assignee.old_value);
+    const to = fmtValue(assignee.new_value);
+    if (UNASSIGNED.has(to))
+      return from && !UNASSIGNED.has(from) ? `Unassigned from ${from}` : 'Unassigned';
+    if (UNASSIGNED.has(from)) return `Assigned to ${to}`;
+    return `Transferred from ${from} to ${to}`;
+  }
+  if (status) return `Moved to ${fmtValue(status.new_value)}`;
+  if (a.action === 'created') return 'Created this ticket';
+  if (a.action === 'deleted') return 'Deleted this ticket';
+  return null;
+};
+
 export const WorkItemActivityList = ({ activities, loading }: WorkItemActivityListProps) => {
   if (loading) {
     return (
@@ -88,6 +114,11 @@ export const WorkItemActivityList = ({ activities, loading }: WorkItemActivityLi
     <div className="space-y-3">
       {activities.map((a) => {
         const changes = getChanges(a.details);
+        const headline = headlineFor(a, changes);
+        // Field edits (no special headline) read as "Priority: medium → high"
+        // lines, like the old "Edited — …" comment. Status/assignee already
+        // collapse into the headline, so exclude them here.
+        const editLines = headline ? [] : changes.filter((c) => c.field !== 'status');
         return (
           <div
             key={a.id}
@@ -105,17 +136,20 @@ export const WorkItemActivityList = ({ activities, loading }: WorkItemActivityLi
                 </span>
               )}
             </div>
-            {a.title && <p className="text-sm text-[#a3a3a3] leading-relaxed">{a.title}</p>}
-            {changes.length > 0 && (
-              <ul className="mt-1.5 space-y-0.5">
-                {changes.map((c, i) => (
-                  <li key={i} className="text-xs text-[#737373]">
-                    <span className="text-[#a3a3a3]">{humanizeField(c.field)}:</span>{' '}
+            {headline ? (
+              <p className="text-sm text-[#d4d4d4] leading-relaxed">{headline}</p>
+            ) : editLines.length > 0 ? (
+              <ul className="space-y-0.5">
+                {editLines.map((c, i) => (
+                  <li key={i} className="text-sm text-[#a3a3a3]">
+                    <span className="text-[#737373]">{humanizeField(c.field)}:</span>{' '}
                     {fmtValue(c.old_value)} <span className="text-[#555]">→</span>{' '}
                     <span className="text-[#d4d4d4]">{fmtValue(c.new_value)}</span>
                   </li>
                 ))}
               </ul>
+            ) : (
+              a.title && <p className="text-sm text-[#a3a3a3] leading-relaxed">{a.title}</p>
             )}
           </div>
         );
