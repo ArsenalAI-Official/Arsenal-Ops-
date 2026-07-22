@@ -72,6 +72,9 @@ const MyCapacityCard = () => {
   }, {});
   const projectsByHours = Object.values(projectGroupsMap).sort((a, b) => b.total - a.total);
 
+  const meetingHours = data?.this_week_meeting_hours ?? 0;
+  const meetings = data?.meetings ?? [];
+
   return (
     <>
       <CapacityTile
@@ -92,6 +95,8 @@ const MyCapacityCard = () => {
         statusColor={statusColor}
         totalLoggedThisWeek={totalLoggedThisWeek}
         projectsByHours={projectsByHours}
+        meetingHours={meetingHours}
+        meetings={meetings}
       />
     </>
   );

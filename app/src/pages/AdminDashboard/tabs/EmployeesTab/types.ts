@@ -22,6 +22,16 @@ export interface CapacityTicket {
   your_logged_this_week?: number;
 }
 
+// A synced Google Calendar meeting contributing to weekly capacity.
+// (Duplicated in MyCapacityCard — there's no shared types module yet; see
+// app/CLAUDE.md. TODO(audit-FT1))
+export interface CapacityMeeting {
+  title: string;
+  start_at: string | null;
+  end_at: string | null;
+  hours: number;
+}
+
 export interface DeveloperCapacity {
   developer_id: number;
   developer_name: string;
@@ -31,11 +41,13 @@ export interface DeveloperCapacity {
   this_week_in_progress_hours: number;
   this_week_in_review_hours: number;
   this_week_done_hours: number;
+  this_week_meeting_hours: number;
   this_week_capacity_used: number;
   this_week_remaining_capacity: number;
   week_start?: string;
   week_end?: string;
   tickets?: CapacityTicket[];
+  meetings?: CapacityMeeting[];
   specialization: string | null;
 }
 
@@ -98,6 +110,10 @@ export const PROJECT_COLOR_PALETTE = [
 
 export const projectColor = (projectId: number) =>
   PROJECT_COLOR_PALETTE[Math.abs(projectId) % PROJECT_COLOR_PALETTE.length];
+
+// Meetings render in a distinct slate that's deliberately outside the project
+// palette, so the meeting segment never reads as "another project".
+export const MEETING_COLOR = '#64748B';
 
 export const statusBadgeColor = (status: string) => {
   if (status === 'in_progress') return '#E0B954';

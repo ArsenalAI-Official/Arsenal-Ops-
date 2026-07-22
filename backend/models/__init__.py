@@ -3,6 +3,7 @@
 from models.activity_log import ActivityLog
 from models.applied_migration import AppliedMigration
 from models.architecture import Architecture
+from models.calendar_event import CalendarEvent
 from models.comment import Comment
 from models.developer import Developer, project_developers
 from models.market_insight import MarketInsight
@@ -32,6 +33,7 @@ __all__ = [
     "ActivityLog",
     "AppliedMigration",
     "Architecture",
+    "CalendarEvent",
     "Comment",
     "Developer",
     "MarketInsight",

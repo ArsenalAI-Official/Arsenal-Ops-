@@ -4,6 +4,15 @@
 .env.*.local
 backend/.env
 
+# Google credentials / OAuth tokens - NEVER commit these (any location)
+**/client_secret*.json
+client_secret*.json
+**/service_account*.json
+service_account*.json
+backend/.cal_test_token.json
+# Downloaded service-account key files (<project>-<keyid>.json)
+aai-ops-calender-sync-*.json
+
 # Python
 __pycache__/
 *.py[cod]

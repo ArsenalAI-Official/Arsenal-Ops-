@@ -1,5 +1,5 @@
-import { projectColor, statusBadgeColor } from './types';
-import type { CapacityTicket, DeveloperCapacity } from './types';
+import { projectColor, statusBadgeColor, MEETING_COLOR } from './types';
+import type { CapacityMeeting, CapacityTicket, DeveloperCapacity } from './types';
 
 /** A project bucket of an employee's capacity tickets, used by the inline
  *  distribution bar and the expanded per-project breakdown. */
@@ -15,14 +15,19 @@ interface EmployeeExpandedRowProps {
   devCapacity: DeveloperCapacity | undefined;
   tickets: CapacityTicket[];
   projectsByHours: ProjectGroup[];
+  meetings: CapacityMeeting[];
+  meetingHours: number;
 }
 
 /** The expanded drill-down for one employee row — week range + per-project
- *  ticket breakdown cards. Rendered inside a full-width <td colSpan={7}>. */
+ *  ticket breakdown cards + per-meeting breakdown. Rendered inside a full-width
+ *  <td colSpan={7}>. */
 const EmployeeExpandedRow: React.FC<EmployeeExpandedRowProps> = ({
   devCapacity,
   tickets,
   projectsByHours,
+  meetings,
+  meetingHours,
 }) => {
   return (
     <div className="space-y-4">
@@ -138,6 +143,66 @@ const EmployeeExpandedRow: React.FC<EmployeeExpandedRowProps> = ({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {meetings.length > 0 && (
+        <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-xl p-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span
+                className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                style={{ backgroundColor: MEETING_COLOR }}
+              />
+              <span className="text-xs font-semibold text-white">Meetings</span>
+              <span className="text-[10px] text-[#737373] flex-shrink-0">({meetings.length})</span>
+            </div>
+            <span
+              className="text-xs font-mono tabular-nums flex-shrink-0"
+              style={{ color: MEETING_COLOR }}
+              title="Counted against this week's capacity (overlaps counted once)"
+            >
+              {meetingHours}h
+            </span>
+          </div>
+          <ul className="space-y-1.5">
+            {meetings.map((m, i) => {
+              const start = m.start_at ? new Date(m.start_at) : null;
+              const end = m.end_at ? new Date(m.end_at) : null;
+              const timeLabel = start
+                ? `${start.toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                  })} ${start.toLocaleTimeString(undefined, {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })}${
+                    end
+                      ? `–${end.toLocaleTimeString(undefined, {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })}`
+                      : ''
+                  }`
+                : '—';
+              return (
+                <li key={`${m.start_at ?? 'm'}-${i}`} className="flex items-start gap-2 text-xs">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-white truncate" title={m.title}>
+                      {m.title}
+                    </div>
+                    <div className="text-[10px] text-[#737373] mt-0.5">{timeLabel}</div>
+                  </div>
+                  <span
+                    className="font-mono tabular-nums flex-shrink-0"
+                    style={{ color: MEETING_COLOR }}
+                  >
+                    {m.hours}h
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
     </div>

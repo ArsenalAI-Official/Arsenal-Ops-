@@ -1272,5 +1272,100 @@ def test_section8_multi_week_with_zero_weeks_in_between(db):
     )
 
 
+# ============================================================
+# Section 9 — Google Calendar meetings surface in capacity payloads
+# The math (union of intervals, declined-excluded, etc.) is covered by
+# test_calendar_meetings.py. This section is the INTEGRATION guard: it asserts
+# that a synced meeting actually flows through the admin + /me endpoint wrappers
+# into `this_week_meeting_hours` / `meetings[]`, and is added into
+# `this_week_capacity_used` alongside ticket hours. The endpoints only
+# `**breakdown`-spread, so without this a wrapper that dropped the meeting keys
+# would go uncaught.
+# ============================================================
+
+
+def add_meeting(db, developer_id, title, start_at, end_at, **kwargs):
+    from models.calendar_event import CalendarEvent
+
+    _wi_counter["n"] += 1
+    defaults = {
+        "google_event_id": f"evt-{_wi_counter['n']}",
+        "response_status": "accepted",
+        "visibility": "default",
+        "is_all_day": False,
+    }
+    defaults.update(kwargs)
+    ev = CalendarEvent(
+        developer_id=developer_id,
+        title=title,
+        start_at=start_at,
+        end_at=end_at,
+        **defaults,
+    )
+    db.add(ev)
+    db.commit()
+    db.refresh(ev)
+    return ev
+
+
+def test_section9_meeting_hours_surface_in_admin_and_me(db):
+    """A synced meeting appears in both the admin row and /me payload, and is
+    folded into capacity_used on top of ticket hours."""
+    ws, _ = _wb()
+    p = make_project(db)
+    dev = make_developer(db, "Mimi", "mimi@t.com")
+    user = make_user(db, "Mimi", "mimi@t.com")
+    assign_to_project(db, p, dev)
+
+    # 10h of ticket work: an in-progress ticket the dev currently holds
+    # (counted = 10h remaining as current holder).
+    make_work_item(db, p.id, dev.id, status="in_progress", estimated_hours=10, logged_hours=0)
+
+    # A 2h accepted meeting inside the current capacity week.
+    add_meeting(
+        db,
+        dev.id,
+        "Sprint Sync",
+        ws + timedelta(days=1, hours=9),
+        ws + timedelta(days=1, hours=11),
+    )
+
+    for label, row in (
+        ("admin", _dev_row(call_admin_capacity(db), dev.id)),
+        ("/me", call_me_capacity(db, user)),
+    ):
+        assert "this_week_meeting_hours" in row, f"{label} missing this_week_meeting_hours"
+        assert "meetings" in row, f"{label} missing meetings[]"
+        assert row["this_week_meeting_hours"] == 2, f"{label} meeting hours"
+        assert len(row["meetings"]) == 1, f"{label} meetings count"
+        assert row["meetings"][0]["title"] == "Sprint Sync", f"{label} meeting title"
+        assert row["meetings"][0]["hours"] == 2, f"{label} meeting entry hours"
+        # capacity_used = 10h ticket + 2h meeting; remaining = 40 - 12.
+        assert row["this_week_capacity_used"] == 12, f"{label} capacity_used incl. meeting"
+        assert row["this_week_remaining_capacity"] == 28, f"{label} remaining"
+
+
+def test_section9_private_meeting_title_masked_in_payload(db):
+    """A private event's real title never reaches the endpoint payload — it
+    surfaces as the generic 'Busy' label."""
+    from models.calendar_event import PRIVATE_EVENT_TITLE
+
+    ws, _ = _wb()
+    dev = make_developer(db, "Priv", "priv@t.com")
+    add_meeting(
+        db,
+        dev.id,
+        "Therapy appointment",  # real title that must NOT leak
+        ws + timedelta(days=2, hours=14),
+        ws + timedelta(days=2, hours=15),
+        visibility="private",
+    )
+
+    row = _dev_row(call_admin_capacity(db), dev.id)
+    assert row["this_week_meeting_hours"] == 1
+    assert row["meetings"][0]["title"] == PRIVATE_EVENT_TITLE
+    assert row["meetings"][0]["title"] != "Therapy appointment"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])

@@ -32,6 +32,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
+from models.calendar_event import PRIVATE_EVENT_TITLE
 from models.time_entry import TimeEntry
 from models.work_item_assignment_history import WorkItemAssignmentHistory
 from time_utils import utcnow
@@ -46,6 +47,93 @@ def week_boundaries(now: datetime | None = None) -> tuple[datetime, datetime]:
     )
     week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
     return week_start, week_end
+
+
+def _num(x: float) -> float | int:
+    """Present whole values as int (12, not 12.0) but keep real fractions (1.5).
+
+    Keeps the capacity numbers clean in the UI — meeting durations can be
+    fractional, but ticket hours and most totals are whole.
+    """
+    return int(x) if float(x).is_integer() else round(x, 2)
+
+
+def _merge_intervals(intervals: list[tuple[datetime, datetime]]) -> list[tuple[datetime, datetime]]:
+    """Merge overlapping/touching [start, end] intervals into disjoint ones."""
+    if not intervals:
+        return []
+    ordered = sorted(intervals, key=lambda iv: iv[0])
+    merged = [ordered[0]]
+    for start, end in ordered[1:]:
+        last_start, last_end = merged[-1]
+        if start <= last_end:  # overlap or back-to-back-touching
+            merged[-1] = (last_start, max(last_end, end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
+def meeting_breakdown(
+    events: Iterable, week_start: datetime, week_end: datetime
+) -> tuple[float, list[dict]]:
+    """Compute (total_meeting_hours, meetings[]) for a developer's week.
+
+    Rules (ticket defaults):
+      • declined events are excluded entirely;
+      • all-day events count as 0 hours (but still appear in the breakdown);
+      • each event is clamped to the week window — both its counted `hours` AND
+        the start/end shown in the drill-down, so a meeting spanning the week
+        boundary displays the range that actually matches its stated hours;
+      • the TOTAL is the union of timed-event intervals (overlaps counted once),
+        so double-booking can't exceed real time. Per-meeting `hours` is the
+        event's own clamped duration (for the drill-down), which may sum to more
+        than the union total when meetings overlap;
+      • results are ordered chronologically by start time.
+    """
+    meetings_out: list[dict] = []
+    timed_intervals: list[tuple[datetime, datetime]] = []
+
+    # Sorted by start so meetings[] is chronological regardless of DB order —
+    # neither the single nor the batch CalendarEvent query sets ORDER BY.
+    for ev in sorted(events, key=lambda e: e.start_at):
+        if ev.response_status == "declined":
+            continue
+        start = max(ev.start_at, week_start)
+        end = min(ev.end_at, week_end)
+        if end <= start:
+            continue
+
+        if ev.is_all_day:
+            hours = 0.0
+        else:
+            hours = round((end - start).total_seconds() / 3600.0, 2)
+            timed_intervals.append((start, end))
+
+        # Defense-in-depth: private titles are already masked at sync/write time
+        # (google_calendar_service), but mask again on read so a private event's
+        # real title can never reach the admin UI even if a row was written by
+        # another path (manual insert, visibility changed after a prior sync).
+        title = (
+            PRIVATE_EVENT_TITLE if getattr(ev, "visibility", "default") == "private" else ev.title
+        )
+
+        meetings_out.append(
+            {
+                "title": title,
+                # Clamped start/end (not raw ev.*) so the displayed range matches
+                # the counted `hours` for boundary-spanning meetings. For the
+                # common in-week case these equal the raw event times.
+                "start_at": start.isoformat(),
+                "end_at": end.isoformat(),
+                "hours": _num(hours),
+            }
+        )
+
+    union_seconds = sum(
+        (end - start).total_seconds() for start, end in _merge_intervals(timed_intervals)
+    )
+    total_hours = round(union_seconds / 3600.0, 2)
+    return total_hours, meetings_out
 
 
 def _bucket_for(item) -> str | None:
@@ -117,6 +205,8 @@ def _aggregate_capacity(
     week_capacity: int,
     total_logged_by_item: dict[int, int],
     this_week_logged_by_item: dict[int, int],
+    meeting_hours: float = 0,
+    meetings_out: list | None = None,
 ) -> dict:
     """Per-developer bucket/basis aggregation over an already-resolved item set.
 
@@ -179,14 +269,19 @@ def _aggregate_capacity(
 
         tickets_out.append(_ticket_to_dict_for_dev(item, counted, basis, logged_sum, total_logged))
 
-    capacity_used = in_progress_hours + in_review_hours + done_hours
+    # Meeting hours are a new consumer of the flat weekly capacity (not a
+    # reduction of the 40h baseline). Folded in here so both the single-dev and
+    # batched paths stay consistent.
+    capacity_used = in_progress_hours + in_review_hours + done_hours + meeting_hours
     return {
         "this_week_in_progress_hours": in_progress_hours,
         "this_week_in_review_hours": in_review_hours,
         "this_week_done_hours": done_hours,
-        "this_week_capacity_used": capacity_used,
-        "this_week_remaining_capacity": max(0, week_capacity - capacity_used),
+        "this_week_meeting_hours": _num(meeting_hours),
+        "this_week_capacity_used": _num(capacity_used),
+        "this_week_remaining_capacity": _num(max(0, week_capacity - capacity_used)),
         "tickets": tickets_out,
+        "meetings": meetings_out or [],
     }
 
 
@@ -302,6 +397,27 @@ def compute_capacity_breakdown(
     # Logged hours this week by THIS developer per ticket came from the single
     # grouped query above (was an O(tickets) per-item query here). The shared
     # aggregator applies the bucket/basis rules.
+    # Meetings: this developer's synced calendar events overlapping the week.
+    # Only counted on the cross-project path (restrict_to_project_ids is None) —
+    # the Employees/MyCapacity views. Per-project workload views pass a
+    # restriction set and must NOT inflate their scoped capacity with a dev's
+    # full meeting load. Empty / sync-not-run → 0 hours (no behavior change).
+    meeting_hours: float = 0
+    meetings_out: list = []
+    if restrict_to_project_ids is None:
+        from models.calendar_event import CalendarEvent
+
+        events = (
+            db.query(CalendarEvent)
+            .filter(
+                CalendarEvent.developer_id == developer_id,
+                CalendarEvent.start_at <= week_end,
+                CalendarEvent.end_at >= week_start,
+            )
+            .all()
+        )
+        meeting_hours, meetings_out = meeting_breakdown(events, week_start, week_end)
+
     return _aggregate_capacity(
         item_by_id,
         developer_id=developer_id,
@@ -310,6 +426,8 @@ def compute_capacity_breakdown(
         week_capacity=week_capacity,
         total_logged_by_item=total_logged_by_item,
         this_week_logged_by_item=this_week_logged_by_item,
+        meeting_hours=meeting_hours,
+        meetings_out=meetings_out,
     )
 
 
@@ -444,6 +562,23 @@ def compute_capacity_breakdowns_batch(
         ):
             week_logged_by_dev_item[(dev_id, wid)] = int(total or 0)
 
+    # (6) Synced calendar events overlapping the week for all devs — one query,
+    # grouped by developer. meeting_breakdown() applies the union/declined rules
+    # per dev below. Empty → 0 meeting hours and no segment (no behavior change).
+    from models.calendar_event import CalendarEvent
+
+    events_by_dev: dict[int, list] = defaultdict(list)
+    for ev in (
+        db.query(CalendarEvent)
+        .filter(
+            CalendarEvent.developer_id.in_(dev_ids),
+            CalendarEvent.start_at <= week_end,
+            CalendarEvent.end_at >= week_start,
+        )
+        .all()
+    ):
+        events_by_dev[ev.developer_id].append(ev)
+
     result: dict[int, dict] = {}
     for dev_id in dev_ids:
         item_by_id = dict(items_by_dev[dev_id])
@@ -458,6 +593,10 @@ def compute_capacity_breakdowns_batch(
             item_id: week_logged_by_dev_item.get((dev_id, item_id), 0) for item_id in item_by_id
         }
 
+        meeting_hours, meetings_out = meeting_breakdown(
+            events_by_dev.get(dev_id, []), week_start, week_end
+        )
+
         result[dev_id] = _aggregate_capacity(
             item_by_id,
             developer_id=dev_id,
@@ -466,5 +605,7 @@ def compute_capacity_breakdowns_batch(
             week_capacity=week_capacity,
             total_logged_by_item=total_logged_by_item,
             this_week_logged_by_item=this_week_for_dev,
+            meeting_hours=meeting_hours,
+            meetings_out=meetings_out,
         )
     return result

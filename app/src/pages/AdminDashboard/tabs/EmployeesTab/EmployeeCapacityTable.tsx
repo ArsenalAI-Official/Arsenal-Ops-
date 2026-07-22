@@ -4,7 +4,7 @@ import type { EmployeeResponse } from '@/client';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription } from '@/components/ui/empty';
 import EmployeeExpandedRow, { type ProjectGroup } from './EmployeeExpandedRow';
-import { projectColor } from './types';
+import { projectColor, MEETING_COLOR, WEEKLY_CAPACITY_HRS } from './types';
 import type { DeveloperCapacity, EmployeeRow, EmployeeSort, EmployeeSortKey } from './types';
 
 interface EmployeeCapacityTableProps {
@@ -99,12 +99,14 @@ const EmployeeCapacityTable: React.FC<EmployeeCapacityTableProps> = ({
           {rows.map(({ emp }) => {
             const devCapacity = developerCapacities.find((d) => d.developer_id === emp.id);
             const capacityUsed = devCapacity?.this_week_capacity_used ?? 0;
-            const capacityPercentage = Math.round((capacityUsed / 40) * 100);
-            const remaining = devCapacity?.this_week_remaining_capacity ?? 40;
+            const capacityPercentage = Math.round((capacityUsed / WEEKLY_CAPACITY_HRS) * 100);
+            const remaining = devCapacity?.this_week_remaining_capacity ?? WEEKLY_CAPACITY_HRS;
             const capacityStatus =
               remaining >= 10 ? 'Available' : remaining > 0 ? 'Moderate' : 'Busy';
             const isExpanded = expandedCapacityDevId === emp.id;
             const tickets = devCapacity?.tickets ?? [];
+            const meetingHours = devCapacity?.this_week_meeting_hours ?? 0;
+            const meetings = devCapacity?.meetings ?? [];
 
             // Group tickets by project for inline distribution + expanded view
             const projectGroupsMap = tickets.reduce<Record<number, ProjectGroup>>((acc, t) => {
@@ -163,15 +165,25 @@ const EmployeeCapacityTable: React.FC<EmployeeCapacityTableProps> = ({
                               key={p.projectId}
                               className="h-full"
                               style={{
-                                width: `${Math.min(100, (p.total / 40) * 100)}%`,
+                                width: `${Math.min(100, (p.total / WEEKLY_CAPACITY_HRS) * 100)}%`,
                                 backgroundColor: projectColor(p.projectId),
                               }}
                               title={`${p.projectName}: ${p.total}h (${p.tickets.length} ticket${p.tickets.length === 1 ? '' : 's'})`}
                             />
                           ))}
+                          {meetingHours > 0 && (
+                            <div
+                              className="h-full"
+                              style={{
+                                width: `${Math.min(100, (meetingHours / WEEKLY_CAPACITY_HRS) * 100)}%`,
+                                backgroundColor: MEETING_COLOR,
+                              }}
+                              title={`Meetings: ${meetingHours}h (${meetings.length} meeting${meetings.length === 1 ? '' : 's'})`}
+                            />
+                          )}
                         </div>
                         <div className="text-[10px] text-[#737373] mt-1.5 flex items-center gap-2 flex-wrap">
-                          {projectsByHours.length === 0 ? (
+                          {projectsByHours.length === 0 && meetingHours === 0 ? (
                             <span>No tickets this week</span>
                           ) : (
                             <>
@@ -198,6 +210,21 @@ const EmployeeCapacityTable: React.FC<EmployeeCapacityTableProps> = ({
                                 <>
                                   <span className="text-[rgba(255,255,255,0.15)]">·</span>
                                   <span>+{projectsByHours.length - 3} more</span>
+                                </>
+                              )}
+                              {meetingHours > 0 && (
+                                <>
+                                  {projectsByHours.length > 0 && (
+                                    <span className="text-[rgba(255,255,255,0.15)]">·</span>
+                                  )}
+                                  <span className="flex items-center gap-1">
+                                    <span
+                                      className="w-1.5 h-1.5 rounded-sm"
+                                      style={{ backgroundColor: MEETING_COLOR }}
+                                    />
+                                    <span>Meetings</span>
+                                    <span>· {meetingHours}h</span>
+                                  </span>
                                 </>
                               )}
                             </>
@@ -263,6 +290,8 @@ const EmployeeCapacityTable: React.FC<EmployeeCapacityTableProps> = ({
                         devCapacity={devCapacity}
                         tickets={tickets}
                         projectsByHours={projectsByHours}
+                        meetings={meetings}
+                        meetingHours={meetingHours}
                       />
                     </td>
                   </tr>
