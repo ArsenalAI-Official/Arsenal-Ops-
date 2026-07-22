@@ -4,7 +4,7 @@ import type { EmployeeResponse } from '@/client';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription } from '@/components/ui/empty';
 import EmployeeExpandedRow, { type ProjectGroup } from './EmployeeExpandedRow';
-import { projectColor, MEETING_COLOR } from './types';
+import { projectColor, MEETING_COLOR, WEEKLY_CAPACITY_HRS } from './types';
 import type { DeveloperCapacity, EmployeeRow, EmployeeSort, EmployeeSortKey } from './types';
 
 interface EmployeeCapacityTableProps {
@@ -99,8 +99,8 @@ const EmployeeCapacityTable: React.FC<EmployeeCapacityTableProps> = ({
           {rows.map(({ emp }) => {
             const devCapacity = developerCapacities.find((d) => d.developer_id === emp.id);
             const capacityUsed = devCapacity?.this_week_capacity_used ?? 0;
-            const capacityPercentage = Math.round((capacityUsed / 40) * 100);
-            const remaining = devCapacity?.this_week_remaining_capacity ?? 40;
+            const capacityPercentage = Math.round((capacityUsed / WEEKLY_CAPACITY_HRS) * 100);
+            const remaining = devCapacity?.this_week_remaining_capacity ?? WEEKLY_CAPACITY_HRS;
             const capacityStatus =
               remaining >= 10 ? 'Available' : remaining > 0 ? 'Moderate' : 'Busy';
             const isExpanded = expandedCapacityDevId === emp.id;
@@ -165,7 +165,7 @@ const EmployeeCapacityTable: React.FC<EmployeeCapacityTableProps> = ({
                               key={p.projectId}
                               className="h-full"
                               style={{
-                                width: `${Math.min(100, (p.total / 40) * 100)}%`,
+                                width: `${Math.min(100, (p.total / WEEKLY_CAPACITY_HRS) * 100)}%`,
                                 backgroundColor: projectColor(p.projectId),
                               }}
                               title={`${p.projectName}: ${p.total}h (${p.tickets.length} ticket${p.tickets.length === 1 ? '' : 's'})`}
@@ -175,7 +175,7 @@ const EmployeeCapacityTable: React.FC<EmployeeCapacityTableProps> = ({
                             <div
                               className="h-full"
                               style={{
-                                width: `${Math.min(100, (meetingHours / 40) * 100)}%`,
+                                width: `${Math.min(100, (meetingHours / WEEKLY_CAPACITY_HRS) * 100)}%`,
                                 backgroundColor: MEETING_COLOR,
                               }}
                               title={`Meetings: ${meetingHours}h (${meetings.length} meeting${meetings.length === 1 ? '' : 's'})`}

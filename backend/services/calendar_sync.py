@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from models.calendar_event import CalendarEvent
 from models.developer import Developer
+from time_utils import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ def reconcile_developer_events(
     existing_by_id = {row.google_event_id: row for row in existing}
 
     inserted = updated = deleted = 0
-    now = datetime.utcnow()
+    now = utcnow()
 
     for event_id, ev in incoming_by_id.items():
         row = existing_by_id.get(event_id)

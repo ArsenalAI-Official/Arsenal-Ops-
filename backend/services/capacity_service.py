@@ -81,16 +81,21 @@ def meeting_breakdown(
     Rules (ticket defaults):
       • declined events are excluded entirely;
       • all-day events count as 0 hours (but still appear in the breakdown);
-      • each event is clamped to the week window;
+      • each event is clamped to the week window — both its counted `hours` AND
+        the start/end shown in the drill-down, so a meeting spanning the week
+        boundary displays the range that actually matches its stated hours;
       • the TOTAL is the union of timed-event intervals (overlaps counted once),
         so double-booking can't exceed real time. Per-meeting `hours` is the
         event's own clamped duration (for the drill-down), which may sum to more
-        than the union total when meetings overlap.
+        than the union total when meetings overlap;
+      • results are ordered chronologically by start time.
     """
     meetings_out: list[dict] = []
     timed_intervals: list[tuple[datetime, datetime]] = []
 
-    for ev in events:
+    # Sorted by start so meetings[] is chronological regardless of DB order —
+    # neither the single nor the batch CalendarEvent query sets ORDER BY.
+    for ev in sorted(events, key=lambda e: e.start_at):
         if ev.response_status == "declined":
             continue
         start = max(ev.start_at, week_start)
@@ -115,8 +120,11 @@ def meeting_breakdown(
         meetings_out.append(
             {
                 "title": title,
-                "start_at": ev.start_at.isoformat() if ev.start_at else None,
-                "end_at": ev.end_at.isoformat() if ev.end_at else None,
+                # Clamped start/end (not raw ev.*) so the displayed range matches
+                # the counted `hours` for boundary-spanning meetings. For the
+                # common in-week case these equal the raw event times.
+                "start_at": start.isoformat(),
+                "end_at": end.isoformat(),
                 "hours": _num(hours),
             }
         )
