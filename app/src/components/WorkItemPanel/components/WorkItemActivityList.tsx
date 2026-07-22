@@ -77,6 +77,7 @@ const UNASSIGNED = new Set(['—', 'Unassigned', '']);
 const headlineFor = (a: ActivityResponse, changes: FieldChange[]): string | null => {
   const status = changes.find((c) => c.field === 'status');
   const assignee = changes.find((c) => c.field === 'assignee');
+  const sprint = changes.find((c) => c.field === 'sprint');
 
   if (assignee) {
     const from = fmtValue(assignee.old_value);
@@ -87,6 +88,7 @@ const headlineFor = (a: ActivityResponse, changes: FieldChange[]): string | null
     return `Transferred from ${from} to ${to}`;
   }
   if (status) return `Moved to ${fmtValue(status.new_value)}`;
+  if (sprint) return `Moved to ${fmtValue(sprint.new_value)}`;
   if (a.action === 'created') return 'Created this ticket';
   if (a.action === 'deleted') return 'Deleted this ticket';
   return null;

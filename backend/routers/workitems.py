@@ -147,6 +147,20 @@ def _json_safe(value):
     return str(value)
 
 
+def _audit_value(db: Session, field: str, value):
+    """Resolve foreign-key fields (epic/parent/sprint) to a human label for the
+    Activity feed, so a diff reads "Epic: — → PROJ-12" instead of a raw id."""
+    if value is None:
+        return None
+    if field in ("epic_id", "parent_id"):
+        row = db.query(WorkItem.key).filter(WorkItem.id == value).first()
+        return row.key if row else _json_safe(value)
+    if field == "sprint_id":
+        row = db.query(Sprint.name).filter(Sprint.id == value).first()
+        return row.name if row else _json_safe(value)
+    return _json_safe(value)
+
+
 def update_epic_hours(epic_id: int, db: Session):
     """
     Roll up estimated_hours, logged_hours, and remaining_hours into the epic
@@ -992,6 +1006,25 @@ def create_work_item(
         title=f"Created {key}: {item.title}",
     )
     db.add(activity)
+
+    # Surface the creation in the PARENT's activity feed too — otherwise
+    # "added a subtask / test case" never shows when viewing the parent story.
+    if work_item.parent_id:
+        _child_label = {
+            WorkItemType.SUBTASK.value: "subtask",
+            WorkItemType.TEST_CASE.value: "test case",
+        }.get(work_item.type, "child item")
+        db.add(
+            ActivityLog(
+                project_id=item.project_id,
+                user_id=current_user.id,
+                action="updated",
+                entity_type="work_item",
+                entity_id=work_item.parent_id,
+                title=f"Added {_child_label} {key}: {item.title}",
+            )
+        )
+
     db.commit()
     db.refresh(work_item)
 
@@ -1366,7 +1399,11 @@ def update_work_item(
                 title=f"Updated {item.key}: " + ", ".join(_audit_label(f) for f in audit_changes),
                 details={
                     "changes": [
-                        {"field": f, "old_value": _json_safe(o), "new_value": _json_safe(n)}
+                        {
+                            "field": f,
+                            "old_value": _audit_value(db, f, o),
+                            "new_value": _audit_value(db, f, n),
+                        }
                         for f, (o, n) in audit_changes.items()
                     ]
                 },
@@ -2495,10 +2532,14 @@ def move_ticket_to_sprint(
             detail="This ticket is marked done. Re-open it before moving sprints.",
         )
 
+    old_sprint_id = item.sprint_id
+    old_sprint_name = item.sprint.name if item.sprint_id and item.sprint else "Backlog"
+
     # If moving to backlog
     if request.target_sprint_id is None:
         item.sprint_id = None
         item.status = WorkItemStatus.BACKLOG.value
+        new_sprint_name = "Backlog"
     else:
         # Verify sprint exists and belongs to same project
         sprint = (
@@ -2512,11 +2553,38 @@ def move_ticket_to_sprint(
             )
 
         item.sprint_id = request.target_sprint_id
+        new_sprint_name = sprint.name
         # If item was in backlog, move to todo
         if item.status == WorkItemStatus.BACKLOG.value:
             item.status = WorkItemStatus.TODO.value
 
     item.updated_at = utcnow()
+
+    # Record the move in the Activity feed (this endpoint bypasses the general
+    # edit-audit in update_work_item). Only when the sprint actually changed.
+    if old_sprint_id != item.sprint_id:
+        from models.activity_log import ActivityLog
+
+        db.add(
+            ActivityLog(
+                project_id=item.project_id,
+                user_id=current_user.id,
+                action="updated",
+                entity_type="work_item",
+                entity_id=item.id,
+                title=f"Moved to {new_sprint_name}",
+                details={
+                    "changes": [
+                        {
+                            "field": "sprint",
+                            "old_value": old_sprint_name,
+                            "new_value": new_sprint_name,
+                        }
+                    ]
+                },
+            )
+        )
+
     db.commit()
     db.refresh(item)
 

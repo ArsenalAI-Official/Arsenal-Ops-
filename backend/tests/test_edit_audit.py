@@ -46,8 +46,12 @@ from models.user import User
 from models.work_item import WorkItem
 from routers.workitems import (
     BatchStatusUpdate,
+    MoveTicketRequest,
+    WorkItemCreate,
     WorkItemUpdate,
     batch_update_status,
+    create_work_item,
+    move_ticket_to_sprint,
     update_work_item,
 )
 
@@ -203,3 +207,109 @@ def test_batch_status_change_is_audited_without_comment(db, seed):
     )
     assert _comments(db, seed["item"]) == []
     assert any(a.action == "updated" for a in _activities(db, seed["item"]))
+
+
+def _activities_by_id(db, entity_id):
+    return (
+        db.query(ActivityLog)
+        .filter(ActivityLog.entity_type == "work_item", ActivityLog.entity_id == entity_id)
+        .all()
+    )
+
+
+def _create(db, actor, **fields):
+    return create_work_item(
+        item=WorkItemCreate(**fields),
+        background_tasks=BackgroundTasks(),
+        db=db,
+        current_user=actor,
+    )
+
+
+def test_move_to_sprint_records_activity(db, seed):
+    from models.sprint import Sprint
+
+    sprint_row = Sprint(project_id=seed["project"].id, name="Sprint 2", status="planned")
+    db.add(sprint_row)
+    db.commit()
+
+    move_ticket_to_sprint(
+        item_id=seed["item"].id,
+        request=MoveTicketRequest(target_sprint_id=sprint_row.id),
+        db=db,
+        current_user=seed["user"],
+    )
+    moves = [
+        a
+        for a in _activities(db, seed["item"])
+        if a.details and any(c["field"] == "sprint" for c in a.details.get("changes", []))
+    ]
+    assert len(moves) == 1
+    assert moves[0].title == "Moved to Sprint 2"
+    assert moves[0].details["changes"][0]["new_value"] == "Sprint 2"
+
+
+def test_move_to_backlog_records_activity(db, seed):
+    from models.sprint import Sprint
+
+    sprint_row = Sprint(project_id=seed["project"].id, name="Sprint 2", status="planned")
+    db.add(sprint_row)
+    db.commit()
+    seed["item"].sprint_id = sprint_row.id
+    db.commit()
+
+    move_ticket_to_sprint(
+        item_id=seed["item"].id,
+        request=MoveTicketRequest(target_sprint_id=None),
+        db=db,
+        current_user=seed["user"],
+    )
+    moves = [
+        a
+        for a in _activities(db, seed["item"])
+        if a.details and any(c["field"] == "sprint" for c in a.details.get("changes", []))
+    ]
+    assert len(moves) == 1
+    assert moves[0].title == "Moved to Backlog"
+
+
+def test_creating_subtask_records_activity_on_parent(db, seed):
+    parent = seed["item"]  # a task
+    child = _create(
+        db,
+        seed["user"],
+        type="subtask",
+        title="Do the thing",
+        project_id=seed["project"].id,
+        parent_id=parent.id,
+    )
+    parent_acts = _activities_by_id(db, parent.id)
+    added = [a for a in parent_acts if a.title.startswith("Added subtask")]
+    assert len(added) == 1
+    assert child["key"] in added[0].title
+    # The child itself still gets its own "Created" entry.
+    assert any(a.action == "created" for a in _activities_by_id(db, int(child["id"])))
+
+
+def test_epic_tag_resolves_to_key_in_activity(db, seed):
+    epic = WorkItem(
+        project_id=seed["project"].id,
+        type="epic",
+        key="P-EPIC",
+        title="Login Epic",
+        status="todo",
+        priority="medium",
+    )
+    db.add(epic)
+    db.commit()
+
+    _update(db, seed["item"], seed["user"], epic_id=epic.id)
+    epic_acts = [
+        a
+        for a in _edit_activities(db, seed["item"])
+        if any(c["field"] == "epic_id" for c in a.details["changes"])
+    ]
+    assert len(epic_acts) == 1
+    change = next(c for c in epic_acts[0].details["changes"] if c["field"] == "epic_id")
+    # Friendly key, not the raw numeric id.
+    assert change["new_value"] == "P-EPIC"
