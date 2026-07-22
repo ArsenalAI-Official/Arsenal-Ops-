@@ -59,6 +59,38 @@ class RoadmapCommitRequest(BaseModel):
     parsed_data: dict[str, Any]
 
 
+class RebalanceTicketIn(BaseModel):
+    """The subset of a roadmap ticket the sprint partitioner needs. Extra
+    fields the preview carries (description, priority, …) are ignored."""
+
+    name: str
+    effort_hrs: float | None = None
+    week_hours: dict[str, float] = {}
+    active_weeks: list[str] = []
+
+
+class RebalanceSprintsRequest(BaseModel):
+    weeks: list[str]  # sorted 'YYYY-MM-DD' Mondays (fixed project work-weeks)
+    durations: list[int]  # per-sprint target week counts (in order)
+    tickets: list[RebalanceTicketIn] = []
+    default_weeks: int = 2  # fills in once `durations` is exhausted
+
+
+class RebalanceSprintOut(BaseModel):
+    number: int
+    start_week: str
+    end_week: str
+    duration_weeks: int
+    week_dates: list[str]
+    tasks: list[str]
+    task_count: int
+    total_hours: float
+
+
+class RebalanceSprintsResponse(BaseModel):
+    sprints: list[RebalanceSprintOut]
+
+
 def get_next_work_item_number(db: Session, key_prefix: str) -> int:
     """Get the next work item number for a key prefix. Delegates to the shared
     routers.workitems helper so the Postgres-vs-SQLite split stays in one place.
@@ -560,3 +592,23 @@ def commit_roadmap_tickets(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to commit roadmap: {e!s}") from e
+
+
+@router.post("/rebalance-sprints", response_model=RebalanceSprintsResponse)
+def rebalance_roadmap_sprints(
+    request: RebalanceSprintsRequest,
+    current_user: User = Depends(require_capability("project.ai.write")),
+):
+    """Re-partition the roadmap's fixed work-weeks into sprints of the given
+    per-sprint lengths, re-assigning each task to a single sprint (full effort).
+
+    Pure compute, no DB: powers the roadmap-preview "weeks per sprint" stepper so
+    preview and commit run the SAME partitioning code (``parser.rebalance_sprints``)
+    and can't drift. The stepper sends the fixed week list, the edited per-sprint
+    durations, and the tickets; it gets back the recomputed sprint schedule.
+    """
+    from parser import rebalance_sprints
+
+    tickets = [t.model_dump() for t in request.tickets]
+    sprints = rebalance_sprints(request.weeks, request.durations, tickets, request.default_weeks)
+    return {"sprints": sprints}

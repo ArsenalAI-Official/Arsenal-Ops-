@@ -3460,6 +3460,154 @@
         "title": "PulseOverridePayload",
         "type": "object"
       },
+      "RebalanceSprintOut": {
+        "properties": {
+          "duration_weeks": {
+            "title": "Duration Weeks",
+            "type": "integer"
+          },
+          "end_week": {
+            "title": "End Week",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "start_week": {
+            "title": "Start Week",
+            "type": "string"
+          },
+          "task_count": {
+            "title": "Task Count",
+            "type": "integer"
+          },
+          "tasks": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tasks",
+            "type": "array"
+          },
+          "total_hours": {
+            "title": "Total Hours",
+            "type": "number"
+          },
+          "week_dates": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Week Dates",
+            "type": "array"
+          }
+        },
+        "required": [
+          "number",
+          "start_week",
+          "end_week",
+          "duration_weeks",
+          "week_dates",
+          "tasks",
+          "task_count",
+          "total_hours"
+        ],
+        "title": "RebalanceSprintOut",
+        "type": "object"
+      },
+      "RebalanceSprintsRequest": {
+        "properties": {
+          "default_weeks": {
+            "default": 2,
+            "title": "Default Weeks",
+            "type": "integer"
+          },
+          "durations": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Durations",
+            "type": "array"
+          },
+          "tickets": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RebalanceTicketIn"
+            },
+            "title": "Tickets",
+            "type": "array"
+          },
+          "weeks": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Weeks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "weeks",
+          "durations"
+        ],
+        "title": "RebalanceSprintsRequest",
+        "type": "object"
+      },
+      "RebalanceSprintsResponse": {
+        "properties": {
+          "sprints": {
+            "items": {
+              "$ref": "#/components/schemas/RebalanceSprintOut"
+            },
+            "title": "Sprints",
+            "type": "array"
+          }
+        },
+        "required": [
+          "sprints"
+        ],
+        "title": "RebalanceSprintsResponse",
+        "type": "object"
+      },
+      "RebalanceTicketIn": {
+        "description": "The subset of a roadmap ticket the sprint partitioner needs. Extra\nfields the preview carries (description, priority, \u2026) are ignored.",
+        "properties": {
+          "active_weeks": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Active Weeks",
+            "type": "array"
+          },
+          "effort_hrs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effort Hrs"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "week_hours": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "default": {},
+            "title": "Week Hours",
+            "type": "object"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "RebalanceTicketIn",
+        "type": "object"
+      },
       "RoadmapCommitRequest": {
         "properties": {
           "parsed_data": {
@@ -11762,6 +11910,53 @@
           }
         ],
         "summary": "Parse Roadmap File",
+        "tags": [
+          "Roadmap"
+        ]
+      }
+    },
+    "/api/roadmap/rebalance-sprints": {
+      "post": {
+        "description": "Re-partition the roadmap's fixed work-weeks into sprints of the given\nper-sprint lengths, re-assigning each task to a single sprint (full effort).\n\nPure compute, no DB: powers the roadmap-preview \"weeks per sprint\" stepper so\npreview and commit run the SAME partitioning code (``parser.rebalance_sprints``)\nand can't drift. The stepper sends the fixed week list, the edited per-sprint\ndurations, and the tickets; it gets back the recomputed sprint schedule.",
+        "operationId": "rebalance_roadmap_sprints_api_roadmap_rebalance_sprints_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RebalanceSprintsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RebalanceSprintsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Rebalance Roadmap Sprints",
         "tags": [
           "Roadmap"
         ]

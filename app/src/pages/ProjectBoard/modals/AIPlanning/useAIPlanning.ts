@@ -1,7 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, useRef, useCallback, Dispatch, SetStateAction } from 'react';
 import { toast } from 'sonner';
-import type { ProjectArchitectureResponse, PrdAnalysisResponse } from '@/client';
+import type {
+  ProjectArchitectureResponse,
+  PrdAnalysisResponse,
+  RebalanceSprintsResponse,
+} from '@/client';
 import { apiFetch } from '@/lib/api';
 import { invalidateProjectScope } from '@/lib/invalidations';
 import { toastErrorHandler } from '@/lib/mutationToast';
@@ -83,92 +87,6 @@ export interface RoadmapTicket {
   week_hours?: Record<string, number>;
   /** Weeks the task has any work in. */
   active_weeks?: string[];
-}
-
-const MS_PER_DAY = 86_400_000;
-const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
-
-/**
- * Re-partition the project's fixed, ordered work-weeks into sprints of the
- * given per-sprint week counts, then re-assign each task to the sprint whose
- * weeks it has hours in. Client mirror of the backend `calculate_sprints`: when
- * a sprint's length changes the week boundaries move and the tasks + hours
- * follow — a week pushed into another sprint takes its tasks with it. A sprint
- * never spans a calendar gap (a >7-day jump between weeks forces a boundary).
- */
-function rebalanceSprints(
-  weeks: string[],
-  durations: number[],
-  tickets: RoadmapTicket[],
-  defaultWeeks: number,
-): RoadmapSprint[] {
-  if (weeks.length === 0) return [];
-  const chunks: string[][] = [];
-  let i = 0;
-  let d = 0;
-  while (i < weeks.length) {
-    const target = Math.max(1, durations[d] ?? defaultWeeks);
-    const chunk = [weeks[i]!];
-    i += 1;
-    while (chunk.length < target && i < weeks.length) {
-      // Contiguous only — a calendar gap closes the sprint early.
-      if (Date.parse(weeks[i]!) - Date.parse(weeks[i - 1]!) !== 7 * MS_PER_DAY) break;
-      chunk.push(weeks[i]!);
-      i += 1;
-    }
-    chunks.push(chunk);
-    d += 1;
-  }
-  // Assign each task to a SINGLE sprint — the LAST one its work spans — and
-  // count its FULL estimate (effort_hrs) there. This mirrors commit, which
-  // gives a work item one sprint_id + one estimated_hours (last-writer-wins for
-  // a task spanning sprints), so the preview's per-sprint hours + task counts
-  // match the PM tab after creation. A spanning task's hours belong entirely to
-  // the sprint it's committed to — they are NOT split across the weeks it touches.
-  const taskNamesPerSprint: string[][] = chunks.map(() => []);
-  const hoursPerSprint: number[] = chunks.map(() => 0);
-  for (const t of tickets) {
-    let assigned = -1;
-    for (let c = 0; c < chunks.length; c += 1) {
-      const hoursInChunk = chunks[c]!.reduce((sum, w) => sum + (t.week_hours?.[w] ?? 0), 0);
-      if (hoursInChunk > 0) assigned = c; // keep the last chunk with work
-    }
-    if (assigned >= 0) {
-      taskNamesPerSprint[assigned]!.push(t.name);
-      hoursPerSprint[assigned]! += Math.trunc(t.effort_hrs ?? 0);
-    }
-  }
-  return chunks.map((wk, idx) => {
-    const uniqueTasks = Array.from(new Set(taskNamesPerSprint[idx]!));
-    return {
-      number: idx + 1,
-      start_week: wk[0]!,
-      end_week: isoDay(Date.parse(wk[wk.length - 1]!) + 4 * MS_PER_DAY),
-      duration_weeks: wk.length,
-      week_dates: wk,
-      tasks: uniqueTasks,
-      task_count: uniqueTasks.length,
-      total_hours: hoursPerSprint[idx]!,
-    };
-  });
-}
-
-/**
- * Normalize a freshly-parsed roadmap so its sprint hours/task counts use the
- * single-sprint-per-task rule above (matching commit + the PM tab). The parser
- * spreads a spanning task's hours across the weeks it touches, which over-counts
- * every sprint the task passes through; re-running the partition fixes that.
- */
-function withRebalancedSprints(parsed: RoadmapParsedData, defaultWeeks: number): RoadmapParsedData {
-  const sprints = parsed.sprints ?? [];
-  if (sprints.length === 0) return parsed;
-  const weeks = Array.from(new Set(sprints.flatMap((s) => s.week_dates ?? []))).sort();
-  if (weeks.length === 0) return parsed;
-  const durations = sprints.map((s) => s.duration_weeks);
-  return {
-    ...parsed,
-    sprints: rebalanceSprints(weeks, durations, parsed.tickets ?? [], defaultWeeks),
-  };
 }
 
 export interface RoadmapSummary {
@@ -275,27 +193,61 @@ export function useAIPlanning({
   const [sprintWeeks, setSprintWeeks] = useState<number>(2);
   const [roadmapSummary, setRoadmapSummary] = useState<RoadmapSummary | null>(null);
   const [roadmapParsedData, setRoadmapParsedData] = useState<RoadmapParsedData | null>(null);
+  // Fresh read of the parsed data for the async rebalance handler (avoids a
+  // stale closure without adding it to the callback's deps).
+  const roadmapParsedDataRef = useRef(roadmapParsedData);
+  roadmapParsedDataRef.current = roadmapParsedData;
+  // Latest-wins guard so a slow rebalance response can't clobber a newer edit.
+  const rebalanceReqId = useRef(0);
 
   // Change one sprint's length (in weeks) in the preview before commit, so a
-  // project can have sprints of DIFFERENT lengths. This re-partitions the fixed
-  // week sequence and RE-ASSIGNS tasks to the sprint their work-weeks now fall
-  // in — a week pushed into another sprint takes its tasks (and hours) with it.
-  // Commit sends `roadmapParsedData` verbatim, so the recomputed sprints persist.
+  // project can have sprints of DIFFERENT lengths. The backend re-partitions the
+  // fixed week sequence and RE-ASSIGNS each task to a single sprint (full effort)
+  // via POST /roadmap/rebalance-sprints — the SAME parser.rebalance_sprints that
+  // /commit relies on, so preview and commit can't drift. Commit sends
+  // `roadmapParsedData` verbatim, so the recomputed sprints persist.
   const setSprintDuration = useCallback(
-    (sprintNumber: number, newWeeks: number) => {
-      setRoadmapParsedData((prev) => {
-        if (!prev?.sprints || prev.sprints.length === 0) return prev;
-        // The fixed, ordered set of project work-weeks (Mondays) the parser used.
-        const weeks = Array.from(new Set(prev.sprints.flatMap((s) => s.week_dates ?? []))).sort();
-        if (weeks.length === 0) return prev; // no week data — can't re-partition
-        const durations = prev.sprints.map((s) =>
-          s.number === sprintNumber ? Math.max(1, newWeeks) : s.duration_weeks,
+    async (sprintNumber: number, newWeeks: number) => {
+      const prev = roadmapParsedDataRef.current;
+      if (!prev?.sprints || prev.sprints.length === 0) return;
+      // The fixed, ordered set of project work-weeks (Mondays) the parser used.
+      const weeks = Array.from(new Set(prev.sprints.flatMap((s) => s.week_dates ?? []))).sort();
+      if (weeks.length === 0) return; // no week data — can't re-partition
+      const clamped = Math.max(1, newWeeks);
+      const durations = prev.sprints.map((s) =>
+        s.number === sprintNumber ? clamped : s.duration_weeks,
+      );
+      // Optimistically reflect the new length so rapid consecutive edits compose
+      // off each other; the server response replaces this with the authoritative
+      // re-partition below.
+      setRoadmapParsedData((cur) =>
+        cur?.sprints
+          ? {
+              ...cur,
+              sprints: cur.sprints.map((s) =>
+                s.number === sprintNumber ? { ...s, duration_weeks: clamped } : s,
+              ),
+            }
+          : cur,
+      );
+      const reqId = (rebalanceReqId.current += 1);
+      try {
+        const res = await apiFetch<RebalanceSprintsResponse>('/api/roadmap/rebalance-sprints', {
+          method: 'POST',
+          body: JSON.stringify({
+            weeks,
+            durations,
+            tickets: prev.tickets ?? [],
+            default_weeks: sprintWeeks,
+          }),
+        });
+        if (reqId !== rebalanceReqId.current) return; // a newer edit superseded this
+        setRoadmapParsedData((cur) =>
+          cur ? { ...cur, sprints: res.sprints as RoadmapSprint[] } : cur,
         );
-        return {
-          ...prev,
-          sprints: rebalanceSprints(weeks, durations, prev.tickets ?? [], sprintWeeks),
-        };
-      });
+      } catch (err) {
+        toastErrorHandler('update sprint length')(err);
+      }
     },
     [sprintWeeks],
   );
@@ -406,10 +358,10 @@ export function useAIPlanning({
         body: formData,
       });
       setRoadmapSummary(data.summary);
-      // Normalize sprint hours/task counts to the single-sprint-per-task rule so
-      // the preview matches the PM tab after creation (the parser spreads a
-      // spanning task's hours across sprints; commit assigns it to just one).
-      setRoadmapParsedData(withRebalancedSprints(data.parsed_data, sprintWeeks));
+      // The parser now assigns each spanning task to a single sprint with its
+      // full effort (parser.calculate_sprints), so the preview already matches
+      // the PM tab after commit — no client-side rebalance needed.
+      setRoadmapParsedData(data.parsed_data);
       setAiStep('architectures'); // Reuse architectures step for summary display
       toast.success('Roadmap parsed successfully!');
     } catch (err) {

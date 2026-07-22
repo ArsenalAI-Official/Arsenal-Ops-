@@ -16,7 +16,6 @@ Usage:
 
 import argparse
 import datetime
-import itertools
 import json
 from typing import Any
 
@@ -120,83 +119,111 @@ def calculate_sprints(week_dates: list, sprint_weeks: int, tickets: list) -> dic
     if not week_dates or sprint_weeks < 1:
         return {"sprints": [], "unscheduled_tasks": [], "total_sprints": 0}
 
-    # Split the union into contiguous runs. Each run is a maximal sublist
-    # whose consecutive Mondays differ by exactly 7 days. Anything else is
-    # a calendar gap — a run boundary — and produces a fresh starting
-    # sprint instead of letting a chunk span the gap.
-    runs: list = []
-    current_run: list = [week_dates[0]]
-    for prev, nxt in itertools.pairwise(week_dates):
-        prev_date = datetime.date.fromisoformat(prev)
-        next_date = datetime.date.fromisoformat(nxt)
-        if (next_date - prev_date).days == 7:
-            current_run.append(nxt)
-        else:
-            runs.append(current_run)
-            current_run = [nxt]
-    runs.append(current_run)
+    sprints, unscheduled = _partition_and_assign(week_dates, [], tickets, sprint_weeks)
+    return {"sprints": sprints, "unscheduled_tasks": unscheduled, "total_sprints": len(sprints)}
 
-    # Chunk each run independently; number sprints globally across runs so
-    # the user sees "Sprint 1, 2, 3" rather than per-run resets.
+
+def rebalance_sprints(
+    week_dates: list, durations: list, tickets: list, default_weeks: int = 2
+) -> list:
+    """Re-partition ``week_dates`` into sprints of the given per-sprint lengths.
+
+    This is ``calculate_sprints`` with VARIABLE sprint lengths — it powers the
+    roadmap-preview "weeks per sprint" stepper, where different sprints can have
+    different durations. ``durations[i]`` is the target week-count for the i-th
+    sprint; when ``durations`` is exhausted (more chunks than entries) the
+    remaining sprints use ``default_weeks``. Task assignment is identical to
+    ``calculate_sprints`` (single sprint per task, full effort). Returns just the
+    sprint list; the stepper doesn't surface unscheduled tasks.
+    """
+    if not week_dates:
+        return []
+    sprints, _unscheduled = _partition_and_assign(week_dates, durations, tickets, default_weeks)
+    return sprints
+
+
+def _chunk_weeks(week_dates: list, durations: list, default_weeks: int) -> list:
+    """Split the ordered Monday list into consecutive week-runs of the given
+    lengths. A calendar gap (>7 days between adjacent Mondays) always closes the
+    current chunk early so a sprint never bridges an uncovered week. ``durations``
+    gives per-chunk target lengths; ``default_weeks`` fills in once it runs out.
+    Matches the frontend chunker exactly so preview == commit."""
+    chunks: list = []
+    i = 0
+    d = 0
+    n = len(week_dates)
+    while i < n:
+        raw_target = durations[d] if d < len(durations) else default_weeks
+        target = max(1, raw_target)
+        chunk = [week_dates[i]]
+        i += 1
+        while len(chunk) < target and i < n:
+            prev = datetime.date.fromisoformat(week_dates[i - 1])
+            cur = datetime.date.fromisoformat(week_dates[i])
+            if (cur - prev).days != 7:
+                break  # calendar gap — close this sprint early
+            chunk.append(week_dates[i])
+            i += 1
+        chunks.append(chunk)
+        d += 1
+    return chunks
+
+
+def _partition_and_assign(
+    week_dates: list, durations: list, tickets: list, default_weeks: int
+) -> tuple:
+    """Chunk weeks then assign each task to a SINGLE sprint with its FULL effort.
+
+    A spanning task lands in the LAST sprint its work touches — matching what
+    ``commit_roadmap_tickets`` persists (one ``sprint_id`` per work item,
+    last-writer-wins) and the PM tab's per-sprint hours. The task's whole
+    ``effort_hrs`` is counted in that one sprint, NOT split across the weeks it
+    spans (the earlier split-by-week logic over-counted every sprint a task
+    passed through). Returns ``(sprints, unscheduled)``.
+    """
+    chunks = _chunk_weeks(week_dates, durations, default_weeks)
+
     sprints = []
-    sprint_num = 1
-    for run in runs:
-        for sprint_idx in range(0, len(run), sprint_weeks):
-            sprint_week_range = run[sprint_idx : sprint_idx + sprint_weeks]
+    for idx, chunk in enumerate(chunks):
+        # Mondays; the sprint ends on the Friday of the last covered week.
+        last_friday = (
+            datetime.date.fromisoformat(chunk[-1]) + datetime.timedelta(days=4)
+        ).isoformat()
+        sprints.append(
+            {
+                "number": idx + 1,
+                "start_week": chunk[0],
+                "end_week": last_friday,
+                "duration_weeks": len(chunk),
+                "week_dates": chunk,
+                "tasks": [],
+                "total_hours": 0,
+            }
+        )
 
-            # week_dates entries are Mondays; the sprint ends on the Friday
-            # of the last covered week (Monday + 4 days).
-            last_monday = sprint_week_range[-1]
-            last_friday = (
-                datetime.date.fromisoformat(last_monday) + datetime.timedelta(days=4)
-            ).isoformat()
-
-            sprints.append(
-                {
-                    "number": sprint_num,
-                    "start_week": sprint_week_range[0],
-                    "end_week": last_friday,
-                    "duration_weeks": len(sprint_week_range),
-                    "week_dates": sprint_week_range,
-                    "tasks": [],
-                    "total_hours": 0.0,
-                }
-            )
-            sprint_num += 1
-
-    # Assign tasks to sprints
     unscheduled = []
     for task in tickets:
-        if not task.get("active_weeks") or len(task["active_weeks"]) == 0:
+        if not task.get("active_weeks"):
             unscheduled.append({"name": task["name"], "reason": "no weeks scheduled"})
             continue
 
-        # Find which sprints this task touches
-        task_assigned = False
+        week_hours = task.get("week_hours") or {}
+        assigned = None
         for sprint in sprints:
-            sprint_weeks_set = set(sprint["week_dates"])
-            task_weeks_set = set(task["active_weeks"])
+            if sum(week_hours.get(w, 0) for w in sprint["week_dates"]) > 0:
+                assigned = sprint  # keep the LAST sprint the task has work in
 
-            # If task has hours in any week of this sprint, add it to sprint
-            if sprint_weeks_set & task_weeks_set:
-                hours_in_sprint = sum(
-                    task.get("week_hours", {}).get(w, 0) for w in sprint["week_dates"]
-                )
-                if hours_in_sprint > 0:
-                    sprint["tasks"].append(task["name"])
-                    sprint["total_hours"] += hours_in_sprint
-                    task_assigned = True
-
-        if not task_assigned and task.get("week_hours"):
-            # Task has week_hours but they didn't match any sprint (shouldn't happen with correct logic)
+        if assigned is not None:
+            assigned["tasks"].append(task["name"])
+            assigned["total_hours"] += int(task.get("effort_hrs") or 0)
+        elif week_hours:
             unscheduled.append({"name": task["name"], "reason": "hours outside sprint boundaries"})
 
-    # Remove duplicate task names in each sprint
     for sprint in sprints:
-        sprint["tasks"] = list(set(sprint["tasks"]))
+        sprint["tasks"] = sorted(set(sprint["tasks"]))
         sprint["task_count"] = len(sprint["tasks"])
 
-    return {"sprints": sprints, "unscheduled_tasks": unscheduled, "total_sprints": len(sprints)}
+    return sprints, unscheduled
 
 
 # ── Core parser ───────────────────────────────────────────────────────────────
