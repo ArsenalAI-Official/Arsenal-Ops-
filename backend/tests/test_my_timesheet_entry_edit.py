@@ -516,18 +516,18 @@ def test_delete_propagates_to_epic(db):
 
 
 # ============================================================
-# Auto-comment sync — the "Logged Xh" comment created by log-hours
-# must follow the entry through edit and delete.
+# Logged hours no longer create a comment — the hours surface via the ticket's
+# Time Entries table. These tests pin that: log-hours writes NO comment, editing
+# an entry touches NO comments, and the legacy FK cascade still holds for any
+# pre-existing linked comments.
 # ============================================================
 
 
 def _make_linked_comment(db, wi, dev_id, time_entry_id, hours):
-    """Stand-in for the auto-comment that `POST /log-hours` creates.
+    """Stand-in for a LEGACY auto-comment (log-hours no longer creates these).
 
-    Used by the sync tests so they can exercise edit/delete without
-    going through the full work-item creation path (which requires a
-    valid assignee + work item status). Mirrors the shape produced by
-    `routers/workitems.py:log_hours` line ~1710.
+    Kept so the "editing touches no comments" and FK-cascade tests can seed the
+    shape older data has: a Comment linked to a TimeEntry via `time_entry_id`.
     """
     from models.comment import Comment
 
@@ -543,12 +543,10 @@ def _make_linked_comment(db, wi, dev_id, time_entry_id, hours):
     return c
 
 
-def test_log_hours_links_auto_comment_to_time_entry(db, monkeypatch):
-    """End-to-end: calling POST /log-hours creates a Comment whose
-    `time_entry_id` matches the freshly created TimeEntry's id and
-    whose content is the formatted "Logged Xh" string."""
+def test_log_hours_creates_no_comment(db, monkeypatch):
+    """Logging hours must NOT create a comment — the hours are shown via the
+    ticket's Time Entries table, not the comment thread."""
     from models.comment import Comment
-    from models.time_entry import TimeEntry
     from routers.workitems import LogHoursRequest, log_hours
 
     # Pin the guard's clock to a weekday so the no-date log-hours path isn't
@@ -559,47 +557,19 @@ def test_log_hours_links_auto_comment_to_time_entry(db, monkeypatch):
     proj = _make_project(db)
     wi = _make_wi(db, proj.id, dev.id)
 
-    res = log_hours(
+    log_hours(
         item_id=wi.id,
         request=LogHoursRequest(hours=3, description="initial work"),
         db=db,
         current_user=_make_user(),
     )
 
-    new_te_id = res["time_entry"]["id"]
-    entry = db.query(TimeEntry).filter(TimeEntry.id == new_te_id).one()
-    comments = db.query(Comment).filter(Comment.work_item_id == wi.id).all()
-    log_comments = [c for c in comments if (c.content or "").startswith("Logged ")]
-    assert len(log_comments) == 1
-    assert log_comments[0].time_entry_id == entry.id
-    assert log_comments[0].content == "Logged 3h"
+    assert db.query(Comment).filter(Comment.work_item_id == wi.id).count() == 0
 
 
-def test_edit_syncs_linked_auto_comment_content(db):
-    """Editing the entry's hours must update the linked Comment's text."""
-    from routers.developers import TimesheetEntryEditRequest, edit_my_timesheet_entry
-
-    dev = _make_dev(db)
-    proj = _make_project(db)
-    wi = _make_wi(db, proj.id, dev.id)
-    entry = _make_te(db, wi, dev.id, hours=4)
-    linked = _make_linked_comment(db, wi, dev.id, entry.id, 4)
-
-    edit_my_timesheet_entry(
-        entry_id=entry.id,
-        body=TimesheetEntryEditRequest(hours=7),
-        db=db,
-        current_user=_make_user(),
-    )
-
-    db.refresh(linked)
-    assert linked.content == "Logged 7h"
-    # Link itself stays intact — same row, same FK, just updated content.
-    assert linked.time_entry_id == entry.id
-
-
-def test_edit_does_not_touch_unrelated_comments(db):
-    """Manual comments + auto-comments for OTHER entries must be untouched."""
+def test_edit_does_not_touch_comments(db):
+    """Editing an entry must not modify ANY comments — no more sync. Legacy
+    linked comments and manual comments are left exactly as they were."""
     from models.comment import Comment
     from routers.developers import TimesheetEntryEditRequest, edit_my_timesheet_entry
 
@@ -607,13 +577,9 @@ def test_edit_does_not_touch_unrelated_comments(db):
     proj = _make_project(db)
     wi = _make_wi(db, proj.id, dev.id)
     entry = _make_te(db, wi, dev.id, hours=4)
-    other_entry = _make_te(db, wi, dev.id, hours=2)
 
-    # The auto-comment for the entry under edit.
-    linked = _make_linked_comment(db, wi, dev.id, entry.id, 4)
-    # An auto-comment for a DIFFERENT entry on the same work item.
-    other_linked = _make_linked_comment(db, wi, dev.id, other_entry.id, 2)
-    # A manual user comment (no time_entry_id) — must stay untouched.
+    # A legacy linked comment (from before this change) + a manual comment.
+    legacy = _make_linked_comment(db, wi, dev.id, entry.id, 4)
     manual = Comment(
         work_item_id=wi.id,
         author_id=dev.id,
@@ -622,8 +588,6 @@ def test_edit_does_not_touch_unrelated_comments(db):
     db.add(manual)
     db.commit()
     db.refresh(manual)
-    manual_id = manual.id
-    manual_content = manual.content
 
     edit_my_timesheet_entry(
         entry_id=entry.id,
@@ -632,12 +596,10 @@ def test_edit_does_not_touch_unrelated_comments(db):
         current_user=_make_user(),
     )
 
-    db.refresh(linked)
-    db.refresh(other_linked)
-    refreshed_manual = db.query(Comment).filter(Comment.id == manual_id).one()
-    assert linked.content == "Logged 9h"
-    assert other_linked.content == "Logged 2h"  # untouched
-    assert refreshed_manual.content == manual_content  # untouched
+    db.refresh(legacy)
+    db.refresh(manual)
+    assert legacy.content == "Logged 4h"  # untouched — no sync
+    assert manual.content == "This is a real conversation, not an auto-log."
 
 
 def test_delete_cascades_linked_auto_comment(db):

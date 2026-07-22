@@ -83,19 +83,13 @@ def _creator_dev_id(db: Session, current_user: User) -> int | None:
 
 
 # ── Edit audit trail ────────────────────────────────────────────────────────
-# Every user-facing work-item field edit is recorded so a ticket has a complete
-# history in BOTH its comment feed (side panel) and the project activity log.
-# `status` and `assignee_id` keep their own dedicated entries in
-# update_work_item; the general field-diff capture below covers everything else
-# (title, description, priority, story points, hours, dates, epic/parent/sprint,
-# type, tags, ...) for ALL work-item types, present and future.
-_STATUS_LABELS = {
-    WorkItemStatus.BACKLOG.value: "Backlog",
-    WorkItemStatus.TODO.value: "To Do",
-    WorkItemStatus.IN_PROGRESS.value: "In Progress",
-    WorkItemStatus.IN_REVIEW.value: "In Review",
-    WorkItemStatus.DONE.value: "Done",
-}
+# Every user-facing work-item field edit is recorded in the project ActivityLog
+# (surfaced in the ticket panel's Activity tab and the project Activity feed) —
+# NOT as a comment; the comment thread stays human discussion. `status` and
+# `assignee_id` keep their own dedicated activity entries in update_work_item;
+# the general field-diff capture below covers everything else (title, description,
+# priority, story points, hours, dates, epic/parent/sprint, type, tags, ...) for
+# ALL work-item types, present and future.
 
 # Handled by dedicated audit entries (status/assignee) or never applied
 # (logged/remaining hours are derived) — excluded from the general field diff.
@@ -120,33 +114,9 @@ _AUDIT_FIELD_LABELS = {
     "reporter_id": "Reporter",
 }
 
-# Values too large/opaque to inline — we note THAT they changed, not old→new.
-_AUDIT_OPAQUE_FIELDS = {"description", "tags", "acceptance_criteria", "attachments"}
-
-
-def _status_label(status: str) -> str:
-    return _STATUS_LABELS.get(status, status.replace("_", " ").title())
-
 
 def _audit_label(field: str) -> str:
     return _AUDIT_FIELD_LABELS.get(field, field.replace("_", " ").capitalize())
-
-
-def _audit_display_value(db: Session, field: str, value) -> str:
-    """Human-readable rendering of a single field value for the edit summary."""
-    if value is None or value == "" or value == []:
-        return "—"
-    if field in ("start_date", "due_date"):
-        return value.date().isoformat() if isinstance(value, datetime) else str(value)
-    if field in ("epic_id", "parent_id"):
-        ref = db.query(WorkItem.key).filter(WorkItem.id == value).first()
-        return ref.key if ref else f"#{value}"
-    if field == "sprint_id":
-        row = db.query(Sprint.name).filter(Sprint.id == value).first()
-        return row.name if row else f"#{value}"
-    if field == "type":
-        return str(value).replace("_", " ").title()
-    return str(value)
 
 
 def _json_safe(value):
@@ -158,21 +128,6 @@ def _json_safe(value):
     if value is None or isinstance(value, str | int | float | bool):
         return value
     return str(value)
-
-
-def _build_edit_summary(db: Session, changed: dict) -> str:
-    """One-line human summary of a set of {field: (old, new)} changes."""
-    parts = []
-    for field, (old, new) in changed.items():
-        label = _audit_label(field)
-        if field in _AUDIT_OPAQUE_FIELDS:
-            parts.append(f"{label} updated")
-        else:
-            parts.append(
-                f"{label}: {_audit_display_value(db, field, old)} → "
-                f"{_audit_display_value(db, field, new)}"
-            )
-    return "; ".join(parts)
 
 
 def update_epic_hours(epic_id: int, db: Session):
@@ -899,6 +854,37 @@ def get_work_item(
     return payload
 
 
+@router.get("/{item_id}/activity")
+def get_work_item_activity(
+    item_id: int,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Activity-log entries for a single work item — powers the ticket side
+    panel's Activity tab (field edits with old→new, status changes, transfers,
+    create/delete). Same shape as GET /projects/{id}/activity (ActivityResponse),
+    newest first. Gated by project access, like the project activity feed."""
+    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Work item not found")
+
+    from routers.projects import require_project_access
+
+    require_project_access(item.project_id, current_user, db)
+
+    from models.activity_log import ActivityLog
+
+    activities = (
+        db.query(ActivityLog)
+        .filter(ActivityLog.entity_type == "work_item", ActivityLog.entity_id == item_id)
+        .order_by(ActivityLog.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [a.to_dict() for a in activities]
+
+
 @router.post("/")
 def create_work_item(
     item: WorkItemCreate,
@@ -1137,7 +1123,7 @@ def update_work_item(
                     status_code=400,
                     detail=(
                         f"Can't mark epic done — {open_child.key} is still open. "
-                        "Complete every story/task/bug under this epic first."
+                        "Complete every child item under this epic first."
                     ),
                 )
         elif item.type in EPIC_CHILD_TYPES:
@@ -1244,10 +1230,10 @@ def update_work_item(
 
     item.updated_at = utcnow()
 
-    # Handle ticket transfer - create automatic comment
+    # Handle ticket transfer — recorded in the Activity feed, not as a comment.
     if "assignee_id" in update_data:
         new_assignee_id = update_data["assignee_id"]
-        # Only create comment if assignee actually changed
+        # Only record if assignee actually changed
         if new_assignee_id != old_assignee_id:
             # Stamp the transfer time so the new assignee's capacity uses remaining (not estimated)
             item.last_assigned_at = utcnow()
@@ -1263,21 +1249,7 @@ def update_work_item(
                 if new_dev:
                     new_assignee_name = new_dev.name
 
-            # Find developer associated with current user for comment author
-            author_dev = db.query(Developer).filter(Developer.email == current_user.email).first()
-            author_id = author_dev.id if author_dev else None
-
-            # Create automatic transfer comment
-            from models.comment import Comment
-
-            transfer_comment = Comment(
-                work_item_id=item.id,
-                author_id=author_id,
-                content=f"Ticket transferred from {old_assignee_name} to {new_assignee_name}.",
-            )
-            db.add(transfer_comment)
-
-            # Log activity
+            # Log activity (Activity feed only — the comment thread stays human).
             from models.activity_log import ActivityLog
 
             activity = ActivityLog(
@@ -1326,52 +1298,21 @@ def update_work_item(
         )
         db.add(activity)
 
-    # Auto-comment for every status transition — surfaces the move in the
-    # ticket's comment feed alongside the existing "Ticket transferred from X
-    # to Y" so the side panel reads as a single chronological audit trail.
-    if "status" in update_data and update_data["status"] != old_status:
-        from models.comment import Comment as _StatusComment
-        from models.developer import Developer as _AuthorDev
-
-        new_status = update_data["status"]
-        new_label = _status_label(new_status)
-
-        author = db.query(_AuthorDev).filter(_AuthorDev.email == current_user.email).first()
-        author_id = author.id if author else None
-
-        db.add(
-            _StatusComment(
-                work_item_id=item.id,
-                author_id=author_id,
-                content=f"Moved to {new_label}",
-            )
-        )
-
     # General edit audit — every OTHER changed field (title, description,
     # priority, story points, hours, dates, epic/parent/sprint, type, tags, ...)
-    # is recorded as one activity entry + one comment so nothing a user edits
-    # goes unrecorded. status/assignee are handled by their dedicated entries
-    # above and excluded from `audit_old_values`.
+    # is recorded in the Activity feed. status/assignee are handled by their
+    # dedicated activity entries above and excluded from `audit_old_values`.
     audit_changes = {
         k: (old, getattr(item, k, None))
         for k, old in audit_old_values.items()
         if old != getattr(item, k, None)
     }
     if audit_changes:
+        # Edit history goes to the ActivityLog ONLY — never a comment. The
+        # comment thread stays human discussion; field-change history lives in
+        # the activity feed (a separate view), with old→new in details.changes.
         from models.activity_log import ActivityLog as _EditActivity
-        from models.comment import Comment as _EditComment
-        from models.developer import Developer as _EditAuthorDev
 
-        _editor = (
-            db.query(_EditAuthorDev).filter(_EditAuthorDev.email == current_user.email).first()
-        )
-        db.add(
-            _EditComment(
-                work_item_id=item.id,
-                author_id=_editor.id if _editor else None,
-                content=f"Edited — {_build_edit_summary(db, audit_changes)}",
-            )
-        )
         db.add(
             _EditActivity(
                 project_id=item.project_id,
@@ -1603,13 +1544,6 @@ def batch_update_status(
 
     # Audit author (the Developer row for the acting user), resolved once.
     from models.activity_log import ActivityLog as _BatchActivity
-    from models.comment import Comment as _BatchComment
-    from models.developer import Developer as _BatchAuthorDev
-
-    _batch_author = (
-        db.query(_BatchAuthorDev).filter(_BatchAuthorDev.email == current_user.email).first()
-    )
-    _batch_author_id = _batch_author.id if _batch_author else None
 
     for item in items:
         old_status = item.status
@@ -1620,9 +1554,8 @@ def batch_update_status(
             item.completed_at = utcnow()
         item.updated_at = utcnow()
 
-        # Capture the status change in the audit trail (activity + comment),
-        # matching the single-item update path — bulk edits were previously
-        # silent.
+        # Record the status change in the Activity feed (bulk edits were
+        # previously silent). No comment — the comment thread stays human.
         if old_status != update.status:
             action = "completed" if update.status == WorkItemStatus.DONE.value else "updated"
             db.add(
@@ -1633,13 +1566,6 @@ def batch_update_status(
                     entity_type="work_item",
                     entity_id=item.id,
                     title=f"{action.capitalize()} {item.key}: {item.title}",
-                )
-            )
-            db.add(
-                _BatchComment(
-                    work_item_id=item.id,
-                    author_id=_batch_author_id,
-                    content=f"Moved to {_status_label(update.status)}",
                 )
             )
 
@@ -1954,31 +1880,8 @@ def log_hours(
     db.add(time_entry)
     db.flush()  # ensure the new TimeEntry is visible to the sum query below
 
-    # Auto-comment: surfaces the log event in the ticket's comments feed
-    # alongside the existing "Ticket transferred from X to Y" comments so
-    # users see a single chronological audit trail in the side panel.
-    from models.comment import Comment as _LogComment
-
-    log_comment_kwargs: dict[str, Any] = {
-        "work_item_id": item_id,
-        "author_id": developer.id if developer else None,
-        "content": f"Logged {request.hours}h",
-        # Link the auto-comment to its TimeEntry so the dev's edit/
-        # delete actions in the Review-and-Submit modal can keep it
-        # in sync. CASCADE on the FK auto-removes the comment when
-        # the entry is deleted; the edit endpoint mutates `content`
-        # directly. See `routers/developers.py`.
-        "time_entry_id": time_entry.id,
-    }
-    # When the entry is back-dated via `logged_at` (the modal's "+ Add
-    # entry" affordance), stamp the auto-comment with the same date so
-    # the ticket's comment feed shows the day the hours were logged for,
-    # not the day the row happened to be created. Default path (no
-    # `logged_at`) leaves Comment.created_at = NOW().
-    if resolved_logged_at is not None:
-        log_comment_kwargs["created_at"] = resolved_logged_at
-
-    db.add(_LogComment(**log_comment_kwargs))
+    # No auto-comment for logged hours — the hours are surfaced by the ticket's
+    # Time Entries table (from the TimeEntry rows), not the comment thread.
 
     # Recompute logged_hours from the live TimeEntry sum instead of `+=`.
     # The naive accumulator drifts whenever ANYTHING else has touched the column
@@ -2871,12 +2774,13 @@ def get_project_analytics(
             }
         )
 
-    # Burndown data (last 14 days by default). The Tracker tab's range filter
-    # uses the dedicated /burndown endpoint for other windows.
+    # Burndown data — last 14 days (today + the prior 13 = 14 points). Matches
+    # the /burndown endpoint's default window so the two never disagree. The
+    # Tracker tab's range filter uses /burndown for other windows.
     from datetime import timedelta
 
     _today = utcnow().date()
-    burndown_data = _compute_burndown(items, _today - timedelta(days=14), _today)
+    burndown_data = _compute_burndown(items, _today - timedelta(days=13), _today)
 
     # Team performance (by assignee)
     assignee_stats: dict[int, dict[str, Any]] = {}
@@ -2926,6 +2830,14 @@ def get_project_burndown(
     (this week / this month / last week / last month / custom).
     """
     from datetime import date, timedelta
+
+    # This burndown powers the read-only Project Tracker tab, so gate it on that
+    # tab's read permission — the `project.tracker.analytics` capability (which
+    # `project.tracker.*` grants). Anyone who can view the Tracker tab can load
+    # it; anyone who can't is blocked. Checked before the 404 so a caller without
+    # tracker access can't enumerate project existence via this endpoint.
+    if not current_user.has_capability("project.tracker.analytics"):
+        raise HTTPException(status_code=403, detail="Do not have permission")
 
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:

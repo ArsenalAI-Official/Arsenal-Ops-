@@ -1,8 +1,8 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ExternalLink, Pencil } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { toast } from 'sonner';
-import type { SprintResponse } from '@/client';
+import type { ActivityResponse, SprintResponse } from '@/client';
 import type { ProjectDeveloperEntry } from '@/client';
 import CommentThread from '@/components/CommentThread';
 import TicketContributors from '@/components/TicketContributors';
@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
 import { AddSubtaskModal } from './AddSubtaskModal';
 import { AddTestCaseModal } from './AddTestCaseModal';
+import { WorkItemActivityList } from './components/WorkItemActivityList';
 import { WorkItemCompactEditForm } from './components/WorkItemCompactEditForm';
 import { WorkItemCompactHierarchy } from './components/WorkItemCompactHierarchy';
 import { WorkItemFullEditForm } from './components/WorkItemFullEditForm';
@@ -74,6 +75,16 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
 
   const [showAddSubtaskModal, setShowAddSubtaskModal] = useState(false);
   const [showAddTestCaseModal, setShowAddTestCaseModal] = useState(false);
+
+  // Ticket panel discussion tabs: Comments (default) | Activity. The activity
+  // feed is fetched lazily when its tab is first opened, and refetches on
+  // reopen (staleTime 0) so it reflects edits made in the meantime.
+  const [panelTab, setPanelTab] = useState<'comments' | 'activity'>('comments');
+  const activityQuery = useQuery({
+    queryKey: ['workItem', item.id, 'activity'],
+    queryFn: () => apiFetch<ActivityResponse[]>(`/api/workitems/${item.id}/activity`),
+    enabled: panelTab === 'activity' && !!item.id,
+  });
 
   // Comment input + @mention state is owned by the shared <CommentThread>.
 
@@ -263,28 +274,51 @@ const WorkItemPanel = (props: WorkItemPanelProps) => {
       <WorkItemCompactHierarchy item={item} onOpenInBoard={props.onOpenInBoard} />
     ) : null;
 
-  // Comments block — shared CommentThread; `full` variant exposes
-  // blocker / business-review chips.
+  // Discussion block — Comments (human) and Activity (edit/status/transfer
+  // history from the ActivityLog) as two tabs. Comments is the default; edits
+  // no longer pollute the comment thread (they live in Activity).
+  const tabButton = (tab: 'comments' | 'activity', label: string) => (
+    <button
+      type="button"
+      onClick={() => setPanelTab(tab)}
+      aria-pressed={panelTab === tab}
+      className={`text-xs font-semibold uppercase tracking-wider pb-1.5 border-b-2 transition-colors ${
+        panelTab === tab
+          ? 'text-[#E0B954] border-[#E0B954]'
+          : 'text-[#8A8A8A] border-transparent hover:text-white'
+      }`}
+    >
+      {label}
+    </button>
+  );
   const commentsNode = (
     <div className="pt-4 border-t border-[rgba(255,255,255,0.05)]">
-      <div className="text-xs text-[#8A8A8A] mb-3 font-semibold uppercase tracking-wider">
-        Activity &amp; Comments
+      <div className="flex items-center gap-5 mb-3">
+        {tabButton('comments', 'Comments')}
+        {tabButton('activity', 'Activity')}
       </div>
-      <CommentThread
-        comments={comments}
-        allDevelopers={allDevelopers}
-        isPosting={submitComment.isPending}
-        onSubmit={(content, type) => submitComment.mutate({ content, type })}
-        variant="full"
-        // Per-comment Resolve gated on the same write cap as bulk Unblock.
-        // Hidden entirely for read-only viewers — they won't see the pill.
-        onResolveComment={
-          canWriteTracker ? (commentId) => resolveCommentMutation.mutate(commentId) : undefined
-        }
-        resolvingCommentId={
-          resolveCommentMutation.isPending ? (resolveCommentMutation.variables ?? null) : null
-        }
-      />
+      {panelTab === 'comments' ? (
+        <CommentThread
+          comments={comments}
+          allDevelopers={allDevelopers}
+          isPosting={submitComment.isPending}
+          onSubmit={(content, type) => submitComment.mutate({ content, type })}
+          variant="full"
+          // Per-comment Resolve gated on the same write cap as bulk Unblock.
+          // Hidden entirely for read-only viewers — they won't see the pill.
+          onResolveComment={
+            canWriteTracker ? (commentId) => resolveCommentMutation.mutate(commentId) : undefined
+          }
+          resolvingCommentId={
+            resolveCommentMutation.isPending ? (resolveCommentMutation.variables ?? null) : null
+          }
+        />
+      ) : (
+        <WorkItemActivityList
+          activities={activityQuery.data ?? []}
+          loading={activityQuery.isLoading}
+        />
+      )}
     </div>
   );
 

@@ -421,18 +421,8 @@ def edit_my_timesheet_entry(
                 ),
             )
         entry.hours = body.hours
-        # Keep the auto-comment created by `POST /log-hours` in sync —
-        # otherwise the work-item side panel keeps showing "Logged 2h"
-        # after we edit to 6h. The link is via `Comment.time_entry_id`
-        # (added in this branch); a loop tolerates the rare edge case
-        # of multiple linked comments. Manual comments stay untouched
-        # because they have `time_entry_id IS NULL`.
-        from models.comment import Comment as _LinkedComment
-
-        for linked_comment in (
-            db.query(_LinkedComment).filter(_LinkedComment.time_entry_id == entry.id).all()
-        ):
-            linked_comment.content = f"Logged {entry.hours}h"
+        # No linked comment to sync — logged hours are surfaced via the ticket's
+        # Time Entries table, not the comment thread.
 
     if body.description is not None:
         # Allow clearing the description by passing an empty string —

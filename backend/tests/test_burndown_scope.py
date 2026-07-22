@@ -44,9 +44,9 @@ def test_items_created_today_not_counted_on_past_days(db, admin_user):
     db.commit()
 
     bd = get_project_analytics(project.id, db=db, current_user=user)["burndown_data"]
-    assert len(bd) == 15  # 14 days ago … today
+    assert len(bd) == 14  # last 14 days: today + prior 13
 
-    # 14 days ago: neither ticket existed → nothing remaining, nothing done.
+    # 13 days ago: neither ticket existed → nothing remaining, nothing done.
     assert bd[0]["remaining"] == 0
     assert bd[0]["completed"] == 0
 
@@ -64,10 +64,10 @@ def test_remaining_appears_only_from_creation_day(db, admin_user):
     db.commit()
 
     bd = get_project_analytics(project.id, db=db, current_user=user)["burndown_data"]
-    # bd[j] is (14 - j) days ago.
-    assert bd[0]["remaining"] == 0  # 14 days ago — before it existed
-    assert bd[8]["remaining"] == 0  # 6 days ago — still before creation
-    assert bd[9]["remaining"] == 1  # 5 days ago — creation day
+    # 14 points; bd[j] is (13 - j) days ago.
+    assert bd[0]["remaining"] == 0  # 13 days ago — before it existed
+    assert bd[7]["remaining"] == 0  # 6 days ago — still before creation
+    assert bd[8]["remaining"] == 1  # 5 days ago — creation day
     assert bd[-1]["remaining"] == 1  # today — still open
 
 
@@ -113,3 +113,35 @@ def test_burndown_endpoint_rejects_reversed_range(db, admin_user):
             project.id, start="2026-07-10", end="2026-07-01", db=db, current_user=user
         )
     assert exc.value.status_code == 422
+
+
+def test_burndown_endpoint_allows_tracker_reader(db, dev_user):
+    """A developer has project.tracker.* (Tracker-tab read access) and can load
+    the burndown that tab renders."""
+    user, _ = dev_user
+    project = seed_project(db)
+    res = get_project_burndown(project.id, db=db, current_user=user)
+    assert "burndown_data" in res
+
+
+def test_burndown_endpoint_forbidden_without_tracker_access(db):
+    """A user with no tracker capability is blocked (IDOR guard)."""
+    from models.user import User
+    from routers.auth import get_password_hash
+
+    project = seed_project(db)
+    # No system role assigned → no capabilities at all.
+    user = User(
+        email="noaccess@test.local",
+        name="No Access",
+        role="viewer",
+        is_active=True,
+        is_first_login=False,
+        hashed_password=get_password_hash("x"),
+    )
+    db.add(user)
+    db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        get_project_burndown(project.id, db=db, current_user=user)
+    assert exc.value.status_code == 403

@@ -7486,6 +7486,40 @@ export type UpdateWorkItemApiWorkitemsItemIdPutResponses = {
   200: unknown;
 };
 
+export type GetWorkItemActivityApiWorkitemsItemIdActivityGetData = {
+  body?: never;
+  path: {
+    /**
+     * Item Id
+     */
+    item_id: number;
+  };
+  query?: {
+    /**
+     * Limit
+     */
+    limit?: number;
+  };
+  url: '/api/workitems/{item_id}/activity';
+};
+
+export type GetWorkItemActivityApiWorkitemsItemIdActivityGetErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type GetWorkItemActivityApiWorkitemsItemIdActivityGetError =
+  GetWorkItemActivityApiWorkitemsItemIdActivityGetErrors[keyof GetWorkItemActivityApiWorkitemsItemIdActivityGetErrors];
+
+export type GetWorkItemActivityApiWorkitemsItemIdActivityGetResponses = {
+  /**
+   * Successful Response
+   */
+  200: unknown;
+};
+
 export type GetItemDependenciesApiWorkitemsItemIdDependenciesGetData = {
   body?: never;
   path: {

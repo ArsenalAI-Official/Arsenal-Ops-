@@ -101,10 +101,6 @@ def _comments(db, item):
     return db.query(Comment).filter(Comment.work_item_id == item.id).all()
 
 
-def _edit_comments(db, item):
-    return [c for c in _comments(db, item) if c.content.startswith("Edited")]
-
-
 def _activities(db, item):
     return (
         db.query(ActivityLog)
@@ -113,16 +109,17 @@ def _activities(db, item):
     )
 
 
-def test_editing_a_field_creates_comment_and_activity(db, seed):
+def _edit_activities(db, item):
+    return [a for a in _activities(db, item) if a.details and "changes" in a.details]
+
+
+def test_editing_a_field_records_activity_not_comment(db, seed):
     _update(db, seed["item"], seed["user"], priority="high")
 
-    edits = _edit_comments(db, seed["item"])
-    assert len(edits) == 1
-    assert "Priority" in edits[0].content
-    assert "high" in edits[0].content
+    # No comment is written for edits — the thread stays human.
+    assert _comments(db, seed["item"]) == []
 
-    acts = _activities(db, seed["item"])
-    edit_acts = [a for a in acts if a.details and "changes" in a.details]
+    edit_acts = _edit_activities(db, seed["item"])
     assert len(edit_acts) == 1
     changed_fields = {c["field"] for c in edit_acts[0].details["changes"]}
     assert changed_fields == {"priority"}
@@ -131,39 +128,54 @@ def test_editing_a_field_creates_comment_and_activity(db, seed):
     assert change["new_value"] == "high"
 
 
-def test_multiple_fields_captured_in_one_summary(db, seed):
+def test_multiple_fields_captured_in_one_activity(db, seed):
     _update(db, seed["item"], seed["user"], title="Renamed", story_points=5)
 
-    edits = _edit_comments(db, seed["item"])
-    assert len(edits) == 1
-    assert "Title" in edits[0].content
-    assert "Story points" in edits[0].content
-
-    edit_acts = [a for a in _activities(db, seed["item"]) if a.details and "changes" in a.details]
+    assert _comments(db, seed["item"]) == []
+    edit_acts = _edit_activities(db, seed["item"])
     assert len(edit_acts) == 1
     assert {c["field"] for c in edit_acts[0].details["changes"]} == {"title", "story_points"}
 
 
 def test_no_op_edit_records_nothing(db, seed):
-    # Same values → no diff → no audit comment or activity.
+    # Same values → no diff → no activity (and never a comment).
     _update(db, seed["item"], seed["user"], priority="medium", story_points=1)
-    assert _edit_comments(db, seed["item"]) == []
-    assert [a for a in _activities(db, seed["item"]) if a.details and "changes" in a.details] == []
+    assert _comments(db, seed["item"]) == []
+    assert _edit_activities(db, seed["item"]) == []
 
 
-def test_description_change_is_opaque(db, seed):
+def test_description_change_recorded_in_activity(db, seed):
     _update(db, seed["item"], seed["user"], description="A long description body")
-    edits = _edit_comments(db, seed["item"])
-    assert len(edits) == 1
-    assert "Description updated" in edits[0].content
+    assert _comments(db, seed["item"]) == []
+    edit_acts = _edit_activities(db, seed["item"])
+    assert len(edit_acts) == 1
+    assert {c["field"] for c in edit_acts[0].details["changes"]} == {"description"}
 
 
-def test_batch_status_change_is_audited(db, seed):
-    # Bulk status changes were previously silent — now they log too.
+def test_status_change_records_activity_not_comment(db, seed):
+    _update(db, seed["item"], seed["user"], status="in_review")
+    assert _comments(db, seed["item"]) == []
+    assert any(a.action == "updated" for a in _activities(db, seed["item"]))
+
+
+def test_transfer_records_activity_not_comment(db, seed):
+    from models.developer import Developer
+
+    dev = Developer(name="Dev A", email="deva@x.com")
+    db.add(dev)
+    db.commit()
+
+    _update(db, seed["item"], seed["user"], assignee_id=dev.id)
+    assert _comments(db, seed["item"]) == []
+    assert any(a.action == "reassigned" for a in _activities(db, seed["item"]))
+
+
+def test_batch_status_change_is_audited_without_comment(db, seed):
+    # Bulk status changes log to the Activity feed — never a comment.
     batch_update_status(
         update=BatchStatusUpdate(item_ids=[str(seed["item"].id)], status="in_review"),
         db=db,
         current_user=seed["user"],
     )
-    assert any(c.content == "Moved to In Review" for c in _comments(db, seed["item"]))
+    assert _comments(db, seed["item"]) == []
     assert any(a.action == "updated" for a in _activities(db, seed["item"]))
