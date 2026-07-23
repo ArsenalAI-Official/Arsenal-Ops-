@@ -116,6 +116,7 @@ const AIPlanningModal = ({
               analysis={vm.analysis}
               roadmapSummary={vm.roadmapSummary}
               roadmapParsedData={vm.roadmapParsedData}
+              onSprintWeeksChange={vm.setSprintDuration}
               architectures={architectures}
               selectedArchitectureId={vm.selectedArchitectureId}
               onSelectArchitecture={vm.handleSelectArchitecture}

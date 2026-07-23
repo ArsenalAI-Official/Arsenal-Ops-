@@ -1967,6 +1967,103 @@ export type PulseOverridePayload = {
 };
 
 /**
+ * RebalanceSprintOut
+ */
+export type RebalanceSprintOut = {
+  /**
+   * Duration Weeks
+   */
+  duration_weeks: number;
+  /**
+   * End Week
+   */
+  end_week: string;
+  /**
+   * Number
+   */
+  number: number;
+  /**
+   * Start Week
+   */
+  start_week: string;
+  /**
+   * Task Count
+   */
+  task_count: number;
+  /**
+   * Tasks
+   */
+  tasks: Array<string>;
+  /**
+   * Total Hours
+   */
+  total_hours: number;
+  /**
+   * Week Dates
+   */
+  week_dates: Array<string>;
+};
+
+/**
+ * RebalanceSprintsRequest
+ */
+export type RebalanceSprintsRequest = {
+  /**
+   * Default Weeks
+   */
+  default_weeks?: number;
+  /**
+   * Durations
+   */
+  durations: Array<number>;
+  /**
+   * Tickets
+   */
+  tickets?: Array<RebalanceTicketIn>;
+  /**
+   * Weeks
+   */
+  weeks: Array<string>;
+};
+
+/**
+ * RebalanceSprintsResponse
+ */
+export type RebalanceSprintsResponse = {
+  /**
+   * Sprints
+   */
+  sprints: Array<RebalanceSprintOut>;
+};
+
+/**
+ * RebalanceTicketIn
+ *
+ * The subset of a roadmap ticket the sprint partitioner needs. Extra
+ * fields the preview carries (description, priority, …) are ignored.
+ */
+export type RebalanceTicketIn = {
+  /**
+   * Active Weeks
+   */
+  active_weeks?: Array<string>;
+  /**
+   * Effort Hrs
+   */
+  effort_hrs?: number | null;
+  /**
+   * Name
+   */
+  name: string;
+  /**
+   * Week Hours
+   */
+  week_hours?: {
+    [key: string]: number;
+  };
+};
+
+/**
  * RoadmapCommitRequest
  */
 export type RoadmapCommitRequest = {
@@ -6807,6 +6904,33 @@ export type ParseRoadmapFileApiRoadmapParseFilePostResponses = {
   200: unknown;
 };
 
+export type RebalanceRoadmapSprintsApiRoadmapRebalanceSprintsPostData = {
+  body: RebalanceSprintsRequest;
+  path?: never;
+  query?: never;
+  url: '/api/roadmap/rebalance-sprints';
+};
+
+export type RebalanceRoadmapSprintsApiRoadmapRebalanceSprintsPostErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type RebalanceRoadmapSprintsApiRoadmapRebalanceSprintsPostError =
+  RebalanceRoadmapSprintsApiRoadmapRebalanceSprintsPostErrors[keyof RebalanceRoadmapSprintsApiRoadmapRebalanceSprintsPostErrors];
+
+export type RebalanceRoadmapSprintsApiRoadmapRebalanceSprintsPostResponses = {
+  /**
+   * Successful Response
+   */
+  200: RebalanceSprintsResponse;
+};
+
+export type RebalanceRoadmapSprintsApiRoadmapRebalanceSprintsPostResponse =
+  RebalanceRoadmapSprintsApiRoadmapRebalanceSprintsPostResponses[keyof RebalanceRoadmapSprintsApiRoadmapRebalanceSprintsPostResponses];
+
 export type ListWorkItemsApiWorkitemsGetData = {
   body?: never;
   path?: never;
@@ -7033,6 +7157,44 @@ export type GetProjectAnalyticsApiWorkitemsProjectsProjectIdAnalyticsGetResponse
 
 export type GetProjectAnalyticsApiWorkitemsProjectsProjectIdAnalyticsGetResponse =
   GetProjectAnalyticsApiWorkitemsProjectsProjectIdAnalyticsGetResponses[keyof GetProjectAnalyticsApiWorkitemsProjectsProjectIdAnalyticsGetResponses];
+
+export type GetProjectBurndownApiWorkitemsProjectsProjectIdBurndownGetData = {
+  body?: never;
+  path: {
+    /**
+     * Project Id
+     */
+    project_id: number;
+  };
+  query?: {
+    /**
+     * Start
+     */
+    start?: string | null;
+    /**
+     * End
+     */
+    end?: string | null;
+  };
+  url: '/api/workitems/projects/{project_id}/burndown';
+};
+
+export type GetProjectBurndownApiWorkitemsProjectsProjectIdBurndownGetErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type GetProjectBurndownApiWorkitemsProjectsProjectIdBurndownGetError =
+  GetProjectBurndownApiWorkitemsProjectsProjectIdBurndownGetErrors[keyof GetProjectBurndownApiWorkitemsProjectsProjectIdBurndownGetErrors];
+
+export type GetProjectBurndownApiWorkitemsProjectsProjectIdBurndownGetResponses = {
+  /**
+   * Successful Response
+   */
+  200: unknown;
+};
 
 export type GetHoursAnalyticsApiWorkitemsProjectsProjectIdHoursAnalyticsGetData = {
   body?: never;
@@ -7446,6 +7608,40 @@ export type UpdateWorkItemApiWorkitemsItemIdPutError =
   UpdateWorkItemApiWorkitemsItemIdPutErrors[keyof UpdateWorkItemApiWorkitemsItemIdPutErrors];
 
 export type UpdateWorkItemApiWorkitemsItemIdPutResponses = {
+  /**
+   * Successful Response
+   */
+  200: unknown;
+};
+
+export type GetWorkItemActivityApiWorkitemsItemIdActivityGetData = {
+  body?: never;
+  path: {
+    /**
+     * Item Id
+     */
+    item_id: number;
+  };
+  query?: {
+    /**
+     * Limit
+     */
+    limit?: number;
+  };
+  url: '/api/workitems/{item_id}/activity';
+};
+
+export type GetWorkItemActivityApiWorkitemsItemIdActivityGetErrors = {
+  /**
+   * Validation Error
+   */
+  422: HttpValidationError;
+};
+
+export type GetWorkItemActivityApiWorkitemsItemIdActivityGetError =
+  GetWorkItemActivityApiWorkitemsItemIdActivityGetErrors[keyof GetWorkItemActivityApiWorkitemsItemIdActivityGetErrors];
+
+export type GetWorkItemActivityApiWorkitemsItemIdActivityGetResponses = {
   /**
    * Successful Response
    */

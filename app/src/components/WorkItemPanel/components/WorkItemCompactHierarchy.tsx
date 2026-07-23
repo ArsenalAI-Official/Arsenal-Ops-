@@ -38,7 +38,7 @@ export const WorkItemCompactHierarchy = ({
     </div>
   );
 
-  if (item.type === 'subtask') {
+  if (item.type === 'subtask' || item.type === 'test_case') {
     if (!item.parent_key) return null;
     return (
       <div>

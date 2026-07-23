@@ -1,4 +1,4 @@
-import { Users, Building2, FolderKanban } from 'lucide-react';
+import { Users, FolderKanban } from 'lucide-react';
 import { VIEW_MODES } from './types';
 import type { ViewMode } from './types';
 
@@ -9,7 +9,6 @@ interface ViewModeToggleProps {
 
 const ICONS: Record<ViewMode, React.ComponentType<{ className?: string }>> = {
   employee: Users,
-  client: Building2,
   project: FolderKanban,
 };
 

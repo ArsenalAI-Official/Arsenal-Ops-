@@ -1,4 +1,11 @@
-export type WorkItemType = 'user_story' | 'task' | 'bug' | 'epic' | 'subtask';
+export type WorkItemType =
+  | 'user_story'
+  | 'task'
+  | 'bug'
+  | 'epic'
+  | 'subtask'
+  | 'change_order'
+  | 'test_case';
 
 export type RelationshipField = 'epic_id' | 'parent_id';
 
@@ -16,16 +23,23 @@ const TYPE_PAIR_RULES: Record<RelationshipField, Partial<Record<WorkItemType, Wo
     user_story: ['epic'],
     task: ['epic'],
     bug: ['epic'],
+    // Change Order behaves like Story/Task/Bug: optional link to an Epic.
+    change_order: ['epic'],
     epic: [],
     // Subtasks reach the epic transitively through their parent — no direct link.
     subtask: [],
+    // Test cases reach their story via parent_id — never a direct epic link.
+    test_case: [],
   },
   parent_id: {
     task: [],
     user_story: [],
     bug: [],
+    change_order: [],
     epic: [],
-    subtask: ['user_story', 'task', 'bug'],
+    subtask: ['user_story', 'task', 'bug', 'change_order'],
+    // Test cases nest ONLY under a User Story.
+    test_case: ['user_story'],
   },
 };
 
@@ -127,5 +141,7 @@ export function wouldCreateCycle(
 
 function humanType(t: WorkItemType): string {
   if (t === 'user_story') return 'story';
+  if (t === 'change_order') return 'change order';
+  if (t === 'test_case') return 'test case';
   return t;
 }

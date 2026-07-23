@@ -17,12 +17,11 @@ export interface EmployeeOption {
 }
 
 // ── View modes ───────────────────────────────────────────────────────────────
-// The tab can group hours by any of three dimensions. Employee is the default.
-export type ViewMode = 'employee' | 'client' | 'project';
+// The tab can group hours by employee (default) or project.
+export type ViewMode = 'employee' | 'project';
 
 export const VIEW_MODES: { id: ViewMode; label: string }[] = [
   { id: 'employee', label: 'By Employee' },
-  { id: 'client', label: 'By Client' },
   { id: 'project', label: 'By Project' },
 ];
 
@@ -31,7 +30,6 @@ export const VIEW_MODES: { id: ViewMode; label: string }[] = [
  * beside the date). `childPrimary`/`childSecondary` are the columns a row
  * expands into:
  *   Employee → split by project (+ its client)
- *   Client   → split by employee
  *   Project  → split by employee
  */
 export const VIEW_LABELS: Record<
@@ -39,14 +37,12 @@ export const VIEW_LABELS: Record<
   { primary: string; childPrimary: string; childSecondary: string | null }
 > = {
   employee: { primary: 'Employee', childPrimary: 'Project', childSecondary: 'Client' },
-  client: { primary: 'Client', childPrimary: 'Employee', childSecondary: null },
   project: { primary: 'Project', childPrimary: 'Employee', childSecondary: null },
 };
 
 /** Fallback labels for rows whose dimension value is missing. */
 const MISSING = {
   employee: 'Deleted employee',
-  client: 'No client',
   project: 'No project',
 } as const;
 
@@ -101,23 +97,14 @@ function employeeDim(r: TimeEntryRow): Dim {
   };
 }
 
-function clientDim(r: TimeEntryRow): Dim {
-  return {
-    id: r.client_name ? `c:${r.client_name}` : 'c:none',
-    label: r.client_name ?? MISSING.client,
-    sub: null,
-  };
-}
-
 function primaryDim(view: ViewMode, r: TimeEntryRow): Dim {
   if (view === 'employee') return employeeDim(r);
-  if (view === 'client') return clientDim(r);
   return projectDim(r, true); // project view shows its client as sublabel
 }
 
 function childDim(view: ViewMode, r: TimeEntryRow): Dim {
   if (view === 'employee') return projectDim(r, true); // employee → project (+ client)
-  return employeeDim(r); // client/project → employees
+  return employeeDim(r); // project → employees
 }
 
 /**
@@ -205,8 +192,6 @@ export type DatePreset =
 export interface FiltersState {
   projectId: number | null;
   developerId: number | null;
-  /** QuickBooks client name (null = all clients). */
-  clientName: string | null;
   preset: DatePreset;
   // Only consulted when preset === 'custom'.
   customFrom: string;

@@ -66,6 +66,10 @@ export function useBoardFilters(
   const filteredItems = useMemo(
     () =>
       workItems.filter((item) => {
+        // Test cases live only nested under their User Story (the panel's "Test
+        // Cases" section) — never as standalone rows on the board/epic/list
+        // views. The raw `workItems` list still carries them for the panel.
+        if (item.type === 'test_case') return false;
         if (searchQuery) {
           const searchLower = searchQuery.toLowerCase();
           const titleMatch = item.title.toLowerCase().includes(searchLower);

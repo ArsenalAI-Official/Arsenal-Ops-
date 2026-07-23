@@ -197,6 +197,193 @@ def test_rollup_ignores_subtasks_not_directly_under_epic(db):
     assert epic.remaining_hours == 6
 
 
+def test_rollup_includes_change_order_children(db):
+    """A Change Order child (like Story/Task/Bug) must roll its own hours
+    up into the epic's totals."""
+    epic = _make_epic_with_children(db, [(9, 5, 4)])  # one story: 9/5/4
+    db.add(
+        WorkItem(
+            id=400,
+            project_id=1,
+            type="change_order",
+            title="Scope change",
+            status="in_progress",
+            key="PROJ-400",
+            epic_id=epic.id,
+            estimated_hours=6,
+            logged_hours=2,
+            remaining_hours=4,
+        )
+    )
+    db.commit()
+
+    update_epic_hours(epic.id, db)
+    db.commit()
+    db.refresh(epic)
+
+    assert epic.estimated_hours == 15, "change order estimate must be included"
+    assert epic.logged_hours == 7, "change order logged hours must be included"
+    assert epic.remaining_hours == 8, "change order remaining hours must be included"
+
+
+def test_rollup_excludes_test_cases_under_a_story(db):
+    """Test cases carry no hours and must never inflate the epic rollup, even
+    if a row somehow holds a value — they are neither an EPIC_CHILD_TYPE nor a
+    subtask, so the rollup ignores them."""
+    epic = _make_epic_with_children(db, [(10, 4, 6)])  # story PROJ-200
+    db.add(
+        WorkItem(
+            id=500,
+            project_id=1,
+            type="test_case",
+            title="Login works",
+            status="todo",
+            key="PROJ-500",
+            parent_id=200,  # under the story, not the epic
+            epic_id=None,
+            estimated_hours=100,
+            logged_hours=50,
+            remaining_hours=50,
+        )
+    )
+    db.commit()
+
+    update_epic_hours(epic.id, db)
+    db.commit()
+    db.refresh(epic)
+
+    assert epic.estimated_hours == 10, "test case must not be counted"
+    assert epic.logged_hours == 4
+    assert epic.remaining_hours == 6
+
+
+def test_rollup_includes_subtasks_under_change_order(db):
+    """3rd-level rollup: a Subtask whose parent is a Change Order must roll up
+    into the epic, exactly as subtasks under a Story/Task/Bug do."""
+    now = datetime(2026, 1, 1, 12, 0, 0)
+    db.add(
+        Project(
+            id=1, name="P", description="", status="active", github_repo_urls=[], created_at=now
+        )
+    )
+    db.commit()
+    epic = WorkItem(
+        id=100,
+        project_id=1,
+        type="epic",
+        title="E",
+        status="todo",
+        key="PROJ-100",
+        estimated_hours=0,
+        logged_hours=0,
+        remaining_hours=0,
+    )
+    db.add(epic)
+    db.commit()
+    co = WorkItem(
+        id=200,
+        project_id=1,
+        type="change_order",
+        title="CO",
+        status="in_progress",
+        key="PROJ-200",
+        epic_id=epic.id,
+        estimated_hours=6,
+        logged_hours=2,
+        remaining_hours=4,
+    )
+    db.add(co)
+    db.commit()
+    db.add(
+        WorkItem(
+            id=300,
+            project_id=1,
+            type="subtask",
+            title="ST",
+            status="todo",
+            key="PROJ-300",
+            parent_id=co.id,
+            epic_id=None,
+            estimated_hours=3,
+            logged_hours=1,
+            remaining_hours=2,
+        )
+    )
+    db.commit()
+
+    update_epic_hours(epic.id, db)
+    db.commit()
+    db.refresh(epic)
+
+    assert epic.estimated_hours == 9, "CO (6) + its subtask (3)"
+    assert epic.logged_hours == 3, "CO (2) + its subtask (1)"
+    assert epic.remaining_hours == 6, "CO (4) + its subtask (2)"
+
+
+def test_change_order_rolls_up_identically_to_user_story(db):
+    """Parity check: two identical epics — one whose child is a user_story, the
+    other a change_order, each with an identical subtask — must produce
+    identical epic totals. Proves CO is treated exactly like Story/Task/Bug."""
+    now = datetime(2026, 1, 1, 12, 0, 0)
+    db.add(
+        Project(
+            id=1, name="P", description="", status="active", github_repo_urls=[], created_at=now
+        )
+    )
+    db.commit()
+
+    def build(epic_id, child_id, child_type, subtask_id):
+        epic = WorkItem(
+            id=epic_id,
+            project_id=1,
+            type="epic",
+            title="E",
+            status="todo",
+            key=f"PROJ-{epic_id}",
+            estimated_hours=0,
+            logged_hours=0,
+            remaining_hours=0,
+        )
+        child = WorkItem(
+            id=child_id,
+            project_id=1,
+            type=child_type,
+            title="C",
+            status="in_progress",
+            key=f"PROJ-{child_id}",
+            epic_id=epic_id,
+            estimated_hours=8,
+            logged_hours=5,
+            remaining_hours=3,
+        )
+        subtask = WorkItem(
+            id=subtask_id,
+            project_id=1,
+            type="subtask",
+            title="S",
+            status="todo",
+            key=f"PROJ-{subtask_id}",
+            parent_id=child_id,
+            estimated_hours=4,
+            logged_hours=1,
+            remaining_hours=3,
+        )
+        db.add_all([epic, child, subtask])
+        db.commit()
+        update_epic_hours(epic_id, db)
+        db.commit()
+        db.refresh(epic)
+        return epic
+
+    story_epic = build(100, 200, "user_story", 300)
+    co_epic = build(101, 201, "change_order", 301)
+
+    story_totals = (story_epic.estimated_hours, story_epic.logged_hours, story_epic.remaining_hours)
+    co_totals = (co_epic.estimated_hours, co_epic.logged_hours, co_epic.remaining_hours)
+    assert co_totals == story_totals, "CO epic must match user_story epic exactly"
+    assert co_totals == (12, 6, 6), "child (8/5/3) + subtask (4/1/3)"
+
+
 def test_rollup_noop_on_non_epic(db):
     """Calling update_epic_hours on a story id (not an epic) must not
     mutate that story's hours."""

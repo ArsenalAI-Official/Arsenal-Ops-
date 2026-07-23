@@ -78,19 +78,6 @@ describe('aggregateEntries', () => {
     ]);
   });
 
-  it('client view: one row per (day, client), split by employee', () => {
-    const { groups } = aggregateEntries(DATA, 'client');
-    expect(groups.map((g) => [g.dayKey, g.label, g.hours])).toEqual([
-      ['2026-06-02', 'Acme', 20], // Bob's Jun 2
-      ['2026-06-01', 'Acme', 10], // Alice's Jun 1 Website
-      ['2026-06-01', 'Globex', 5], // Alice's Jun 1 Portal
-    ]);
-    // Employee children carry no secondary column.
-    expect(groups[0]!.children.map((c) => [c.label, c.sublabel, c.hours])).toEqual([
-      ['Bob', null, 20],
-    ]);
-  });
-
   it('project view: one row per (day, project) with client sublabel, split by employee', () => {
     const { groups } = aggregateEntries(DATA, 'project');
     expect(groups.map((g) => [g.dayKey, g.label, g.sublabel, g.hours])).toEqual([
@@ -102,8 +89,11 @@ describe('aggregateEntries', () => {
   });
 
   it('labels missing dimensions and ignores unparseable timestamps', () => {
-    const orphan = aggregateEntries([row({ hours: 4, client_name: null })], 'client');
-    expect(orphan.groups[0]!.label).toBe('No client');
+    const orphan = aggregateEntries(
+      [row({ hours: 4, project_id: null, project_name: null })],
+      'project',
+    );
+    expect(orphan.groups[0]!.label).toBe('No project');
 
     const bad = aggregateEntries([row({ hours: 9, logged_at: 'not-a-date' })], 'employee');
     expect(bad.groups).toEqual([]);

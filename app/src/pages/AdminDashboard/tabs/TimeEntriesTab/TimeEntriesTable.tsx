@@ -17,8 +17,8 @@ interface TimeEntriesTableProps {
 
 /**
  * Date · {dimension} · Hours table for the active view. Each row expands to the
- * per-dimension split for that day (employee→projects+client, client→employees,
- * project→employees — see VIEW_LABELS).
+ * per-dimension split for that day (employee→projects+client, project→employees
+ * — see VIEW_LABELS).
  */
 const TimeEntriesTable: React.FC<TimeEntriesTableProps> = ({
   isLoading,

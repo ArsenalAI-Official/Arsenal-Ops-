@@ -1,4 +1,6 @@
+import { useQuery } from '@tanstack/react-query';
 import { TrendingUp, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import {
   PieChart,
   Pie,
@@ -16,9 +18,71 @@ import {
 } from 'recharts';
 import type { ProjectAnalyticsResponse, SprintResponse } from '@/client';
 import { Badge } from '@/components/ui/badge';
+import { apiFetch } from '@/lib/api';
+
+type BurndownPoint = ProjectAnalyticsResponse['burndown_data'][number];
+interface BurndownResponse {
+  burndown_data: BurndownPoint[];
+}
+
+export type BurndownPeriod = 'this_week' | 'this_month' | 'last_week' | 'last_month' | 'custom';
+
+const PERIOD_LABELS: Record<BurndownPeriod, string> = {
+  this_week: 'This week',
+  this_month: 'This month',
+  last_week: 'Last week',
+  last_month: 'Last month',
+  custom: 'Custom',
+};
+
+const toISO = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/** Monday-start week: returns the local Monday on/before `d` (time zeroed). */
+const startOfWeekMonday = (d: Date): Date => {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+  return x;
+};
+
+/** Resolve a period (relative to `nowMs`) into an inclusive ISO [start, end]. */
+function burndownRange(
+  period: BurndownPeriod,
+  nowMs: number,
+  customStart: string,
+  customEnd: string,
+): { start: string; end: string } {
+  const now = new Date(nowMs);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  switch (period) {
+    case 'this_week':
+      return { start: toISO(startOfWeekMonday(today)), end: toISO(today) };
+    case 'last_week': {
+      const thisMon = startOfWeekMonday(today);
+      const lastSun = new Date(thisMon);
+      lastSun.setDate(thisMon.getDate() - 1);
+      const lastMon = new Date(lastSun);
+      lastMon.setDate(lastSun.getDate() - 6);
+      return { start: toISO(lastMon), end: toISO(lastSun) };
+    }
+    case 'this_month':
+      return { start: toISO(new Date(now.getFullYear(), now.getMonth(), 1)), end: toISO(today) };
+    case 'last_month':
+      return {
+        start: toISO(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
+        // Day 0 of this month = last day of the previous month.
+        end: toISO(new Date(now.getFullYear(), now.getMonth(), 0)),
+      };
+    case 'custom':
+      if (customStart && customEnd) return { start: customStart, end: customEnd };
+      // Fall back to this week until both custom dates are chosen.
+      return { start: toISO(startOfWeekMonday(today)), end: toISO(today) };
+  }
+}
 
 interface TrackerTabProps {
   hubLoading: boolean;
+  projectId: string;
   sprints: SprintResponse[];
   analytics: ProjectAnalyticsResponse | null;
   sprintsExpanded: boolean;
@@ -27,11 +91,30 @@ interface TrackerTabProps {
 
 const TrackerTab = ({
   hubLoading,
+  projectId,
   sprints,
   analytics,
   sprintsExpanded,
   setSprintsExpanded,
 }: TrackerTabProps) => {
+  const [burndownPeriod, setBurndownPeriod] = useState<BurndownPeriod>('this_week');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+  // Seed "now" once per mount so the range is stable across renders (and pure).
+  const [nowMs] = useState(() => Date.now());
+  const { start: burndownStart, end: burndownEnd } = useMemo(
+    () => burndownRange(burndownPeriod, nowMs, customStart, customEnd),
+    [burndownPeriod, nowMs, customStart, customEnd],
+  );
+  const burndownQuery = useQuery({
+    queryKey: ['burndown', projectId, burndownStart, burndownEnd],
+    queryFn: () =>
+      apiFetch<BurndownResponse>(
+        `/api/workitems/projects/${projectId}/burndown?start=${burndownStart}&end=${burndownEnd}`,
+      ),
+    enabled: !!projectId,
+  });
+  const burndownData = useMemo(() => burndownQuery.data?.burndown_data ?? [], [burndownQuery.data]);
   if (hubLoading) {
     return (
       <div className="space-y-4 animate-pulse">
@@ -327,11 +410,46 @@ const TrackerTab = ({
                 )}
               </div>
               <div className="bg-[rgba(255,255,255,0.025)] rounded-xl p-4">
-                <h4 className="text-sm font-medium text-[#a3a3a3] mb-4">
-                  Burndown Chart (Last 14 Days)
-                </h4>
+                <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+                  <h4 className="text-sm font-medium text-[#a3a3a3]">Burndown Chart</h4>
+                  <div className="flex items-center gap-2">
+                    {burndownPeriod === 'custom' && (
+                      <>
+                        <input
+                          type="date"
+                          aria-label="Start date"
+                          value={customStart}
+                          max={customEnd || undefined}
+                          onChange={(e) => setCustomStart(e.target.value)}
+                          className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] text-[#a3a3a3] rounded-lg text-xs px-2 py-1 [color-scheme:dark]"
+                        />
+                        <span className="text-[#737373] text-xs">to</span>
+                        <input
+                          type="date"
+                          aria-label="End date"
+                          value={customEnd}
+                          min={customStart || undefined}
+                          onChange={(e) => setCustomEnd(e.target.value)}
+                          className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] text-[#a3a3a3] rounded-lg text-xs px-2 py-1 [color-scheme:dark]"
+                        />
+                      </>
+                    )}
+                    <select
+                      aria-label="Burndown range"
+                      value={burndownPeriod}
+                      onChange={(e) => setBurndownPeriod(e.target.value as BurndownPeriod)}
+                      className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] text-[#a3a3a3] rounded-lg text-xs px-2 py-1"
+                    >
+                      {(Object.keys(PERIOD_LABELS) as BurndownPeriod[]).map((p) => (
+                        <option key={p} value={p}>
+                          {PERIOD_LABELS[p]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
                 <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={analytics.burndown_data}>
+                  <LineChart data={burndownData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
                     <XAxis dataKey="date" tick={{ fill: '#737373', fontSize: 10 }} />
                     <YAxis tick={{ fill: '#737373' }} />

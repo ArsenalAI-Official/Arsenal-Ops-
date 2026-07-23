@@ -19,7 +19,7 @@ from database import get_db
 from models.project import Project
 from models.sprint import Sprint, SprintStatus
 from models.user import User
-from models.work_item import WorkItem, WorkItemStatus, WorkItemType
+from models.work_item import EPIC_CHILD_TYPES, WorkItem, WorkItemStatus, WorkItemType
 from routers.auth import get_current_user, require_capability
 from services.email_service import email_service
 from services.hierarchy import validate_hierarchy
@@ -82,6 +82,85 @@ def _creator_dev_id(db: Session, current_user: User) -> int | None:
     return dev.id if dev else None
 
 
+# ── Edit audit trail ────────────────────────────────────────────────────────
+# Every user-facing work-item field edit is recorded in the project ActivityLog
+# (surfaced in the ticket panel's Activity tab and the project Activity feed) —
+# NOT as a comment; the comment thread stays human discussion. `status` and
+# `assignee_id` keep their own dedicated activity entries in update_work_item;
+# the general field-diff capture below covers everything else (title, description,
+# priority, story points, hours, dates, epic/parent/sprint, type, tags, ...) for
+# ALL work-item types, present and future.
+
+# Handled by dedicated audit entries (status/assignee) or never applied
+# (logged/remaining hours are derived) — excluded from the general field diff.
+_AUDIT_EXCLUDED_FIELDS = {"status", "assignee_id", "logged_hours", "remaining_hours"}
+
+_AUDIT_FIELD_LABELS = {
+    "title": "Title",
+    "description": "Description",
+    "priority": "Priority",
+    "story_points": "Story points",
+    "estimated_hours": "Estimated hours",
+    "type": "Type",
+    "tags": "Tags",
+    "acceptance_criteria": "Acceptance criteria",
+    "attachments": "Attachments",
+    "start_date": "Start date",
+    "due_date": "Due date",
+    "epic_id": "Epic",
+    "parent_id": "Parent",
+    "sprint_id": "Sprint",
+    "goal_id": "Goal",
+    "reporter_id": "Reporter",
+}
+
+
+def _audit_label(field: str) -> str:
+    return _AUDIT_FIELD_LABELS.get(field, field.replace("_", " ").capitalize())
+
+
+# Human-readable status labels for the Activity feed (raw enum values like
+# "in_progress" are unfriendly in the old→new diff line).
+_STATUS_LABELS = {
+    "backlog": "Backlog",
+    "todo": "To Do",
+    "in_progress": "In Progress",
+    "in_review": "In Review",
+    "done": "Done",
+}
+
+
+def _status_label(status: str | None) -> str:
+    if not status:
+        return "—"
+    return _STATUS_LABELS.get(status, status.replace("_", " ").title())
+
+
+def _json_safe(value):
+    """Coerce a field value to something JSON-serializable for ActivityLog.details."""
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, list):
+        return [_json_safe(v) for v in value]
+    if value is None or isinstance(value, str | int | float | bool):
+        return value
+    return str(value)
+
+
+def _audit_value(db: Session, field: str, value):
+    """Resolve foreign-key fields (epic/parent/sprint) to a human label for the
+    Activity feed, so a diff reads "Epic: — → PROJ-12" instead of a raw id."""
+    if value is None:
+        return None
+    if field in ("epic_id", "parent_id"):
+        row = db.query(WorkItem.key).filter(WorkItem.id == value).first()
+        return row.key if row else _json_safe(value)
+    if field == "sprint_id":
+        row = db.query(Sprint.name).filter(Sprint.id == value).first()
+        return row.name if row else _json_safe(value)
+    return _json_safe(value)
+
+
 def update_epic_hours(epic_id: int, db: Session):
     """
     Roll up estimated_hours, logged_hours, and remaining_hours into the epic
@@ -108,9 +187,7 @@ def update_epic_hours(epic_id: int, db: Session):
         db.query(WorkItem.id)
         .filter(
             WorkItem.epic_id == epic_id,
-            WorkItem.type.in_(
-                [WorkItemType.USER_STORY.value, WorkItemType.TASK.value, WorkItemType.BUG.value]
-            ),
+            WorkItem.type.in_(EPIC_CHILD_TYPES),
         )
         .subquery()
     )
@@ -159,11 +236,7 @@ def update_parent_status_from_subtasks(parent_id: int, db: Session):
     parent = db.query(WorkItem).filter(WorkItem.id == parent_id).first()
     if not parent:
         return
-    if parent.type not in (
-        WorkItemType.USER_STORY.value,
-        WorkItemType.TASK.value,
-        WorkItemType.BUG.value,
-    ):
+    if parent.type not in EPIC_CHILD_TYPES:
         return
     if parent.status != WorkItemStatus.DONE.value:
         # Parent isn't done — nothing to reopen.
@@ -257,9 +330,7 @@ def update_epic_status_from_stories(epic_id: int, db: Session):
         db.query(WorkItem)
         .filter(
             WorkItem.epic_id == epic_id,
-            WorkItem.type.in_(
-                [WorkItemType.USER_STORY.value, WorkItemType.TASK.value, WorkItemType.BUG.value]
-            ),
+            WorkItem.type.in_(EPIC_CHILD_TYPES),
         )
         .all()
     )
@@ -830,6 +901,37 @@ def get_work_item(
     return payload
 
 
+@router.get("/{item_id}/activity")
+def get_work_item_activity(
+    item_id: int,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Activity-log entries for a single work item — powers the ticket side
+    panel's Activity tab (field edits with old→new, status changes, transfers,
+    create/delete). Same shape as GET /projects/{id}/activity (ActivityResponse),
+    newest first. Gated by project access, like the project activity feed."""
+    item = db.query(WorkItem).filter(WorkItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Work item not found")
+
+    from routers.projects import require_project_access
+
+    require_project_access(item.project_id, current_user, db)
+
+    from models.activity_log import ActivityLog
+
+    activities = (
+        db.query(ActivityLog)
+        .filter(ActivityLog.entity_type == "work_item", ActivityLog.entity_id == item_id)
+        .order_by(ActivityLog.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [a.to_dict() for a in activities]
+
+
 @router.post("/")
 def create_work_item(
     item: WorkItemCreate,
@@ -920,6 +1022,25 @@ def create_work_item(
         title=f"Created {key}: {item.title}",
     )
     db.add(activity)
+
+    # Surface the creation in the PARENT's activity feed too — otherwise
+    # "added a subtask / test case" never shows when viewing the parent story.
+    if work_item.parent_id:
+        _child_label = {
+            WorkItemType.SUBTASK.value: "subtask",
+            WorkItemType.TEST_CASE.value: "test case",
+        }.get(work_item.type, "child item")
+        db.add(
+            ActivityLog(
+                project_id=item.project_id,
+                user_id=current_user.id,
+                action="updated",
+                entity_type="work_item",
+                entity_id=work_item.parent_id,
+                title=f"Added {_child_label} {key}: {item.title}",
+            )
+        )
+
     db.commit()
     db.refresh(work_item)
 
@@ -1058,13 +1179,7 @@ def update_work_item(
                 db.query(WorkItem.id, WorkItem.key)
                 .filter(
                     WorkItem.epic_id == item.id,
-                    WorkItem.type.in_(
-                        [
-                            WorkItemType.USER_STORY.value,
-                            WorkItemType.TASK.value,
-                            WorkItemType.BUG.value,
-                        ]
-                    ),
+                    WorkItem.type.in_(EPIC_CHILD_TYPES),
                     WorkItem.status != WorkItemStatus.DONE.value,
                 )
                 .first()
@@ -1074,14 +1189,10 @@ def update_work_item(
                     status_code=400,
                     detail=(
                         f"Can't mark epic done — {open_child.key} is still open. "
-                        "Complete every story/task/bug under this epic first."
+                        "Complete every child item under this epic first."
                     ),
                 )
-        elif item.type in (
-            WorkItemType.USER_STORY.value,
-            WorkItemType.TASK.value,
-            WorkItemType.BUG.value,
-        ):
+        elif item.type in EPIC_CHILD_TYPES:
             open_subtask = (
                 db.query(WorkItem.id, WorkItem.key)
                 .filter(
@@ -1097,6 +1208,25 @@ def update_work_item(
                     detail=(
                         f"Can't mark this ticket done — subtask {open_subtask.key} "
                         "is still open. Complete every subtask first."
+                    ),
+                )
+            # A User Story can't be closed until all its test cases are done.
+            # (Only stories carry test cases, so this is a no-op for other types.)
+            open_test_case = (
+                db.query(WorkItem.id, WorkItem.key)
+                .filter(
+                    WorkItem.parent_id == item.id,
+                    WorkItem.type == WorkItemType.TEST_CASE.value,
+                    WorkItem.status != WorkItemStatus.DONE.value,
+                )
+                .first()
+            )
+            if open_test_case is not None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Can't mark {item.key} done — test case {open_test_case.key} "
+                        "is still open. Complete every test case first."
                     ),
                 )
 
@@ -1134,6 +1264,12 @@ def update_work_item(
         elif new_status == WorkItemStatus.DONE.value and not item.completed_at:
             item.completed_at = utcnow()
 
+    # Snapshot old values BEFORE applying, for the general edit-audit trail.
+    # (status/assignee have their own dedicated entries below.)
+    audit_old_values = {
+        k: getattr(item, k, None) for k in update_data if k not in _AUDIT_EXCLUDED_FIELDS
+    }
+
     for key, value in update_data.items():
         # Allow null for certain fields, skip only for others
         if (
@@ -1160,10 +1296,10 @@ def update_work_item(
 
     item.updated_at = utcnow()
 
-    # Handle ticket transfer - create automatic comment
+    # Handle ticket transfer — recorded in the Activity feed, not as a comment.
     if "assignee_id" in update_data:
         new_assignee_id = update_data["assignee_id"]
-        # Only create comment if assignee actually changed
+        # Only record if assignee actually changed
         if new_assignee_id != old_assignee_id:
             # Stamp the transfer time so the new assignee's capacity uses remaining (not estimated)
             item.last_assigned_at = utcnow()
@@ -1179,21 +1315,7 @@ def update_work_item(
                 if new_dev:
                     new_assignee_name = new_dev.name
 
-            # Find developer associated with current user for comment author
-            author_dev = db.query(Developer).filter(Developer.email == current_user.email).first()
-            author_id = author_dev.id if author_dev else None
-
-            # Create automatic transfer comment
-            from models.comment import Comment
-
-            transfer_comment = Comment(
-                work_item_id=item.id,
-                author_id=author_id,
-                content=f"Ticket transferred from {old_assignee_name} to {new_assignee_name}.",
-            )
-            db.add(transfer_comment)
-
-            # Log activity
+            # Log activity (Activity feed only — the comment thread stays human).
             from models.activity_log import ActivityLog
 
             activity = ActivityLog(
@@ -1203,6 +1325,15 @@ def update_work_item(
                 entity_type="work_item",
                 entity_id=item.id,
                 title=f"Reassigned {item.key} from {old_assignee_name} to {new_assignee_name}",
+                details={
+                    "changes": [
+                        {
+                            "field": "assignee",
+                            "old_value": old_assignee_name,
+                            "new_value": new_assignee_name,
+                        }
+                    ]
+                },
             )
             db.add(activity)
 
@@ -1227,46 +1358,71 @@ def update_work_item(
                         due_date=item.due_date.isoformat() if item.due_date else None,
                     )
 
-    # Log activity for status changes
-    if "status" in update_data:
+    # Log activity for status changes — only when the status actually changed
+    # (a no-op status write shouldn't litter the feed with empty "Updated" rows).
+    # The transition goes into details.changes so the Activity tab shows
+    # "Status: To Do → In Progress" instead of a bare "Updated".
+    if "status" in update_data and update_data["status"] != old_status:
         from models.activity_log import ActivityLog
 
-        action = "completed" if update_data["status"] == "done" else "updated"
+        new_status = update_data["status"]
+        completed = new_status == WorkItemStatus.DONE.value
+        action = "completed" if completed else "updated"
+        title = (
+            f"Completed {item.key}: {item.title}" if completed else f"Updated {item.key}: Status"
+        )
         activity = ActivityLog(
             project_id=item.project_id,
             user_id=current_user.id,
             action=action,
             entity_type="work_item",
             entity_id=item.id,
-            title=f"{action.capitalize()} {item.key}: {item.title}",
+            title=title,
+            details={
+                "changes": [
+                    {
+                        "field": "status",
+                        "old_value": _status_label(old_status),
+                        "new_value": _status_label(new_status),
+                    }
+                ]
+            },
         )
         db.add(activity)
 
-    # Auto-comment for every status transition — surfaces the move in the
-    # ticket's comment feed alongside the existing "Ticket transferred from X
-    # to Y" so the side panel reads as a single chronological audit trail.
-    if "status" in update_data and update_data["status"] != old_status:
-        from models.comment import Comment as _StatusComment
-        from models.developer import Developer as _AuthorDev
-
-        STATUS_LABELS = {
-            WorkItemStatus.BACKLOG.value: "Backlog",
-            WorkItemStatus.TODO.value: "To Do",
-            WorkItemStatus.IN_PROGRESS.value: "In Progress",
-            WorkItemStatus.IN_REVIEW.value: "In Review",
-            WorkItemStatus.DONE.value: "Done",
-        }
-        new_status = update_data["status"]
-        new_label = STATUS_LABELS.get(new_status, new_status.replace("_", " ").title())
-
-        author = db.query(_AuthorDev).filter(_AuthorDev.email == current_user.email).first()
-        author_id = author.id if author else None
+    # General edit audit — every OTHER changed field (title, description,
+    # priority, story points, hours, dates, epic/parent/sprint, type, tags, ...)
+    # is recorded in the Activity feed. status/assignee are handled by their
+    # dedicated activity entries above and excluded from `audit_old_values`.
+    audit_changes = {
+        k: (old, getattr(item, k, None))
+        for k, old in audit_old_values.items()
+        if old != getattr(item, k, None)
+    }
+    if audit_changes:
+        # Edit history goes to the ActivityLog ONLY — never a comment. The
+        # comment thread stays human discussion; field-change history lives in
+        # the activity feed (a separate view), with old→new in details.changes.
+        from models.activity_log import ActivityLog as _EditActivity
 
         db.add(
-            _StatusComment(
-                work_item_id=item.id,
-                author_id=author_id,
-                content=f"Moved to {new_label}",
+            _EditActivity(
+                project_id=item.project_id,
+                user_id=current_user.id,
+                action="updated",
+                entity_type="work_item",
+                entity_id=item.id,
+                title=f"Updated {item.key}: " + ", ".join(_audit_label(f) for f in audit_changes),
+                details={
+                    "changes": [
+                        {
+                            "field": f,
+                            "old_value": _audit_value(db, f, o),
+                            "new_value": _audit_value(db, f, n),
+                        }
+                        for f, (o, n) in audit_changes.items()
+                    ]
+                },
             )
         )
 
@@ -1426,13 +1582,7 @@ def batch_update_status(
                     db.query(WorkItem.id, WorkItem.key)
                     .filter(
                         WorkItem.epic_id == item.id,
-                        WorkItem.type.in_(
-                            [
-                                WorkItemType.USER_STORY.value,
-                                WorkItemType.TASK.value,
-                                WorkItemType.BUG.value,
-                            ]
-                        ),
+                        WorkItem.type.in_(EPIC_CHILD_TYPES),
                         WorkItem.status != WorkItemStatus.DONE.value,
                         WorkItem.id.notin_(update.item_ids),
                     )
@@ -1445,11 +1595,7 @@ def batch_update_status(
                             f"Can't mark epic {item.key} done — {open_child.key} is still open."
                         ),
                     )
-            elif item.type in (
-                WorkItemType.USER_STORY.value,
-                WorkItemType.TASK.value,
-                WorkItemType.BUG.value,
-            ):
+            elif item.type in EPIC_CHILD_TYPES:
                 open_subtask = (
                     db.query(WorkItem.id, WorkItem.key)
                     .filter(
@@ -1468,17 +1614,71 @@ def batch_update_status(
                             "is still open."
                         ),
                     )
+                # A User Story can't be closed until all its test cases are done
+                # (unless they're being marked done in this same batch).
+                open_test_case = (
+                    db.query(WorkItem.id, WorkItem.key)
+                    .filter(
+                        WorkItem.parent_id == item.id,
+                        WorkItem.type == WorkItemType.TEST_CASE.value,
+                        WorkItem.status != WorkItemStatus.DONE.value,
+                        WorkItem.id.notin_(update.item_ids),
+                    )
+                    .first()
+                )
+                if open_test_case is not None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            f"Can't mark {item.key} done — test case {open_test_case.key} "
+                            "is still open."
+                        ),
+                    )
 
     # Collect epics that need updating
     epics_to_update = set()
 
+    # Audit author (the Developer row for the acting user), resolved once.
+    from models.activity_log import ActivityLog as _BatchActivity
+
     for item in items:
+        old_status = item.status
         item.status = update.status
         if update.status == WorkItemStatus.IN_PROGRESS.value and not item.started_at:
             item.started_at = utcnow()
         elif update.status == WorkItemStatus.DONE.value and not item.completed_at:
             item.completed_at = utcnow()
         item.updated_at = utcnow()
+
+        # Record the status change in the Activity feed (bulk edits were
+        # previously silent). No comment — the comment thread stays human.
+        if old_status != update.status:
+            completed = update.status == WorkItemStatus.DONE.value
+            action = "completed" if completed else "updated"
+            title = (
+                f"Completed {item.key}: {item.title}"
+                if completed
+                else f"Updated {item.key}: Status"
+            )
+            db.add(
+                _BatchActivity(
+                    project_id=item.project_id,
+                    user_id=current_user.id,
+                    action=action,
+                    entity_type="work_item",
+                    entity_id=item.id,
+                    title=title,
+                    details={
+                        "changes": [
+                            {
+                                "field": "status",
+                                "old_value": _status_label(old_status),
+                                "new_value": _status_label(update.status),
+                            }
+                        ]
+                    },
+                )
+            )
 
         # Track epics that need status updates
         if item.epic_id:
@@ -1791,31 +1991,8 @@ def log_hours(
     db.add(time_entry)
     db.flush()  # ensure the new TimeEntry is visible to the sum query below
 
-    # Auto-comment: surfaces the log event in the ticket's comments feed
-    # alongside the existing "Ticket transferred from X to Y" comments so
-    # users see a single chronological audit trail in the side panel.
-    from models.comment import Comment as _LogComment
-
-    log_comment_kwargs: dict[str, Any] = {
-        "work_item_id": item_id,
-        "author_id": developer.id if developer else None,
-        "content": f"Logged {request.hours}h",
-        # Link the auto-comment to its TimeEntry so the dev's edit/
-        # delete actions in the Review-and-Submit modal can keep it
-        # in sync. CASCADE on the FK auto-removes the comment when
-        # the entry is deleted; the edit endpoint mutates `content`
-        # directly. See `routers/developers.py`.
-        "time_entry_id": time_entry.id,
-    }
-    # When the entry is back-dated via `logged_at` (the modal's "+ Add
-    # entry" affordance), stamp the auto-comment with the same date so
-    # the ticket's comment feed shows the day the hours were logged for,
-    # not the day the row happened to be created. Default path (no
-    # `logged_at`) leaves Comment.created_at = NOW().
-    if resolved_logged_at is not None:
-        log_comment_kwargs["created_at"] = resolved_logged_at
-
-    db.add(_LogComment(**log_comment_kwargs))
+    # No auto-comment for logged hours — the hours are surfaced by the ticket's
+    # Time Entries table (from the TimeEntry rows), not the comment thread.
 
     # Recompute logged_hours from the live TimeEntry sum instead of `+=`.
     # The naive accumulator drifts whenever ANYTHING else has touched the column
@@ -2371,10 +2548,14 @@ def move_ticket_to_sprint(
             detail="This ticket is marked done. Re-open it before moving sprints.",
         )
 
+    old_sprint_id = item.sprint_id
+    old_sprint_name = item.sprint.name if item.sprint_id and item.sprint else "Backlog"
+
     # If moving to backlog
     if request.target_sprint_id is None:
         item.sprint_id = None
         item.status = WorkItemStatus.BACKLOG.value
+        new_sprint_name = "Backlog"
     else:
         # Verify sprint exists and belongs to same project
         sprint = (
@@ -2388,11 +2569,38 @@ def move_ticket_to_sprint(
             )
 
         item.sprint_id = request.target_sprint_id
+        new_sprint_name = sprint.name
         # If item was in backlog, move to todo
         if item.status == WorkItemStatus.BACKLOG.value:
             item.status = WorkItemStatus.TODO.value
 
     item.updated_at = utcnow()
+
+    # Record the move in the Activity feed (this endpoint bypasses the general
+    # edit-audit in update_work_item). Only when the sprint actually changed.
+    if old_sprint_id != item.sprint_id:
+        from models.activity_log import ActivityLog
+
+        db.add(
+            ActivityLog(
+                project_id=item.project_id,
+                user_id=current_user.id,
+                action="updated",
+                entity_type="work_item",
+                entity_id=item.id,
+                title=f"Moved to {new_sprint_name}",
+                details={
+                    "changes": [
+                        {
+                            "field": "sprint",
+                            "old_value": old_sprint_name,
+                            "new_value": new_sprint_name,
+                        }
+                    ]
+                },
+            )
+        )
+
     db.commit()
     db.refresh(item)
 
@@ -2607,6 +2815,38 @@ def list_project_sprints(
     return result
 
 
+def _compute_burndown(items: list, start_day, end_day) -> list[dict]:
+    """Daily burndown series over [start_day, end_day] inclusive (date objects).
+
+    Each day is scoped to items that EXISTED on that day (``created_at`` on or
+    before the day), so tickets created later never show as "remaining" on
+    earlier days. ``remaining`` = existing-minus-done-by-that-day; ``completed``
+    = cumulative done-by-that-day.
+    """
+    from datetime import timedelta
+
+    series: list[dict] = []
+    day = start_day
+    while day <= end_day:
+        existing = [it for it in items if it.created_at and it.created_at.date() <= day]
+        done_count = sum(
+            1
+            for it in existing
+            if it.status == WorkItemStatus.DONE.value
+            and it.completed_at
+            and it.completed_at.date() <= day
+        )
+        series.append(
+            {
+                "date": day.strftime("%Y-%m-%d"),
+                "remaining": len(existing) - done_count,
+                "completed": done_count,
+            }
+        )
+        day += timedelta(days=1)
+    return series
+
+
 @router.get(
     "/projects/{project_id}/analytics",
     responses={200: {"model": ProjectAnalyticsResponse}},
@@ -2676,25 +2916,13 @@ def get_project_analytics(
             }
         )
 
-    # Burndown data (last 14 days)
+    # Burndown data — last 14 days (today + the prior 13 = 14 points). Matches
+    # the /burndown endpoint's default window so the two never disagree. The
+    # Tracker tab's range filter uses /burndown for other windows.
     from datetime import timedelta
 
-    burndown_data = []
-    for i in range(14, -1, -1):
-        date = utcnow() - timedelta(days=i)
-        # Count items done by this date
-        done_count = sum(
-            1
-            for item in items
-            if item.status == WorkItemStatus.DONE.value
-            and item.completed_at
-            and item.completed_at.date() <= date.date()
-        )
-        total_count = len(items)
-        remaining = total_count - done_count
-        burndown_data.append(
-            {"date": date.strftime("%Y-%m-%d"), "remaining": remaining, "completed": done_count}
-        )
+    _today = utcnow().date()
+    burndown_data = _compute_burndown(items, _today - timedelta(days=13), _today)
 
     # Team performance (by assignee)
     assignee_stats: dict[int, dict[str, Any]] = {}
@@ -2727,6 +2955,52 @@ def get_project_analytics(
         "burndown_data": burndown_data,
         "team_performance": list(assignee_stats.values()),
     }
+
+
+@router.get("/projects/{project_id}/burndown")
+def get_project_burndown(
+    project_id: int,
+    start: str | None = None,
+    end: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Daily burndown series over an explicit [start, end] date range (inclusive).
+
+    Dates are ISO ``YYYY-MM-DD``; both default to the last 14 days when omitted.
+    The range is capped at 366 days. Powers the Tracker tab's burndown filter
+    (this week / this month / last week / last month / custom).
+    """
+    from datetime import date, timedelta
+
+    # This burndown powers the read-only Project Tracker tab, so gate it on that
+    # tab's read permission — the `project.tracker.analytics` capability (which
+    # `project.tracker.*` grants). Anyone who can view the Tracker tab can load
+    # it; anyone who can't is blocked. Checked before the 404 so a caller without
+    # tracker access can't enumerate project existence via this endpoint.
+    if not current_user.has_capability("project.tracker.analytics"):
+        raise HTTPException(status_code=403, detail="Do not have permission")
+
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    today = utcnow().date()
+    try:
+        end_day = date.fromisoformat(end) if end else today
+        start_day = date.fromisoformat(start) if start else end_day - timedelta(days=13)
+    except ValueError:
+        raise HTTPException(
+            status_code=422, detail="start/end must be ISO dates (YYYY-MM-DD)."
+        ) from None
+
+    if start_day > end_day:
+        raise HTTPException(status_code=422, detail="start must be on or before end.")
+    if (end_day - start_day).days > 366:
+        raise HTTPException(status_code=422, detail="Range too large (max 366 days).")
+
+    items = db.query(WorkItem).filter(WorkItem.project_id == project_id).all()
+    return {"burndown_data": _compute_burndown(items, start_day, end_day)}
 
 
 @router.get("/projects/{project_id}/hours-analytics")
@@ -2807,6 +3081,31 @@ def get_hours_analytics(
             if item.status != WorkItemStatus.DONE.value
         )
 
+        # Overlog ("went overboard"): per-ticket hours logged BEYOND that
+        # ticket's own estimate. Only tickets that HAD an estimate (>0) count —
+        # an unestimated ticket has no baseline to exceed. Summed as the
+        # sprint's overboard total, and the offending tickets are listed so the
+        # PM can see WHICH ones blew their estimate (the sprint totals above use
+        # max(0, ...) which hides this).
+        overlogged_items: list[dict] = []
+        overlogged_hours = 0
+        for item in sprint_items:
+            est = item.estimated_hours or 0
+            item_logged = item.logged_hours or 0
+            if est > 0 and item_logged > est:
+                over = item_logged - est
+                overlogged_hours += over
+                overlogged_items.append(
+                    {
+                        "id": item.id,
+                        "key": item.key,
+                        "title": item.title,
+                        "estimated_hours": est,
+                        "logged_hours": item_logged,
+                        "over_hours": over,
+                    }
+                )
+
         sprint_hours.append(
             {
                 "sprint_id": sprint.id,
@@ -2816,6 +3115,8 @@ def get_hours_analytics(
                 "logged_hours": logged,
                 "remaining_hours": remaining,
                 "total_items": len(sprint_items),
+                "overlogged_hours": overlogged_hours,
+                "overlogged_items": overlogged_items,
             }
         )
 

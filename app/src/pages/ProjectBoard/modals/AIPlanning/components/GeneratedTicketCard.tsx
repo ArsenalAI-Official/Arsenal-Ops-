@@ -1,4 +1,4 @@
-import { Users, Target, ClipboardList, BookOpen, Bug } from 'lucide-react';
+import { Users, Target, ClipboardList, BookOpen, Bug, FileEdit, FlaskConical } from 'lucide-react';
 import { stripMarkdown } from '@/lib/markdown';
 import type { GeneratedTicket } from '../useAIPlanning';
 
@@ -8,6 +8,18 @@ const TYPE_CONFIG = {
   bug: { icon: Bug, color: '#EF4444', label: 'Bug', bg: 'rgba(239,68,68,0.15)' },
   epic: { icon: Target, color: '#A78BFA', label: 'Epic', bg: 'rgba(167,139,250,0.15)' },
   subtask: { icon: ClipboardList, color: '#FBBF24', label: 'Subtask', bg: 'rgba(251,191,36,0.15)' },
+  change_order: {
+    icon: FileEdit,
+    color: '#22D3EE',
+    label: 'Change Order',
+    bg: 'rgba(34,211,238,0.15)',
+  },
+  test_case: {
+    icon: FlaskConical,
+    color: '#F472B6',
+    label: 'Test Case',
+    bg: 'rgba(244,114,182,0.15)',
+  },
 };
 
 const PRIORITY_COLORS = {

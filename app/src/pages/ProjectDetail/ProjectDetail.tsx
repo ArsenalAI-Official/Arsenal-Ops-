@@ -271,6 +271,7 @@ const ProjectDetail = () => {
             (canAccessTab('tracker') ? (
               <TrackerTab
                 hubLoading={hubLoading}
+                projectId={id!}
                 sprints={sprints}
                 analytics={analytics}
                 sprintsExpanded={sprintsExpanded}

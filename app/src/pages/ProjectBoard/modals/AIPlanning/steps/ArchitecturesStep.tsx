@@ -8,6 +8,7 @@ interface ArchitecturesStepProps {
   analysis: PrdAnalysisResponse | null;
   roadmapSummary: RoadmapSummary | null;
   roadmapParsedData: RoadmapParsedData | null;
+  onSprintWeeksChange: (sprintNumber: number, newWeeks: number) => void;
   architectures: ProjectArchitectureResponse[];
   selectedArchitectureId: number | null;
   onSelectArchitecture: (archId: number) => void;
@@ -18,6 +19,7 @@ const ArchitecturesStep = ({
   analysis,
   roadmapSummary,
   roadmapParsedData,
+  onSprintWeeksChange,
   architectures,
   selectedArchitectureId,
   onSelectArchitecture,
@@ -75,6 +77,7 @@ const ArchitecturesStep = ({
         <RoadmapSummaryPanel
           roadmapSummary={roadmapSummary}
           roadmapParsedData={roadmapParsedData}
+          onSprintWeeksChange={onSprintWeeksChange}
         />
       )}
 

@@ -7,6 +7,7 @@ import { apiFetch } from '@/lib/api';
 import { toastErrorHandler } from '@/lib/mutationToast';
 import { applyWorkItemDetail } from '@/types/workItemMappers';
 import type { AddSubtaskFormValues } from '../AddSubtaskModal';
+import type { AddTestCaseFormValues } from '../AddTestCaseModal';
 import type { WorkItem } from '../types';
 import type { WorkItemPanelProps } from '../WorkItemPanel';
 
@@ -32,6 +33,7 @@ interface UseWorkItemPanelArgs {
   setIsEditing: (v: boolean) => void;
   setEditForm: (v: Partial<WorkItem>) => void;
   setShowAddSubtaskModal: (v: boolean) => void;
+  setShowAddTestCaseModal: (v: boolean) => void;
   logHoursRef: RefObject<HTMLInputElement | null>;
 }
 
@@ -41,6 +43,7 @@ export function useWorkItemPanel({
   setIsEditing,
   setEditForm,
   setShowAddSubtaskModal,
+  setShowAddTestCaseModal,
   logHoursRef,
 }: UseWorkItemPanelArgs) {
   const { item, currentUserId } = props;
@@ -140,6 +143,12 @@ export function useWorkItemPanel({
     return fullWorkItems.filter((wi) => wi.type === 'subtask' && wi.parent_id === subjectId);
   }, [fullWorkItems, item.id]);
 
+  const testCasesOfCurrent = useMemo(() => {
+    const subjectId = Number(item.id);
+    if (Number.isNaN(subjectId)) return [];
+    return fullWorkItems.filter((wi) => wi.type === 'test_case' && wi.parent_id === subjectId);
+  }, [fullWorkItems, item.id]);
+
   // ─── Compact mutations ─────────────────────────────────────────────────────
   const invalidateWorkItems = () => {
     queryClient.invalidateQueries({ queryKey: ['workItems'] });
@@ -232,6 +241,52 @@ export function useWorkItemPanel({
     onError: toastErrorHandler('create subtask'),
   });
 
+  // ─── Full-variant test-case mutation ───────────────────────────────────────
+  // A Test Case is a restricted child of a User Story: only title, description,
+  // and status. It has no hours/assignee/priority, so nothing propagates to the
+  // parent or epic on create.
+  const createTestCase = useMutation({
+    mutationFn: (form: AddTestCaseFormValues) => {
+      const projectId =
+        (item as WorkItem & { project_id?: number }).project_id ??
+        (props.variant === 'full' ? Number(props.projectId) : undefined);
+      if (!projectId) throw new Error('Missing project id');
+      return apiFetch('/api/workitems/', {
+        method: 'POST',
+        body: JSON.stringify({
+          project_id: projectId,
+          type: 'test_case',
+          title: form.title,
+          description: form.description || null,
+          parent_id: Number(item.id),
+        }),
+      });
+    },
+    onSuccess: () => {
+      setShowAddTestCaseModal(false);
+      toast.success('Test case added');
+      queryClient.invalidateQueries({ queryKey: ['workItems'] });
+      queryClient.invalidateQueries({ queryKey: ['workItem', item.id, 'detail'] });
+    },
+    onError: toastErrorHandler('create test case'),
+  });
+
+  // Inline status change for a test case listed under the current story — lets
+  // the user update status straight from the "Test Cases" list without opening
+  // it. Targets an arbitrary child id (not the current item).
+  const updateTestCaseStatus = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      apiFetch(`/api/workitems/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status }),
+      }),
+    onSuccess: () => {
+      invalidateWorkItems();
+      queryClient.invalidateQueries({ queryKey: ['workItem', item.id, 'detail'] });
+    },
+    onError: toastErrorHandler('update test case status'),
+  });
+
   // ─── Comment mutation (both variants) ─────────────────────────────────────
   const submitComment = useMutation({
     mutationFn: ({ content, type }: { content: string; type: CommentResponse['comment_type'] }) =>
@@ -274,10 +329,13 @@ export function useWorkItemPanel({
     epicExcludeIds,
     selectedItemHasChildren,
     subtasksOfCurrent,
+    testCasesOfCurrent,
     saveEditCompact,
     statusChangeCompact,
     logHoursCompact,
     createSubtask,
+    createTestCase,
+    updateTestCaseStatus,
     submitComment,
   };
 }

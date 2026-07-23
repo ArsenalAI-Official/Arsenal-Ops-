@@ -1,4 +1,4 @@
-import { Plus, Target, ClipboardList, Link2, List } from 'lucide-react';
+import { Plus, Target, ClipboardList, Link2, List, FlaskConical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { STATUS_CONFIG } from '../constants';
 import { avatarColor } from '../lib/renderContent';
@@ -8,18 +8,24 @@ export interface WorkItemFullHierarchyProps {
   item: WorkItem;
   fullWorkItems: WorkItem[];
   subtasksOfCurrent: WorkItem[];
+  testCasesOfCurrent: WorkItem[];
   projectId: string | undefined;
   navigate: (path: string) => void;
   onAddSubtask: () => void;
+  onAddTestCase: () => void;
+  onTestCaseStatusChange: (testCaseId: string, status: string) => void;
 }
 
 export const WorkItemFullHierarchy = ({
   item,
   fullWorkItems,
   subtasksOfCurrent,
+  testCasesOfCurrent,
   projectId,
   navigate,
   onAddSubtask,
+  onAddTestCase,
+  onTestCaseStatusChange,
 }: WorkItemFullHierarchyProps) => {
   const subjectType = item.type;
   const subjectId = parseInt(item.id);
@@ -90,8 +96,44 @@ export const WorkItemFullHierarchy = ({
     );
   };
 
-  // ── Subtask: only show parent ("Belongs to") ──────────────────────────
-  if (subjectType === 'subtask') {
+  // Lightweight row for Test Cases — they carry only title/description/status,
+  // so no avatar/hours/progress bar (unlike renderItemRow).
+  const renderTestCaseRow = (target: WorkItem) => {
+    const sc = STATUS_CONFIG[target.status as keyof typeof STATUS_CONFIG];
+    const open = () => navigate(`/project/${projectId}/board/${target.id}`);
+    const statusColor = sc?.color ?? '#737373';
+    return (
+      <div
+        key={target.id}
+        className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-[rgba(255,255,255,0.025)] border border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.1)] transition-colors"
+      >
+        <button
+          type="button"
+          onClick={open}
+          className="flex items-center gap-2.5 flex-1 min-w-0 text-left cursor-pointer"
+        >
+          <span className="text-[11px] text-[#737373] font-mono flex-shrink-0">{target.key}</span>
+          <span className="text-sm text-white truncate">{target.title}</span>
+        </button>
+        {/* Inline status change — update without opening the test case. */}
+        <select
+          aria-label={`Status for ${target.key}`}
+          value={target.status}
+          onChange={(e) => onTestCaseStatusChange(target.id, e.target.value)}
+          className="text-[10px] px-1.5 py-1 rounded font-medium uppercase tracking-wide flex-shrink-0 border-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-[rgba(255,255,255,0.25)]"
+          style={{ color: statusColor, background: `${statusColor}1a` }}
+        >
+          <option value="todo">To Do</option>
+          <option value="in_progress">In Progress</option>
+          <option value="in_review">In Review</option>
+          <option value="done">Done</option>
+        </select>
+      </div>
+    );
+  };
+
+  // ── Subtask / Test Case: only show parent ("Belongs to") ──────────────
+  if (subjectType === 'subtask' || subjectType === 'test_case') {
     const parentItem = item.parent_id
       ? fullWorkItems.find((wi) => wi.id === item.parent_id?.toString())
       : null;
@@ -146,6 +188,26 @@ export const WorkItemFullHierarchy = ({
           <Plus className="w-3.5 h-3.5 mr-1.5" /> Add a subtask
         </Button>
       </div>
+      {/* Test Cases — only User Stories can hold them. */}
+      {subjectType === 'user_story' && (
+        <div>
+          {sectionLabel(
+            <FlaskConical className="w-3.5 h-3.5" />,
+            `Test Cases${testCasesOfCurrent.length > 0 ? ` (${testCasesOfCurrent.length})` : ''}`,
+          )}
+          {testCasesOfCurrent.length > 0 && (
+            <div className="space-y-1.5 mb-3">{testCasesOfCurrent.map(renderTestCaseRow)}</div>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onAddTestCase}
+            className="w-full border border-dashed border-[rgba(255,255,255,0.08)] text-[#555] hover:bg-[rgba(255,255,255,0.04)] hover:text-white hover:border-[rgba(255,255,255,0.15)] rounded-lg h-9 text-xs"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1.5" /> Add a test case
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

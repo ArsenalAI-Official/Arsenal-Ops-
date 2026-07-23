@@ -1,7 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, useRef, Dispatch, SetStateAction } from 'react';
+import { useState, useRef, useCallback, Dispatch, SetStateAction } from 'react';
 import { toast } from 'sonner';
-import type { ProjectArchitectureResponse, PrdAnalysisResponse } from '@/client';
+import type {
+  ProjectArchitectureResponse,
+  PrdAnalysisResponse,
+  RebalanceSprintsResponse,
+} from '@/client';
 import { apiFetch } from '@/lib/api';
 import { invalidateProjectScope } from '@/lib/invalidations';
 import { toastErrorHandler } from '@/lib/mutationToast';
@@ -63,8 +67,11 @@ export interface RoadmapSprint {
   start_week: string;
   end_week: string;
   duration_weeks: number;
+  /** The ordered Monday week-dates this sprint covers (from the parser). Used
+   *  to re-partition when sprint lengths change. */
+  week_dates?: string[];
   task_count?: number;
-  tasks?: unknown[];
+  tasks?: string[];
   total_hours?: number;
 }
 
@@ -76,6 +83,10 @@ export interface RoadmapTicket {
   assignee?: string;
   milestone?: string;
   epic?: string;
+  /** Per-week hours ({ 'YYYY-MM-DD': hours }) — drives sprint assignment. */
+  week_hours?: Record<string, number>;
+  /** Weeks the task has any work in. */
+  active_weeks?: string[];
 }
 
 export interface RoadmapSummary {
@@ -182,6 +193,64 @@ export function useAIPlanning({
   const [sprintWeeks, setSprintWeeks] = useState<number>(2);
   const [roadmapSummary, setRoadmapSummary] = useState<RoadmapSummary | null>(null);
   const [roadmapParsedData, setRoadmapParsedData] = useState<RoadmapParsedData | null>(null);
+  // Fresh read of the parsed data for the async rebalance handler (avoids a
+  // stale closure without adding it to the callback's deps).
+  const roadmapParsedDataRef = useRef(roadmapParsedData);
+  roadmapParsedDataRef.current = roadmapParsedData;
+  // Latest-wins guard so a slow rebalance response can't clobber a newer edit.
+  const rebalanceReqId = useRef(0);
+
+  // Change one sprint's length (in weeks) in the preview before commit, so a
+  // project can have sprints of DIFFERENT lengths. The backend re-partitions the
+  // fixed week sequence and RE-ASSIGNS each task to a single sprint (full effort)
+  // via POST /roadmap/rebalance-sprints — the SAME parser.rebalance_sprints that
+  // /commit relies on, so preview and commit can't drift. Commit sends
+  // `roadmapParsedData` verbatim, so the recomputed sprints persist.
+  const setSprintDuration = useCallback(
+    async (sprintNumber: number, newWeeks: number) => {
+      const prev = roadmapParsedDataRef.current;
+      if (!prev?.sprints || prev.sprints.length === 0) return;
+      // The fixed, ordered set of project work-weeks (Mondays) the parser used.
+      const weeks = Array.from(new Set(prev.sprints.flatMap((s) => s.week_dates ?? []))).sort();
+      if (weeks.length === 0) return; // no week data — can't re-partition
+      const clamped = Math.max(1, newWeeks);
+      const durations = prev.sprints.map((s) =>
+        s.number === sprintNumber ? clamped : s.duration_weeks,
+      );
+      // Optimistically reflect the new length so rapid consecutive edits compose
+      // off each other; the server response replaces this with the authoritative
+      // re-partition below.
+      setRoadmapParsedData((cur) =>
+        cur?.sprints
+          ? {
+              ...cur,
+              sprints: cur.sprints.map((s) =>
+                s.number === sprintNumber ? { ...s, duration_weeks: clamped } : s,
+              ),
+            }
+          : cur,
+      );
+      const reqId = (rebalanceReqId.current += 1);
+      try {
+        const res = await apiFetch<RebalanceSprintsResponse>('/api/roadmap/rebalance-sprints', {
+          method: 'POST',
+          body: JSON.stringify({
+            weeks,
+            durations,
+            tickets: prev.tickets ?? [],
+            default_weeks: sprintWeeks,
+          }),
+        });
+        if (reqId !== rebalanceReqId.current) return; // a newer edit superseded this
+        setRoadmapParsedData((cur) =>
+          cur ? { ...cur, sprints: res.sprints as RoadmapSprint[] } : cur,
+        );
+      } catch (err) {
+        toastErrorHandler('update sprint length')(err);
+      }
+    },
+    [sprintWeeks],
+  );
   const [createdTicketCount, setCreatedTicketCount] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -289,6 +358,9 @@ export function useAIPlanning({
         body: formData,
       });
       setRoadmapSummary(data.summary);
+      // The parser now assigns each spanning task to a single sprint with its
+      // full effort (parser.calculate_sprints), so the preview already matches
+      // the PM tab after commit — no client-side rebalance needed.
       setRoadmapParsedData(data.parsed_data);
       setAiStep('architectures'); // Reuse architectures step for summary display
       toast.success('Roadmap parsed successfully!');
@@ -470,6 +542,7 @@ export function useAIPlanning({
     setSprintWeeks,
     roadmapSummary,
     roadmapParsedData,
+    setSprintDuration,
     // done
     createdTicketCount,
     // handlers
