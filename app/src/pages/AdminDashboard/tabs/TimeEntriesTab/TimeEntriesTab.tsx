@@ -14,10 +14,9 @@ import type { WorkforceStatus } from '../../types';
 /**
  * Admin Time Entries tab — a CEO-facing breakdown of every logged hour.
  *
- * A view switcher groups hours by Employee (default), Client, or Project. Each
+ * A view switcher groups hours by Employee (default) or Project. Each
  * view shows ranked totals with a share-of-total bar, expandable to a
- * context-aware secondary breakdown (employee→projects, client→projects,
- * project→employees).
+ * context-aware secondary breakdown (employee→projects, project→employees).
  *
  * Three filters compose with AND:
  *   - Date range (preset chips: Today / This week / This month / Last week / Last month / Custom)
@@ -30,16 +29,13 @@ import type { WorkforceStatus } from '../../types';
 interface TimeEntriesTabProps {
   projects: ProjectOption[];
   employees: EmployeeOption[];
-  /** Distinct QuickBooks client names, pre-sorted, for the Client filter. */
-  clients: string[];
 }
 
-const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ projects, employees, clients }) => {
+const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ projects, employees }) => {
   const [viewMode, setViewModeState] = useState<ViewMode>('employee');
   const [filters, setFilters] = useState<FiltersState>({
     projectId: null,
     developerId: null,
-    clientName: null,
     preset: 'this_week',
     customFrom: '',
     customTo: '',
@@ -94,23 +90,14 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ projects, employees, cl
     const params = new URLSearchParams();
     if (filters.projectId != null) params.set('project_id', String(filters.projectId));
     if (filters.developerId != null) params.set('developer_id', String(filters.developerId));
-    if (filters.clientName != null) params.set('client_name', filters.clientName);
     if (from) params.set('date_from', from);
     if (to) params.set('date_to', to);
     const s = params.toString();
     return s ? `?${s}` : '';
-  }, [filters.projectId, filters.developerId, filters.clientName, from, to]);
+  }, [filters.projectId, filters.developerId, from, to]);
 
   const entriesQuery = useQuery<TimeEntriesResponse>({
-    queryKey: [
-      'admin',
-      'time-entries',
-      filters.projectId,
-      filters.developerId,
-      filters.clientName,
-      from,
-      to,
-    ],
+    queryKey: ['admin', 'time-entries', filters.projectId, filters.developerId, from, to],
     queryFn: () => apiFetch<TimeEntriesResponse>(`/api/admin/time-entries${queryString}`),
     // Match the cadence other admin tabs use: refetch on focus but no
     // aggressive polling — time entries don't change often enough to warrant it.
@@ -163,7 +150,6 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ projects, employees, cl
   const hasAnyFilter =
     filters.projectId != null ||
     filters.developerId != null ||
-    filters.clientName != null ||
     filters.preset !== 'this_week' ||
     filters.customFrom !== '' ||
     filters.customTo !== '';
@@ -172,7 +158,6 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ projects, employees, cl
     setFilters({
       projectId: null,
       developerId: null,
-      clientName: null,
       preset: 'this_week',
       customFrom: '',
       customTo: '',
@@ -190,7 +175,7 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ projects, employees, cl
             Time Entries
           </h2>
           <p className="text-xs text-[#737373] mt-1">
-            Where every logged hour went — grouped by employee, client, or project.
+            Where every logged hour went — grouped by employee or project.
           </p>
         </div>
         {lastSyncLabel && (
@@ -211,12 +196,11 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ projects, employees, cl
         setFilters={setFilters}
         sortedProjects={sortedProjects}
         sortedEmployees={sortedEmployees}
-        clients={clients}
         hasAnyFilter={hasAnyFilter}
         onReset={resetFilters}
       />
 
-      {/* View switcher: group hours by employee (default), client, or project. */}
+      {/* View switcher: group hours by employee (default) or project. */}
       <div className="flex items-center justify-between gap-4">
         <ViewModeToggle value={viewMode} onChange={setViewMode} />
         <span className="text-xs text-[#737373]">

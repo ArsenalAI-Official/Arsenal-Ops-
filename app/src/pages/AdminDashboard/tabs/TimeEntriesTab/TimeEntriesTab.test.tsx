@@ -72,9 +72,7 @@ describe('TimeEntriesTab', () => {
   it('requests time entries and renders the aggregated rows', async () => {
     respondWith({ rows: [row({})], total_hours: 2, total_rows: 1, truncated: false });
 
-    renderWithQueryClient(
-      <TimeEntriesTab projects={projects} employees={employees} clients={[]} />,
-    );
+    renderWithQueryClient(<TimeEntriesTab projects={projects} employees={employees} />);
 
     // Once the query resolves, the entry renders as a row in the table body.
     // (The summary strip above the table is a date range + truncation notice,
@@ -108,9 +106,7 @@ describe('TimeEntriesTab', () => {
     });
 
     const user = userEvent.setup();
-    renderWithQueryClient(
-      <TimeEntriesTab projects={projects} employees={employees} clients={[]} />,
-    );
+    renderWithQueryClient(<TimeEntriesTab projects={projects} employees={employees} />);
 
     // One top-level employee/day row, summing all four entries to 11h.
     const table = await screen.findByRole('table');
@@ -143,9 +139,7 @@ describe('TimeEntriesTab', () => {
     );
 
     const user = userEvent.setup();
-    renderWithQueryClient(
-      <TimeEntriesTab projects={projects} employees={employees} clients={[]} />,
-    );
+    renderWithQueryClient(<TimeEntriesTab projects={projects} employees={employees} />);
 
     // Initial request (this-week preset) carries a date range but no project_id.
     await waitFor(() => expect(urls.length).toBeGreaterThan(0));
@@ -163,9 +157,7 @@ describe('TimeEntriesTab', () => {
   it('shows the empty state when no entries match', async () => {
     respondWith({ rows: [], total_hours: 0, total_rows: 0, truncated: false });
 
-    renderWithQueryClient(
-      <TimeEntriesTab projects={projects} employees={employees} clients={[]} />,
-    );
+    renderWithQueryClient(<TimeEntriesTab projects={projects} employees={employees} />);
 
     expect(await screen.findByText(/No time entries match your filters/i)).toBeTruthy();
   });
@@ -177,9 +169,7 @@ describe('TimeEntriesTab', () => {
       ),
     );
 
-    renderWithQueryClient(
-      <TimeEntriesTab projects={projects} employees={employees} clients={[]} />,
-    );
+    renderWithQueryClient(<TimeEntriesTab projects={projects} employees={employees} />);
 
     expect(await screen.findByText(/Failed to load time entries/i)).toBeTruthy();
   });
