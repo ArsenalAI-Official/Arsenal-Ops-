@@ -113,13 +113,19 @@ def meeting_breakdown(
         # (google_calendar_service), but mask again on read so a private event's
         # real title can never reach the admin UI even if a row was written by
         # another path (manual insert, visibility changed after a prior sync).
-        title = (
-            PRIVATE_EVENT_TITLE if getattr(ev, "visibility", "default") == "private" else ev.title
-        )
+        is_private = getattr(ev, "visibility", "default") == "private"
+        title = PRIVATE_EVENT_TITLE if is_private else ev.title
+        # Project is parsed from the title, so a private event exposes none —
+        # mask it here too, matching the title.
+        project = None if is_private else getattr(ev, "project", None)
 
         meetings_out.append(
             {
                 "title": title,
+                "project": project,
+                # Dormant flag — surfaced so the API shape is ready; always
+                # False until billing logic is wired up.
+                "billable": bool(getattr(ev, "billable", False)),
                 # Clamped start/end (not raw ev.*) so the displayed range matches
                 # the counted `hours` for boundary-spanning meetings. For the
                 # common in-week case these equal the raw event times.

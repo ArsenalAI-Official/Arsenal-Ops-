@@ -31,12 +31,16 @@ logger = logging.getLogger(__name__)
 _FIELDS = (
     "organizer_email",
     "title",
+    "project",
     "start_at",
     "end_at",
     "is_all_day",
     "response_status",
     "visibility",
 )
+# NOTE: `billable` is intentionally NOT synced. It isn't derivable from the
+# calendar (it's an app-managed flag, dormant for now), so the sync leaves it at
+# its model default on insert and never overwrites it on update.
 
 
 def reconcile_developer_events(

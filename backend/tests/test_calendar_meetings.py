@@ -35,7 +35,6 @@ from models import (  # noqa: F401
     developer,
     market_insight,
     persona,
-    project,
     project_file,
     project_goal,
     project_milestone,
@@ -63,7 +62,7 @@ from services.capacity_service import (
     meeting_breakdown,
     week_boundaries,
 )
-from services.google_calendar_service import parse_event
+from services.google_calendar_service import extract_project_from_title, parse_event
 
 # --------------- In-memory SQLite test DB ---------------
 TEST_DB_URL = "sqlite:///:memory:"
@@ -105,6 +104,7 @@ def test_parse_event_timed_accepted():
     assert ev is not None
     assert ev["google_event_id"] == "evt1"
     assert ev["title"] == "Sprint planning"
+    assert ev["project"] is None  # no "-" → doesn't follow the convention
     assert ev["response_status"] == "accepted"
     assert ev["is_all_day"] is False
     assert ev["visibility"] == "default"
@@ -140,6 +140,7 @@ def test_parse_event_private_hides_title():
     assert ev is not None
     assert ev["title"] == PRIVATE_EVENT_TITLE
     assert ev["visibility"] == "private"
+    assert ev["project"] is None  # masked title → no project parsed
 
 
 def test_parse_event_all_day():
@@ -178,16 +179,71 @@ def test_parse_event_missing_id_returns_none():
     assert parse_event(raw, DEV_EMAIL) is None
 
 
+@pytest.mark.parametrize(
+    ("title", "expected"),
+    [
+        ("Atlas-standup", "Atlas"),  # basic convention
+        ("Atlas - sprint review", "Atlas"),  # spaces around the dash trimmed
+        ("Atlas-client-review", "Atlas"),  # only the first dash splits
+        ("Sprint planning", None),  # no dash → not the convention
+        ("-orphan", None),  # empty project segment
+        ("", None),  # empty title
+        (None, None),  # missing title
+    ],
+)
+def test_extract_project_from_title(title, expected):
+    assert extract_project_from_title(title) == expected
+
+
+def test_parse_event_extracts_project_from_title():
+    raw = {
+        "id": "evt-proj",
+        "summary": "Atlas-daily standup",
+        "start": {"dateTime": "2026-06-10T09:00:00Z"},
+        "end": {"dateTime": "2026-06-10T09:30:00Z"},
+    }
+    ev = parse_event(raw, DEV_EMAIL)
+    assert ev is not None
+    assert ev["project"] == "Atlas"
+    assert ev["title"] == "Atlas-daily standup"
+
+
+def test_parse_event_private_with_dash_still_hides_project():
+    # A private event whose real title follows the convention must NOT leak the
+    # project — privacy wins over parsing.
+    raw = {
+        "id": "evt-priv-proj",
+        "summary": "Atlas-confidential 1:1",
+        "visibility": "private",
+        "start": {"dateTime": "2026-06-10T09:00:00Z"},
+        "end": {"dateTime": "2026-06-10T10:00:00Z"},
+    }
+    ev = parse_event(raw, DEV_EMAIL)
+    assert ev is not None
+    assert ev["title"] == PRIVATE_EVENT_TITLE
+    assert ev["project"] is None
+
+
 # =================== 2. meeting_breakdown (union math) ===================
 WS = datetime(2026, 6, 6, 0, 0, 0)  # a Saturday
 WE = WS + timedelta(days=6, hours=23, minutes=59, seconds=59)
 
 
 def _ev(
-    start, end, *, response_status="accepted", is_all_day=False, title="M", visibility="default"
+    start,
+    end,
+    *,
+    response_status="accepted",
+    is_all_day=False,
+    title="M",
+    visibility="default",
+    project=None,
+    billable=False,
 ):
     return SimpleNamespace(
         title=title,
+        project=project,
+        billable=billable,
         start_at=start,
         end_at=end,
         response_status=response_status,
@@ -249,6 +305,37 @@ def test_meeting_breakdown_masks_private_title():
     assert out[0]["hours"] == 1  # privacy masks the title only — hours still count
 
 
+def test_meeting_breakdown_surfaces_project_and_billable():
+    events = [
+        _ev(
+            datetime(2026, 6, 8, 9),
+            datetime(2026, 6, 8, 10),
+            title="Atlas-standup",
+            project="Atlas",
+            billable=True,
+        )
+    ]
+    _, out = meeting_breakdown(events, WS, WE)
+    assert out[0]["project"] == "Atlas"
+    assert out[0]["billable"] is True
+
+
+def test_meeting_breakdown_masks_private_project():
+    # Private events expose neither title nor project.
+    events = [
+        _ev(
+            datetime(2026, 6, 8, 9),
+            datetime(2026, 6, 8, 10),
+            title="Atlas-1:1",
+            project="Atlas",
+            visibility="private",
+        )
+    ]
+    _, out = meeting_breakdown(events, WS, WE)
+    assert out[0]["title"] == "Busy"
+    assert out[0]["project"] is None
+
+
 def test_meeting_hours_declined_excluded():
     events = [_ev(datetime(2026, 6, 8, 9), datetime(2026, 6, 8, 10), response_status="declined")]
     total, out = meeting_breakdown(events, WS, WE)
@@ -274,11 +361,12 @@ def _make_dev(db, email="dev@arsenalai.com"):
     return d
 
 
-def _parsed(event_id, start, end, title="M"):
+def _parsed(event_id, start, end, title="M", project=None):
     return {
         "google_event_id": event_id,
         "organizer_email": "o@arsenalai.com",
         "title": title,
+        "project": project,
         "start_at": start,
         "end_at": end,
         "is_all_day": False,
@@ -319,6 +407,22 @@ def test_reconcile_updates_changed_event(db):
     row = db.query(CalendarEvent).one()
     assert row.title == "New"
     assert row.end_at == datetime(2026, 6, 8, 11)
+
+
+def test_reconcile_persists_project_defaults_billable(db):
+    dev = _make_dev(db)
+    reconcile_developer_events(
+        db,
+        dev.id,
+        [_parsed("a", datetime(2026, 6, 8, 9), datetime(2026, 6, 8, 10), "Atlas-standup", "Atlas")],
+        WS,
+        WE,
+    )
+    db.commit()
+    row = db.query(CalendarEvent).one()
+    assert row.project == "Atlas"
+    # billable isn't synced — it stays at the model default.
+    assert row.billable is False
 
 
 def test_reconcile_deletes_cancelled_event(db):

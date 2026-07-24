@@ -62,6 +62,17 @@ class CalendarEvent(Base):
     # default / private
     visibility: Mapped[str] = mapped_column(String(20), default="default", nullable=False)
 
+    # Project this meeting belongs to, parsed from the title's
+    # `project_name-purpose` convention (the text before the first "-"). NULL
+    # when the title doesn't follow the convention or the event is private
+    # (its title is masked, so there's nothing to parse). Derived at sync time.
+    project: Mapped[str | None] = mapped_column(String(255))
+
+    # Whether these meeting hours are billable. Dormant for now — always False
+    # until billing logic is wired up. Stored so the schema is ready and the
+    # calendar sync doesn't touch it (it isn't derivable from the calendar).
+    billable: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     synced_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
     developer: Mapped["Developer"] = relationship("Developer")
@@ -83,5 +94,7 @@ class CalendarEvent(Base):
             "is_all_day": self.is_all_day,
             "response_status": self.response_status,
             "visibility": self.visibility,
+            "project": self.project,
+            "billable": self.billable,
             "synced_at": self.synced_at.isoformat() if self.synced_at else None,
         }
