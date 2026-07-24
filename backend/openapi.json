@@ -325,6 +325,75 @@
         "title": "BurndownPoint",
         "type": "object"
       },
+      "CalendarStatusResponse": {
+        "description": "Health snapshot for the Google Calendar card.\n\n`configured` mirrors `google_calendar_service.is_configured()`; when it's\nFalse the UI disables \"Sync now\" and the sync endpoint 200s with a\nnot_configured result rather than doing work. Counts are derived live \u2014\nthere's no persisted last-sync row (v1), so last-run detail rides on the\nsync response / email instead.",
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "developer_count": {
+            "title": "Developer Count",
+            "type": "integer"
+          },
+          "event_count": {
+            "title": "Event Count",
+            "type": "integer"
+          },
+          "sync_in_progress": {
+            "title": "Sync In Progress",
+            "type": "boolean"
+          },
+          "window_end": {
+            "title": "Window End",
+            "type": "string"
+          },
+          "window_start": {
+            "title": "Window Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "configured",
+          "sync_in_progress",
+          "developer_count",
+          "event_count",
+          "window_start",
+          "window_end"
+        ],
+        "title": "CalendarStatusResponse",
+        "type": "object"
+      },
+      "CalendarSyncResponse": {
+        "description": "Returned immediately from POST /sync.\n\nThe sync runs in a FastAPI BackgroundTask after the response is sent; the\nclicker gets a result email when it finishes (counts aren't known yet, and\nhitting Google per developer can take long enough that holding the request\nopen is poor UX).\n\nStates:\n  - started         \u2192 a background task was scheduled; email to follow.\n  - already_running \u2192 a sync is in progress (double-click, or the weekly\n                      ride-along mid-run). No task scheduled, no email.\n  - not_configured  \u2192 no service account; nothing to run.",
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "notify_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notify Email"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "message"
+        ],
+        "title": "CalendarSyncResponse",
+        "type": "object"
+      },
       "CommentCreate": {
         "properties": {
           "comment_type": {
@@ -6159,6 +6228,60 @@
           }
         },
         "summary": "Root"
+      }
+    },
+    "/api/admin/calendar/status": {
+      "get": {
+        "description": "Report whether the calendar integration is configured + a live snapshot.",
+        "operationId": "calendar_status_api_admin_calendar_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Calendar Status",
+        "tags": [
+          "calendar-integration"
+        ]
+      }
+    },
+    "/api/admin/calendar/sync": {
+      "post": {
+        "description": "Kick off a manual calendar sync in the background; return immediately.",
+        "operationId": "calendar_sync_api_admin_calendar_sync_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarSyncResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Calendar Sync",
+        "tags": [
+          "calendar-integration"
+        ]
       }
     },
     "/api/admin/developers/capacity": {

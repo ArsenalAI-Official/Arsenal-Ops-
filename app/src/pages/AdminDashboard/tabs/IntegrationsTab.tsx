@@ -1,4 +1,5 @@
-import { CheckCircle2, AlertTriangle, RefreshCw, Plug, PlugZap } from 'lucide-react';
+import { CalendarClock, CheckCircle2, AlertTriangle, RefreshCw, Plug, PlugZap } from 'lucide-react';
+import type { CalendarStatusResponse } from '@/client';
 import { Button } from '@/components/ui/button';
 import type { WorkforceIntegrationSafe } from '../types';
 
@@ -14,6 +15,11 @@ interface IntegrationsTabProps {
   onDisconnect: () => void;
   onSync: () => void;
   onRefreshClients: () => void;
+  // Google Calendar card — service-account integration (no connect flow).
+  calendarLoading: boolean;
+  calendarStatus: CalendarStatusResponse | null;
+  isCalendarSyncing: boolean;
+  onCalendarSync: () => void;
 }
 
 // Display timestamps in US Eastern time — the Arsenal team operates
@@ -108,6 +114,10 @@ const IntegrationsTab: React.FC<IntegrationsTabProps> = ({
   onDisconnect,
   onSync,
   onRefreshClients,
+  calendarLoading,
+  calendarStatus,
+  isCalendarSyncing,
+  onCalendarSync,
 }) => {
   if (loading) {
     return <div className="text-sm text-[#737373]">Loading integration status…</div>;
@@ -199,9 +209,113 @@ const IntegrationsTab: React.FC<IntegrationsTabProps> = ({
           )}
         </div>
       </div>
+
+      {/* ─── Google Calendar card ──────────────────────────────────── */}
+      <GoogleCalendarCard
+        loading={calendarLoading}
+        status={calendarStatus}
+        isSyncing={isCalendarSyncing}
+        onSync={onCalendarSync}
+      />
     </div>
   );
 };
+
+interface GoogleCalendarCardProps {
+  loading: boolean;
+  status: CalendarStatusResponse | null;
+  isSyncing: boolean;
+  onSync: () => void;
+}
+
+// Google Calendar is a domain-wide-delegation service account (configured once
+// via server env), so this card has NO connect/disconnect — just a configured
+// state, a health snapshot, and a manual "Sync now" that runs in the background
+// and emails the clicker the result.
+function GoogleCalendarCard({ loading, status, isSyncing, onSync }: GoogleCalendarCardProps) {
+  const configured = status?.configured ?? false;
+  // Disable the button while our own request is in flight OR a sync is already
+  // running (a prior click, or the weekly ride-along mid-run).
+  const syncInProgress = status?.sync_in_progress ?? false;
+  const window =
+    status?.window_start && status?.window_end
+      ? `${status.window_start} → ${status.window_end}`
+      : '—';
+
+  return (
+    <div className="bg-[#0d0d0d] border border-[rgba(255,255,255,0.05)] rounded-xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-[rgba(255,255,255,0.05)] flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-[rgba(96,165,250,0.1)] border border-[rgba(96,165,250,0.2)] flex items-center justify-center">
+            <CalendarClock className="w-5 h-5 text-sky-400" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-white">Google Calendar</h3>
+            <p className="text-xs text-[#737373] mt-0.5">
+              Pull each developer's meetings into their weekly capacity.
+            </p>
+          </div>
+        </div>
+        {!loading && <ConfiguredPill configured={configured} />}
+      </div>
+
+      <div className="px-5 py-4 space-y-4">
+        {loading ? (
+          <div className="text-sm text-[#737373]">Loading calendar status…</div>
+        ) : configured ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              <Field label="Developers" value={String(status?.developer_count ?? 0)} />
+              <Field label="Meetings this week" value={String(status?.event_count ?? 0)} />
+              <Field label="Week (Sat–Fri, UTC)" value={window} />
+            </div>
+            <div className="flex items-center gap-3 pt-2 flex-wrap">
+              <Button
+                onClick={onSync}
+                disabled={isSyncing || syncInProgress}
+                className="bg-[#E0B954] hover:bg-[#E0B954]/90 text-black"
+                title="Sync every developer's current-week meetings now. Runs in the background; you'll get an email with the results."
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+                {isSyncing ? 'Starting…' : syncInProgress ? 'Sync running…' : 'Sync now'}
+              </Button>
+              <span className="text-[11px] text-[#737373]">
+                Runs in the background — you'll get an email with the results when it finishes.
+              </span>
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-[#737373]">
+            Not configured. Set{' '}
+            <code className="text-[#a3a3a3] bg-[rgba(255,255,255,0.05)] rounded px-1 py-0.5">
+              GOOGLE_CALENDAR_SA_JSON
+            </code>{' '}
+            (or{' '}
+            <code className="text-[#a3a3a3] bg-[rgba(255,255,255,0.05)] rounded px-1 py-0.5">
+              GOOGLE_CALENDAR_SA_FILE
+            </code>
+            ) on the server — a Google Workspace domain-wide-delegation service account. There's no
+            per-user connect step.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ConfiguredPill({ configured }: { configured: boolean }) {
+  return configured ? (
+    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+      <CheckCircle2 className="w-3 h-3" />
+      Configured
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+      <AlertTriangle className="w-3 h-3" />
+      Not configured
+    </span>
+  );
+}
 
 function ConnectionPill({ connected }: { connected: boolean }) {
   return connected ? (
