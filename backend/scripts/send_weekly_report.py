@@ -7,6 +7,12 @@ Triggered by:
 Reads recipients and config from env. Exits 0 if everything sent (or there
 were no recipients to send to — opt-in by setting WEEKLY_REPORT_RECIPIENTS),
 exits 1 if any recipient failed.
+
+Also runs the Google Calendar → capacity sync as a best-effort "ride-along"
+before sending, so the same cron that fires this report keeps meeting hours
+fresh (there is no separate calendar cron). The sync runs even when there are
+no report recipients, and a sync failure never blocks the report or changes
+this script's exit code.
 """
 
 from __future__ import annotations
@@ -33,7 +39,31 @@ def _recipients() -> list[str]:
     return [r.strip() for r in raw.split(",") if r.strip()]
 
 
+def _run_calendar_sync() -> None:
+    """Best-effort Google Calendar → capacity sync (ride-along).
+
+    Runs the standalone sync CLI in-process so the weekly-report cron keeps
+    meeting hours fresh without a separate schedule. Never raises: any failure
+    (import, config, API) is logged and swallowed so it can't block the report.
+    """
+    try:
+        from scripts.sync_calendar_events import main as sync_calendar_events
+
+        log.info("Running calendar sync (ride-along) before weekly report…")
+        rc = sync_calendar_events()
+        if rc == 0:
+            log.info("Calendar sync completed.")
+        else:
+            log.warning("Calendar sync exited with code %d (report will still send).", rc)
+    except Exception:
+        log.exception("Calendar sync raised (report will still send).")
+
+
 def main() -> int:
+    # Ride-along: keep meeting hours fresh on the same cron tick. Best-effort —
+    # runs even with no recipients, and never affects the report's exit code.
+    _run_calendar_sync()
+
     recipients = _recipients()
     if not recipients:
         log.info("WEEKLY_REPORT_RECIPIENTS is empty — nothing to send. Exiting cleanly.")
