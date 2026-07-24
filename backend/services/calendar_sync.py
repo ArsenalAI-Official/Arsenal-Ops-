@@ -148,13 +148,16 @@ _sync_in_progress = False
 
 
 def is_sync_in_progress() -> bool:
-    """Best-effort peek: is a manual calendar sync running right now?
+    """Best-effort peek: is a manual calendar sync running IN THIS PROCESS?
 
     Purely a UX guard so a double-click doesn't schedule a second background
-    task — NOT a correctness lock. The reconcile is idempotent, so an
-    overlapping run (e.g. the weekly-report ride-along firing mid-click) is
-    harmless. Render runs a single worker, so an in-process flag suffices;
-    there's no cross-process coordination.
+    task — NOT a correctness lock. It's an in-memory flag set only by
+    `run_calendar_sync` (the manual path), so it does NOT see the weekly-report
+    ride-along or the standalone CLI: those run in a separate process and call
+    `sync_all_developers` directly. That's fine — the reconcile is idempotent,
+    so an overlapping run is harmless (at worst a couple of duplicate-key
+    inserts get counted as per-developer failures). There is deliberately no
+    cross-process coordination.
     """
     return _sync_in_progress
 

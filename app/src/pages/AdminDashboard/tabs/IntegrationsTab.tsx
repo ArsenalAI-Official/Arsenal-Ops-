@@ -237,7 +237,7 @@ function GoogleCalendarCard({ loading, status, isSyncing, onSync }: GoogleCalend
   // Disable the button while our own request is in flight OR a sync is already
   // running (a prior click, or the weekly ride-along mid-run).
   const syncInProgress = status?.sync_in_progress ?? false;
-  const window =
+  const weekLabel =
     status?.window_start && status?.window_end
       ? `${status.window_start} → ${status.window_end}`
       : '—';
@@ -267,7 +267,7 @@ function GoogleCalendarCard({ loading, status, isSyncing, onSync }: GoogleCalend
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
               <Field label="Developers" value={String(status?.developer_count ?? 0)} />
               <Field label="Meetings this week" value={String(status?.event_count ?? 0)} />
-              <Field label="Week (Sat–Fri, UTC)" value={window} />
+              <Field label="Week (Sat–Fri, UTC)" value={weekLabel} />
             </div>
             <div className="flex items-center gap-3 pt-2 flex-wrap">
               <Button

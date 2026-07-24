@@ -214,6 +214,26 @@ def test_sync_requires_capability(test_client, dev_user):
     assert resp.status_code == 403
 
 
+def test_background_wrapper_emails_even_when_locked(monkeypatch):
+    # A second concurrent request can slip past the endpoint peek and latch
+    # `locked` in the background task. The clicker was told "you'll get an
+    # email", so we must still send one (rendered as "Already running") rather
+    # than silently drop it — see _run_calendar_sync_and_email.
+    monkeypatch.setattr(cal_router, "SessionLocal", lambda: _DummySession())
+    monkeypatch.setattr(cal_router, "run_calendar_sync", lambda *a, **k: {"status": "locked"})
+    sent: dict = {}
+    monkeypatch.setattr(
+        cal_router,
+        "send_sync_notification",
+        lambda recipients, result, **k: sent.update(recipients=recipients, result=result),
+    )
+
+    cal_router._run_calendar_sync_and_email("clicker@arsenalai.com", "Clicker")
+
+    assert sent["recipients"] == ["clicker@arsenalai.com"]
+    assert sent["result"]["status"] == "locked"
+
+
 class _DummySession:
     """Minimal SessionLocal() stand-in for the background task test."""
 

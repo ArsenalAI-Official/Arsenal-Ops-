@@ -66,8 +66,12 @@ class CalendarSyncResponse(BaseModel):
 
     States:
       - started         → a background task was scheduled; email to follow.
-      - already_running → a sync is in progress (double-click, or the weekly
-                          ride-along mid-run). No task scheduled, no email.
+      - already_running → another sync is in progress IN THIS WEB WORKER (the
+                          common case is a double-click). No task scheduled.
+                          NOTE: the guard is an in-process flag, so it does NOT
+                          see the weekly-report ride-along, which runs in a
+                          separate cron process — an overlapping run there is
+                          harmless because the reconcile is idempotent.
       - not_configured  → no service account; nothing to run.
     """
 
@@ -125,11 +129,12 @@ def _run_calendar_sync_and_email(triggered_by_email: str | None, triggered_by_la
     finally:
         db.close()
 
-    # `locked` shouldn't happen (the endpoint peeked first), but if it does
-    # we skip the email — the running sync will send its own.
-    if result.get("status") == "locked":
-        return
-
+    # Always email the clicker — including on `locked`. The endpoint's
+    # pre-schedule peek is best-effort (a second concurrent request can slip
+    # through between the peek and this task latching the guard), so `locked`
+    # can reach here. The template renders it as "Already running", which keeps
+    # the promise the `started` response made: a DISTINCT clicker who was told
+    # "you'll get an email" would otherwise get nothing.
     recipients = [triggered_by_email] if triggered_by_email else []
     try:
         send_sync_notification(
