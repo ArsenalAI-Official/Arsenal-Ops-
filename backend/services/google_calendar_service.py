@@ -34,6 +34,22 @@ CALENDAR_READONLY_SCOPE = "https://www.googleapis.com/auth/calendar.readonly"
 from models.calendar_event import PRIVATE_EVENT_TITLE  # noqa: E402
 
 
+def extract_project_from_title(title: str | None) -> str | None:
+    """Parse the project name from a meeting title.
+
+    Convention: titles are `project_name-purpose` (e.g. "Atlas-standup" or
+    "Atlas - sprint review"). The project is the text before the FIRST "-",
+    trimmed. Returns None when the title doesn't follow the convention — no "-"
+    present, or an empty project segment (e.g. "-orphan"). Pure function.
+    """
+    if not title:
+        return None
+    head, sep, _purpose = title.partition("-")
+    if not sep:
+        return None
+    return head.strip() or None
+
+
 def _to_utc_naive(dt: datetime) -> datetime:
     """Normalize an aware (or naive) datetime to UTC and drop tzinfo.
 
@@ -81,6 +97,10 @@ def parse_event(raw: dict, dev_email: str) -> dict | None:
     is_private = visibility in ("private", "confidential")
     title = PRIVATE_EVENT_TITLE if is_private else (raw.get("summary") or PRIVATE_EVENT_TITLE)
 
+    # Parse the project from the REAL summary (never the masked title). Private
+    # events have no parseable title, so their project stays None.
+    project = None if is_private else extract_project_from_title(raw.get("summary"))
+
     organizer_email = (raw.get("organizer") or {}).get("email")
 
     # Response status: find this developer's attendee entry; fall back to the
@@ -101,6 +121,7 @@ def parse_event(raw: dict, dev_email: str) -> dict | None:
         "google_event_id": event_id,
         "organizer_email": organizer_email,
         "title": title,
+        "project": project,
         "start_at": start_at,
         "end_at": end_at,
         "is_all_day": is_all_day,

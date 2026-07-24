@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 from mcp_server import mcp_app, oauth_well_known_routes  # noqa: E402
 from routers.admin import router as admin_router  # noqa: E402
 from routers.auth import router as auth_router  # noqa: E402
+from routers.calendar_integration import router as calendar_integration_router  # noqa: E402
 from routers.comments import router as comments_router  # noqa: E402
 from routers.developers import router as developers_router  # noqa: E402
 from routers.overview import router as overview_router  # noqa: E402
@@ -164,6 +165,7 @@ app.include_router(pulse_router)
 app.include_router(project_categories_router)
 app.include_router(workforce_router)
 app.include_router(workforce_callback_router)
+app.include_router(calendar_integration_router)
 
 # Mount the MCP server as a sub-app. With http_app(path="/"), the streamable
 # HTTP endpoint is /mcp/ (clients connect to /mcp). Auth + RBAC are enforced

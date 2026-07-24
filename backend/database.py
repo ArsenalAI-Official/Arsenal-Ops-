@@ -971,6 +971,36 @@ def run_migrations():
             # composite PK applies to fresh creates.
             print(f"[MIGRATION INFO] workforce_clients PK check skipped: {e}")
 
+        # Migration: Add project + billable columns to calendar_events.
+        # `project` is parsed from the meeting title's `project_name-purpose`
+        # convention (NULL when the title doesn't follow it or the event is
+        # private). `billable` is dormant for now — always FALSE until billing
+        # logic is wired up. Both are added to the table create_all() built when
+        # the calendar feature first landed; fresh installs get them from the
+        # model and this check no-ops.
+        for _col, _ddl in (
+            ("project", "ALTER TABLE calendar_events ADD COLUMN project VARCHAR(255)"),
+            (
+                "billable",
+                "ALTER TABLE calendar_events ADD COLUMN billable BOOLEAN DEFAULT FALSE NOT NULL",
+            ),
+        ):
+            try:
+                result = conn.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_name = 'calendar_events' AND column_name = :col"
+                    ),
+                    {"col": _col},
+                )
+                if not result.fetchone():
+                    print(f"[MIGRATION] Adding {_col} column to calendar_events...")
+                    conn.execute(text(_ddl))
+                    conn.commit()
+                    print(f"[MIGRATION] calendar_events.{_col} added successfully!")
+            except Exception as e:
+                print(f"[MIGRATION ERROR] calendar_events.{_col}: {e}")
+
 
 SYSTEM_ROLES: list[tuple[str, str, list[str]]] = [
     ("admin", "Full system access", ["*"]),

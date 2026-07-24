@@ -19,6 +19,10 @@ export interface CapacityTicket {
 // app/CLAUDE.md. TODO(audit-FT1))
 export interface CapacityMeeting {
   title: string;
+  // Project parsed from the title's `project_name-purpose` convention, or null
+  // when it doesn't follow it / the event is private. Optional so a cached
+  // payload from before this field existed degrades to "untagged".
+  project?: string | null;
   start_at: string | null;
   end_at: string | null;
   hours: number;

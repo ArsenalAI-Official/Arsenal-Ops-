@@ -18,7 +18,9 @@ reconcile clean.
 from __future__ import annotations
 
 import logging
+import threading
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -31,12 +33,16 @@ logger = logging.getLogger(__name__)
 _FIELDS = (
     "organizer_email",
     "title",
+    "project",
     "start_at",
     "end_at",
     "is_all_day",
     "response_status",
     "visibility",
 )
+# NOTE: `billable` is intentionally NOT synced. It isn't derivable from the
+# calendar (it's an app-managed flag, dormant for now), so the sync leaves it at
+# its model default on insert and never overwrites it on update.
 
 
 def reconcile_developer_events(
@@ -127,3 +133,105 @@ def sync_all_developers(
 
     db.commit()
     return totals
+
+
+# ── Manual-trigger orchestration (Admin → Integrations "Sync now") ─────────
+#
+# `run_calendar_sync` wraps `sync_all_developers` with the config check, the
+# current capacity-week window, a status classification, and a best-effort
+# in-progress guard. It's what the admin HTTP endpoint runs in a background
+# task; the CLI (`scripts/sync_calendar_events.py`) and the weekly-report
+# ride-along keep calling `sync_all_developers` directly.
+
+_sync_lock = threading.Lock()
+_sync_in_progress = False
+
+
+def is_sync_in_progress() -> bool:
+    """Best-effort peek: is a manual calendar sync running IN THIS PROCESS?
+
+    Purely a UX guard so a double-click doesn't schedule a second background
+    task — NOT a correctness lock. It's an in-memory flag set only by
+    `run_calendar_sync` (the manual path), so it does NOT see the weekly-report
+    ride-along or the standalone CLI: those run in a separate process and call
+    `sync_all_developers` directly. That's fine — the reconcile is idempotent,
+    so an overlapping run is harmless (at worst a couple of duplicate-key
+    inserts get counted as per-developer failures). There is deliberately no
+    cross-process coordination.
+    """
+    return _sync_in_progress
+
+
+def run_calendar_sync(db: Session, service: Any = None, *, triggered_by: str = "manual") -> dict:
+    """Sync every internal developer's current capacity-week calendar.
+
+    Returns a result dict shaped for the API response, the result email, and
+    log lines::
+
+        {status, developers, inserted, updated, deleted, failed,
+         window_start, window_end, reason?}
+
+    ``status`` is one of ``ok`` / ``partial`` (some developers failed) /
+    ``error`` (the whole run raised) / ``not_configured`` / ``locked``.
+    Never raises for the normal outcomes — they're carried on ``status``.
+    """
+    global _sync_in_progress
+
+    from services.capacity_service import week_boundaries
+    from services.google_calendar_service import google_calendar_service
+
+    svc = service or google_calendar_service
+    week_start, week_end = week_boundaries()
+    base = {
+        "developers": 0,
+        "inserted": 0,
+        "updated": 0,
+        "deleted": 0,
+        "failed": 0,
+        "window_start": week_start.date().isoformat(),
+        "window_end": week_end.date().isoformat(),
+    }
+
+    if not svc.is_configured():
+        return {
+            **base,
+            "status": "not_configured",
+            "reason": (
+                "Google Calendar service account isn't configured "
+                "(set GOOGLE_CALENDAR_SA_JSON or GOOGLE_CALENDAR_SA_FILE)."
+            ),
+        }
+
+    with _sync_lock:
+        if _sync_in_progress:
+            return {
+                **base,
+                "status": "locked",
+                "reason": "Another calendar sync is already running.",
+            }
+        _sync_in_progress = True
+
+    try:
+        try:
+            totals = sync_all_developers(db, svc, week_start, week_end)
+        except Exception as e:
+            logger.exception("[calendar_sync] %s run failed", triggered_by)
+            return {**base, "status": "error", "reason": f"Calendar sync failed: {e}"}
+        result = {**base, **totals}
+        result["status"] = "partial" if totals.get("failed") else "ok"
+        logger.info(
+            "[calendar_sync] %s done status=%s developers=%s +%s ~%s -%s failed=%s window=%s..%s",
+            triggered_by,
+            result["status"],
+            result["developers"],
+            result["inserted"],
+            result["updated"],
+            result["deleted"],
+            result["failed"],
+            result["window_start"],
+            result["window_end"],
+        )
+        return result
+    finally:
+        with _sync_lock:
+            _sync_in_progress = False

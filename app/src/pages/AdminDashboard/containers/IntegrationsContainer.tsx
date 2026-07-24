@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { useCalendarSync } from '../hooks/useCalendarSync';
 import { useRefreshWorkforceClients, useWorkforceAdmin } from '../hooks/useWorkforceAdmin';
 import IntegrationsTab from '../tabs/IntegrationsTab';
 
@@ -55,6 +56,8 @@ export default function IntegrationsContainer() {
   const { confirm, confirmDialog } = useConfirm();
   const { statusQuery, connectMutation, disconnectMutation, syncMutation } = useWorkforceAdmin();
   const refreshClientsMutation = useRefreshWorkforceClients();
+  const { statusQuery: calendarStatusQuery, syncMutation: calendarSyncMutation } =
+    useCalendarSync();
 
   useOAuthCallbackToasts();
 
@@ -101,6 +104,10 @@ export default function IntegrationsContainer() {
         onDisconnect={handleDisconnect}
         onSync={handleForceSync}
         onRefreshClients={() => refreshClientsMutation.mutate()}
+        calendarLoading={calendarStatusQuery.isLoading}
+        calendarStatus={calendarStatusQuery.data ?? null}
+        isCalendarSyncing={calendarSyncMutation.isPending}
+        onCalendarSync={() => calendarSyncMutation.mutate()}
       />
       {confirmDialog}
     </>

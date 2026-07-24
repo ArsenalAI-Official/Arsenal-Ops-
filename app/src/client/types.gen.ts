@@ -204,6 +204,79 @@ export type BurndownPoint = {
 };
 
 /**
+ * CalendarStatusResponse
+ *
+ * Health snapshot for the Google Calendar card.
+ *
+ * `configured` mirrors `google_calendar_service.is_configured()`; when it's
+ * False the UI disables "Sync now" and the sync endpoint 200s with a
+ * not_configured result rather than doing work. Counts are derived live —
+ * there's no persisted last-sync row (v1), so last-run detail rides on the
+ * sync response / email instead.
+ */
+export type CalendarStatusResponse = {
+  /**
+   * Configured
+   */
+  configured: boolean;
+  /**
+   * Developer Count
+   */
+  developer_count: number;
+  /**
+   * Event Count
+   */
+  event_count: number;
+  /**
+   * Sync In Progress
+   */
+  sync_in_progress: boolean;
+  /**
+   * Window End
+   */
+  window_end: string;
+  /**
+   * Window Start
+   */
+  window_start: string;
+};
+
+/**
+ * CalendarSyncResponse
+ *
+ * Returned immediately from POST /sync.
+ *
+ * The sync runs in a FastAPI BackgroundTask after the response is sent; the
+ * clicker gets a result email when it finishes (counts aren't known yet, and
+ * hitting Google per developer can take long enough that holding the request
+ * open is poor UX).
+ *
+ * States:
+ * - started         → a background task was scheduled; email to follow.
+ * - already_running → another sync is in progress IN THIS WEB WORKER (the
+ * common case is a double-click). No task scheduled.
+ * NOTE: the guard is an in-process flag, so it does NOT
+ * see the weekly-report ride-along, which runs in a
+ * separate cron process — an overlapping run there is
+ * harmless because the reconcile is idempotent.
+ * - not_configured  → no service account; nothing to run.
+ */
+export type CalendarSyncResponse = {
+  /**
+   * Message
+   */
+  message: string;
+  /**
+   * Notify Email
+   */
+  notify_email?: string | null;
+  /**
+   * Status
+   */
+  status: string;
+};
+
+/**
  * CommentCreate
  */
 export type CommentCreate = {
@@ -3492,6 +3565,40 @@ export type RootHeadResponses = {
    */
   200: unknown;
 };
+
+export type CalendarStatusApiAdminCalendarStatusGetData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/admin/calendar/status';
+};
+
+export type CalendarStatusApiAdminCalendarStatusGetResponses = {
+  /**
+   * Successful Response
+   */
+  200: CalendarStatusResponse;
+};
+
+export type CalendarStatusApiAdminCalendarStatusGetResponse =
+  CalendarStatusApiAdminCalendarStatusGetResponses[keyof CalendarStatusApiAdminCalendarStatusGetResponses];
+
+export type CalendarSyncApiAdminCalendarSyncPostData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: '/api/admin/calendar/sync';
+};
+
+export type CalendarSyncApiAdminCalendarSyncPostResponses = {
+  /**
+   * Successful Response
+   */
+  200: CalendarSyncResponse;
+};
+
+export type CalendarSyncApiAdminCalendarSyncPostResponse =
+  CalendarSyncApiAdminCalendarSyncPostResponses[keyof CalendarSyncApiAdminCalendarSyncPostResponses];
 
 export type GetDevelopersCapacityApiAdminDevelopersCapacityGetData = {
   body?: never;
