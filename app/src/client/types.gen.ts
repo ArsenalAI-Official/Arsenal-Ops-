@@ -253,8 +253,12 @@ export type CalendarStatusResponse = {
  *
  * States:
  * - started         → a background task was scheduled; email to follow.
- * - already_running → a sync is in progress (double-click, or the weekly
- * ride-along mid-run). No task scheduled, no email.
+ * - already_running → another sync is in progress IN THIS WEB WORKER (the
+ * common case is a double-click). No task scheduled.
+ * NOTE: the guard is an in-process flag, so it does NOT
+ * see the weekly-report ride-along, which runs in a
+ * separate cron process — an overlapping run there is
+ * harmless because the reconcile is idempotent.
  * - not_configured  → no service account; nothing to run.
  */
 export type CalendarSyncResponse = {

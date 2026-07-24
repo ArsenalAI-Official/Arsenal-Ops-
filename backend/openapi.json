@@ -365,7 +365,7 @@
         "type": "object"
       },
       "CalendarSyncResponse": {
-        "description": "Returned immediately from POST /sync.\n\nThe sync runs in a FastAPI BackgroundTask after the response is sent; the\nclicker gets a result email when it finishes (counts aren't known yet, and\nhitting Google per developer can take long enough that holding the request\nopen is poor UX).\n\nStates:\n  - started         \u2192 a background task was scheduled; email to follow.\n  - already_running \u2192 a sync is in progress (double-click, or the weekly\n                      ride-along mid-run). No task scheduled, no email.\n  - not_configured  \u2192 no service account; nothing to run.",
+        "description": "Returned immediately from POST /sync.\n\nThe sync runs in a FastAPI BackgroundTask after the response is sent; the\nclicker gets a result email when it finishes (counts aren't known yet, and\nhitting Google per developer can take long enough that holding the request\nopen is poor UX).\n\nStates:\n  - started         \u2192 a background task was scheduled; email to follow.\n  - already_running \u2192 another sync is in progress IN THIS WEB WORKER (the\n                      common case is a double-click). No task scheduled.\n                      NOTE: the guard is an in-process flag, so it does NOT\n                      see the weekly-report ride-along, which runs in a\n                      separate cron process \u2014 an overlapping run there is\n                      harmless because the reconcile is idempotent.\n  - not_configured  \u2192 no service account; nothing to run.",
         "properties": {
           "message": {
             "title": "Message",
