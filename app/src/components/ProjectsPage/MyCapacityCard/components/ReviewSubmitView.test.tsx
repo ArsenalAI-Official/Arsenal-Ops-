@@ -183,6 +183,42 @@ describe('<ReviewSubmitView />', () => {
     expect(screen.getByText(/Not yet submitted/i)).toBeInTheDocument();
   });
 
+  it('tags each meeting line with its project, or "untagged" when unparsed', async () => {
+    seedTimesheet(baseTimesheet);
+    // Two meetings on Monday (2026-06-22): one whose title follows the
+    // project_name-purpose convention (project parsed), one that doesn't.
+    renderWithQueryClient(
+      <ReviewSubmitView
+        onBack={onBackNoop}
+        meetings={[
+          {
+            title: 'Atlas-standup',
+            project: 'Atlas',
+            start_at: '2026-06-22T09:00:00',
+            end_at: '2026-06-22T09:30:00',
+            hours: 0.5,
+          },
+          {
+            title: 'All-hands',
+            project: null,
+            start_at: '2026-06-22T10:00:00',
+            end_at: '2026-06-22T11:00:00',
+            hours: 1,
+          },
+        ]}
+      />,
+    );
+
+    // Both meeting titles render on the Monday card.
+    expect(await screen.findByText('Atlas-standup')).toBeInTheDocument();
+    expect(screen.getByText('All-hands')).toBeInTheDocument();
+    // The tagged meeting surfaces its project chip ('Atlas' is exact — it does
+    // not match the 'Atlas-standup' title node).
+    expect(screen.getByText('Atlas')).toBeInTheDocument();
+    // The unparsed meeting shows the muted "untagged" label.
+    expect(screen.getByText('untagged')).toBeInTheDocument();
+  });
+
   it('renders an "Unlinked projects" section when present', async () => {
     seedTimesheet({
       ...baseTimesheet,

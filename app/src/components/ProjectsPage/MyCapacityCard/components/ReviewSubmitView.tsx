@@ -651,6 +651,26 @@ const todayIso = (): string => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+/** Small inline tag on a meeting line: the project parsed from the title's
+ *  `project_name-purpose` convention, or a muted "untagged" when the title
+ *  doesn't follow it (or the event is private). */
+const MeetingProjectTag = ({ project }: { project?: string | null }) =>
+  project ? (
+    <span
+      className="text-[10px] text-[#a3a3a3] bg-[rgba(255,255,255,0.05)] rounded px-1.5 py-0.5 shrink-0 max-w-[120px] truncate"
+      title={`Project: ${project}`}
+    >
+      {project}
+    </span>
+  ) : (
+    <span
+      className="text-[10px] text-[#525252] italic shrink-0"
+      title="No project — the meeting title doesn't follow the project-purpose naming convention"
+    >
+      untagged
+    </span>
+  );
+
 const DayBlock = ({
   day,
   meetings,
@@ -922,6 +942,7 @@ const DayBlock = ({
                         <div className="text-[10px] text-[#737373] tabular-nums">{timeLabel}</div>
                       )}
                     </div>
+                    <MeetingProjectTag project={m.project} />
                     <span
                       className="font-mono tabular-nums shrink-0"
                       style={{ color: MEETING_COLOR }}
